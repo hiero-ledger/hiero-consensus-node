@@ -113,8 +113,10 @@ public class InitialStateLoader {
             final int roundsNonAncient =
                     inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
             buildingBlocks
-                    .platformCoordinator()
-                    .updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+                    .initialEventWindowDispatcher()
+                    .getInputWire()
+                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+            buildingBlocks.gossipModule().flush();
             buildingBlocks
                     .issDetectionModule()
                     .overridingStateInputWire()

@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -443,6 +444,67 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(future);
         verifyNoInteractions(client);
         verifyNoInteractions(clientFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testClose_preSetInterruptFlag_closeClientTaskStillRuns() throws Exception {
+        // Use a real single-thread executor, with its thread pre-blocked so that CloseClientTask
+        // is forced into the queue and cannot run until we release it. This makes it deterministic:
+        // with the bug, cancel(true) kills the queued task before it runs; with the fix it runs.
+        final CountDownLatch unblockExecutorLatch = new CountDownLatch(1);
+        final CountDownLatch executorBlockedLatch = new CountDownLatch(1);
+        final java.util.concurrent.ExecutorService realExecutor = Executors.newSingleThreadExecutor();
+        try {
+            realExecutor.execute(() -> {
+                executorBlockedLatch.countDown();
+                try {
+                    unblockExecutorLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertThat(executorBlockedLatch.await(5, TimeUnit.SECONDS)).isTrue();
+
+            final BlockNodeServiceConnection conn = new BlockNodeServiceConnection(
+                    createConfigProvider(createDefaultConfigProvider()),
+                    nodeConfiguration,
+                    realExecutor,
+                    clientFactory,
+                    NODE_ID);
+
+            // Force into ACTIVE state with the same shared client mock
+            ((AtomicReference<ServiceClientHolder>) clientRefHandle.get(conn)).set(new ServiceClientHolder(1, client));
+            ((AtomicReference<ConnectionState>) connectionStateHandle.get(conn)).set(ConnectionState.ACTIVE);
+
+            // Call close() from a virtual thread with the interrupt flag already set.
+            // The executor is busy so CloseClientTask goes into the queue.
+            //   Bug:  future.get() throws immediately -> cancel(true) -> task cancelled -> client.close() NOT called
+            //   Fix:  interrupt flag drained -> future.get() blocks  -> task runs     -> client.close() IS called
+            final CountDownLatch closeDone = new CountDownLatch(1);
+            Thread.ofVirtual().start(() -> {
+                Thread.currentThread().interrupt(); // pre-set the interrupt flag
+                conn.close();
+                closeDone.countDown();
+            });
+
+            // Allow close() to begin and reach future.get() (either block or throw immediately),
+            // then release the executor so the queued task can run.
+            Thread.sleep(100);
+            unblockExecutorLatch.countDown();
+
+            assertThat(closeDone.await(5, TimeUnit.SECONDS)).isTrue();
+            realExecutor.shutdown();
+            assertThat(realExecutor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+
+            // Verify the CloseClientTask ran (gRPC channel closed) despite the pre-set interrupt flag
+            verify(client).close();
+            assertThat(((AtomicReference<ConnectionState>) connectionStateHandle.get(conn)))
+                    .hasValue(ConnectionState.CLOSED);
+        } finally {
+            unblockExecutorLatch.countDown();
+            realExecutor.shutdownNow();
+        }
     }
 
     @Test

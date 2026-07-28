@@ -33,7 +33,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.wiring;
     exports com.swirlds.platform;
     exports org.hiero.consensus;
 
