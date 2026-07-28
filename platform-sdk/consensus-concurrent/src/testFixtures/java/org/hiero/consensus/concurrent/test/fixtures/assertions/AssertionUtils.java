@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public class AssertionUtils {
@@ -21,12 +22,9 @@ public class AssertionUtils {
     /**
      * Run an operation and throw an exception if it takes too long.
      *
-     * @param operation
-     * 		the operation to run
-     * @param maxDuration
-     * 		the maximum amount of time to wait for the operation to complete
-     * @param message
-     * 		an error message if the operation takes too long
+     * @param operation   the operation to run
+     * @param maxDuration the maximum amount of time to wait for the operation to complete
+     * @param message     an error message if the operation takes too long
      */
     public static void completeBeforeTimeout(
             final InterruptableRunnable operation, final Duration maxDuration, final String message)
@@ -35,9 +33,7 @@ public class AssertionUtils {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean error = new AtomicBoolean();
 
-        new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("assertion-utils")
-                .setThreadName("assert-prompt-completion")
+        final ThreadConfiguration tc = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(() -> {
                     operation.run();
                     latch.countDown();
@@ -45,8 +41,12 @@ public class AssertionUtils {
                 .setExceptionHandler((final Thread thread, final Throwable exception) -> {
                     error.set(true);
                     exception.printStackTrace();
-                })
-                .build(true);
+                });
+        tc.setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
+                .setComponent("assertion-utils")
+                .setThreadName("assert-prompt-completion"));
+
+        tc.build(true);
 
         assertFalse(error.get(), "exception encountered while handling operation");
         final boolean completed = latch.await(maxDuration.toMillis(), MILLISECONDS);
@@ -56,12 +56,9 @@ public class AssertionUtils {
     /**
      * Run an operation and throw an exception if it takes too long.
      *
-     * @param operation
-     * 		the operation to run
-     * @param maxDuration
-     * 		the maximum amount of time to wait for the operation to complete
-     * @param message
-     * 		an error message if the operation takes too long
+     * @param operation   the operation to run
+     * @param maxDuration the maximum amount of time to wait for the operation to complete
+     * @param message     an error message if the operation takes too long
      * @return the value returned by the operation
      */
     public static <T> T completeBeforeTimeout(
@@ -73,8 +70,7 @@ public class AssertionUtils {
         final AtomicReference<T> value = new AtomicReference<>();
 
         new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("assertion-utils")
-                .setThreadName("assert-prompt-completion")
+                .withCompositeNaming(tc -> tc.setComponent("assertion-utils").setThreadName("assert-prompt-completion"))
                 .setInterruptableRunnable(() -> {
                     value.set(operation.get());
                     latch.countDown();

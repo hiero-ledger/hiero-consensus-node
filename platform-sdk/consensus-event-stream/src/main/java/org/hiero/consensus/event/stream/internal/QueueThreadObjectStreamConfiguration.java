@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream.internal;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
+import org.hiero.consensus.concurrent.framework.config.ThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
 
 /**
  * Configures and builds {@link QueueThreadObjectStream} instances.
  *
- * @param <T>
- * 		the type of the object in the stream
+ * @param <T> the type of the object in the stream
  */
 public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
 
@@ -20,11 +18,11 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
     private LinkedObjectStream<T> forwardTo;
 
     /**
-     * @param threadManager
-     * 		responsible for managing thread lifecycles
+     * @param threadManager responsible for managing thread lifecycles
+     * @param queueName     name of the queue
      */
-    public QueueThreadObjectStreamConfiguration(final ThreadManager threadManager) {
-        queueThreadConfiguration = new QueueThreadConfiguration<>(threadManager);
+    public QueueThreadObjectStreamConfiguration(final ThreadManager threadManager, final String queueName) {
+        queueThreadConfiguration = new QueueThreadConfiguration<>(threadManager, queueName);
     }
 
     /**
@@ -73,16 +71,16 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
     }
 
     /**
-     * Get the maximum buffer size for created threads. Buffer size is not the same as queue capacity, it has to do
-     * with the buffer that is used when draining the queue.
+     * Get the maximum buffer size for created threads. Buffer size is not the same as queue capacity, it has to do with
+     * the buffer that is used when draining the queue.
      */
     public int getMaxBufferSize() {
         return queueThreadConfiguration.getMaxBufferSize();
     }
 
     /**
-     * Set the maximum buffer size for created threads. Buffer size is not the same as queue capacity, it has to do
-     * with the buffer that is used when draining the queue.
+     * Set the maximum buffer size for created threads. Buffer size is not the same as queue capacity, it has to do with
+     * the buffer that is used when draining the queue.
      *
      * @return this object
      */
@@ -178,82 +176,15 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
     }
 
     /**
-     * Get the node ID that will run threads created by this object.
-     */
-    @NonNull
-    public String getNodeId() {
-        return queueThreadConfiguration.getNodeId();
-    }
-
-    /**
-     * Set the node ID.
-     *
-     * @return this object
-     */
-    @NonNull
-    public QueueThreadObjectStreamConfiguration<T> setNodeId(@NonNull final String nodeId) {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
-        queueThreadConfiguration.setNodeId(nodeId);
-        return this;
-    }
-
-    /**
-     * Get the name of the component that new threads will be associated with.
-     */
-    public String getComponent() {
-        return queueThreadConfiguration.getComponent();
-    }
-
-    /**
-     * Set the name of the component that new threads will be associated with.
-     *
-     * @return this object
-     */
-    public QueueThreadObjectStreamConfiguration<T> setComponent(final String component) {
-        queueThreadConfiguration.setComponent(component);
-        return this;
-    }
-
-    /**
-     * Get the name for created threads.
-     */
-    public String getThreadName() {
-        return queueThreadConfiguration.getThreadName();
-    }
-
-    /**
-     * Set the name for created threads.
-     *
-     * @return this object
-     */
-    public QueueThreadObjectStreamConfiguration<T> setThreadName(final String threadName) {
-        queueThreadConfiguration.setThreadName(threadName);
-        return this;
-    }
-
-    /**
-     * Set the node ID of the other node (if created threads will be dealing with a task related to a specific node).
-     */
-    @NonNull
-    public String getOtherNodeId() {
-        return queueThreadConfiguration.getOtherNodeId();
-    }
-
-    /**
-     * Get the node ID of the other node (if created threads will be dealing with a task related to a specific node).
-     *
-     * @return this object
-     */
-    public QueueThreadObjectStreamConfiguration<T> setOtherNodeId(@NonNull final String otherNodeId) {
-        Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
-        queueThreadConfiguration.setOtherNodeId(otherNodeId);
-        return this;
-    }
-
-    /**
      * Intentionally package private. Get the underlying queue thread configuration.
      */
     QueueThreadConfiguration<T> getQueueThreadConfiguration() {
         return queueThreadConfiguration;
+    }
+
+    public QueueThreadObjectStreamConfiguration<T> setThreadNamingConfiguration(
+            final ThreadNamingConfiguration threadNamingConfiguration) {
+        queueThreadConfiguration.setThreadNamingConfiguration(threadNamingConfiguration);
+        return this;
     }
 }

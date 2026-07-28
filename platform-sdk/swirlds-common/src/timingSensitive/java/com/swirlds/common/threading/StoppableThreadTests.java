@@ -29,7 +29,6 @@ import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -44,7 +43,7 @@ class StoppableThreadTests {
     @DisplayName("Test Interruptable Thread")
     void testInterruptableThread() throws InterruptedException {
         final StoppableThread runawayThread = new StoppableThreadConfiguration<>(getStaticThreadManager())
-                .setThreadName("runaway thread")
+                .withCompositeNaming(tc -> tc.setThreadName("runaway thread"))
                 .setWork(() -> Thread.sleep(1_000_000_000))
                 .build();
 
@@ -64,7 +63,7 @@ class StoppableThreadTests {
 
         // This thread will run for a long time
         final StoppableThread runawayThread = new StoppableThreadConfiguration<>(getStaticThreadManager())
-                .setThreadName("runaway thread")
+                .withCompositeNaming(tc -> tc.setThreadName("runaway thread"))
                 .setStopBehavior(Stoppable.StopBehavior.BLOCKING)
                 .setWork(() -> Thread.sleep(1_000_000_000))
                 .build();
@@ -100,7 +99,7 @@ class StoppableThreadTests {
 
         // This thread will run for a long time
         final StoppableThread runawayThread = new StoppableThreadConfiguration<>(getStaticThreadManager())
-                .setThreadName("runaway thread")
+                .withCompositeNaming(tc -> tc.setThreadName("runaway thread"))
                 .setWork(() -> {
                     threadStarted.countDown();
                     MILLISECONDS.sleep(1_000_000_000);
@@ -137,7 +136,7 @@ class StoppableThreadTests {
 
         // This thread will run for a long time
         final StoppableThread runawayThread = new StoppableThreadConfiguration<>(getStaticThreadManager())
-                .setThreadName("runaway thread")
+                .withCompositeNaming(tc -> tc.setThreadName("runaway thread"))
                 .setStopBehavior(Stoppable.StopBehavior.BLOCKING)
                 .setWork(() -> {
                     threadStarted.countDown();
@@ -179,7 +178,7 @@ class StoppableThreadTests {
         // Thread does not release lock, allowing outside context to control
         // how frequently it cycles.
         final StoppableThread thread = new StoppableThreadConfiguration<>(getStaticThreadManager())
-                .setThreadName("test-thread")
+                .withCompositeNaming(tc -> tc.setThreadName("test-thread"))
                 .setStopBehavior(Stoppable.StopBehavior.BLOCKING)
                 .setFinalCycleWork(finalCycleWork)
                 .setWork(work)
@@ -201,7 +200,7 @@ class StoppableThreadTests {
         MILLISECONDS.sleep(100);
 
         final Thread reaperThread = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("reaper")
+                .withCompositeNaming(tc -> tc.setThreadName("reaper"))
                 .setRunnable(thread::stop)
                 .build(true);
 
@@ -408,8 +407,7 @@ class StoppableThreadTests {
     @Test
     @DisplayName("Rate Configuration Test")
     void rateConfigurationTest() {
-        final StoppableThreadConfiguration<?> configuration =
-                new StoppableThreadConfiguration<>(getStaticThreadManager());
+        final StoppableThreadConfiguration configuration = new StoppableThreadConfiguration(getStaticThreadManager());
 
         assertNull(configuration.getMinimumPeriod(), "should be null until set");
         assertEquals(-1, configuration.getMaximumRate(), "should have sane default value");
@@ -477,7 +475,7 @@ class StoppableThreadTests {
         final CountDownLatch longSleepStarted = new CountDownLatch(1);
 
         final StoppableThread stoppableThread = new StoppableThreadConfiguration<>(getStaticThreadManager())
-                .setThreadName("stoppable-thread")
+                .withCompositeNaming(tc -> tc.setThreadName("stoppable-thread"))
                 .setWork(() -> {
                     count.getAndIncrement();
                     if (enableLongSleep.get()) {
@@ -494,7 +492,7 @@ class StoppableThreadTests {
 
         // This thread will have the seed injected into it.
         final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("inject-into-this-thread")
+                .withCompositeNaming(tc -> tc.setThreadName("inject-into-this-thread"))
                 .setInterruptableRunnable(() -> {
                     // The seed will take over this thread for a while
 
@@ -530,34 +528,16 @@ class StoppableThreadTests {
     @DisplayName("Configuration Mutability Test")
     void configurationMutabilityTest() {
         // Build should make the configuration immutable
-        final StoppableThreadConfiguration<?> configuration =
-                new StoppableThreadConfiguration<>(getStaticThreadManager()).setWork(() -> {});
+        final StoppableThreadConfiguration<?> configuration = new StoppableThreadConfiguration<>(
+                        getStaticThreadManager())
+                .withCompositeNaming(tc -> {})
+                .setWork(() -> {});
 
         assertTrue(configuration.isMutable(), "configuration should be mutable");
 
         configuration.build();
         assertTrue(configuration.isImmutable(), "configuration should be immutable");
 
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.setNodeId(NodeId.of(0L).toString()),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.setComponent("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.setThreadName("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.setFullyFormattedThreadName("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.setOtherNodeId(NodeId.of(0L).toString()),
-                "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
                 () -> configuration.setThreadGroup(null),
@@ -598,8 +578,7 @@ class StoppableThreadTests {
     void singleUsePerConfigTest() {
 
         // build() should cause future calls to build() to fail, and start() should cause buildSeed() to fail.
-        final StoppableThreadConfiguration<?> configuration0 = new StoppableThreadConfiguration<>(
-                        getStaticThreadManager())
+        final StoppableThreadConfiguration configuration0 = new StoppableThreadConfiguration<>(getStaticThreadManager())
                 .setWork(() -> {
                     MILLISECONDS.sleep(1);
                 });
@@ -716,15 +695,14 @@ class StoppableThreadTests {
 
         final InterruptableRunnable finalCycleWork = () -> {};
 
-        final StoppableThreadConfiguration<?> configuration = new StoppableThreadConfiguration<>(
-                        getStaticThreadManager())
+        final StoppableThreadConfiguration configuration = new StoppableThreadConfiguration<>(getStaticThreadManager())
                 .setStopBehavior(Stoppable.StopBehavior.BLOCKING)
                 .setJoinWaitMs(1234)
                 .setWork(work)
                 .setFinalCycleWork(finalCycleWork)
                 .setHangingThreadPeriod(Duration.ofMillis(1234));
 
-        final StoppableThreadConfiguration<?> copy1 = configuration.copy();
+        final StoppableThreadConfiguration copy1 = configuration.copy();
 
         assertEquals(configuration.getStopBehavior(), copy1.getStopBehavior(), "copy configuration should match");
         assertEquals(configuration.getJoinWaitMs(), copy1.getJoinWaitMs(), "copy configuration should match");
@@ -738,7 +716,7 @@ class StoppableThreadTests {
         // It shouldn't matter if the original is immutable.
         configuration.build();
 
-        final StoppableThreadConfiguration<?> copy2 = configuration.copy();
+        final StoppableThreadConfiguration copy2 = configuration.copy();
         assertTrue(copy2.isMutable(), "copy should be mutable");
 
         assertEquals(configuration.getStopBehavior(), copy2.getStopBehavior(), "copy configuration should match");

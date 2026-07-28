@@ -279,33 +279,29 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
         // create thread pool storing virtual node hashes
         storeHashesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
+                .withCompositeNaming(tc -> tc.setComponent(MERKLEDB_COMPONENT).setThreadName("Store hashes"))
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store hashes")
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing hashes", tableName, ex))
                 .buildFactory());
         // create thread pool storing virtual leaf nodes
         storeLeavesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store leaves")
+                .withCompositeNaming(tc -> tc.setComponent(MERKLEDB_COMPONENT).setThreadName("Store leaves"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaves", tableName, ex))
                 .buildFactory());
         // create thread pool storing virtual leaf keys
         storeLeafKeysExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store leaf keys")
+                .withCompositeNaming(tc -> tc.setComponent(MERKLEDB_COMPONENT).setThreadName("Store leaf keys"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaf keys", tableName, ex))
                 .buildFactory());
         // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Snapshot")
+                .withCompositeNaming(tc -> tc.setComponent(MERKLEDB_COMPONENT).setThreadName("Snapshot"))
                 .setExceptionHandler(
                         (t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", ex))
                 .buildFactory());

@@ -60,8 +60,7 @@ public class DefaultReconnectModule implements ReconnectModule {
                 new DefaultSignedStateValidator());
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("platform-core")
-                .setThreadName("reconnectController")
+                .withCompositeNaming(tc -> tc.setComponent("platform-core").setThreadName("reconnectController"))
                 .setRunnable(reconnectController)
                 .build(true);
 

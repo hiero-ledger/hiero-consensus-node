@@ -36,8 +36,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     /* Asynchronous hasher */
     private final ExecutorService hasher =
             Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                    .setComponent("benchmark")
-                    .setThreadName("hasher")
+                    .withCompositeNaming(tc -> tc.setComponent("benchmark").setThreadName("hasher"))
                     .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during hashing", ex))
                     .buildFactory());
 

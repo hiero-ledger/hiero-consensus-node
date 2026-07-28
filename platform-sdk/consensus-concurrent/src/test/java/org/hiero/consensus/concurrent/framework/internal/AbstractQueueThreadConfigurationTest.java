@@ -23,6 +23,7 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.AbstractQueueThreadConfiguration;
+import org.hiero.consensus.concurrent.framework.config.FullNameThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
 import org.hiero.consensus.concurrent.framework.queue.MeasuredBlockingQueue;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -45,8 +46,9 @@ class AbstractQueueThreadConfigurationTest {
     static class DummyQueueThreadConfiguration<T>
             extends AbstractQueueThreadConfiguration<DummyQueueThreadConfiguration<T>, T> {
 
-        protected DummyQueueThreadConfiguration(final ThreadManager threadManager) {
-            super(threadManager);
+        protected DummyQueueThreadConfiguration(final ThreadManager threadManager, final String queueName) {
+            super(threadManager, queueName);
+            setThreadNamingConfiguration(new FullNameThreadNamingConfiguration());
         }
 
         protected DummyQueueThreadConfiguration(
@@ -63,6 +65,7 @@ class AbstractQueueThreadConfigurationTest {
     static final NodeId NODE_ID = NodeId.of(1L);
     static final String THREAD_POOL_NAME = "myThreadPool";
     static final String THREAD_NAME = "myThread";
+    static final String QUEUE_NAME = "myQueue";
     static final int MAX_BUFFER_SIZE = 50;
     static final int CAPACITY = 10;
     static final String MAX_SIZE_METRIC_NAME = THREAD_NAME + MeasuredBlockingQueue.QUEUE_MAX_SIZE_SUFFIX;
@@ -89,19 +92,15 @@ class AbstractQueueThreadConfigurationTest {
         final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
 
         // when
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
-                .setNodeId(NODE_ID.toString())
-                .setComponent(THREAD_POOL_NAME)
-                .setThreadName(THREAD_NAME)
+        final DummyQueueThreadConfiguration<String> configuration =
+                new DummyQueueThreadConfiguration<String>(threadManager, QUEUE_NAME);
+        configuration
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
-                .setHandler(handler);
+                .setHandler(handler)
+                .withFullNameConfiguration(THREAD_NAME);
 
         // then
-        assertThat(configuration.getNodeId()).isEqualTo(NODE_ID.toString());
-        assertThat(configuration.getComponent()).isEqualTo(THREAD_POOL_NAME);
-        assertThat(configuration.getThreadName()).isEqualTo(THREAD_NAME);
         assertThat(configuration.getMaxBufferSize()).isEqualTo(MAX_BUFFER_SIZE);
         assertThat(configuration.getCapacity()).isEqualTo(CAPACITY);
         assertThat(configuration.getHandler()).isEqualTo(handler);
@@ -116,21 +115,16 @@ class AbstractQueueThreadConfigurationTest {
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
         final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
-                .setNodeId(NODE_ID.toString())
-                .setComponent(THREAD_POOL_NAME)
-                .setThreadName(THREAD_NAME)
+                        threadManager, QUEUE_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
-                .setHandler(handler);
+                .setHandler(handler)
+                .withFullNameConfiguration(THREAD_NAME);
 
         // when
         final DummyQueueThreadConfiguration<String> copied = new DummyQueueThreadConfiguration<>(configuration);
 
         // then
-        assertThat(configuration.getNodeId()).isEqualTo(copied.getNodeId().toString());
-        assertThat(configuration.getComponent()).isEqualTo(copied.getComponent());
-        assertThat(configuration.getThreadName()).isEqualTo(copied.getThreadName());
         assertThat(configuration.getMaxBufferSize()).isEqualTo(copied.getMaxBufferSize());
         assertThat(configuration.getCapacity()).isEqualTo(copied.getCapacity());
         assertThat(configuration.getHandler()).isEqualTo(copied.getHandler());
@@ -147,18 +141,16 @@ class AbstractQueueThreadConfigurationTest {
 
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
-                .setNodeId(NODE_ID.toString())
-                .setComponent(THREAD_POOL_NAME)
-                .setThreadName(THREAD_NAME)
+                        threadManager, QUEUE_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
-                .setHandler(handler);
+                .setHandler(handler)
+                .withFullNameConfiguration(THREAD_NAME);
+
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then
         assertThat(configuration.getQueue()).isInstanceOf(LinkedBlockingQueue.class);
-        assertThat(queueThread.getName()).isEqualTo(THREAD_NAME);
         assertThat(queueThread.getStatus()).isEqualTo(StoppableThread.Status.NOT_STARTED);
     }
 
@@ -174,13 +166,11 @@ class AbstractQueueThreadConfigurationTest {
         when(threadManager.createThread(any(ThreadGroup.class), any(Runnable.class)))
                 .thenReturn(new Thread());
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
-                .setNodeId(NODE_ID.toString())
-                .setComponent(THREAD_POOL_NAME)
-                .setThreadName(THREAD_NAME)
+                        threadManager, QUEUE_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
-                .setHandler(handler);
+                .setHandler(handler)
+                .withFullNameConfiguration(THREAD_NAME);
         final QueueThread<String> queueThread = configuration.buildQueueThread(true);
 
         // then
@@ -200,19 +190,16 @@ class AbstractQueueThreadConfigurationTest {
 
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
-                .setNodeId(NODE_ID.toString())
-                .setComponent(THREAD_POOL_NAME)
-                .setThreadName(THREAD_NAME)
+                        threadManager, QUEUE_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .setQueue(queue);
+                .setQueue(queue)
+                .withFullNameConfiguration(THREAD_NAME);
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then
         assertThat(configuration.getQueue()).isInstanceOf(PriorityBlockingQueue.class);
-        assertThat(queueThread.getName()).isEqualTo(THREAD_NAME);
         assertThat(queueThread).hasSize(3).containsExactly("A", "B", "C");
 
         // when
@@ -238,14 +225,12 @@ class AbstractQueueThreadConfigurationTest {
 
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
-                .setNodeId(NODE_ID.toString())
-                .setComponent(THREAD_POOL_NAME)
-                .setThreadName(THREAD_NAME)
+                        threadManager, QUEUE_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .setQueue(queue);
+                .setQueue(queue)
+                .withFullNameConfiguration(THREAD_NAME);
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then
@@ -285,10 +270,7 @@ class AbstractQueueThreadConfigurationTest {
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
 
         // then
-        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager)
-                        .setNodeId(NODE_ID.toString())
-                        .setComponent(THREAD_POOL_NAME)
-                        .setThreadName(THREAD_NAME)
+        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager, QUEUE_NAME)
                         .setMaxBufferSize(MAX_BUFFER_SIZE)
                         .setCapacity(CAPACITY)
                         .setHandler(handler)
@@ -296,10 +278,7 @@ class AbstractQueueThreadConfigurationTest {
                         .buildQueueThread(false))
                 .isInstanceOf(NullPointerException.class);
 
-        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager)
-                        .setNodeId(NODE_ID.toString())
-                        .setComponent(THREAD_POOL_NAME)
-                        .setThreadName(THREAD_NAME)
+        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager, QUEUE_NAME)
                         .setMaxBufferSize(MAX_BUFFER_SIZE)
                         .setCapacity(CAPACITY)
                         .setHandler(handler)

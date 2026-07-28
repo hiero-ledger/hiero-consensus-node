@@ -413,8 +413,7 @@ public final class VirtualMapLearner {
         });
 
         new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("virtualmap")
-                .setThreadName("leaf-deleter")
+                .withCompositeNaming(tc -> tc.setComponent("virtualmap").setThreadName("leaf-deleter"))
                 .setRunnable(leafDeletionTask)
                 .setExceptionHandler((_, exception) ->
                         logger.error(EXCEPTION.getMarker(), "Failed to delete old leaves during reconnect", exception))

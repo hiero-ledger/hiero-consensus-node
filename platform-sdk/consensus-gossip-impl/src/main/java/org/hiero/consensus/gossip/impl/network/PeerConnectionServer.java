@@ -59,7 +59,7 @@ public class PeerConnectionServer implements InterruptableRunnable {
                 TimeUnit.SECONDS,
                 new SynchronousQueue<Runnable>(),
                 new ThreadConfiguration(threadManager)
-                        .setThreadName("peer_sync_server")
+                        .withCompositeNaming(tc -> tc.setThreadName("peer_sync_server"))
                         .buildFactory(),
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }

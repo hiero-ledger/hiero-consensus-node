@@ -646,7 +646,11 @@ class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStopp
      * Get the name of this thread.
      */
     public String getName() {
-        return configuration.getThreadName();
+        final Thread t = thread.get();
+        if (t == null) {
+            return "Unknown, not started";
+        }
+        return t.getName();
     }
 
     /**

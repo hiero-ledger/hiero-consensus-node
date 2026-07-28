@@ -68,8 +68,8 @@ public final class Log4jSetup {
                 ((DefaultShutdownCallbackRegistry) contextFactory.getShutdownCallbackRegistry()).stop();
                 Runtime.getRuntime()
                         .addShutdownHook(new ThreadConfiguration(getStaticThreadManager())
-                                .setComponent("browser")
-                                .setThreadName("shutdown-hook")
+                                .withCompositeNaming(
+                                        tc -> tc.setComponent("browser").setThreadName("shutdown-hook"))
                                 .setRunnable(() -> {
                                     logger.info(STARTUP.getMarker(), "JVM is shutting down.");
                                     LogManager.shutdown();

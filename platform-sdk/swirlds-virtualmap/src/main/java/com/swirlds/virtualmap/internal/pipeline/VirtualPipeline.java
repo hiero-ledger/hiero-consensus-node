@@ -150,8 +150,7 @@ public class VirtualPipeline {
         unhashedCopies = new ConcurrentLinkedDeque<>();
 
         executorService = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(PIPELINE_COMPONENT)
-                .setThreadName(PIPELINE_THREAD_NAME)
+                .withCompositeNaming(tc -> tc.setComponent(PIPELINE_COMPONENT).setThreadName(PIPELINE_THREAD_NAME))
                 .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
                 .buildFactory());
 
