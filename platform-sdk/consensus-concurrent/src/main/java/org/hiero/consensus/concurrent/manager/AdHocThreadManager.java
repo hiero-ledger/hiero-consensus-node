@@ -53,9 +53,8 @@ public final class AdHocThreadManager implements ThreadManager {
      */
     @Override
     public ThreadFactory createThreadFactory(final String component, final String threadName) {
-        return new ThreadConfiguration(this)
-                .setComponent(component)
-                .setThreadName(threadName)
+        return new ThreadConfiguration<>(this)
+                .withCompositeNaming(tc -> tc.setComponent(component).setThreadName(threadName))
                 .buildFactory();
     }
 

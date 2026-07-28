@@ -2,19 +2,20 @@
 package org.hiero.consensus.concurrent.framework.config;
 
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Consumer;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * This object is used to configure and build {@link Thread} instances.
  */
-public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfiguration> {
+public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
+        extends AbstractThreadConfiguration<ThreadConfiguration<N>, N> {
 
     /**
      * Build a new thread configuration with default values.
      *
-     * @param threadManager
-     * 		capable of building raw thread objects
+     * @param threadManager capable of building raw thread objects
      */
     public ThreadConfiguration(final ThreadManager threadManager) {
         super(threadManager);
@@ -23,47 +24,45 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
     /**
      * Copy constructor.
      *
-     * @param that
-     * 		the configuration to copy.
+     * @param that the configuration to copy.
      */
-    private ThreadConfiguration(final ThreadConfiguration that) {
+    private ThreadConfiguration(final ThreadConfiguration<N> that) {
         super(that);
     }
 
     /**
-     * Get a copy of this configuration. New copy is always mutable,
-     * and the mutability status of the original is unchanged.
+     * Get a copy of this configuration. New copy is always mutable, and the mutability status of the original is
+     * unchanged.
      *
      * @return a copy of this configuration
      */
     @Override
-    public ThreadConfiguration copy() {
-        return new ThreadConfiguration(this);
+    public ThreadConfiguration<N> copy() {
+        return new ThreadConfiguration<N>(this);
     }
 
     /**
      * Extracts the thread configuration from the caller's thread.
      *
-     * @param threadManager
-     * 		capable of building raw thread objects
+     * @param threadManager capable of building raw thread objects
      * @return a thread configuration with properties matching the caller's thread
      */
-    public static ThreadConfiguration captureThreadConfiguration(final ThreadManager threadManager) {
+    public static ThreadConfiguration<FullNameThreadNamingConfiguration> captureThreadConfiguration(
+            final ThreadManager threadManager) {
         return captureThreadConfiguration(threadManager, Thread.currentThread());
     }
 
     /**
      * Extracts the thread configuration from a given thread.
      *
-     * @param threadManager
-     * 		capable of building raw thread objects
-     * @param thread
-     * 		the thread to copy configuration from
+     * @param threadManager capable of building raw thread objects
+     * @param thread        the thread to copy configuration from
      * @return a thread configuration that matches the provided thread
      */
-    public static ThreadConfiguration captureThreadConfiguration(
+    public static ThreadConfiguration<FullNameThreadNamingConfiguration> captureThreadConfiguration(
             final ThreadManager threadManager, final Thread thread) {
-        final ThreadConfiguration configuration = new ThreadConfiguration(threadManager);
+        final ThreadConfiguration<FullNameThreadNamingConfiguration> configuration =
+                new ThreadConfiguration<>(threadManager);
         configuration.copyThreadConfiguration(thread);
         return configuration;
     }
@@ -74,8 +73,8 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads, factories, or seeds.
+     * After calling this method, this configuration object should not be modified or used to construct other threads,
+     * factories, or seeds.
      * </p>
      *
      * @return a thread built using this configuration
@@ -90,12 +89,11 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads, factories, or seeds.
+     * After calling this method, this configuration object should not be modified or used to construct other threads,
+     * factories, or seeds.
      * </p>
      *
-     * @param start
-     * 		if true then start the thread before returning it
+     * @param start if true then start the thread before returning it
      * @return a thread built using this configuration
      */
     public Thread build(final boolean start) {
@@ -109,12 +107,12 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads, factories, or seeds.
+     * After calling this method, this configuration object should not be modified or used to construct other threads,
+     * factories, or seeds.
      * </p>
      */
     public ThreadFactory buildFactory() {
-        enableThreadNumbering();
+        getThreadNamingConfiguration().enableThreadNumbering();
 
         final ContextSnapshot snapshot = captureContextSnapshot();
 
@@ -133,18 +131,18 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
     /**
      * <p>
      * Build a "seed" that can be planted in a thread. When the runnable is executed, it takes over the calling thread
-     * and configures that thread the way it would configure a newly created thread via {@link #build()}. When work
-     * is finished, the calling thread is restored back to its original configuration.
+     * and configures that thread the way it would configure a newly created thread via {@link #build()}. When work is
+     * finished, the calling thread is restored back to its original configuration.
      * </p>
      *
      * <p>
-     * Note that this seed will be unable to change the thread group or daemon status of the calling thread,
-     * regardless the values set in this configuration.
+     * Note that this seed will be unable to change the thread group or daemon status of the calling thread, regardless
+     * the values set in this configuration.
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads, factories, or seeds.
+     * After calling this method, this configuration object should not be modified or used to construct other threads,
+     * factories, or seeds.
      * </p>
      *
      * @return a seed that can be used to inject this thread configuration onto an existing thread.
@@ -166,7 +164,20 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
      * {@inheritDoc}
      */
     @Override
-    public ThreadConfiguration setRunnable(final Runnable runnable) {
+    public ThreadConfiguration<N> setRunnable(final Runnable runnable) {
         return super.setRunnable(runnable);
+    }
+
+    public ThreadConfiguration<CompositeThreadNamingConfiguration> withCompositeNaming(
+            final Consumer<CompositeThreadNamingConfiguration> consumer) {
+        final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
+        consumer.accept(ctnc);
+        setThreadNamingConfiguration(ctnc);
+        return (ThreadConfiguration<CompositeThreadNamingConfiguration>) this;
+    }
+
+    public <X extends ThreadNamingConfiguration<X>> ThreadConfiguration<X> withNaming(final X naming) {
+        setThreadNamingConfiguration(naming);
+        return (ThreadConfiguration<X>) this;
     }
 }

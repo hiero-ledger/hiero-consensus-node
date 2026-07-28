@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.concurrent.framework.config;
+
+import java.util.LinkedList;
+import java.util.List;
+
+public class CompositeThreadNamingConfiguration
+        extends AbstractThreadNamingConfiguration<CompositeThreadNamingConfiguration>
+        implements ThreadNamingConfiguration<CompositeThreadNamingConfiguration> {
+
+    /**
+     * The name of the component with which this thread is associated.
+     */
+    protected String component;
+
+    /**
+     * A name for this thread.
+     */
+    protected String threadName;
+
+    public CompositeThreadNamingConfiguration() {}
+
+    public CompositeThreadNamingConfiguration(final CompositeThreadNamingConfiguration old) {
+        this.component = old.component;
+        this.threadName = old.threadName;
+        this.useThreadNumbers = old.useThreadNumbers;
+    }
+
+    @Override
+    public CompositeThreadNamingConfiguration copy() {
+        return new CompositeThreadNamingConfiguration(this);
+    }
+
+    /**
+     * Get the name of the component that new threads will be associated with.
+     */
+    public String getComponent() {
+        return component;
+    }
+
+    /**
+     * Set the name of the component that new threads will be associated with.
+     *
+     * @return this object
+     */
+    @SuppressWarnings("unchecked")
+    public CompositeThreadNamingConfiguration setComponent(final String component) {
+        throwIfImmutable();
+
+        this.component = component;
+        return this;
+    }
+
+    /**
+     * Get the name for created threads.
+     */
+    public String getThreadName() {
+        return threadName;
+    }
+
+    /**
+     * Set the name for created threads.
+     *
+     * @return this object
+     */
+    @SuppressWarnings("unchecked")
+    public CompositeThreadNamingConfiguration setThreadName(final String threadName) {
+        throwIfImmutable();
+
+        this.threadName = threadName;
+        return this;
+    }
+
+    /**
+     * <p>
+     * Construct a thread name. Format is as follows:
+     * </p>
+     *
+     * <pre>
+     *  &lt;COMPONENT: NAME  #THREAD_NUM&gt;
+     *   |________| |____|  |_________|
+     *       |       |           |
+     *       |   "unnamed"       |
+     *       |    if unset       |
+     *       |                   |
+     * omitted if unset    omitted if unset
+     *
+     * </pre>
+     *
+     */
+    @Override
+    public String generateNextThreadName() {
+        // The parts are joined together with a space in-between each.
+        final List<String> parts = new LinkedList<>();
+
+        final boolean hasComponent = component != null && !component.isBlank();
+        final boolean hasName = threadName != null && !threadName.isBlank();
+
+        if (hasComponent) {
+            parts.add(component + ":");
+        }
+
+        if (hasName) {
+            parts.add(threadName);
+        } else {
+            parts.add("unnamed");
+        }
+
+        if (useThreadNumbers) {
+            parts.add("#" + nextThreadNumber.getAndIncrement());
+        }
+
+        final StringBuilder sb = new StringBuilder();
+        sb.append("<");
+        for (int index = 0; index < parts.size(); index++) {
+            sb.append(parts.get(index));
+            if (index + 1 < parts.size()) {
+                sb.append(" ");
+            }
+        }
+        sb.append(">");
+
+        return sb.toString();
+    }
+}

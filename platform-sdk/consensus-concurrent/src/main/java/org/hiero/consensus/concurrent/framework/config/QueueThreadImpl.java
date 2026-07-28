@@ -30,7 +30,7 @@ class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements QueueThread
 
     private final StoppableThread stoppableThread;
 
-    private final AbstractQueueThreadConfiguration<?, T> configuration;
+    private final AbstractQueueThreadConfiguration configuration;
 
     /**
      * Incremented each time we timeout while waiting for work from the queue.
@@ -64,7 +64,7 @@ class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements QueueThread
      *
      * @param configuration the configuration object
      */
-    public QueueThreadImpl(final AbstractQueueThreadConfiguration<?, T> configuration) {
+    public QueueThreadImpl(final AbstractQueueThreadConfiguration configuration) {
         super(ThreadBuildingUtils.getOrBuildQueue(configuration));
 
         this.configuration = configuration;

@@ -72,9 +72,8 @@ class VirtualPipelineTests {
 
         final CountDownLatch latch = new CountDownLatch(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("test")
-                .setThreadName("interrupt-on-timeout")
+        final Thread thread = new ThreadConfiguration<>(getStaticThreadManager())
+                .withCompositeNaming(tc -> tc.setComponent("test").setThreadName("interrupt-on-timeout"))
                 .setRunnable(() -> {
                     try {
                         runnable.run();

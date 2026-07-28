@@ -4,9 +4,11 @@ package org.hiero.consensus.event.stream.internal;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.RunningHashable;
+import org.hiero.consensus.concurrent.NodeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Configures and builds {@link QueueThreadObjectStream} instances.
@@ -16,7 +18,7 @@ import org.hiero.consensus.event.stream.LinkedObjectStream;
  */
 public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
 
-    private final QueueThreadConfiguration<T> queueThreadConfiguration;
+    private final QueueThreadConfiguration<T, NodeThreadNamingConfiguration> queueThreadConfiguration;
     private LinkedObjectStream<T> forwardTo;
 
     /**
@@ -24,7 +26,8 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * 		responsible for managing thread lifecycles
      */
     public QueueThreadObjectStreamConfiguration(final ThreadManager threadManager) {
-        queueThreadConfiguration = new QueueThreadConfiguration<>(threadManager);
+        queueThreadConfiguration = new QueueThreadConfiguration<>(threadManager)
+                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration());
     }
 
     /**
@@ -181,8 +184,8 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * Get the node ID that will run threads created by this object.
      */
     @NonNull
-    public String getNodeId() {
-        return queueThreadConfiguration.getNodeId();
+    public NodeId getNodeId() {
+        return queueThreadConfiguration.getThreadNamingConfiguration().getNodeId();
     }
 
     /**
@@ -191,9 +194,9 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * @return this object
      */
     @NonNull
-    public QueueThreadObjectStreamConfiguration<T> setNodeId(@NonNull final String nodeId) {
+    public QueueThreadObjectStreamConfiguration<T> setNodeId(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
-        queueThreadConfiguration.setNodeId(nodeId);
+        queueThreadConfiguration.getThreadNamingConfiguration().setNodeId(nodeId);
         return this;
     }
 
@@ -201,7 +204,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * Get the name of the component that new threads will be associated with.
      */
     public String getComponent() {
-        return queueThreadConfiguration.getComponent();
+        return queueThreadConfiguration.getThreadNamingConfiguration().getComponent();
     }
 
     /**
@@ -210,7 +213,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * @return this object
      */
     public QueueThreadObjectStreamConfiguration<T> setComponent(final String component) {
-        queueThreadConfiguration.setComponent(component);
+        queueThreadConfiguration.getThreadNamingConfiguration().setComponent(component);
         return this;
     }
 
@@ -218,7 +221,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * Get the name for created threads.
      */
     public String getThreadName() {
-        return queueThreadConfiguration.getThreadName();
+        return queueThreadConfiguration.getThreadNamingConfiguration().getThreadName();
     }
 
     /**
@@ -227,7 +230,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * @return this object
      */
     public QueueThreadObjectStreamConfiguration<T> setThreadName(final String threadName) {
-        queueThreadConfiguration.setThreadName(threadName);
+        queueThreadConfiguration.getThreadNamingConfiguration().setThreadName(threadName);
         return this;
     }
 
@@ -235,8 +238,8 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * Set the node ID of the other node (if created threads will be dealing with a task related to a specific node).
      */
     @NonNull
-    public String getOtherNodeId() {
-        return queueThreadConfiguration.getOtherNodeId();
+    public NodeId getOtherNodeId() {
+        return queueThreadConfiguration.getThreadNamingConfiguration().getOtherNodeId();
     }
 
     /**
@@ -244,16 +247,16 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      *
      * @return this object
      */
-    public QueueThreadObjectStreamConfiguration<T> setOtherNodeId(@NonNull final String otherNodeId) {
+    public QueueThreadObjectStreamConfiguration<T> setOtherNodeId(@NonNull final NodeId otherNodeId) {
         Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
-        queueThreadConfiguration.setOtherNodeId(otherNodeId);
+        queueThreadConfiguration.getThreadNamingConfiguration().setOtherNodeId(otherNodeId);
         return this;
     }
 
     /**
      * Intentionally package private. Get the underlying queue thread configuration.
      */
-    QueueThreadConfiguration<T> getQueueThreadConfiguration() {
+    QueueThreadConfiguration<T, NodeThreadNamingConfiguration> getQueueThreadConfiguration() {
         return queueThreadConfiguration;
     }
 }

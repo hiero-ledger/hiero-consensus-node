@@ -59,9 +59,8 @@ public class DefaultReconnectModule implements ReconnectModule {
                 fallenBehindMonitor,
                 new DefaultSignedStateValidator());
 
-        final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("platform-core")
-                .setThreadName("reconnectController")
+        final Thread reconnectControllerThread = new ThreadConfiguration<>(AdHocThreadManager.getStaticThreadManager())
+                .withCompositeNaming(tc -> tc.setComponent("platform-core").setThreadName("reconnectController"))
                 .setRunnable(reconnectController)
                 .build(true);
 

@@ -37,10 +37,8 @@ public class Dispatcher<L extends Listener> {
     /**
      * Create a new dispatcher.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads used for dispatches
-     * @param listenerClass
-     * 		the dispatch type
+     * @param threadManager responsible for creating and managing threads used for dispatches
+     * @param listenerClass the dispatch type
      */
     public Dispatcher(final ThreadManager threadManager, final Class<L> listenerClass) {
         this.threadManager = threadManager;
@@ -63,9 +61,9 @@ public class Dispatcher<L extends Listener> {
             stop();
         }
 
-        dispatchThread = new ThreadConfiguration(threadManager)
-                .setComponent(COMPONENT_NAME)
-                .setThreadName(String.format("notify %s", listenerClassName))
+        dispatchThread = new ThreadConfiguration<>(threadManager)
+                .withCompositeNaming(tc ->
+                        tc.setComponent(COMPONENT_NAME).setThreadName(String.format("notify %s", listenerClassName)))
                 .setRunnable(this::worker)
                 .build();
 

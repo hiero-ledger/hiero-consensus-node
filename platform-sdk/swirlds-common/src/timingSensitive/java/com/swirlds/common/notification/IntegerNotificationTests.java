@@ -850,7 +850,7 @@ public class IntegerNotificationTests {
         // allow the main thread to do assertions while those operations are blocking.
         final AtomicReference<NotificationResult<IntegerNotification>> futureNotificationResult =
                 new AtomicReference<>();
-        final Thread dispatchThread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread dispatchThread = new ThreadConfiguration<>(getStaticThreadManager())
                 .setInterruptableRunnable(() -> {
                     final Future<NotificationResult<IntegerNotification>> future =
                             engine.dispatch(listenerClass, new IntegerNotification(value), callback);

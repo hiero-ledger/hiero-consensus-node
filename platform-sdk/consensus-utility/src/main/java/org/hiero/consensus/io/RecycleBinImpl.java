@@ -92,10 +92,9 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
         this.recycledFileCountMetric.set(topLevelRecycledFileCount);
 
         this.cleanupThread = new StoppableThreadConfiguration<>(threadManager)
-                .setComponent("platform")
-                .setThreadName("recycle-bin-cleanup")
                 .setMinimumPeriod(minimumPeriod)
                 .setWork(this::cleanup)
+                .withCompositeNaming(tc -> tc.setComponent("platform").setThreadName("recycle-bin-cleanup"))
                 .build();
     }
 

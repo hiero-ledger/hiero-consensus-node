@@ -18,8 +18,10 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  * @param <T> the type of the object that provides a run method
  */
 public abstract class AbstractStoppableThreadConfiguration<
-                C extends AbstractStoppableThreadConfiguration<C, T>, T extends InterruptableRunnable>
-        extends AbstractThreadConfiguration<C> {
+                C extends AbstractStoppableThreadConfiguration<C, T, N>,
+                T extends InterruptableRunnable,
+                N extends ThreadNamingConfiguration<N>>
+        extends AbstractThreadConfiguration<C, N> {
 
     public static final Stoppable.StopBehavior DEFAULT_STOP_BEHAVIOR = Stoppable.StopBehavior.INTERRUPTABLE;
     public static final int DEFAULT_JOIN_WAIT_MS = 50;
@@ -72,7 +74,7 @@ public abstract class AbstractStoppableThreadConfiguration<
      *
      * @param that the configuration to copy.
      */
-    protected AbstractStoppableThreadConfiguration(final AbstractStoppableThreadConfiguration<C, T> that) {
+    protected AbstractStoppableThreadConfiguration(final AbstractStoppableThreadConfiguration<C, T, N> that) {
         super(that);
 
         this.stopBehavior = that.stopBehavior;
@@ -87,7 +89,7 @@ public abstract class AbstractStoppableThreadConfiguration<
      * {@inheritDoc}
      */
     @Override
-    public abstract AbstractStoppableThreadConfiguration<C, T> copy();
+    public abstract AbstractStoppableThreadConfiguration<C, T, N> copy();
 
     /**
      * Build a stoppable thread using the current configuration.

@@ -19,8 +19,9 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  * @param <C> the type of the class extending this class
  * @param <T> the type of the objects in the queue
  */
-public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueThreadConfiguration<C, T>, T>
-        extends AbstractStoppableThreadConfiguration<C, InterruptableRunnable> {
+public abstract class AbstractQueueThreadConfiguration<
+                C extends AbstractQueueThreadConfiguration<C, T, N>, T, N extends ThreadNamingConfiguration<N>>
+        extends AbstractStoppableThreadConfiguration<C, InterruptableRunnable, N> {
 
     public static final int DEFAULT_CAPACITY = 100;
     public static final int DEFAULT_MAX_BUFFER_SIZE = 10_000;
@@ -74,7 +75,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      *
      * @param that the configuration to copy
      */
-    protected AbstractQueueThreadConfiguration(final AbstractQueueThreadConfiguration<C, T> that) {
+    protected AbstractQueueThreadConfiguration(final AbstractQueueThreadConfiguration<C, T, N> that) {
         super(that);
 
         this.capacity = that.capacity;
@@ -88,7 +89,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      * {@inheritDoc}
      */
     @Override
-    public abstract AbstractQueueThreadConfiguration<C, T> copy();
+    public abstract AbstractQueueThreadConfiguration<C, T, N> copy();
 
     public QueueThread<T> buildQueueThread(final boolean start) {
         final QueueThread<T> thread = new QueueThreadImpl<>(this);

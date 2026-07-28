@@ -19,7 +19,8 @@ final class ThreadBuildingUtils {
      *
      * @return the queue that should be used
      */
-    static <T> BlockingQueue<T> getOrBuildQueue(@NonNull final AbstractQueueThreadConfiguration<?, T> config) {
+    static <T> BlockingQueue<T> getOrBuildQueue(
+            @NonNull final AbstractQueueThreadConfiguration<?, T, CompositeThreadNamingConfiguration> config) {
         BlockingQueue<T> queue = config.getQueue();
         if (queue == null) {
             // if no queue is set, build a default queue
@@ -36,7 +37,9 @@ final class ThreadBuildingUtils {
             queue = new MeasuredBlockingQueue<>(
                     queue,
                     new MeasuredBlockingQueue.Config(
-                                    metricsConfig.getMetrics(), metricsConfig.getCategory(), config.getThreadName())
+                                    metricsConfig.getMetrics(),
+                                    metricsConfig.getCategory(),
+                                    config.getThreadNamingConfiguration().getThreadName())
                             .withMaxSizeMetricEnabled(metricsConfig.isMaxSizeMetricEnabled())
                             .withMinSizeMetricEnabled(metricsConfig.isMinSizeMetricEnabled()));
         }

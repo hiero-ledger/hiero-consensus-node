@@ -3,6 +3,7 @@ package org.hiero.consensus.concurrent.manager;
 
 import com.swirlds.base.state.LifecyclePhase;
 import java.util.concurrent.ThreadFactory;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -27,10 +28,10 @@ public class StandardThreadManager implements ThreadManager {
      */
     @Override
     public ThreadFactory createThreadFactory(final String component, final String threadName) {
-        return new ThreadConfiguration(this)
-                .setComponent(component)
-                .setThreadName(threadName)
-                .buildFactory();
+        final ThreadConfiguration<CompositeThreadNamingConfiguration> tc = new ThreadConfiguration<>(this);
+        tc.setThreadNamingConfiguration(
+                new CompositeThreadNamingConfiguration().setComponent(component).setThreadName(threadName));
+        return tc.buildFactory();
     }
 
     /**

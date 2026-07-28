@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
@@ -87,10 +88,12 @@ public class StandardWorkGroup implements AutoCloseable {
         this.logExceptionsToStdErr = logExceptionsToStdErr;
         this.abortAction = abortAction;
 
-        final ThreadConfiguration configuration = new ThreadConfiguration(threadManager)
-                .setComponent("work group " + groupName)
-                .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
-                .setThreadName(DEFAULT_TASK_NAME);
+        final ThreadConfiguration<CompositeThreadNamingConfiguration> configuration =
+                (ThreadConfiguration) new ThreadConfiguration(threadManager)
+                        .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
+                        .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
+                                .setComponent("work group " + groupName)
+                                .setThreadName(DEFAULT_TASK_NAME));
 
         this.executorService = Executors.newCachedThreadPool(configuration.buildFactory());
     }

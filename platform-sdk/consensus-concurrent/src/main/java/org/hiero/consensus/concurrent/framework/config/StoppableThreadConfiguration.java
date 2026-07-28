@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent.framework.config;
 
+import java.util.function.Consumer;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
@@ -9,17 +10,15 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 /**
  * An object responsible for configuring and constructing {@link StoppableThread}s.
  *
- * @param <T>
- * 		the type of instance that will do work
+ * @param <T> the type of instance that will do work
  */
-public class StoppableThreadConfiguration<T extends InterruptableRunnable>
-        extends AbstractStoppableThreadConfiguration<StoppableThreadConfiguration<T>, T> {
+public class StoppableThreadConfiguration<T extends InterruptableRunnable, N extends ThreadNamingConfiguration<N>>
+        extends AbstractStoppableThreadConfiguration<StoppableThreadConfiguration<T, N>, T, N> {
 
     /**
      * Build a new stoppable thread configuration with default values.
      *
-     * @param threadManager
-     * 		responsible for creating threads
+     * @param threadManager responsible for creating threads
      */
     public StoppableThreadConfiguration(final ThreadManager threadManager) {
         super(threadManager);
@@ -28,20 +27,19 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
     /**
      * Copy constructor.
      *
-     * @param that
-     * 		the configuration to copy.
+     * @param that the configuration to copy.
      */
-    private StoppableThreadConfiguration(final StoppableThreadConfiguration<T> that) {
+    private StoppableThreadConfiguration(final StoppableThreadConfiguration<T, N> that) {
         super(that);
     }
 
     /**
-     * Get a copy of this configuration. New copy is always mutable,
-     * and the mutability status of the original is unchanged.
+     * Get a copy of this configuration. New copy is always mutable, and the mutability status of the original is
+     * unchanged.
      *
      * @return a copy of this configuration
      */
-    public StoppableThreadConfiguration<T> copy() {
+    public StoppableThreadConfiguration<T, N> copy() {
         return new StoppableThreadConfiguration<>(this);
     }
 
@@ -51,8 +49,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads.
+     * After calling this method, this configuration object should not be modified or used to construct other threads.
      * </p>
      *
      * @return a stoppable thread built using this configuration
@@ -67,12 +64,10 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads.
+     * After calling this method, this configuration object should not be modified or used to construct other threads.
      * </p>
      *
-     * @param start
-     * 		if true then start the thread before returning it
+     * @param start if true then start the thread before returning it
      * @return a stoppable thread built using this configuration
      */
     public TypedStoppableThread<T> build(final boolean start) {
@@ -93,7 +88,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
      * {@inheritDoc}
      */
     @Override
-    public StoppableThreadConfiguration<T> setWork(final T work) {
+    public StoppableThreadConfiguration<T, N> setWork(final T work) {
         return super.setWork(work);
     }
 
@@ -109,7 +104,15 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
      * {@inheritDoc}
      */
     @Override
-    public StoppableThreadConfiguration<T> setFinalCycleWork(final InterruptableRunnable finalCycleWork) {
+    public StoppableThreadConfiguration<T, N> setFinalCycleWork(final InterruptableRunnable finalCycleWork) {
         return super.setFinalCycleWork(finalCycleWork);
+    }
+
+    public StoppableThreadConfiguration<T, CompositeThreadNamingConfiguration> withCompositeNaming(
+            final Consumer<CompositeThreadNamingConfiguration> consumer) {
+        final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
+        consumer.accept(ctnc);
+        setThreadNamingConfiguration(ctnc);
+        return (StoppableThreadConfiguration<T, CompositeThreadNamingConfiguration>) this;
     }
 }

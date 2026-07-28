@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent.framework.config;
 
+import java.util.function.Consumer;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -8,16 +9,15 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 /**
  * An object used to configure and build {@link QueueThread}s.
  *
- * @param <T>
- * 		the type held by the queue
+ * @param <T> the type held by the queue
  */
-public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguration<QueueThreadConfiguration<T>, T> {
+public class QueueThreadConfiguration<T, N extends ThreadNamingConfiguration<N>>
+        extends AbstractQueueThreadConfiguration<QueueThreadConfiguration<T, N>, T, N> {
 
     /**
      * Build a new queue thread configuration with default values.
      *
-     * @param threadManager
-     * 		responsible for the creation and management of the thread used by this object
+     * @param threadManager responsible for the creation and management of the thread used by this object
      */
     public QueueThreadConfiguration(final ThreadManager threadManager) {
         super(threadManager);
@@ -26,10 +26,9 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
     /**
      * Copy constructor.
      *
-     * @param that
-     * 		the configuration to copy.
+     * @param that the configuration to copy.
      */
-    public QueueThreadConfiguration(final QueueThreadConfiguration<T> that) {
+    public QueueThreadConfiguration(final QueueThreadConfiguration<T, N> that) {
         super(that);
     }
 
@@ -37,7 +36,7 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
      * {@inheritDoc}
      */
     @Override
-    public QueueThreadConfiguration<T> copy() {
+    public QueueThreadConfiguration<T, N> copy() {
         return new QueueThreadConfiguration<>(this);
     }
 
@@ -47,8 +46,7 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads.
+     * After calling this method, this configuration object should not be modified or used to construct other threads.
      * </p>
      *
      * @return a queue thread built using this configuration
@@ -63,12 +61,10 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads.
+     * After calling this method, this configuration object should not be modified or used to construct other threads.
      * </p>
      *
-     * @param start
-     * 		if true then start the thread
+     * @param start if true then start the thread
      * @return a queue thread built using this configuration
      */
     public QueueThread<T> build(final boolean start) {
@@ -81,7 +77,7 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
      * {@inheritDoc}
      */
     @Override
-    public QueueThreadConfiguration<T> setHandler(final InterruptableConsumer<T> handler) {
+    public QueueThreadConfiguration<T, N> setHandler(final InterruptableConsumer<T> handler) {
         return super.setHandler(handler);
     }
 
@@ -91,5 +87,13 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
     @Override
     public InterruptableConsumer<T> getHandler() {
         return super.getHandler();
+    }
+
+    public QueueThreadConfiguration<T, CompositeThreadNamingConfiguration> withCompositeNaming(
+            final Consumer<CompositeThreadNamingConfiguration> consumer) {
+        final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
+        consumer.accept(ctnc);
+        setThreadNamingConfiguration(ctnc);
+        return (QueueThreadConfiguration<T, CompositeThreadNamingConfiguration>) this;
     }
 }

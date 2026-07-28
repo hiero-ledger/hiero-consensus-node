@@ -29,12 +29,9 @@ public final class VirtualMapMigration {
     /**
      * Extract all key-value pairs from a virtual map and pass it to a handler in a deterministic order.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
-     * @param source
-     * 		a virtual map to read from, will not be modified by this method
-     * @param threadCount
-     * 		the number of threads used for reading from the original map
+     * @param threadManager responsible for creating and managing threads
+     * @param source        a virtual map to read from, will not be modified by this method
+     * @param threadCount   the number of threads used for reading from the original map
      */
     public static void extractVirtualMapData(
             final ThreadManager threadManager,
@@ -65,9 +62,8 @@ public final class VirtualMapMigration {
             // Java only allows final values to be passed into a lambda
             final int index = threadIndex;
 
-            threads.add(new ThreadConfiguration(threadManager)
-                    .setComponent(COMPONENT_NAME)
-                    .setThreadName("reader-" + threadCount)
+            threads.add(new ThreadConfiguration<>(threadManager)
+                    .withCompositeNaming(tc -> tc.setComponent(COMPONENT_NAME).setThreadName("reader-" + threadCount))
                     .setInterruptableRunnable(() -> {
                         for (long path = firstLeafPath + index; path <= lastLeafPath; path += threadCount) {
                             final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeafRecord(path);
@@ -117,12 +113,9 @@ public final class VirtualMapMigration {
     /**
      * Extract all key-value pairs from a virtual map and pass it to a handler concurrently.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
-     * @param source
-     * 		a virtual map to read from, will not be modified by this method
-     * @param threadCount
-     * 		the number of threads used for reading from the original map
+     * @param threadManager responsible for creating and managing threads
+     * @param source        a virtual map to read from, will not be modified by this method
+     * @param threadCount   the number of threads used for reading from the original map
      */
     public static void extractVirtualMapDataC(
             final ThreadManager threadManager,
@@ -147,9 +140,8 @@ public final class VirtualMapMigration {
 
             final long firstPath = firstLeafPath + threadIndex;
 
-            threads.add(new ThreadConfiguration(threadManager)
-                    .setComponent(COMPONENT_NAME)
-                    .setThreadName("reader-" + threadCount)
+            threads.add(new ThreadConfiguration<>(threadManager)
+                    .withCompositeNaming(tc -> tc.setComponent(COMPONENT_NAME).setThreadName("reader-" + threadCount))
                     .setInterruptableRunnable(() -> {
                         try {
                             for (long path = firstPath; path <= lastLeafPath; path += threadCount) {
