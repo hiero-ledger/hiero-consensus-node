@@ -463,6 +463,14 @@ jobs:
     if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
     runs-on: hl-cn-default-lin-sm
     steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+
       - name: Announce Skip
         run: |
           echo "::warning::Migration Testing Panel was requested (enable-migration-testing-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
@@ -483,6 +491,14 @@ jobs:
     if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' && needs.commit-info.outputs.migration-baseline-available != 'true' }}
     runs-on: hl-cn-default-lin-sm
     steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+
       - name: Announce Skip
         run: |
           echo "::warning::Migration Testing Panel skipped: no previous-minor baseline exists yet — neither a v<minor-1>.* tag nor a release/<minor-1> branch for the current version.txt. It runs automatically once either appears."
