@@ -187,9 +187,9 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 transferFungibleTokensToTreasury(oldTreasuryRel, newTreasuryRel, tokenRelStore, accountStore);
             }
         } else {
-            // The incoming treasury must own no serials itself, whether the outgoing one has any
-            // left: changeOwnerToNewTreasury() hands NFTs over by relation balance alone, so serials the
-            // incoming treasury already owns would be orphaned by this or a later handoff
+            // The incoming treasury must own no serials of its own, even when the outgoing one is empty:
+            // changeOwnerToNewTreasury() moves NFTs by relation balance alone, so a later handoff away
+            // from this account would zero counters covering serials it owns explicitly, orphaning them
             validateTrue(newTreasuryRel.balance() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
             if (hasBalanceToTransfer) {
                 // Transfers NFT ownerships and updates account's numOwnedNfts and
