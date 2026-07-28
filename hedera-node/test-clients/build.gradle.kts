@@ -252,7 +252,7 @@ val prCheckPropOverrides =
 val prCheckPlatformOverrides =
     mapOf(
         "hapiTestRestart" to
-            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=1s"
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
