@@ -140,9 +140,27 @@
 
 # Protection Rules for Github Configuration Files and Actions Workflows
 /.github/                                           @hiero-ledger/github-maintainers
-/.github/workflows/                                 @hiero-ledger/github-maintainers
+/.github/workflows/                                 @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
 
 # specific to CITR
+007-user-test-chewie-connection.yaml                @hiero-ledger/github-maintainers
+200-user-mqpt-controller-adhoc.yaml                 @hiero-ledger/github-maintainers
+201-user-sdpt-controller-adhoc.yaml                 @hiero-ledger/github-maintainers
+202-user-sdlt-controller-adhoc.yaml                 @hiero-ledger/github-maintainers
+220-disp-mqpt-controller.yaml                       @hiero-ledger/github-maintainers
+221-disp-sdpt-controller.yaml                       @hiero-ledger/github-maintainers
+222-disp-sdlt-controller.yaml                       @hiero-ledger/github-maintainers
+223-disp-sdct-controller.yaml                       @hiero-ledger/github-maintainers
+602-flow-merge-queue-controller.yaml                @hiero-ledger/github-maintainers
+830-call-merge-queue-performance-test.yaml          @hiero-ledger/github-maintainers
+831-call-single-day-performance-test.yaml           @hiero-ledger/github-maintainers
+832-call-execute-performance-test.yaml              @hiero-ledger/github-maintainers
+833-call-single-day-longevity-test.yaml             @hiero-ledger/github-maintainers
+834-call-read-chewie-response.yaml                  @hiero-ledger/github-maintainers
+855-call-extract-citr-vars.yaml                     @hiero-ledger/github-maintainers
+901-cron-promote-build-candidate.yaml               @hiero-ledger/github-maintainers
+902-cron-auto-namespace-delete.yaml                 @hiero-ledger/github-maintainers
+903-cron-clean.yaml                                 @hiero-ledger/github-maintainers
 
 # Co-owned with devops
 /.github/workflows/node-zxf-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
