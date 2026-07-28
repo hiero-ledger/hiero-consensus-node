@@ -384,6 +384,22 @@ class WritableHintsStoreImplTest {
                 subject.getCrsPublications().get(0));
     }
 
+    @Test
+    void clearsCrsPublicationsForGivenNodes() {
+        final var publication0 = CrsPublicationTransactionBody.newBuilder()
+                .newCrs(Bytes.wrap("0"))
+                .build();
+        final var publication1 = CrsPublicationTransactionBody.newBuilder()
+                .newCrs(Bytes.wrap("1"))
+                .build();
+        subject.addCrsPublication(0L, publication0);
+        subject.addCrsPublication(1L, publication1);
+
+        subject.clearCrsPublications(Set.of(0L));
+
+        assertEquals(Map.of(1L, publication1), subject.getOrderedCrsPublications(Set.of(0L, 1L)));
+    }
+
     private CRSState setInitialCrsState() {
         final var crsState = CRSState.newBuilder()
                 .crs(Bytes.wrap("test"))

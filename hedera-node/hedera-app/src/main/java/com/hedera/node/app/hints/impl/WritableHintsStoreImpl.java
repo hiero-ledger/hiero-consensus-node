@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
@@ -207,6 +208,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     @Override
     public void addCrsPublication(final long nodeId, @NonNull final CrsPublicationTransactionBody crsPublication) {
         crsPublications.put(new NodeId(nodeId), crsPublication);
+    }
+
+    @Override
+    public void clearCrsPublications(@NonNull final Set<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        nodeIds.forEach(nodeId -> crsPublications.remove(new NodeId(nodeId)));
     }
 
     /**
