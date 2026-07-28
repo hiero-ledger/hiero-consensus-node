@@ -248,7 +248,14 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
-val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
+// hapiTestRestart restarts the same node several times within a few minutes, needing repeated
+// reconnects from the same teacher. In production a teacher helps a given learner only once per
+// minimumTimeBetweenReconnects (10m), which would leave the learner with no willing teacher.
+val prCheckPlatformOverrides =
+    mapOf(
+        "hapiTestRestart" to
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=1s"
+    )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // Path to the extracted WRAPS proving-key artifacts (decider_pp.bin, decider_vp.bin,
