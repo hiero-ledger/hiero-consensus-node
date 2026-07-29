@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.Round;
 
 /**
  * Maintains the state and process objects needed to produce the block stream.

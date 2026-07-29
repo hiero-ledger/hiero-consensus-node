@@ -31,7 +31,6 @@ public class PcesCoordinator {
     private final PcesFileTracker initialPcesFiles;
     private final PcesReplayerWiring pcesReplayerWiring;
     private final StatusMonitorModule statusMonitorModule;
-    private final Runnable signalEndOfPcesReplay;
 
     /**
      * Creates a new {@link PcesCoordinator}.
@@ -40,19 +39,16 @@ public class PcesCoordinator {
      * @param initialPcesFiles the {@link PcesFileTracker} to read the PCES files from
      * @param pcesReplayerWiring the wiring for the {@link PcesReplayer}
      * @param statusMonitorModule the {@link StatusMonitorModule} to report status updates to the platform
-     * @param signalEndOfPcesReplay a runnable that signals to the system that PCES replay is complete
      */
     public PcesCoordinator(
             @NonNull final Time time,
             @NonNull final PcesFileTracker initialPcesFiles,
             @NonNull final PcesReplayerWiring pcesReplayerWiring,
-            @NonNull final StatusMonitorModule statusMonitorModule,
-            @NonNull final Runnable signalEndOfPcesReplay) {
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         this.time = requireNonNull(time);
         this.initialPcesFiles = requireNonNull(initialPcesFiles);
         this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
         this.statusMonitorModule = requireNonNull(statusMonitorModule);
-        this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
     }
 
     /**
@@ -74,7 +70,6 @@ public class PcesCoordinator {
         logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
 
         pcesReplayerWiring.pcesIteratorInputWire().inject(iterator);
-        signalEndOfPcesReplay.run();
         statusMonitorModule.platformStatusActionInputWire().put(new DoneReplayingEventsAction(time.now()));
     }
 }

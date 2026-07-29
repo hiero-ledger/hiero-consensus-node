@@ -8,8 +8,8 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 
 public interface EventSource {

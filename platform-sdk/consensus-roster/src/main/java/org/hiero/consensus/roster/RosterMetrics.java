@@ -4,8 +4,8 @@ package org.hiero.consensus.roster;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.metrics.FunctionGauge;
 
 /**
  * A utility class to encapsulate the metrics for the address book.

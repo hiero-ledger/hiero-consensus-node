@@ -17,18 +17,18 @@ import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
-import org.hiero.consensus.main.model.ConsensusTransaction;
-import org.hiero.consensus.main.model.Transaction;
 
 /**
  * A wrapper around a {@link PlatformEvent} that holds additional information required by the
  * {@code com.swirlds.platform.event.stream.ConsensusEventStream}.
  */
 public class CesEvent extends AbstractSerializableHashable
-        implements RunningHashable, StreamAligned, Timestamped, ConsensusEvent {
+        implements RunningHashable, StreamAligned, Timestamped, org.hiero.consensus.main.model.ConsensusEvent {
     /** Value used to indicate that it is undefined*/
     public static final long UNDEFINED = -1;
 
@@ -130,7 +130,7 @@ public class CesEvent extends AbstractSerializableHashable
 
     @NonNull
     @Override
-    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+    public Iterator<org.hiero.consensus.main.model.EventDescriptorWrapper> allParentsIterator() {
         return platformEvent.allParentsIterator();
     }
 
@@ -180,6 +180,11 @@ public class CesEvent extends AbstractSerializableHashable
     @NonNull
     public Bytes getSignature() {
         return platformEvent.getSignature();
+    }
+
+    @Override
+    public boolean isPcesEvent() {
+        return platformEvent.isPcesEvent();
     }
 
     /**

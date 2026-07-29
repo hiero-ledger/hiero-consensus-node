@@ -11,7 +11,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.main.model.NodeId;
@@ -29,7 +29,7 @@ public class DefaultReconnectModule implements ReconnectModule {
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final Roster currentRoster,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
+            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
             @NonNull final Platform platform,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,

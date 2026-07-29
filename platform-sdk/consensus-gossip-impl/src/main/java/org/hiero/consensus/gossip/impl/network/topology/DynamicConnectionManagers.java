@@ -16,8 +16,8 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * Holds all the connection managers for incoming and outgoing connections. Able to react to change in peers/topology

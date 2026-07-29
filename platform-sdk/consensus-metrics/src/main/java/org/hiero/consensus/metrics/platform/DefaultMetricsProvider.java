@@ -26,12 +26,12 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.FileUtils;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.PlatformMetricsProvider;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
  * The default implementation of {@link PlatformMetricsProvider}

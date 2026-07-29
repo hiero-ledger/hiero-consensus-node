@@ -21,8 +21,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 

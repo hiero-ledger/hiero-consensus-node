@@ -41,9 +41,9 @@ import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.status.StatusMonitorModule;
@@ -81,7 +81,7 @@ class ConsensusLayerWiringTests {
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tmpDir);
 
-        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+        final ConsensusLayerAdapterInputs inputs = new ConsensusLayerAdapterInputs(
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -126,7 +126,7 @@ class ConsensusLayerWiringTests {
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
         final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
-        final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
+        final ConsensusLayerAdapterBuildingBlocks buildingBlocks = new ConsensusLayerAdapterBuildingBlocks(
                 model,
                 configuration,
                 eventCreatorModule,
@@ -143,6 +143,7 @@ class ConsensusLayerWiringTests {
                 notifierWiring,
                 statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
+                null,
                 null,
                 null,
                 null,

@@ -15,8 +15,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 
 /**
  * Static factory that creates {@link BaseContext}

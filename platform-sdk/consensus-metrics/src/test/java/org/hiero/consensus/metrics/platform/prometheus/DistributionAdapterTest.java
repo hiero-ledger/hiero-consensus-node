@@ -11,9 +11,9 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.platform.PlatformRunningAverageMetric;
-import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.Test;
 
 class DistributionAdapterTest {

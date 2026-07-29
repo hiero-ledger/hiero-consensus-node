@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.ThresholdLimitingHandler;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.IntegerPairAccumulator;
 import org.hiero.consensus.metrics.RunningAverageMetric;
@@ -31,7 +32,6 @@ import org.hiero.consensus.metrics.StatEntry;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricsEvent;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A Prometheus endpoint that shows all {@link Metric}s.

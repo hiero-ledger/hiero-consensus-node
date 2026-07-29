@@ -7,8 +7,8 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.base.io.SerializableLong;
-import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Bundles the most commonly needed {@link ConstructableRegistry} registrations used across the application.

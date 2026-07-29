@@ -6,7 +6,8 @@ import java.time.Instant;
 /**
  * A transaction that has reached consensus.
  */
-public interface ConsensusTransaction extends org.hiero.consensus.main.model.Transaction {
+public interface ConsensusTransaction extends Transaction {
+
     /**
      * Returns the community's consensus timestamp for this item.
      *

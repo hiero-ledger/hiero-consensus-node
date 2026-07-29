@@ -4,8 +4,8 @@ package org.hiero.consensus.metrics;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
-import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.metrics.platform.SnapshotEvent;
 
 /**
  * An implementation of this class is responsible for creating {@link Metrics}-implementations.

@@ -25,8 +25,8 @@ import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 

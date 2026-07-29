@@ -3,7 +3,7 @@ package org.hiero.consensus.orphan;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 
 /**
  * A missing parent event and the orphans that are missing it.
@@ -11,4 +11,5 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
  * @param parent  the parent event
  * @param orphans the orphans that are missing the parent
  */
-record ParentAndOrphans(@NonNull EventDescriptorWrapper parent, @NonNull List<OrphanedEvent> orphans) {}
+record ParentAndOrphans(
+        @NonNull EventDescriptorWrapper parent, @NonNull List<OrphanedEvent> orphans) {}

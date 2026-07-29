@@ -1,20 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.adapter;
 
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.StaleEventConsumer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.ExecutionLayerCallbacks;
-import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.main.model.Event;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.Round;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 
@@ -37,7 +36,8 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     @NonNull
     private final AppNotifier appNotifier;
 
-    public AdapterCallbacks(@NonNull final ConsensusStateEventHandler consensusStateEventHandler,
+    public AdapterCallbacks(
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final ExecutionLayer executionLayer,
             @NonNull final SignedStateNexus signedStateNexus,
             @NonNull final StaleEventConsumer staleEventConsumer,
@@ -49,11 +49,8 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
         this.appNotifier = requireNonNull(appNotifier);
     }
 
-
     @Override
-    public void onBehind() {
-
-    }
+    public void onBehind() {}
 
     @Override
     public List<TimestampedTransaction> getTransactionForNewEvent() {
@@ -66,14 +63,10 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     }
 
     @Override
-    public void onPreHandle(Event event) {
-
-    }
+    public void onPreHandle(Event event) {}
 
     @Override
-    public void onRound(Round consensusRound) {
-
-    }
+    public void onRound(Round consensusRound) {}
 
     @Override
     public void onPlatformStatusChange(@NonNull final PlatformStatus status) {
@@ -83,9 +76,7 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     }
 
     @Override
-    public void onSealConsensusRound(Round consensusRound) {
-
-    }
+    public void onSealConsensusRound(Round consensusRound) {}
 
     @Override
     public void onUnhealthySignal(@NonNull final Duration unhealthyDuration) {

@@ -9,10 +9,10 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.AverageStat;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Encapsulates metrics for the tipset event creator.

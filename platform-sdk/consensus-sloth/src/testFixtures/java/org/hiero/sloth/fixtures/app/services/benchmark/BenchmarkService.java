@@ -18,7 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.InstantUtils;
 import org.hiero.consensus.metrics.statistics.AverageAndMax;
-import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.sloth.fixtures.app.SlothService;

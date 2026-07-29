@@ -4,7 +4,6 @@ package org.hiero.consensus.hashgraph;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Checks whether a timestamp is in freeze period

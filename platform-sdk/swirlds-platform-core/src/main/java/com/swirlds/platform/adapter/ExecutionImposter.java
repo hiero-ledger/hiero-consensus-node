@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.adapter;
 
 import static java.util.Objects.requireNonNull;
@@ -52,12 +53,8 @@ public class ExecutionImposter implements Platform {
     }
 
     @Override
-    public void start() {
-
-    }
+    public void start() {}
 
     @Override
-    public void destroy() throws InterruptedException {
-
-    }
+    public void destroy() throws InterruptedException {}
 }

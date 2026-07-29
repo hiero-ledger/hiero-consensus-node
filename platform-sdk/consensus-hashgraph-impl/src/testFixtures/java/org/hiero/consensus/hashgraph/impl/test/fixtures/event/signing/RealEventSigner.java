@@ -8,8 +8,8 @@ import java.util.HashMap;
 import java.util.Map;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.crypto.SigningFactory;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 
 /**

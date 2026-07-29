@@ -26,12 +26,12 @@ import org.hiero.consensus.concurrent.framework.config.AbstractQueueThreadConfig
 import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
 import org.hiero.consensus.concurrent.framework.queue.MeasuredBlockingQueue;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
-import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;

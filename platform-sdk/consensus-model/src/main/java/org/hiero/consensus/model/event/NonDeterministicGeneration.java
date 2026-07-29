@@ -29,9 +29,11 @@ public class NonDeterministicGeneration {
      */
     public static void assignNGen(
             @NonNull final PlatformEvent event,
-            @NonNull final SequenceMap<EventDescriptorWrapper, PlatformEvent> eventsWithParents) {
+            @NonNull
+                    final SequenceMap<org.hiero.consensus.main.model.EventDescriptorWrapper, PlatformEvent>
+                            eventsWithParents) {
         long maxParentNGen = GENERATION_UNDEFINED;
-        for (final EventDescriptorWrapper parentDesc : event.getAllParents()) {
+        for (final org.hiero.consensus.main.model.EventDescriptorWrapper parentDesc : event.getAllParents()) {
             final PlatformEvent parent = eventsWithParents.get(parentDesc);
             if (parent != null) {
                 maxParentNGen = Math.max(maxParentNGen, parent.getNGen());

@@ -39,8 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
@@ -140,7 +140,7 @@ public final class DiagramCommand extends AbstractCommand {
 
         final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
 
-        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+        final ConsensusLayerAdapterInputs inputs = new ConsensusLayerAdapterInputs(
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -188,7 +188,7 @@ public final class DiagramCommand extends AbstractCommand {
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
-        final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
+        final ConsensusLayerAdapterBuildingBlocks buildingBlocks = new ConsensusLayerAdapterBuildingBlocks(
                 model,
                 configuration,
                 eventCreatorModule,
@@ -205,6 +205,7 @@ public final class DiagramCommand extends AbstractCommand {
                 notifierWiring,
                 statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
+                null,
                 null,
                 null,
                 null,

@@ -19,16 +19,17 @@ import java.util.concurrent.CountDownLatch;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.iterator.TypedIterator;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.Transaction;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
  */
-public class PlatformEvent implements ConsensusEvent, Hashable {
+public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEvent, Hashable {
     private static final EventConsensusData NO_CONSENSUS =
             new EventConsensusData(null, ConsensusConstants.NO_CONSENSUS_ORDER);
     /** The gossip event */
@@ -163,7 +164,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * {{ @inheritDoc }}
+     * {@inheritDoc}
      */
     @Override
     @NonNull
@@ -172,9 +173,17 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isPcesEvent() {
+        return origin == EventOrigin.STORAGE;
+    }
+
+    /**
      * @return the descriptor for the event
      */
-    public @NonNull EventDescriptorWrapper getDescriptor() {
+    public @NonNull org.hiero.consensus.main.model.EventDescriptorWrapper getDescriptor() {
         return metadata.getDescriptor();
     }
 
@@ -414,7 +423,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return the event descriptor for the self parent
      */
     @Nullable
-    public EventDescriptorWrapper getSelfParent() {
+    public org.hiero.consensus.main.model.EventDescriptorWrapper getSelfParent() {
         return metadata.getSelfParent();
     }
 
@@ -424,7 +433,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return the event descriptors for the other parents
      */
     @NonNull
-    public List<EventDescriptorWrapper> getOtherParents() {
+    public List<org.hiero.consensus.main.model.EventDescriptorWrapper> getOtherParents() {
         return metadata.getOtherParents();
     }
 
@@ -439,7 +448,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /** @return a list of all parents, self parent (if any), + all other parents */
     @NonNull
-    public List<EventDescriptorWrapper> getAllParents() {
+    public List<org.hiero.consensus.main.model.EventDescriptorWrapper> getAllParents() {
         return metadata.getAllParents();
     }
 
@@ -451,7 +460,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         stringBuilder.append("\n");
         stringBuilder.append("    sp: ");
 
-        final EventDescriptorWrapper selfParent = getSelfParent();
+        final org.hiero.consensus.main.model.EventDescriptorWrapper selfParent = getSelfParent();
         if (selfParent != null) {
             stringBuilder.append(selfParent);
         } else {
@@ -460,7 +469,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         stringBuilder.append("\n");
 
         int otherParentCount = 0;
-        for (final EventDescriptorWrapper otherParent : getOtherParents()) {
+        for (final org.hiero.consensus.main.model.EventDescriptorWrapper otherParent : getOtherParents()) {
             stringBuilder.append("    op");
             stringBuilder.append(otherParentCount);
             stringBuilder.append(": ");

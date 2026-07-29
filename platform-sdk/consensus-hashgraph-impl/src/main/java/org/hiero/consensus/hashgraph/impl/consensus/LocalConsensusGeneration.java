@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 
 /**
  * Local consensus generation (cGen) is computed by the consensus algorithm and used for ordering of events that reach

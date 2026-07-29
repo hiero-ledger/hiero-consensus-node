@@ -13,7 +13,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
@@ -32,14 +32,14 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
  */
 public class ReconnectCoordinator {
 
-    private final ConsensusLayerBuildingBlocks buildingBlocks;
+    private final ConsensusLayerAdapterBuildingBlocks buildingBlocks;
 
     /**
      * Constructor
      *
      * @param buildingBlocks the building blocks of the consensus layer
      */
-    public ReconnectCoordinator(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+    public ReconnectCoordinator(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
         this.buildingBlocks = Objects.requireNonNull(buildingBlocks);
     }
 

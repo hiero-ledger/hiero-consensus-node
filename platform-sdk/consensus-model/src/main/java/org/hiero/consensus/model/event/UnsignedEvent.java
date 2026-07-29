@@ -50,15 +50,16 @@ public class UnsignedEvent implements Hashable {
      */
     public UnsignedEvent(
             @NonNull final NodeId creatorId,
-            @NonNull final List<EventDescriptorWrapper> allParents,
+            @NonNull final List<org.hiero.consensus.main.model.EventDescriptorWrapper> allParents,
             final long birthRound,
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions,
             final long coin) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
         this.metadata = new EventMetadata(creatorId, allParents, timeCreated, transactions, birthRound);
-        this.parents =
-                allParents.stream().map(EventDescriptorWrapper::eventDescriptor).toList();
+        this.parents = allParents.stream()
+                .map(org.hiero.consensus.main.model.EventDescriptorWrapper::eventDescriptor)
+                .toList();
         this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), coin);
     }
 
@@ -90,7 +91,7 @@ public class UnsignedEvent implements Hashable {
      * @throws IllegalStateException if called prior to this event being hashed
      */
     @NonNull
-    public EventDescriptorWrapper getDescriptor() {
+    public org.hiero.consensus.main.model.EventDescriptorWrapper getDescriptor() {
         return metadata.getDescriptor();
     }
 

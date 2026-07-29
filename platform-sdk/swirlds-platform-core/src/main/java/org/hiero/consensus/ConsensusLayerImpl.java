@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
 import static java.util.Objects.requireNonNull;
@@ -11,30 +12,34 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 public class ConsensusLayerImpl implements ConsensusLayer {
 
     @NonNull
-    private final ConsensusLayerBuildingBlocks buildingBlocks;
+    private final ConsensusLayerAdapterBuildingBlocks buildingBlocks;
 
-    public ConsensusLayerImpl(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+    public ConsensusLayerImpl(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
         this.buildingBlocks = requireNonNull(buildingBlocks);
     }
 
     @Override
-    public void start() {
-
-    }
+    public void start() {}
 
     @Override
-    public void destroy() {
-
-    }
+    public void destroy() {}
 
     @Override
     public void requestNextRound(@Nullable final Roster newRoster, @Nullable final Instant freezeTime) {
-        // TODO update the freeze period checker in the hashgraph module with the freeze time if non-null
+        throwOnInvalidFreezeTime(freezeTime);
+        buildingBlocks.freezePeriodChecker().setFreezeTime(freezeTime);
+    }
+
+    private void throwOnInvalidFreezeTime(@Nullable final Instant freezeTime) {
+        if (freezeTime == null) {
+            return;
+        }
+        // TODO if the freezeTime is before the latest consensus round, throw an exception
     }
 
     @Override
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
-        buildingBlocks.statusMonitorModule().submitQuiescenceCommand(command);
+        buildingBlocks.statusMonitorModule().quiescenceCommandInputWire().inject(command);
         buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(command);
     }
 }

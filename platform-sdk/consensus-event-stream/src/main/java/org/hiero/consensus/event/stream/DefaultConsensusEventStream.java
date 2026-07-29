@@ -29,9 +29,9 @@ import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStreamConfiguration;
 import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 
 /**

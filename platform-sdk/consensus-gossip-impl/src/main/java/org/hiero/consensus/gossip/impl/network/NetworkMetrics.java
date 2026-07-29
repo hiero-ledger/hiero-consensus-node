@@ -13,12 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.statistics.AtomicAverage;
 import org.hiero.consensus.metrics.statistics.AverageAndMin;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Collection of metrics related to the network

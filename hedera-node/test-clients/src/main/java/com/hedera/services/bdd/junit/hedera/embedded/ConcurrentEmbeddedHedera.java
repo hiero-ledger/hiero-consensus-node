@@ -34,8 +34,8 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.main.model.TimestampedTransaction;
 

@@ -19,16 +19,15 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
@@ -50,6 +49,9 @@ public class DefaultPcesModule implements PcesModule {
 
     @Nullable
     private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
+
+    @Nullable
+    private WireTransformer<ConsensusRound, ConsensusRound> consensusRoundDispatcher;
 
     @Nullable
     private ComponentWiring<InlinePcesWriter, PlatformEvent> pcesWriterWiring;
@@ -80,9 +82,7 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final StatusMonitorModule statusMonitorModule,
-            @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (pcesWriterWiring != null) {
@@ -92,11 +92,15 @@ public class DefaultPcesModule implements PcesModule {
         // Set up wiring
         this.eventWindowExtractor = new WireTransformer<>(
                 model, "Pces_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
+        this.consensusRoundDispatcher =
+                new WireTransformer<>(model, "Pces_CosnensusRoundDispatcher", "consensus round", Function.identity());
+
         final PcesWiringConfig wiringConfig = configuration.getConfigData(PcesWiringConfig.class);
         this.pcesWriterWiring = new ComponentWiring<>(model, InlinePcesWriter.class, wiringConfig.pcesInlineWriter());
         this.pcesReplayerWiring = PcesReplayerWiring.create(model);
 
         // Wire components
+        consensusRoundDispatcher.getOutputWire().solderTo(eventWindowExtractor.getInputWire());
         eventWindowExtractor
                 .getOutputWire()
                 .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
@@ -139,12 +143,13 @@ public class DefaultPcesModule implements PcesModule {
                 time,
                 pcesReplayerWiring.eventOutput(),
                 flushPrimaryPipeline,
-                replayProgressSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
+        consensusRoundDispatcher
+                .getOutputWire()
+                .solderTo("pcesReplayer", "consensusRoundInputWire", pcesReplayer::setLatestConsensusRound);
         pcesReplayerWiring.bind(pcesReplayer);
 
-        this.pcesCoordinator = new PcesCoordinator(
-                time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule, signalEndOfPcesReplay);
+        this.pcesCoordinator = new PcesCoordinator(time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule);
     }
 
     /**
@@ -188,7 +193,7 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     @NonNull
     public InputWire<ConsensusRound> consensusRoundInputWire() {
-        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+        return requireNonNull(consensusRoundDispatcher, "Not initialized").getInputWire();
     }
 
     /**

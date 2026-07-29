@@ -12,10 +12,10 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class RandomEventUtils {

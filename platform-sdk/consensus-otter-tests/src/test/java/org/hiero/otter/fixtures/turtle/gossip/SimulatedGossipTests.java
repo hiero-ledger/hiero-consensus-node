@@ -28,7 +28,7 @@ import java.util.function.Consumer;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;

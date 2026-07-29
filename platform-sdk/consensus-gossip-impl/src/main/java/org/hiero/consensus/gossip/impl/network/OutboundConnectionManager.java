@@ -32,8 +32,8 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 
 public class OutboundConnectionManager implements ConnectionManager {
     private final Configuration configuration;

@@ -65,8 +65,8 @@ import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.roster.RosterUtils;
 

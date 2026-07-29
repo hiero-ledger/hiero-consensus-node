@@ -44,7 +44,6 @@ class PcesCoordinatorTests {
     private PcesReplayerWiring pcesReplayerWiring;
     private StatusMonitorModule statusMonitorModule;
     private InputWire<PlatformStatusAction> statusActionInputWire;
-    private Runnable signalEndOfPcesReplay;
 
     private PcesMultiFileIterator iterator;
 
@@ -59,7 +58,6 @@ class PcesCoordinatorTests {
         statusMonitorModule = mock(StatusMonitorModule.class);
         statusActionInputWire = mock(InputWire.class);
         when(statusMonitorModule.platformStatusActionInputWire()).thenReturn(statusActionInputWire);
-        signalEndOfPcesReplay = mock(Runnable.class);
 
         // Only pcesIteratorInputWire() is exercised by the coordinator; the other wires are placeholders.
         pcesReplayerWiring =
@@ -68,8 +66,7 @@ class PcesCoordinatorTests {
         iterator = mock(PcesMultiFileIterator.class);
         when(initialPcesFiles.getEventIterator(LOWER_BOUND, STARTING_ROUND)).thenReturn(iterator);
 
-        coordinator = new PcesCoordinator(
-                time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule, signalEndOfPcesReplay);
+        coordinator = new PcesCoordinator(time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule);
     }
 
     @Test
@@ -80,18 +77,13 @@ class PcesCoordinatorTests {
         // A single InOrder across every collaborator pins down the global ordering, with the iterator injection
         // as the pivot: status started + status flush happen before it, and pipeline flush + end-of-replay signal +
         // status done happen after it.
-        final InOrder inOrder = inOrder(
-                statusActionInputWire,
-                statusMonitorModule,
-                initialPcesFiles,
-                pcesIteratorInputWire,
-                signalEndOfPcesReplay);
+        final InOrder inOrder =
+                inOrder(statusActionInputWire, statusMonitorModule, initialPcesFiles, pcesIteratorInputWire);
 
         inOrder.verify(statusActionInputWire).put(isA(StartedReplayingEventsAction.class));
         inOrder.verify(statusMonitorModule).flush();
         inOrder.verify(initialPcesFiles).getEventIterator(LOWER_BOUND, STARTING_ROUND);
         inOrder.verify(pcesIteratorInputWire).inject(iterator);
-        inOrder.verify(signalEndOfPcesReplay).run();
         inOrder.verify(statusActionInputWire).put(isA(DoneReplayingEventsAction.class));
         inOrder.verifyNoMoreInteractions();
     }

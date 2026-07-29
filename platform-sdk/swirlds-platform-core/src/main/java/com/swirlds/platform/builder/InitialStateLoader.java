@@ -28,8 +28,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -55,8 +55,8 @@ public class InitialStateLoader {
      */
     public static void initializeModulesWithInitialState(
             @NonNull final Platform platform,
-            @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerAdapterInputs inputs,
+            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
         final SignedState signedState = inputs.initialState().get();
 
         initializeState(platform, signedState, inputs.consensusStateEventHandler());

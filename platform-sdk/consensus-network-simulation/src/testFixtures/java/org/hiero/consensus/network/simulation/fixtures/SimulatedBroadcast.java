@@ -12,8 +12,8 @@ import java.util.PriorityQueue;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any

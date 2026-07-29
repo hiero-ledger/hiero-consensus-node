@@ -6,8 +6,8 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.main.model.TimestampedTransaction;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A no-op implementation of the {@link ExecutionLayer} interface.

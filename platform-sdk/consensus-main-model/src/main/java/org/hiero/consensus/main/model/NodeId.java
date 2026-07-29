@@ -7,7 +7,6 @@ import java.util.Objects;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.node.NodeIdCache;
 
 /**
  * A class that is used to uniquely identify a Swirlds Node.

@@ -74,4 +74,12 @@ public interface Event {
      */
     @NonNull
     Bytes getSignature();
+
+    /**
+     * Indicates if this event was read from PCES. This happens after the node
+     * restarts in order to recover the latest consensus state.
+     *
+     * @return true if the event was read from PCES on disk, false otherwise
+     */
+    boolean isPcesEvent();
 }

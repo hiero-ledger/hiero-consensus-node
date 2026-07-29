@@ -19,10 +19,10 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
  * The goal of the GossipRpcShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both

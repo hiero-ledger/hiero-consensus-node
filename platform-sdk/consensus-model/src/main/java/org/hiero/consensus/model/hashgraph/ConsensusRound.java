@@ -15,13 +15,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.hiero.base.iterator.TypedIterator;
-import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.Transaction;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /** A consensus round with events and all other relevant data. */
-public class ConsensusRound implements Round {
+public class ConsensusRound implements org.hiero.consensus.main.model.Round {
 
     /**
      * an unmodifiable list of consensus events in this round, in consensus order
@@ -195,14 +195,18 @@ public class ConsensusRound implements Round {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isPcesRound() {
+        return pcesRound;
+    }
+
+    /**
      * @return the local time (not consensus time) at which the round reached consensus
      */
     public @NonNull Instant getReachedConsTimestamp() {
         return reachedConsTimestamp;
-    }
-
-    public boolean isPcesRound() {
-        return pcesRound;
     }
 
     @Override

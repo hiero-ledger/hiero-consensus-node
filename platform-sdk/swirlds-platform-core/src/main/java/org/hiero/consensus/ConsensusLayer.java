@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -37,5 +38,4 @@ public interface ConsensusLayer {
     void requestNextRound(@Nullable final Roster newRoster, @Nullable final Instant freezeTime);
 
     void sendQuiescenceCommand(final QuiescenceCommand command);
-
 }

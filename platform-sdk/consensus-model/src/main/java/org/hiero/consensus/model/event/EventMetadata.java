@@ -26,15 +26,15 @@ public class EventMetadata extends AbstractHashable {
     /**
      * the self parent event descriptor
      */
-    private final EventDescriptorWrapper selfParent;
+    private final org.hiero.consensus.main.model.EventDescriptorWrapper selfParent;
 
     /**
      * the other parents' event descriptors
      */
-    private final List<EventDescriptorWrapper> otherParents;
+    private final List<org.hiero.consensus.main.model.EventDescriptorWrapper> otherParents;
 
     /** a combined list of all parents, selfParent + otherParents */
-    private final List<EventDescriptorWrapper> allParents;
+    private final List<org.hiero.consensus.main.model.EventDescriptorWrapper> allParents;
 
     /**
      * creation time, as claimed by its creator
@@ -48,7 +48,7 @@ public class EventMetadata extends AbstractHashable {
     /**
      * The event descriptor for this event. Is not itself hashed.
      */
-    private EventDescriptorWrapper descriptor;
+    private org.hiero.consensus.main.model.EventDescriptorWrapper descriptor;
 
     /**
      * The birth round that was initialized to the event.
@@ -66,7 +66,7 @@ public class EventMetadata extends AbstractHashable {
      */
     public EventMetadata(
             @NonNull final NodeId creatorId,
-            @NonNull final List<EventDescriptorWrapper> allParents,
+            @NonNull final List<org.hiero.consensus.main.model.EventDescriptorWrapper> allParents,
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions,
             final long birthRound) {
@@ -99,7 +99,9 @@ public class EventMetadata extends AbstractHashable {
         this(
                 NodeId.of(Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
                         .creatorNodeId()),
-                gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList(),
+                gossipEvent.parents().stream()
+                        .map(org.hiero.consensus.main.model.EventDescriptorWrapper::new)
+                        .toList(),
                 HapiUtils.asInstant(Objects.requireNonNull(
                         gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null")),
                 gossipEvent.transactions(),
@@ -131,7 +133,7 @@ public class EventMetadata extends AbstractHashable {
      * @return the event descriptor for the self parent
      */
     @Nullable
-    public EventDescriptorWrapper getSelfParent() {
+    public org.hiero.consensus.main.model.EventDescriptorWrapper getSelfParent() {
         return selfParent;
     }
 
@@ -141,7 +143,7 @@ public class EventMetadata extends AbstractHashable {
      * @return the event descriptors for the other parents
      */
     @NonNull
-    public List<EventDescriptorWrapper> getOtherParents() {
+    public List<org.hiero.consensus.main.model.EventDescriptorWrapper> getOtherParents() {
         return otherParents;
     }
 
@@ -156,7 +158,7 @@ public class EventMetadata extends AbstractHashable {
 
     /** @return a list of all parents, self parent (if any), + all other parents */
     @NonNull
-    public List<EventDescriptorWrapper> getAllParents() {
+    public List<org.hiero.consensus.main.model.EventDescriptorWrapper> getAllParents() {
         return allParents;
     }
 
@@ -181,13 +183,13 @@ public class EventMetadata extends AbstractHashable {
      * @throws IllegalStateException if called prior to this event being hashed
      */
     @NonNull
-    public EventDescriptorWrapper getDescriptor() {
+    public org.hiero.consensus.main.model.EventDescriptorWrapper getDescriptor() {
         if (descriptor == null) {
             if (getHash() == null) {
                 throw new IllegalStateException("The hash of the event must be set before creating the descriptor");
             }
 
-            descriptor = new EventDescriptorWrapper(
+            descriptor = new org.hiero.consensus.main.model.EventDescriptorWrapper(
                     new EventDescriptor(getHash().getBytes(), creatorId.id(), getBirthRound()));
         }
 

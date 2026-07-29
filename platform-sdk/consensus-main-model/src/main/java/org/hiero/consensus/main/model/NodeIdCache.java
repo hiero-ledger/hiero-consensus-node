@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.node;
+package org.hiero.consensus.main.model;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A cache for NodeId objects.
- *
+ * <p>
  * It's useful to support code that uses long values to identify nodes (e.g. the Roster)
  * and needs to interact with code that uses NodeId objects for the same purpose
  * as it helps prevent creating many duplicate NodeId instances for the same long id value.
@@ -18,7 +18,8 @@ final class NodeIdCache {
     /** Maximum node id to cache. MUST BE non-negative, &gt;= MIN, and reasonably small. */
     private static final int MAX = 63;
 
-    private static final org.hiero.consensus.main.model.NodeId[] CACHE = new org.hiero.consensus.main.model.NodeId[MAX - MIN + 1];
+    private static final org.hiero.consensus.main.model.NodeId[] CACHE =
+            new org.hiero.consensus.main.model.NodeId[MAX - MIN + 1];
 
     static {
         for (int id = MIN; id <= MAX; id++) {

@@ -9,8 +9,8 @@ import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.InboundConnectionManager;
 import org.hiero.consensus.gossip.impl.network.OutboundConnectionManager;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * Factory for creating inbound and outbound connection managers. Mostly needed for unit testing purposes, as

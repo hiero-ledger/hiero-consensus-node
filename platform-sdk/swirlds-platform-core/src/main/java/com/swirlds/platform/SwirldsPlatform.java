@@ -17,11 +17,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
@@ -64,15 +64,15 @@ public class SwirldsPlatform implements Platform {
     private final NotificationEngine notificationEngine;
 
     private final PlatformContext platformContext;
-    private final ConsensusLayerInputs inputs;
-    private final ConsensusLayerBuildingBlocks buildingBlocks;
+    private final ConsensusLayerAdapterInputs inputs;
+    private final ConsensusLayerAdapterBuildingBlocks buildingBlocks;
 
     /**
      * Constructor.
      */
     public SwirldsPlatform(
-            @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
+            @NonNull final ConsensusLayerAdapterInputs inputs,
+            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
             final long initialAncientThreshold,
             final long startingRound) {
         this.inputs = requireNonNull(inputs);

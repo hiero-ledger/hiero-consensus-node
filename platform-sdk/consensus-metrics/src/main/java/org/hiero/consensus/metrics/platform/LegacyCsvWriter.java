@@ -37,8 +37,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.ThresholdLimitingHandler;
 import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.metrics.config.MetricsConfig;
 
 /**
  * A {@code LegacyCsvWriter} writes the current CSV-format. It is called "legacy", because we plan to replace the

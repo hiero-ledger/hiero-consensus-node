@@ -31,7 +31,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
@@ -161,7 +161,7 @@ public class ConsensusNodeManager {
         platform = builder.build();
 
         // Wiring: Forward consensus rounds to registered listeners
-        final ConsensusLayerBuildingBlocks buildingBlocks = builder.buildingBlocks();
+        final ConsensusLayerAdapterBuildingBlocks buildingBlocks = builder.buildingBlocks();
         buildingBlocks
                 .hashgraphModule()
                 .consensusRoundOutputWire()

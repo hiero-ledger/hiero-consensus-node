@@ -18,11 +18,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.util.Map;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
@@ -135,13 +135,13 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
     }
 
     /**
-     * Provides the {@link ConsensusLayerBuildingBlocks} used to construct the consensus layer of the platform.
+     * Provides the {@link ConsensusLayerAdapterBuildingBlocks} used to construct the consensus layer of the platform.
      *
-     * @return a {@link ConsensusLayerBuildingBlocks} instance
+     * @return a {@link ConsensusLayerAdapterBuildingBlocks} instance
      * @throws IllegalStateException if this builder has not been used yet to build a platform
      */
     @NonNull
-    public ConsensusLayerBuildingBlocks buildingBlocks() {
+    public ConsensusLayerAdapterBuildingBlocks buildingBlocks() {
         throwIfNotUsed();
         return buildingBlocks;
     }
@@ -151,8 +151,8 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
      */
     @Override
     @NonNull
-    protected ConsensusLayerInputs createConsensusLayerInputs() {
-        return new ConsensusLayerInputs(
+    protected ConsensusLayerAdapterInputs createConsensusLayerInputs() {
+        return new ConsensusLayerAdapterInputs(
                 configuration,
                 metrics,
                 time,

@@ -11,8 +11,8 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Info;
 import java.util.Objects;
-import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
 
 /**
  * Adapter that synchronizes a {@link Metric} with a single value of {@link Metric#getDataType() type} {@code String}

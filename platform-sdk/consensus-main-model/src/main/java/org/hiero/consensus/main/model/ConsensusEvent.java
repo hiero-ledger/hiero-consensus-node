@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.event;
+package org.hiero.consensus.main.model;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.Iterator;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.hashgraph.ReachedConsensus;
-import org.hiero.consensus.main.model.ConsensusTransaction;
 
 /**
  * An event that has reached consensus.
@@ -14,7 +13,7 @@ import org.hiero.consensus.main.model.ConsensusTransaction;
  * interface may be changed at any time, in any way, without notice or prior deprecation. Third parties should NOT
  * implement this interface.
  */
-public interface ConsensusEvent extends org.hiero.consensus.main.model.Event, ReachedConsensus {
+public interface ConsensusEvent extends Event {
 
     /**
      * Returns an iterator over the application events in this transaction, which have all reached consensus. Each
@@ -41,4 +40,18 @@ public interface ConsensusEvent extends org.hiero.consensus.main.model.Event, Re
      */
     @NonNull
     Iterator<EventDescriptorWrapper> allParentsIterator();
+
+    /**
+     * Returns the consensus order of the consensus item, starting at zero. Smaller values occur before higher numbers.
+     *
+     * @return the consensus order sequence number
+     */
+    long getConsensusOrder();
+
+    /**
+     * Returns the community's consensus timestamp for this item.
+     *
+     * @return the consensus timestamp
+     */
+    Instant getConsensusTimestamp();
 }

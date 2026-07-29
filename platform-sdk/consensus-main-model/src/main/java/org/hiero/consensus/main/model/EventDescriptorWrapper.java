@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.event;
+package org.hiero.consensus.main.model;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
- * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor.
+ * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor using the {@link Hash}
+ * class instead of a {@code byte} array, and a {@link NodeId} instead of a {@code long}.
  */
 public record EventDescriptorWrapper(
-        @NonNull EventDescriptor eventDescriptor, @NonNull Hash hash, @NonNull NodeId creator) {
-    public static final long CLASS_ID = 0x825e17f25c6e2566L;
+        @NonNull EventDescriptor eventDescriptor,
+        @NonNull Hash hash,
+        @NonNull NodeId creator) {
 
     public EventDescriptorWrapper(@NonNull final EventDescriptor eventDescriptor) {
         this(eventDescriptor, new Hash(eventDescriptor.hash()), NodeId.of(eventDescriptor.creatorNodeId()));
@@ -29,6 +30,7 @@ public record EventDescriptorWrapper(
 
     /**
      * Create a short string representation of this event descriptor.
+     *
      * @return a short string
      */
     public @NonNull String shortString() {
@@ -37,6 +39,7 @@ public record EventDescriptorWrapper(
 
     /**
      * Append a short string representation of this event descriptor to the given {@link StringBuilder}.
+     *
      * @param sb the {@link StringBuilder} to append to
      * @return the given {@link StringBuilder}
      */

@@ -35,8 +35,8 @@ import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
 import org.hiero.consensus.gossip.impl.network.topology.ConnectionManagerFactory;
 import org.hiero.consensus.gossip.impl.network.topology.DynamicConnectionManagers;
 import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * Opening and monitoring of new connections for gossip/broadcast neighbours.

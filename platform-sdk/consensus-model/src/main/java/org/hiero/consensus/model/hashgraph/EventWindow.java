@@ -6,7 +6,7 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGAT
 
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

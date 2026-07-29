@@ -21,10 +21,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.PlatformMetrics;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Default implementation of the {@link Metrics} interface.

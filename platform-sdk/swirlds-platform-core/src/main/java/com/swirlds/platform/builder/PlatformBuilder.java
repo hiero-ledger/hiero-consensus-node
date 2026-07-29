@@ -26,14 +26,14 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerFactory;
-import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerAdapterFactory;
+import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -110,7 +110,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     protected StaleEventConsumer staleEventConsumer = _ -> {};
 
     /** The building blocks used to construct the consensus layer. */
-    protected ConsensusLayerBuildingBlocks buildingBlocks;
+    protected ConsensusLayerAdapterBuildingBlocks buildingBlocks;
 
     /** False if this builder has not yet been used to build a platform, true if it has. */
     private boolean used = false;
@@ -186,8 +186,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     public Platform build() {
         throwIfAlreadyUsed();
         used = true;
-        final ConsensusLayerInputs inputs = createConsensusLayerInputs();
-        final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
+        final ConsensusLayerAdapterInputs inputs = createConsensusLayerInputs();
+        final ConsensusLayerAdapterFactory factory = new ConsensusLayerAdapterFactory(inputs);
         buildingBlocks = factory.create();
 
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
@@ -259,14 +259,14 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     }
 
     /**
-     * Creates and returns an instance of {@link ConsensusLayerInputs} configured with the necessary
+     * Creates and returns an instance of {@link ConsensusLayerAdapterInputs} configured with the necessary
      * dependencies and settings required for initializing the consensus layer of the platform.
      *
-     * @return a fully-constructed {@link ConsensusLayerInputs} instance
+     * @return a fully-constructed {@link ConsensusLayerAdapterInputs} instance
      */
     @NonNull
-    protected ConsensusLayerInputs createConsensusLayerInputs() {
-        return new ConsensusLayerInputs(
+    protected ConsensusLayerAdapterInputs createConsensusLayerInputs() {
+        return new ConsensusLayerAdapterInputs(
                 configuration,
                 metrics,
                 time,

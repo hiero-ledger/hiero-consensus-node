@@ -10,8 +10,8 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 
 /**
  * The {@code ReconnectModule} contains the logic for handling reconnects. It is responsible for managing the
@@ -36,7 +36,7 @@ public interface ReconnectModule {
             @NonNull Configuration configuration,
             @NonNull Time time,
             @NonNull Roster currentRoster,
-            @NonNull ConsensusLayerBuildingBlocks buildingBlocks,
+            @NonNull ConsensusLayerAdapterBuildingBlocks buildingBlocks,
             @NonNull Platform platform,
             @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull ConsensusStateEventHandler consensusStateEventHandler,

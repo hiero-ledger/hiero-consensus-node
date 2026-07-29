@@ -32,11 +32,11 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEve
 import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimplePlatformEventGraph;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
