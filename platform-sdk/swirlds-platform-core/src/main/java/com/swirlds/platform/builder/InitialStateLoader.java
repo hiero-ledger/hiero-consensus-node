@@ -116,7 +116,6 @@ public class InitialStateLoader {
                     .initialEventWindowDispatcher()
                     .getInputWire()
                     .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks.gossipModule().flush();
             buildingBlocks
                     .issDetectionModule()
                     .overridingStateInputWire()
