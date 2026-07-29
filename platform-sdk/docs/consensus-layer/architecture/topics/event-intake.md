@@ -50,10 +50,11 @@ Component soldering happens in
   the creator pre-hashes its outputs, so a second hash would be
   wasteful.
 - `eventWindowInputWire()` → broadcast to the deduplicator, signature
-  validator, and orphan buffer, driving the ancient threshold.
+  validator, orphan buffer, branch detector, and branch reporter,
+  driving the ancient threshold.
 - `rosterHistoryInputWire()` → routes only to the signature validator.
-- `clearComponentsInputWire()` → broadcast `clear()` to deduplicator
-  and orphan buffer.
+- `clearComponentsInputWire()` → broadcast `clear()` to the deduplicator,
+  orphan buffer, branch detector, and branch reporter.
 - `flush()` → not a wire but a direct method on `EventIntakeModule`
   ([EventIntakeModule.java:104](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:104)).
   Drains all in-flight events through the internal components; used by
@@ -65,11 +66,8 @@ Component soldering happens in
 - `validatedEventsOutputWire()` is the flattened (`getSplitOutput()`)
   output of the orphan buffer
   ([DefaultEventIntakeModule.java:183](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:183)).
-  It solders to:
-  - The PCES writer
-    ([ConsensusLayerWiring.java:84-88](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:84)).
-  - The `BranchDetector`
-    ([PlatformWiring.java:112-115](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:112)).
+  It solders to the PCES writer
+  ([ConsensusLayerWiring.java:84-88](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:84)).
 
 > **Delta vs. orphan-buffer.md / sync-protocol.md:** the older docs
 > imply a single hand-off path "intake → hashgraph". Today the path is
@@ -78,10 +76,7 @@ Component soldering happens in
 > module ([`consensus-pces`](../../../../consensus-pces)) rather than a
 > stage of event intake. The migration of validation responsibilities
 > into the intake module is complete: every event emitted on
-> `validatedEventsOutputWire` is fully validated. The transitional
-> comment at
-> [PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-> is out of date and will be cleaned up.
+> `validatedEventsOutputWire` is fully validated.
 
 ## Validation pipeline
 
@@ -448,10 +443,7 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
 ## Future state (sidebar)
 
 The intake module migration is complete: every event emitted on
-`validatedEventsOutputWire` is fully validated. The transitional
-comment at
-[PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-is out of date and slated for cleanup. The proposal at
+`validatedEventsOutputWire` is fully validated. The proposal at
 `platform-sdk/docs/proposals/consensus-layer/Consensus-Layer.md` is
 orientation only; this topic describes what has shipped, not what is
 proposed.
