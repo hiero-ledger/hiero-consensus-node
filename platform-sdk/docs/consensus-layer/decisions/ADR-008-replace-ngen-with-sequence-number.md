@@ -229,10 +229,12 @@ See **Decision** above.
 
 ## References
 
-- `consensus-utility/.../orphan/DefaultOrphanBuffer.java` — `eventIsNotAnOrphan(...)`
-  assigns the sequence number at the buffer's exit via a single `AtomicLong`;
-  `getMissingParents(...)` shows that an ancient parent is not "missing", which is
-  why an event can be released with its `nGen` reset.
+- `consensus-utility/.../orphan/DefaultOrphanBuffer.java`:
+  - `eventIsNotAnOrphan(...)` — stamps the sequence number (a single `AtomicLong`)
+    as each event leaves the buffer.
+  - `getMissingParents(...)` — treats an ancient parent as not missing, so an event
+    whose parents have gone ancient is released with no tracked parents, resetting
+    its `nGen` to 1.
 - `consensus-model/.../NonDeterministicGeneration.java` — `assignNGen`, the
   `max(parents) + 1` with `FIRST_GENERATION` fallback that produces the reset; to
   be deleted once every consumer is converted.
