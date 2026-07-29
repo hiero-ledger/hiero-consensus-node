@@ -232,10 +232,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
 
     private static StateValue parseValue(Bytes valueBytes) throws ParseException {
         return StateValue.PROTOBUF.parse(
-                valueBytes.toReadableSequentialData(),
-                false,
-                false,
-                Codec.DEFAULT_MAX_DEPTH,
-                getVirtualMapValueParseMaxSizeBytes());
+                valueBytes, false, false, Codec.DEFAULT_MAX_DEPTH, getVirtualMapValueParseMaxSizeBytes());
     }
 }

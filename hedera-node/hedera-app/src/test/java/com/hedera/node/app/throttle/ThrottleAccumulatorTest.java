@@ -2584,7 +2584,7 @@ public class ThrottleAccumulatorTest {
                     in, com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleDefinitions.class);
             final var throttleDefsBytes =
                     Bytes.wrap(throttleDefinitionsObj.toProto().toByteArray());
-            return ThrottleDefinitions.PROTOBUF.parse(throttleDefsBytes.toReadableSequentialData());
+            return ThrottleDefinitions.PROTOBUF.parse(throttleDefsBytes);
         }
     }
 

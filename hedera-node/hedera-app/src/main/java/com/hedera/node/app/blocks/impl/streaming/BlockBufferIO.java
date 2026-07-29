@@ -179,8 +179,7 @@ public class BlockBufferIO {
                 byteBuffer.get(payload);
                 final Bytes bytes = Bytes.wrap(payload);
 
-                return BufferedBlock.PROTOBUF.parse(
-                        bytes.toReadableSequentialData(), false, false, maxReadDepth, length);
+                return BufferedBlock.PROTOBUF.parse(bytes, false, false, maxReadDepth, length);
             }
         }
     }

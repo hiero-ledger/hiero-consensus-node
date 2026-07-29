@@ -1410,7 +1410,7 @@ public class RecordStreamBuilder
      */
     private TransactionBody inProgressBody() {
         try {
-            return TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }

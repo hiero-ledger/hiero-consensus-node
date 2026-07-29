@@ -67,7 +67,7 @@ public class ThrottleParser {
      */
     public ValidatedThrottles parse(@NonNull final Bytes bytes) {
         try {
-            final var throttleDefinitions = ThrottleDefinitions.PROTOBUF.parseStrict(bytes.toReadableSequentialData());
+            final var throttleDefinitions = ThrottleDefinitions.PROTOBUF.parseStrict(bytes);
             validate(throttleDefinitions);
             final var successStatus =
                     allExpectedOperations(throttleDefinitions) ? SUCCESS : SUCCESS_BUT_MISSING_EXPECTED_OPERATION;

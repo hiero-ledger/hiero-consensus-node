@@ -45,7 +45,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
      */
     public static int extractStateIdFromStateValueOneOf(@NonNull final Bytes stateValue) {
         Objects.requireNonNull(stateValue, "Null state value");
-        return ProtoParserTools.readNextFieldNumber(stateValue.toReadableSequentialData());
+        return ProtoParserTools.readNextFieldNumber(stateValue.toPbjReader());
     }
 
     /**

@@ -7,6 +7,7 @@ import static com.swirlds.merkledb.files.hashmap.HalfDiskHashMap.INVALID_VALUE;
 
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -187,6 +188,30 @@ public final class ParsedBucket extends Bucket {
         checkLargestBucket();
     }
 
+    public void readFrom(PbjReader in) {
+        // defaults
+        bucketIndex = 0;
+        entries.clear();
+
+        while (in.hasRemaining()) {
+            final int tag = in.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            if (fieldNum == FIELD_BUCKET_INDEX.number()) {
+                bucketIndex = in.readInt();
+            } else if (fieldNum == FIELD_BUCKET_ENTRIES.number()) {
+                final int entryBytesSize = in.readVarInt(false);
+                final long oldLimit = in.limit();
+                in.limit(in.position() + entryBytesSize);
+                entries.add(new BucketEntry(in));
+                in.limit(oldLimit);
+            } else {
+                throw new IllegalArgumentException("Unknown bucket field: " + fieldNum);
+            }
+        }
+
+        checkLargestBucket();
+    }
+
     public void writeTo(final WritableSequentialData out) {
         // Bucket index is not optional, write the value even if default (zero)
         ProtoWriterTools.writeTag(out, FIELD_BUCKET_INDEX);
@@ -259,6 +284,39 @@ public final class ParsedBucket extends Bucket {
 
         /** Creates new bucket entry by reading its fields from the given protobuf buffer */
         public BucketEntry(final ReadableSequentialData entryData) {
+            // defaults
+            int hashCode = 0;
+            long value = 0;
+            Bytes keyBytes = null;
+
+            // read fields
+            while (entryData.hasRemaining()) {
+                final int tag = entryData.readVarInt(false);
+                final int fieldNum = tag >> TAG_FIELD_OFFSET;
+                if (fieldNum == Bucket.FIELD_BUCKETENTRY_HASHCODE.number()) {
+                    hashCode = entryData.readInt();
+                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_VALUE.number()) {
+                    value = entryData.readLong();
+                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_KEYBYTES.number()) {
+                    final int bytesSize = entryData.readVarInt(false);
+                    keyBytes = entryData.readBytes(bytesSize);
+                } else {
+                    throw new IllegalArgumentException("Unknown bucket entry field: " + fieldNum);
+                }
+            }
+
+            // check required fields
+            if (keyBytes == null) {
+                throw new IllegalArgumentException("Null key for bucket entry");
+            }
+
+            this.hashCode = hashCode;
+            this.value = value;
+            this.keyBytes = keyBytes;
+        }
+
+        /** Creates new bucket entry by reading its fields from the given protobuf buffer */
+        public BucketEntry(PbjReader entryData) {
             // defaults
             int hashCode = 0;
             long value = 0;

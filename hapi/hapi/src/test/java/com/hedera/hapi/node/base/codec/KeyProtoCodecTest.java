@@ -52,11 +52,7 @@ final class KeyProtoCodecTest {
 
         assertThat(serializedKey.bytes()).hasSizeLessThanOrEqualTo(MAX_TRANSACTION_BYTES);
         assertThatThrownBy(() -> Key.PROTOBUF.parse(
-                        Bytes.wrap(serializedKey.bytes()).toReadableSequentialData(),
-                        false,
-                        false,
-                        DEFAULT_MAX_DEPTH,
-                        MAX_TRANSACTION_BYTES))
+                        serializedKey.bytes(), false, false, DEFAULT_MAX_DEPTH, MAX_TRANSACTION_BYTES))
                 .isInstanceOf(ParseException.class)
                 .hasMessageContaining("Reached maximum allowed depth");
     }
@@ -100,12 +96,7 @@ final class KeyProtoCodecTest {
                 null,
                 () -> {
                     try {
-                        Key.PROTOBUF.parse(
-                                Bytes.wrap(serializedKey).toReadableSequentialData(),
-                                false,
-                                false,
-                                maxDepth,
-                                MAX_TRANSACTION_BYTES);
+                        Key.PROTOBUF.parse(serializedKey, false, false, maxDepth, MAX_TRANSACTION_BYTES);
                     } catch (final Throwable t) {
                         thrown.set(t);
                     }
