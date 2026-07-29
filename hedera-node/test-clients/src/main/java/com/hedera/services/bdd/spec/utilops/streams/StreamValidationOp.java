@@ -729,7 +729,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     Files.createDirectories(nodeDir);
                     final var container = entry.getValue();
                     try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                        final long lastBlock = client.getLastAvailableBlock();
+                        final long nextExpected = client.getNextExpectedBlock();
+                        final long lastBlock = nextExpected == -1L ? -1L : nextExpected - 1L;
                         if (lastBlock >= 0) {
                             final var blocks = client.subscribeBlocks(0, lastBlock);
                             for (final Block block : blocks) {

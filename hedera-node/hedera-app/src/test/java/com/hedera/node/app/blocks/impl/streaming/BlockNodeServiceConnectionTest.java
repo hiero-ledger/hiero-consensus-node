@@ -546,7 +546,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isTrue();
-        assertThat(status.nextExpectedBlock()).isEqualTo(2345L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(2346L);
         assertThat(status.latencyMillis()).isGreaterThan(-1L);
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));

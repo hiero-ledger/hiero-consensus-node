@@ -101,8 +101,8 @@ public class BlockNodeNetwork {
             boolean ready = false;
             while (System.currentTimeMillis() < deadline) {
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    final long lastBlock = client.getLastAvailableBlock();
-                    if (lastBlock >= 0) {
+                    final long nextExpected = client.getNextExpectedBlock();
+                    if (nextExpected >= 1) {
                         logger.info(
                                 "Block node container {} gRPC ready at {}:{}",
                                 id,

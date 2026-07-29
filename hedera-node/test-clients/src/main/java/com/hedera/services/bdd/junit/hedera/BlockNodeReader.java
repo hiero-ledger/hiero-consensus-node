@@ -91,7 +91,8 @@ public final class BlockNodeReader {
             for (final var entry : network.getBlockNodeContainerById().entrySet()) {
                 final var container = entry.getValue();
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    best = Math.max(best, client.getLastAvailableBlock());
+                    final long nextExpected = client.getNextExpectedBlock();
+                    best = Math.max(best, nextExpected == -1L ? -1L : nextExpected - 1L);
                 } catch (final Exception e) {
                     log.warn("Failed to query real block node {} for latest block", entry.getKey(), e);
                 }
@@ -150,7 +151,7 @@ public final class BlockNodeReader {
             for (final var entry : network.getBlockNodeContainerById().entrySet()) {
                 final var container = entry.getValue();
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    if (client.getLastAvailableBlock() >= number) {
+                    if (client.getNextExpectedBlock() > number) {
                         return true;
                     }
                 } catch (final Exception e) {

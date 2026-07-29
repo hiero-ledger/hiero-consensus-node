@@ -50,16 +50,17 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
     }
 
     /**
-     * Queries the block node's server status and returns the last available block number.
+     * Queries the block node's server status and returns the next expected block number.
+     * The next block the block node wants streamed, or -1 if
+     * the block node is empty or its status cannot be retrieved.
      *
-     * @return the last available block number, or -1 if the status cannot be retrieved
+     * @return the next expected block number, or -1 if the status cannot be retrieved
      */
-    public long getLastAvailableBlock() {
+    public long getNextExpectedBlock() {
         try (final var serviceClient = createServiceClient()) {
             final var response = serviceClient.serverStatus(ServerStatusRequest.DEFAULT);
-            log.info(
-                    "Block node {}:{} server status: lastAvailableBlock={}", host, port, response.lastAvailableBlock());
-            return response.lastAvailableBlock();
+            log.info("Block node {}:{} server status: nextExpectedBlock={}", host, port, response.nextExpectedBlock());
+            return response.nextExpectedBlock();
         } catch (final Exception e) {
             log.error("Failed to get server status from block node {}:{}", host, port, e);
             return -1;
