@@ -179,11 +179,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
             // Raised ceiling for node-generated history proof votes carrying the ~32 MB
             // uncompressed WRAPS proof, which exceed the default PBJ max message size
             return SignedTransaction.PROTOBUF.parse(
-                    ((Bytes) item.item().as()).toReadableSequentialData(),
-                    false,
-                    false,
-                    DEFAULT_MAX_DEPTH,
-                    MAX_PBJ_RECORD_SIZE);
+                    ((Bytes) item.item().as()), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         }
         return null;
     }
@@ -267,12 +263,8 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
 
                 // Deserialize using PBJ protobuf codec; parseStrict shorthand omitted because
                 // unredacted node-generated transactions can exceed the default max message size
-                final Block reloadedBlock = Block.PROTOBUF.parse(
-                        Bytes.wrap(fileBytes).toReadableSequentialData(),
-                        true,
-                        false,
-                        DEFAULT_MAX_DEPTH,
-                        MAX_PBJ_RECORD_SIZE);
+                final Block reloadedBlock =
+                        Block.PROTOBUF.parse(fileBytes, true, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
                 reloadedBlocks.add(reloadedBlock);
 
             } catch (final IOException e) {

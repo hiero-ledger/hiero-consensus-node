@@ -11,7 +11,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -30,15 +30,13 @@ public class ProtobufUtils {
 
     @NonNull
     public static Bytes extractPaymentBytes(@NonNull final Bytes serializedQuery) throws IOException, ParseException {
-        final var queryBody = extractQuery(serializedQuery.toReadableSequentialData());
-        final var queryHeader =
-                extractFieldBytes(queryBody.toReadableSequentialData(), TransactionGetReceiptQuerySchema.HEADER);
-        return extractFieldBytes(queryHeader.toReadableSequentialData(), QueryHeaderSchema.PAYMENT);
+        final var queryBody = extractQuery(serializedQuery.toPbjReader());
+        final var queryHeader = extractFieldBytes(queryBody.toPbjReader(), TransactionGetReceiptQuerySchema.HEADER);
+        return extractFieldBytes(queryHeader.toPbjReader(), QueryHeaderSchema.PAYMENT);
     }
 
     @NonNull
-    private static Bytes extractFieldBytes(
-            @NonNull final ReadableSequentialData input, @NonNull final FieldDefinition field)
+    private static Bytes extractFieldBytes(@NonNull final PbjReader input, @NonNull final FieldDefinition field)
             throws IOException, ParseException {
         if (field.repeated()) {
             throw new IllegalArgumentException("Cannot extract field bytes for a repeated field: " + field);
@@ -74,7 +72,7 @@ public class ProtobufUtils {
     }
 
     @NonNull
-    private static Bytes extractQuery(@NonNull final ReadableSequentialData input) throws IOException, ParseException {
+    private static Bytes extractQuery(@NonNull final PbjReader input) throws IOException, ParseException {
         while (input.hasRemaining()) {
             final int tag;
             // hasRemaining() doesn't work very well for streaming data, it returns false only when

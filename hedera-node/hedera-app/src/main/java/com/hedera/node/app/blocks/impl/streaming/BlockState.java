@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * A "block state" is the collection of items contained with a single block and can be streamed to a block node.
@@ -154,7 +155,7 @@ public class BlockState {
         }
         // The leading varint is the protobuf tag: (fieldNumber << 3) | wireType. The field number identifies which
         // oneof field is set, which corresponds 1:1 to the BlockItem item type.
-        final int tag = serializedItem.toReadableSequentialData().readVarInt(false);
+        final int tag = PbjUtils.readVarInt(serializedItem, false);
         return BlockItem.ItemOneOfType.fromProtobufOrdinal(tag >>> PROTOBUF_TAG_TYPE_BITS);
     }
 

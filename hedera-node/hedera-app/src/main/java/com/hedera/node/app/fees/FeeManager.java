@@ -125,7 +125,7 @@ public final class FeeManager {
         // Parse the current and next fee schedules
         final CurrentAndNextFeeSchedule schedules;
         try {
-            schedules = CurrentAndNextFeeSchedule.PROTOBUF.parseStrict(bytes.toReadableSequentialData());
+            schedules = CurrentAndNextFeeSchedule.PROTOBUF.parseStrict(bytes);
         } catch (final BufferUnderflowException | ParseException ex) {
             return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
         }

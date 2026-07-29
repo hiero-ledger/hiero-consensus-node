@@ -20,7 +20,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * Encapsulates the parts of a transaction we care about for translating a block stream into records.
  */
 public record TransactionParts(
-        @NonNull Transaction wrapper, @NonNull TransactionBody body, @NonNull HederaFunctionality function) {
+        @NonNull Transaction wrapper,
+        @NonNull TransactionBody body,
+        @NonNull HederaFunctionality function) {
     public TransactionParts {
         requireNonNull(wrapper);
         requireNonNull(body);
@@ -44,11 +46,7 @@ public record TransactionParts(
     public static TransactionParts from(@NonNull final Bytes serializedSignedTx) {
         try {
             final var signedTx = SignedTransaction.PROTOBUF.parse(
-                    serializedSignedTx.toReadableSequentialData(),
-                    false,
-                    false,
-                    DEFAULT_MAX_DEPTH,
-                    MAX_PBJ_RECORD_SIZE);
+                    serializedSignedTx, false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
             final Transaction wrapper;
             if (signedTx.useSerializedTxMessageHashAlgorithm()) {
                 wrapper = Transaction.newBuilder()
@@ -61,11 +59,7 @@ public record TransactionParts(
                         .build();
             }
             final var body = TransactionBody.PROTOBUF.parse(
-                    signedTx.bodyBytes().toReadableSequentialData(),
-                    false,
-                    false,
-                    DEFAULT_MAX_DEPTH,
-                    MAX_PBJ_RECORD_SIZE);
+                    signedTx.bodyBytes(), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
             return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream

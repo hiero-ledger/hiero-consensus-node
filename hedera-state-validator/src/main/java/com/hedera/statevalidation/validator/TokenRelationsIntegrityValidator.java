@@ -101,7 +101,7 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
 
                 final com.hedera.hapi.platform.state.StateValue stateValue =
                         com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(
-                                valueBytes.toReadableSequentialData(),
+                                valueBytes,
                                 false,
                                 false,
                                 Codec.DEFAULT_MAX_DEPTH,
