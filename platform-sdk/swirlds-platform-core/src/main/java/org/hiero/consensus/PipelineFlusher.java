@@ -12,6 +12,9 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
+/**
+ * Flushes the primary consensus-layer pipeline component-by-component, in upstream-to-downstream order.
+ */
 public class PipelineFlusher {
 
     private final EventIntakeModule eventIntakeModule;
@@ -22,6 +25,17 @@ public class PipelineFlusher {
     private final EventCreatorModule eventCreatorModule;
     private final StateModule stateModule;
 
+    /**
+     * Constructor
+     *
+     * @param eventIntakeModule the {@link EventIntakeModule}
+     * @param pcesModule the {@link PcesModule}
+     * @param gossipModule the {@link GossipModule}
+     * @param hashgraphModule the {@link HashgraphModule}
+     * @param transactionHandlingModule the {@link TransactionHandlingModule}
+     * @param eventCreatorModule the {@link EventCreatorModule}
+     * @param stateModule the {@link StateModule}
+     */
     public PipelineFlusher(
             @NonNull final EventIntakeModule eventIntakeModule,
             @NonNull final PcesModule pcesModule,
