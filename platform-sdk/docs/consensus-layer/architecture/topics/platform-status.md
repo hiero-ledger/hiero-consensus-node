@@ -125,13 +125,13 @@ heartbeat) into the corresponding action.
 |-----------------------------------|-------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
 | `StartedReplayingEventsAction`    | `consensus-pces-impl/.../PcesCoordinator.java`                                                              | PCES replay began.                                               |
 | `DoneReplayingEventsAction`       | `consensus-pces-impl/.../PcesCoordinator.java`                                                              | PCES replay finished.                                            |
-| `SelfEventReachedConsensusAction` | `consensus-utility/.../status/internal/DefaultPlatformMonitor.java` (from a `ConsensusRound`)               | One of this node's own events reached consensus.                 |
+| `SelfEventReachedConsensusAction` | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a `ConsensusRound`)               | One of this node's own events reached consensus.                 |
 | `FallenBehindAction`              | `consensus-reconnect-impl/.../ReconnectController.java`                                                     | The node determined it is behind the network.                    |
 | `ReconnectCompleteAction`         | `consensus-reconnect-impl/.../ReconnectController.java`                                                     | A reconnect finished.                                            |
-| `StateWrittenToDiskAction`        | `consensus-utility/.../status/internal/DefaultPlatformMonitor.java` (from a state-saving result)            | A signed state was written to disk (carries the freeze flag).    |
+| `StateWrittenToDiskAction`        | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a state-saving result)            | A signed state was written to disk (carries the freeze flag).    |
 | `FreezePeriodEnteredAction`       | `consensus-transaction-handling/.../DefaultTransactionHandler.java`                                         | A round crossed the freeze boundary (carries the freeze round).  |
-| `CatastrophicFailureAction`       | `consensus-utility/.../status/internal/DefaultPlatformMonitor.java` (from a catastrophic `IssNotification`) | An unrecoverable failure occurred.                               |
-| `TimeElapsedAction`               | `consensus-utility/.../status/internal/DefaultPlatformMonitor.java` (heartbeat)                             | Wall-clock tick; carries the current instant and quiescing flag. |
+| `CatastrophicFailureAction`       | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a catastrophic `IssNotification`) | An unrecoverable failure occurred.                               |
+| `TimeElapsedAction`               | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (heartbeat)                             | Wall-clock tick; carries the current instant and quiescing flag. |
 
 The heartbeat is periodic — its interval is
 [`platformStatus.statusStateMachineHeartbeatPeriod`](../../tunables.md)
