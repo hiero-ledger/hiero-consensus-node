@@ -21,6 +21,7 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.component.framework;

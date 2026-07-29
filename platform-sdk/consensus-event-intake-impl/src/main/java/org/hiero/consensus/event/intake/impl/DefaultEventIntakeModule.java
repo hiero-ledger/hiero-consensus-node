@@ -37,6 +37,7 @@ import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
@@ -48,7 +49,9 @@ import org.hiero.consensus.transaction.TransactionLimits;
  */
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
-    /** Transformer to dispatch event windows to components that need them. */
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
+
     @Nullable
     private WireTransformer<EventWindow, EventWindow> eventWindowDispatcher;
 
@@ -95,6 +98,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         }
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventWindowDispatcher =
                 new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
         this.clearCommandDispatcher =
@@ -113,6 +118,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         this.branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, wiringConfig.branchReporter());
 
         // Wire components
+        eventWindowExtractor.getOutputWire().solderTo(eventWindowDispatcher.getInputWire(), INJECT);
         eventHasherWiring
                 .getOutputWire()
                 .solderTo(eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
@@ -239,7 +245,16 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventWindowDispatcher, "Not initialized").getInputWire();
     }
 

@@ -32,9 +32,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system;
-    exports com.swirlds.platform.util;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.wiring;
     exports com.swirlds.platform;
     exports org.hiero.consensus;
 
@@ -43,11 +41,6 @@ module com.swirlds.platform.core {
             org.hiero.consensus.pcli,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
-    exports com.swirlds.platform.uptime to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            com.swirlds.common,
-            com.hedera.node.test.clients;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -73,6 +66,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
@@ -80,6 +74,7 @@ module com.swirlds.platform.core {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.reconnect;
     requires java.scripting;
     requires jdk.management;
     requires org.apache.logging.log4j;
