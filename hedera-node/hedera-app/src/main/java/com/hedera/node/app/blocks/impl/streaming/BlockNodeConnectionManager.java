@@ -364,9 +364,8 @@ public class BlockNodeConnectionManager {
 
         @Override
         public BlockNodeStatus call() {
-            svcConnection.initialize();
-
             try {
+                svcConnection.initialize();
                 return svcConnection.getBlockNodeStatus();
             } finally {
                 svcConnection.close();

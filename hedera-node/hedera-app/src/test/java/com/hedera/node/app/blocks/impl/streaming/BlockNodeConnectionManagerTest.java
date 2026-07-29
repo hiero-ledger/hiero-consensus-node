@@ -912,6 +912,22 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testRetrieveBlockNodeStatusTask_closeCalledWhenInitializeThrows() {
+        final BlockNodeServiceConnection svcConnection = mock(BlockNodeServiceConnection.class);
+        final RuntimeException initError = new RuntimeException("initialization failed");
+        doThrow(initError).when(svcConnection).initialize();
+
+        final RetrieveBlockNodeStatusTask task = new RetrieveBlockNodeStatusTask(svcConnection);
+
+        assertThatThrownBy(task::call).isInstanceOf(RuntimeException.class).hasMessage("initialization failed");
+
+        // close() must be called even when initialize() throws to prevent resource leaks
+        verify(svcConnection).initialize();
+        verify(svcConnection).close();
+        verifyNoMoreInteractions(svcConnection);
+    }
+
+    @Test
     void testGetNextPriorityBlockNode_skipP1GroupBecauseNoCandidates() throws Throwable {
         // Node 1 will have a priority of 1, but it will be unreachable
         final BlockNode node1 = mock(BlockNode.class);
