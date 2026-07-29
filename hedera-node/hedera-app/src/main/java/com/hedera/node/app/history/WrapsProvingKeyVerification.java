@@ -2,6 +2,7 @@
 package com.hedera.node.app.history;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.config.data.TssConfig;
@@ -406,6 +407,7 @@ public class WrapsProvingKeyVerification {
     private static Bytes hashFile(@NonNull final Path path) {
         requireNonNull(path);
 
+        final long start = System.currentTimeMillis();
         try {
             final MessageDigest digest = sha384DigestOrThrow();
             // We expect these files to be large, so allocate a large buffer
@@ -420,6 +422,8 @@ public class WrapsProvingKeyVerification {
             return Bytes.wrap(digest.digest());
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read WRAPS proving key file at " + path, e);
+        } finally {
+            log.info(STARTUP.getMarker(), "++++++++ WRAPS hashFile took {} ms", System.currentTimeMillis() - start);
         }
     }
 
