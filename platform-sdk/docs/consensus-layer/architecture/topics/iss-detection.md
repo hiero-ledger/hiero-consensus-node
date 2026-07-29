@@ -211,7 +211,7 @@ round even after an automated recovery.
 ## Wiring
 
 In [
-`PlatformWiring.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)
+`ConsensusLayerWiring.java`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java)
 the detector is wired as a Terminal consumer of the post-hasher
 fan-out (taking a fresh reservation from
 `postHasher_stateReserver`) and as a consumer of the transaction
