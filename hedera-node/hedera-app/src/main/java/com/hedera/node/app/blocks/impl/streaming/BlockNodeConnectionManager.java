@@ -364,9 +364,8 @@ public class BlockNodeConnectionManager {
 
         @Override
         public BlockNodeStatus call() {
-            svcConnection.initialize();
-
             try {
+                svcConnection.initialize();
                 return svcConnection.getBlockNodeStatus();
             } finally {
                 svcConnection.close();
@@ -424,7 +423,7 @@ public class BlockNodeConnectionManager {
         // collect the results and filter out nodes that either are unavailable or nodes that require a block we don't
         // have available in the buffer
         final long earliestAvailableBlock = blockBufferService.getEarliestAvailableBlockNumber();
-        final long latestAvailableBlock = blockBufferService.getLastBlockNumberProduced();
+        final long latestProducedBlock = blockBufferService.getLastBlockNumberProduced();
         final List<NodeCandidate> eligibleCandidates = new ArrayList<>();
 
         for (int i = 0; i < nodes.size(); ++i) {
@@ -491,16 +490,6 @@ public class BlockNodeConnectionManager {
 
             final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
 
-            if (status.latestBlockAvailable() < -1 || willAdditionOverflow(status.latestBlockAvailable(), 1)) {
-                node.applyCoolDown(new BlockNodeOutOfRange(Long.MAX_VALUE));
-                logger.info(
-                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (latestBlockAvailable: {}))",
-                        streamingEndpoint.host(),
-                        streamingEndpoint.port(),
-                        status.latestBlockAvailable());
-                continue;
-            }
-
             /*
             There is a scenario in which this consensus node may not have any blocks loaded. For example, this node may
             be initializing for the first time or the node may have restarted but there aren't any buffered blocks that
@@ -511,20 +500,27 @@ public class BlockNodeConnectionManager {
             node, then existing reconnect operations will engage to sort things out.
              */
 
-            final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
-            if (latestAvailableBlock != -1) {
-                if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
-                    final long numBlocksBehind = earliestAvailableBlock - wantedBlock;
-                    node.applyCoolDown(new BlockNodeOutOfRange(numBlocksBehind));
-                    logger.info(
-                            "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
-                            streamingEndpoint.host(),
-                            streamingEndpoint.port(),
-                            wantedBlock,
-                            earliestAvailableBlock,
-                            latestAvailableBlock);
-                    continue;
-                }
+            final long wantedBlock = status.nextExpectedBlock();
+
+            if (wantedBlock < -1) {
+                node.applyCoolDown(new BlockNodeOutOfRange(status.nextExpectedBlock()));
+                logger.info(
+                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}))",
+                        streamingEndpoint.host(),
+                        streamingEndpoint.port(),
+                        status.nextExpectedBlock());
+                continue;
+            } else if (latestProducedBlock != -1 && wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
+                final long numBlocksBehind = earliestAvailableBlock - wantedBlock;
+                node.applyCoolDown(new BlockNodeOutOfRange(numBlocksBehind));
+                logger.info(
+                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
+                        streamingEndpoint.host(),
+                        streamingEndpoint.port(),
+                        wantedBlock,
+                        earliestAvailableBlock,
+                        latestProducedBlock);
+                continue;
             }
 
             logger.info(
@@ -539,13 +535,13 @@ public class BlockNodeConnectionManager {
             return null;
         }
 
-        if (latestAvailableBlock == -1) {
+        if (latestProducedBlock == -1) {
             // Startup case: treat all reachable candidates as immediately streamable.
             return new GroupSelectionOutcome(eligibleCandidates, List.of(), Long.MAX_VALUE);
         }
 
         final List<NodeCandidate> inRangeCandidates = eligibleCandidates.stream()
-                .filter(c -> c.wantedBlock() <= latestAvailableBlock)
+                .filter(c -> c.wantedBlock() <= latestProducedBlock)
                 .toList();
         if (!inRangeCandidates.isEmpty()) {
             return new GroupSelectionOutcome(inRangeCandidates, List.of(), Long.MAX_VALUE);
@@ -559,16 +555,6 @@ public class BlockNodeConnectionManager {
                 .filter(c -> c.wantedBlock() == lowestAheadWantedBlock)
                 .toList();
         return new GroupSelectionOutcome(List.of(), lowestAheadCandidates, lowestAheadWantedBlock);
-    }
-
-    /**
-     * @param x the first value
-     * @param y the second value
-     * @return true if the addition of the specified values will overflow a long, else false
-     */
-    private static boolean willAdditionOverflow(final long x, final long y) {
-        final long r = x + y;
-        return ((x ^ r) & (y ^ r)) < 0;
     }
 
     /**

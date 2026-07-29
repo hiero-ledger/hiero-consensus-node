@@ -447,7 +447,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testGetBlockNodeStatusTask_success() throws Exception {
-        final ServerStatusResponse expectedResponse = new ServerStatusResponse(100, 200, false, null);
+        final ServerStatusResponse expectedResponse = new ServerStatusResponse(100, 200, false, 201);
         doReturn(expectedResponse)
                 .when(client)
                 .serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
@@ -477,14 +477,14 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         stateRef().set(ConnectionState.ACTIVE);
 
         final Future<ServerStatusResponse> getFuture =
-                CompletableFuture.completedFuture(new ServerStatusResponse(1234L, 2345L, false, null));
+                CompletableFuture.completedFuture(new ServerStatusResponse(1234L, 2345L, false, 2346L));
         doReturn(getFuture).when(executorService).submit(any(GetBlockNodeStatusTask.class));
 
         final BlockNodeStatus status = connection.getBlockNodeStatus();
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isTrue();
-        assertThat(status.latestBlockAvailable()).isEqualTo(2345L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(2345L);
         assertThat(status.latencyMillis()).isGreaterThan(-1L);
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));
@@ -521,7 +521,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
-        assertThat(status.latestBlockAvailable()).isEqualTo(-1L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
         assertThat(status.latencyMillis()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
@@ -568,7 +568,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeStatus status = statusRef.get();
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
-        assertThat(status.latestBlockAvailable()).isEqualTo(-1L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
         assertThat(status.latencyMillis()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
@@ -595,7 +595,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
-        assertThat(status.latestBlockAvailable()).isEqualTo(-1L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
         assertThat(status.latencyMillis()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
