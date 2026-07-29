@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent.framework.config;
 
+/**
+ * Thread naming scheme which just allows specifying a single final name for a thread, no computation at all.
+ */
 public class FullNameThreadNamingConfiguration
         extends AbstractThreadNamingConfiguration<FullNameThreadNamingConfiguration> {
 

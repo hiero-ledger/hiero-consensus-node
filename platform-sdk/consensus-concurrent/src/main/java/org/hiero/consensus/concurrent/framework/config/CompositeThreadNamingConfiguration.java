@@ -4,6 +4,10 @@ package org.hiero.consensus.concurrent.framework.config;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * Thread naming scheme made out of component: name part + optional thread number.
+ * Please see {@link #generateNextThreadName()} for the details.
+ */
 public class CompositeThreadNamingConfiguration
         extends AbstractThreadNamingConfiguration<CompositeThreadNamingConfiguration>
         implements ThreadNamingConfiguration<CompositeThreadNamingConfiguration> {

@@ -9,6 +9,10 @@ import org.hiero.consensus.concurrent.framework.config.AbstractThreadNamingConfi
 import org.hiero.consensus.concurrent.framework.config.ThreadNamingConfiguration;
 import org.hiero.consensus.model.node.NodeId;
 
+/**
+ * Thread naming scheme made out of component: name from_node to other_node + optional thread number.
+ * Please see {@link #generateNextThreadName()} for the details.
+ */
 public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfiguration<NodeThreadNamingConfiguration>
         implements ThreadNamingConfiguration<NodeThreadNamingConfiguration> {
 
