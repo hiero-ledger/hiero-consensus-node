@@ -88,8 +88,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             future = blockingIoExecutor.submit(new CreateClientTask());
             future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
-            logger.warn("{} Error initializing connection", this, e);
-
             if (future != null) {
                 future.cancel(true);
             }
@@ -198,6 +196,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         updateConnectionState(ConnectionState.CLOSING);
 
         Future<?> future = null;
+        boolean wasInterrupted = Thread.interrupted(); // drain pre-existing interrupt flag
 
         try {
             future = blockingIoExecutor.submit(new CloseClientTask(clientHolder));
@@ -207,7 +206,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             logger.warn("{} Error occurred while closing connection; it will be suppressed", this, e);
 
             if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
+                wasInterrupted = true;
             }
 
             if (future != null) {
@@ -216,6 +215,9 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         } finally {
             // regardless of outcome, mark this connection as closed
             updateConnectionState(ConnectionState.CLOSED);
+            if (wasInterrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
