@@ -2,6 +2,22 @@
 type: architecture-topic
 title: Wiring framework
 last_reviewed: 2026-06-12
+components:
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/schedulers/TaskScheduler.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/schedulers/builders/TaskSchedulerType.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/schedulers/ExceptionHandlers.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/component/ComponentWiring.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/wires/input/InputWire.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/wires/output/OutputWire.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/wires/SolderType.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/transformers/WireListSplitter.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/model/WiringModel.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/model/WiringModelBuilder.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/model/internal/analysis/CycleFinder.java
+  - swirlds-component-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java
+  - swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerFactory.java
+  - swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java
+  - consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java
 ---
 
 # Wiring framework
