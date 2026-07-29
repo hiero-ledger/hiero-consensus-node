@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.node;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -142,11 +144,21 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
         out.writeLong(id);
     }
 
+    @Override
+    public void serialize(PbjWriter out) throws IOException {
+        out.writeLong(id);
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void deserialize(SerializableDataInputStream in, int version) throws IOException {
+        id = in.readLong();
+    }
+
+    @Override
+    public void deserialize(PbjReader in, int version) throws IOException {
         id = in.readLong();
     }
 

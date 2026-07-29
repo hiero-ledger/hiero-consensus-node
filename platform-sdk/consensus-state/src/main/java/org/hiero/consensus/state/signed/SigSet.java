@@ -3,6 +3,7 @@ package org.hiero.consensus.state.signed;
 
 import com.hedera.hapi.platform.state.NodeIdSignaturePair;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -148,6 +149,22 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
      * @throws IOException if an I/O error occurs
      */
     public void serialize(@NonNull final WritableStreamingData out) throws IOException {
+        final List<NodeId> sortedIds = getSigningNodes().stream().sorted().toList();
+        final List<NodeIdSignaturePair> signaturePairs = new ArrayList<>(sortedIds.size());
+        for (final NodeId nodeId : sortedIds) {
+            final Signature signature = signatures.get(nodeId);
+            final Bytes signatureBytes = signature.getBytes();
+
+            signaturePairs.add(
+                    new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
+        }
+
+        final com.hedera.hapi.platform.state.SigSet sigSet = new com.hedera.hapi.platform.state.SigSet(signaturePairs);
+        out.writeVarInt(com.hedera.hapi.platform.state.SigSet.PROTOBUF.measureRecord(sigSet), false);
+        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(sigSet, out);
+    }
+
+    public void serialize(@NonNull final PbjWriter out) throws IOException {
         final List<NodeId> sortedIds = getSigningNodes().stream().sorted().toList();
         final List<NodeIdSignaturePair> signaturePairs = new ArrayList<>(sortedIds.size());
         for (final NodeId nodeId : sortedIds) {
