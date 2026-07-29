@@ -11,7 +11,7 @@ components:
   - consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java
   - consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java
-  - consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java
+  - consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java
   - consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java
 related:
   invariants: []

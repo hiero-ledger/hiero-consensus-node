@@ -58,7 +58,7 @@ Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds
 
 ## `uptime.*` — UptimeConfig
 
-Module: `swirlds-platform-core`. Source: [UptimeConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/uptime/UptimeConfig.java).
+Module: `consensus-utility`. Source: [UptimeConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/UptimeConfig.java).
 
 |   ID    |              Key              |   Type   | Default |                                            Effect                                             | Range | Fragility |
 |---------|-------------------------------|----------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
@@ -100,7 +100,7 @@ Module: `swirlds-platform-core`. Source: [PlatformMetricsConfig.java](../../swir
 
 ## `status.monitor.*` — StatusMonitorWiringConfig
 
-Module: `swirlds-platform-core`. Source: [StatusMonitorWiringConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/monitor/StatusMonitorWiringConfig.java).
+Module: `consensus-status-monitor`. Source: [StatusMonitorWiringConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/StatusMonitorWiringConfig.java).
 
 Scheduler configuration for the status monitor. Formerly `PlatformSchedulersConfig` / `platformSchedulers.*`, progressively emptied as the platform wiring was modularised into per-component wiring configs, then renamed when the status monitor moved into its own module.
 
