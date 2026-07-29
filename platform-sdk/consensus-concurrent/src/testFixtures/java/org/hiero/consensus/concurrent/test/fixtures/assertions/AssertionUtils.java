@@ -33,16 +33,15 @@ public class AssertionUtils {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean error = new AtomicBoolean();
 
-        final ThreadConfiguration<CompositeThreadNamingConfiguration> tc =
-                (ThreadConfiguration) new ThreadConfiguration<>(getStaticThreadManager())
-                        .setInterruptableRunnable(() -> {
-                            operation.run();
-                            latch.countDown();
-                        })
-                        .setExceptionHandler((final Thread thread, final Throwable exception) -> {
-                            error.set(true);
-                            exception.printStackTrace();
-                        });
+        final ThreadConfiguration tc = new ThreadConfiguration(getStaticThreadManager())
+                .setInterruptableRunnable(() -> {
+                    operation.run();
+                    latch.countDown();
+                })
+                .setExceptionHandler((final Thread thread, final Throwable exception) -> {
+                    error.set(true);
+                    exception.printStackTrace();
+                });
         tc.setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
                 .setComponent("assertion-utils")
                 .setThreadName("assert-prompt-completion"));
@@ -70,7 +69,7 @@ public class AssertionUtils {
         final AtomicBoolean error = new AtomicBoolean();
         final AtomicReference<T> value = new AtomicReference<>();
 
-        new ThreadConfiguration<>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .withCompositeNaming(tc -> tc.setComponent("assertion-utils").setThreadName("assert-prompt-completion"))
                 .setInterruptableRunnable(() -> {
                     value.set(operation.get());

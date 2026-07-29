@@ -19,13 +19,17 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  * @param <C> the type of the class extending this class
  * @param <T> the type of the objects in the queue
  */
-public abstract class AbstractQueueThreadConfiguration<
-                C extends AbstractQueueThreadConfiguration<C, T, N>, T, N extends ThreadNamingConfiguration<N>>
-        extends AbstractStoppableThreadConfiguration<C, InterruptableRunnable, N> {
+public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueThreadConfiguration<C, T>, T>
+        extends AbstractStoppableThreadConfiguration<C, InterruptableRunnable> {
 
     public static final int DEFAULT_CAPACITY = 100;
     public static final int DEFAULT_MAX_BUFFER_SIZE = 10_000;
     public static final int UNLIMITED_CAPACITY = -1;
+
+    /**
+     * Name of the queue for metric purposes
+     */
+    private final String queueName;
 
     /**
      * The maximum capacity of the queue. If -1 then there is no maximum capacity.
@@ -63,11 +67,12 @@ public abstract class AbstractQueueThreadConfiguration<
      */
     private Duration waitForWorkDuration = Duration.ofMillis(10);
 
-    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager) {
+    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager, String queueName) {
         super(threadManager);
 
         // Queue threads are not interruptable by default
         setStopBehavior(Stoppable.StopBehavior.BLOCKING);
+        this.queueName = queueName;
     }
 
     /**
@@ -75,7 +80,7 @@ public abstract class AbstractQueueThreadConfiguration<
      *
      * @param that the configuration to copy
      */
-    protected AbstractQueueThreadConfiguration(final AbstractQueueThreadConfiguration<C, T, N> that) {
+    protected AbstractQueueThreadConfiguration(final AbstractQueueThreadConfiguration<C, T> that) {
         super(that);
 
         this.capacity = that.capacity;
@@ -83,13 +88,14 @@ public abstract class AbstractQueueThreadConfiguration<
         this.handler = that.handler;
         this.queue = that.queue;
         this.metricsConfiguration = that.metricsConfiguration;
+        this.queueName = that.queueName;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public abstract AbstractQueueThreadConfiguration<C, T, N> copy();
+    public abstract AbstractQueueThreadConfiguration<C, T> copy();
 
     public QueueThread<T> buildQueueThread(final boolean start) {
         final QueueThread<T> thread = new QueueThreadImpl<>(this);
@@ -106,6 +112,14 @@ public abstract class AbstractQueueThreadConfiguration<
      */
     public int getCapacity() {
         return capacity;
+    }
+
+    /**
+     * Returns queue name
+     * @return name of the queue
+     */
+    public String getQueueName() {
+        return queueName;
     }
 
     /**

@@ -8,9 +8,7 @@ import java.util.List;
  * Thread naming scheme made out of component: name part + optional thread number.
  * Please see {@link #generateNextThreadName()} for the details.
  */
-public class CompositeThreadNamingConfiguration
-        extends AbstractThreadNamingConfiguration<CompositeThreadNamingConfiguration>
-        implements ThreadNamingConfiguration<CompositeThreadNamingConfiguration> {
+public class CompositeThreadNamingConfiguration extends AbstractThreadNamingConfiguration {
 
     /**
      * The name of the component with which this thread is associated.
@@ -24,42 +22,15 @@ public class CompositeThreadNamingConfiguration
 
     public CompositeThreadNamingConfiguration() {}
 
-    public CompositeThreadNamingConfiguration(final CompositeThreadNamingConfiguration old) {
-        this.component = old.component;
-        this.threadName = old.threadName;
-        this.useThreadNumbers = old.useThreadNumbers;
-    }
-
-    @Override
-    public CompositeThreadNamingConfiguration copy() {
-        return new CompositeThreadNamingConfiguration(this);
-    }
-
-    /**
-     * Get the name of the component that new threads will be associated with.
-     */
-    public String getComponent() {
-        return component;
-    }
-
     /**
      * Set the name of the component that new threads will be associated with.
      *
      * @return this object
      */
-    @SuppressWarnings("unchecked")
     public CompositeThreadNamingConfiguration setComponent(final String component) {
-        throwIfImmutable();
 
         this.component = component;
         return this;
-    }
-
-    /**
-     * Get the name for created threads.
-     */
-    public String getThreadName() {
-        return threadName;
     }
 
     /**
@@ -67,9 +38,7 @@ public class CompositeThreadNamingConfiguration
      *
      * @return this object
      */
-    @SuppressWarnings("unchecked")
     public CompositeThreadNamingConfiguration setThreadName(final String threadName) {
-        throwIfImmutable();
 
         this.threadName = threadName;
         return this;

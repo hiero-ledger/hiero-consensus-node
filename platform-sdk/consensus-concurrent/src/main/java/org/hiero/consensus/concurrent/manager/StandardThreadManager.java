@@ -28,7 +28,7 @@ public class StandardThreadManager implements ThreadManager {
      */
     @Override
     public ThreadFactory createThreadFactory(final String component, final String threadName) {
-        final ThreadConfiguration<CompositeThreadNamingConfiguration> tc = new ThreadConfiguration<>(this);
+        final ThreadConfiguration tc = new ThreadConfiguration(this);
         tc.setThreadNamingConfiguration(
                 new CompositeThreadNamingConfiguration().setComponent(component).setThreadName(threadName));
         return tc.buildFactory();

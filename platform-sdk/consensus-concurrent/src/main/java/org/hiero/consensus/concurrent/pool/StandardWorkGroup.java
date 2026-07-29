@@ -88,12 +88,11 @@ public class StandardWorkGroup implements AutoCloseable {
         this.logExceptionsToStdErr = logExceptionsToStdErr;
         this.abortAction = abortAction;
 
-        final ThreadConfiguration<CompositeThreadNamingConfiguration> configuration =
-                (ThreadConfiguration) new ThreadConfiguration(threadManager)
-                        .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
-                        .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
-                                .setComponent("work group " + groupName)
-                                .setThreadName(DEFAULT_TASK_NAME));
+        final ThreadConfiguration configuration = new ThreadConfiguration(threadManager)
+                .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
+                .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
+                        .setComponent("work group " + groupName)
+                        .setThreadName(DEFAULT_TASK_NAME));
 
         this.executorService = Executors.newCachedThreadPool(configuration.buildFactory());
     }

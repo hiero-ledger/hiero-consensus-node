@@ -11,16 +11,16 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  *
  * @param <T> the type held by the queue
  */
-public class QueueThreadConfiguration<T, N extends ThreadNamingConfiguration<N>>
-        extends AbstractQueueThreadConfiguration<QueueThreadConfiguration<T, N>, T, N> {
+public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguration<QueueThreadConfiguration<T>, T> {
 
     /**
      * Build a new queue thread configuration with default values.
      *
      * @param threadManager responsible for the creation and management of the thread used by this object
+     * @param queueName name of the queue
      */
-    public QueueThreadConfiguration(final ThreadManager threadManager) {
-        super(threadManager);
+    public QueueThreadConfiguration(final ThreadManager threadManager, final String queueName) {
+        super(threadManager, queueName);
     }
 
     /**
@@ -28,7 +28,7 @@ public class QueueThreadConfiguration<T, N extends ThreadNamingConfiguration<N>>
      *
      * @param that the configuration to copy.
      */
-    public QueueThreadConfiguration(final QueueThreadConfiguration<T, N> that) {
+    public QueueThreadConfiguration(final QueueThreadConfiguration<T> that) {
         super(that);
     }
 
@@ -36,7 +36,7 @@ public class QueueThreadConfiguration<T, N extends ThreadNamingConfiguration<N>>
      * {@inheritDoc}
      */
     @Override
-    public QueueThreadConfiguration<T, N> copy() {
+    public QueueThreadConfiguration<T> copy() {
         return new QueueThreadConfiguration<>(this);
     }
 
@@ -77,7 +77,7 @@ public class QueueThreadConfiguration<T, N extends ThreadNamingConfiguration<N>>
      * {@inheritDoc}
      */
     @Override
-    public QueueThreadConfiguration<T, N> setHandler(final InterruptableConsumer<T> handler) {
+    public QueueThreadConfiguration<T> setHandler(final InterruptableConsumer<T> handler) {
         return super.setHandler(handler);
     }
 
@@ -89,11 +89,11 @@ public class QueueThreadConfiguration<T, N extends ThreadNamingConfiguration<N>>
         return super.getHandler();
     }
 
-    public QueueThreadConfiguration<T, CompositeThreadNamingConfiguration> withCompositeNaming(
+    public QueueThreadConfiguration<T> withCompositeNaming(
             final Consumer<CompositeThreadNamingConfiguration> consumer) {
         final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
         consumer.accept(ctnc);
         setThreadNamingConfiguration(ctnc);
-        return (QueueThreadConfiguration<T, CompositeThreadNamingConfiguration>) this;
+        return this;
     }
 }

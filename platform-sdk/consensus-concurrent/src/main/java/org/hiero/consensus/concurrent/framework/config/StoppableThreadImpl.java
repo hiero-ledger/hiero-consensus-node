@@ -127,12 +127,12 @@ class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStopp
     /**
      * The configuration used to create this stoppable thread.
      */
-    private final AbstractStoppableThreadConfiguration<?, T, ?> configuration;
+    private final AbstractStoppableThreadConfiguration<?, T> configuration;
 
     /**
      * Create a new stoppable thread.
      */
-    public StoppableThreadImpl(final AbstractStoppableThreadConfiguration<?, T, ?> configuration) {
+    public StoppableThreadImpl(final AbstractStoppableThreadConfiguration<?, T> configuration) {
 
         this.configuration = configuration;
 

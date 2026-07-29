@@ -9,8 +9,7 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 /**
  * This object is used to configure and build {@link Thread} instances.
  */
-public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
-        extends AbstractThreadConfiguration<ThreadConfiguration<N>, N> {
+public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfiguration> {
 
     /**
      * Build a new thread configuration with default values.
@@ -26,7 +25,7 @@ public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
      *
      * @param that the configuration to copy.
      */
-    private ThreadConfiguration(final ThreadConfiguration<N> that) {
+    private ThreadConfiguration(final ThreadConfiguration that) {
         super(that);
     }
 
@@ -37,8 +36,8 @@ public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
      * @return a copy of this configuration
      */
     @Override
-    public ThreadConfiguration<N> copy() {
-        return new ThreadConfiguration<N>(this);
+    public ThreadConfiguration copy() {
+        return new ThreadConfiguration(this);
     }
 
     /**
@@ -47,8 +46,7 @@ public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
      * @param threadManager capable of building raw thread objects
      * @return a thread configuration with properties matching the caller's thread
      */
-    public static ThreadConfiguration<FullNameThreadNamingConfiguration> captureThreadConfiguration(
-            final ThreadManager threadManager) {
+    public static ThreadConfiguration captureThreadConfiguration(final ThreadManager threadManager) {
         return captureThreadConfiguration(threadManager, Thread.currentThread());
     }
 
@@ -59,10 +57,9 @@ public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
      * @param thread        the thread to copy configuration from
      * @return a thread configuration that matches the provided thread
      */
-    public static ThreadConfiguration<FullNameThreadNamingConfiguration> captureThreadConfiguration(
+    public static ThreadConfiguration captureThreadConfiguration(
             final ThreadManager threadManager, final Thread thread) {
-        final ThreadConfiguration<FullNameThreadNamingConfiguration> configuration =
-                new ThreadConfiguration<>(threadManager);
+        final ThreadConfiguration configuration = new ThreadConfiguration(threadManager);
         configuration.copyThreadConfiguration(thread);
         return configuration;
     }
@@ -112,7 +109,7 @@ public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
      * </p>
      */
     public ThreadFactory buildFactory() {
-        getThreadNamingConfiguration().enableThreadNumbering();
+        threadNamingConfiguration.enableThreadNumbering();
 
         final ContextSnapshot snapshot = captureContextSnapshot();
 
@@ -164,20 +161,14 @@ public class ThreadConfiguration<N extends ThreadNamingConfiguration<N>>
      * {@inheritDoc}
      */
     @Override
-    public ThreadConfiguration<N> setRunnable(final Runnable runnable) {
+    public ThreadConfiguration setRunnable(final Runnable runnable) {
         return super.setRunnable(runnable);
     }
 
-    public ThreadConfiguration<CompositeThreadNamingConfiguration> withCompositeNaming(
-            final Consumer<CompositeThreadNamingConfiguration> consumer) {
+    public ThreadConfiguration withCompositeNaming(final Consumer<CompositeThreadNamingConfiguration> consumer) {
         final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
         consumer.accept(ctnc);
         setThreadNamingConfiguration(ctnc);
-        return (ThreadConfiguration<CompositeThreadNamingConfiguration>) this;
-    }
-
-    public <X extends ThreadNamingConfiguration<X>> ThreadConfiguration<X> withNaming(final X naming) {
-        setThreadNamingConfiguration(naming);
-        return (ThreadConfiguration<X>) this;
+        return this;
     }
 }

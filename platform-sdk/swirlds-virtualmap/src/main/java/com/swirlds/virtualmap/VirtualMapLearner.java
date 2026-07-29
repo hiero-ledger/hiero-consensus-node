@@ -412,7 +412,7 @@ public final class VirtualMapLearner {
             return null;
         });
 
-        new ThreadConfiguration<>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .withCompositeNaming(tc -> tc.setComponent("virtualmap").setThreadName("leaf-deleter"))
                 .setRunnable(leafDeletionTask)
                 .setExceptionHandler((_, exception) ->

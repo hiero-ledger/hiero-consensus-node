@@ -150,7 +150,7 @@ public class KeysAndCertsGenerator {
             throws ExecutionException, InterruptedException, KeyStoreException {
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
-                Executors.newCachedThreadPool(new ThreadConfiguration<>(getStaticThreadManager())
+                Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
                         .withCompositeNaming(tc -> tc.setComponent("crypto").setThreadName("crypto-generate"))
                         .setDaemon(false)
                         .buildFactory())) {

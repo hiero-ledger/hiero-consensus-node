@@ -4,8 +4,7 @@ package org.hiero.consensus.concurrent.framework.config;
 /**
  * Thread naming scheme which just allows specifying a single final name for a thread, no computation at all.
  */
-public class FullNameThreadNamingConfiguration
-        extends AbstractThreadNamingConfiguration<FullNameThreadNamingConfiguration> {
+public class FullNameThreadNamingConfiguration extends AbstractThreadNamingConfiguration {
 
     private String fullyFormattedThreadName;
 
@@ -19,17 +18,8 @@ public class FullNameThreadNamingConfiguration
         this.fullyFormattedThreadName = old.fullyFormattedThreadName;
     }
 
-    @Override
-    public FullNameThreadNamingConfiguration copy() {
-        return new FullNameThreadNamingConfiguration(this);
-    }
-
     public void setFullyFormattedThreadName(final String fullyFormattedThreadName) {
         this.fullyFormattedThreadName = fullyFormattedThreadName;
-    }
-
-    public String getFullyFormattedThreadName() {
-        return fullyFormattedThreadName;
     }
 
     @Override

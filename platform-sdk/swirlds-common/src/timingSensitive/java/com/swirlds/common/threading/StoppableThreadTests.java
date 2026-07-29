@@ -27,7 +27,6 @@ import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.Stoppable;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -200,7 +199,7 @@ class StoppableThreadTests {
         // Give the thread enough time to circle around and get blocked on the lock.
         MILLISECONDS.sleep(100);
 
-        final Thread reaperThread = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread reaperThread = new ThreadConfiguration(getStaticThreadManager())
                 .withCompositeNaming(tc -> tc.setThreadName("reaper"))
                 .setRunnable(thread::stop)
                 .build(true);
@@ -492,7 +491,7 @@ class StoppableThreadTests {
         final CountDownLatch exitLatch = new CountDownLatch(1);
 
         // This thread will have the seed injected into it.
-        final Thread thread = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
                 .withCompositeNaming(tc -> tc.setThreadName("inject-into-this-thread"))
                 .setInterruptableRunnable(() -> {
                     // The seed will take over this thread for a while
@@ -529,24 +528,16 @@ class StoppableThreadTests {
     @DisplayName("Configuration Mutability Test")
     void configurationMutabilityTest() {
         // Build should make the configuration immutable
-        final StoppableThreadConfiguration<?, CompositeThreadNamingConfiguration> configuration =
-                new StoppableThreadConfiguration<>(getStaticThreadManager())
-                        .withCompositeNaming(tc -> {})
-                        .setWork(() -> {});
+        final StoppableThreadConfiguration<?> configuration = new StoppableThreadConfiguration<>(
+                        getStaticThreadManager())
+                .withCompositeNaming(tc -> {})
+                .setWork(() -> {});
 
         assertTrue(configuration.isMutable(), "configuration should be mutable");
 
         configuration.build();
         assertTrue(configuration.isImmutable(), "configuration should be immutable");
 
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.getThreadNamingConfiguration().setComponent("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration.getThreadNamingConfiguration().setThreadName("asdf"),
-                "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
                 () -> configuration.setThreadGroup(null),
@@ -603,7 +594,7 @@ class StoppableThreadTests {
         stoppableThread0.stop();
 
         // buildSeed() should cause future calls to buildSeed() and start() to fail.
-        final StoppableThreadConfiguration<?, ?> configuration1 = new StoppableThreadConfiguration<>(
+        final StoppableThreadConfiguration<?> configuration1 = new StoppableThreadConfiguration<>(
                         getStaticThreadManager())
                 .setWork(() -> {
                     MILLISECONDS.sleep(1);
@@ -653,7 +644,7 @@ class StoppableThreadTests {
                 .setWork(() -> HOURS.sleep(10000000))
                 .build();
 
-        final Thread joinThread = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread joinThread = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(stoppableThread::join)
                 .build(true);
 
@@ -674,7 +665,7 @@ class StoppableThreadTests {
                 .setWork(() -> HOURS.sleep(10000000))
                 .build();
 
-        final Thread joinThread1 = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread joinThread1 = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(stoppableThread1::join)
                 .build(true);
 

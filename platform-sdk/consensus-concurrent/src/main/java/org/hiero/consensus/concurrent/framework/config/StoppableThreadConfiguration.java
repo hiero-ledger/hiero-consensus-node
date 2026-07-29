@@ -12,8 +12,8 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  *
  * @param <T> the type of instance that will do work
  */
-public class StoppableThreadConfiguration<T extends InterruptableRunnable, N extends ThreadNamingConfiguration<N>>
-        extends AbstractStoppableThreadConfiguration<StoppableThreadConfiguration<T, N>, T, N> {
+public class StoppableThreadConfiguration<T extends InterruptableRunnable>
+        extends AbstractStoppableThreadConfiguration<StoppableThreadConfiguration<T>, T> {
 
     /**
      * Build a new stoppable thread configuration with default values.
@@ -29,7 +29,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable, N ext
      *
      * @param that the configuration to copy.
      */
-    private StoppableThreadConfiguration(final StoppableThreadConfiguration<T, N> that) {
+    private StoppableThreadConfiguration(final StoppableThreadConfiguration<T> that) {
         super(that);
     }
 
@@ -39,7 +39,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable, N ext
      *
      * @return a copy of this configuration
      */
-    public StoppableThreadConfiguration<T, N> copy() {
+    public StoppableThreadConfiguration<T> copy() {
         return new StoppableThreadConfiguration<>(this);
     }
 
@@ -88,7 +88,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable, N ext
      * {@inheritDoc}
      */
     @Override
-    public StoppableThreadConfiguration<T, N> setWork(final T work) {
+    public StoppableThreadConfiguration<T> setWork(final T work) {
         return super.setWork(work);
     }
 
@@ -104,15 +104,15 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable, N ext
      * {@inheritDoc}
      */
     @Override
-    public StoppableThreadConfiguration<T, N> setFinalCycleWork(final InterruptableRunnable finalCycleWork) {
+    public StoppableThreadConfiguration<T> setFinalCycleWork(final InterruptableRunnable finalCycleWork) {
         return super.setFinalCycleWork(finalCycleWork);
     }
 
-    public StoppableThreadConfiguration<T, CompositeThreadNamingConfiguration> withCompositeNaming(
+    public StoppableThreadConfiguration<T> withCompositeNaming(
             final Consumer<CompositeThreadNamingConfiguration> consumer) {
         final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
         consumer.accept(ctnc);
         setThreadNamingConfiguration(ctnc);
-        return (StoppableThreadConfiguration<T, CompositeThreadNamingConfiguration>) this;
+        return this;
     }
 }

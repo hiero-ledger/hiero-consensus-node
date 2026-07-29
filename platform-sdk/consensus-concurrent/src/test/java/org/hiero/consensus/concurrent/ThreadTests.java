@@ -16,7 +16,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
-import org.hiero.consensus.concurrent.framework.config.FullNameThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -77,7 +76,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -87,7 +86,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "there should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -111,7 +110,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -121,7 +120,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "there should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -132,7 +131,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "there should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -160,7 +159,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -170,7 +169,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -196,7 +195,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -206,7 +205,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -217,7 +216,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -240,14 +239,14 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> threadException.set(true))
                 .setRunnable(runnable1)
                 .build(true)
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration<FullNameThreadNamingConfiguration>(getStaticThreadManager())
+        new ThreadConfiguration(getStaticThreadManager())
                 .setExceptionHandler((t, e) -> threadException.set(true))
                 .setRunnable(runnable2)
                 .build(true)
@@ -268,7 +267,7 @@ class ThreadTests {
         final CountDownLatch seedLatch = new CountDownLatch(1);
 
         // This seed will inject itself into another thread.
-        final ThreadSeed seed = new ThreadConfiguration<>(getStaticThreadManager())
+        final ThreadSeed seed = new ThreadConfiguration(getStaticThreadManager())
                 .withCompositeNaming(tc -> tc.setComponent("seed-component").setThreadName("seed"))
                 .setPriority(Thread.MAX_PRIORITY)
                 .setContextClassLoader(seedLoader)
@@ -286,7 +285,7 @@ class ThreadTests {
         final CountDownLatch exitLatch = new CountDownLatch(1);
 
         // This thread will have the seed injected into it.
-        final Thread thread = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
                 .withCompositeNaming(tc -> tc.setThreadName("inject-into-this-thread"))
                 .setExceptionHandler(threadHandler)
                 .setInterruptableRunnable(() -> {

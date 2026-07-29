@@ -198,7 +198,7 @@ class IndexLockTests {
         for (int index = 0; index < size; index++) {
 
             final int finalIndex = index;
-            threads.add(new ThreadConfiguration<>(getStaticThreadManager())
+            threads.add(new ThreadConfiguration(getStaticThreadManager())
                     .withCompositeNaming(tc -> tc.setThreadName("background-locker"))
                     .setRunnable(() -> {
                         lock.lock(finalIndex);
@@ -231,7 +231,7 @@ class IndexLockTests {
             for (int index = 0; index < size; index++) {
 
                 final int finalIndex = index;
-                threads.add(new ThreadConfiguration<>(getStaticThreadManager())
+                threads.add(new ThreadConfiguration(getStaticThreadManager())
                         .withCompositeNaming(tc -> tc.setThreadName("background-locker"))
                         .setRunnable(() -> {
                             lock.lock(finalIndex);

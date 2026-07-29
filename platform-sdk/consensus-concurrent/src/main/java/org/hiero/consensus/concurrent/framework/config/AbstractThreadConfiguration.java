@@ -25,8 +25,7 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  *
  * @param <C> the type of the class extending this class
  */
-public abstract class AbstractThreadConfiguration<
-                C extends AbstractThreadConfiguration<C, N>, N extends ThreadNamingConfiguration<N>>
+public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfiguration<C>>
         implements Copyable, Mutable {
 
     private static final Logger logger = LogManager.getLogger(AbstractThreadConfiguration.class);
@@ -71,7 +70,7 @@ public abstract class AbstractThreadConfiguration<
      */
     private boolean immutable;
 
-    private ThreadNamingConfiguration<N> threadNamingConfiguration = UndefinedThreadNamingConfiguration.instance();
+    protected ThreadNamingConfiguration threadNamingConfiguration = UndefinedThreadNamingConfiguration.instance();
 
     /**
      * Build a new thread configuration with default values.
@@ -86,9 +85,9 @@ public abstract class AbstractThreadConfiguration<
      * @param that the configuration to copy
      */
     @SuppressWarnings("CopyConstructorMissesField")
-    protected AbstractThreadConfiguration(final AbstractThreadConfiguration<C, N> that) {
+    protected AbstractThreadConfiguration(final AbstractThreadConfiguration<C> that) {
         this.threadManager = that.threadManager;
-        this.threadNamingConfiguration = that.threadNamingConfiguration.copy();
+        this.threadNamingConfiguration = that.threadNamingConfiguration;
         this.threadGroup = that.threadGroup;
         this.daemon = that.daemon;
         this.priority = that.priority;
@@ -114,7 +113,7 @@ public abstract class AbstractThreadConfiguration<
      */
     @SuppressWarnings("unchecked")
     @Override
-    public abstract AbstractThreadConfiguration<C, N> copy();
+    public abstract AbstractThreadConfiguration<C> copy();
 
     /**
      * Make the configuration immutable. Throws if the thread is already immutable.
@@ -122,29 +121,20 @@ public abstract class AbstractThreadConfiguration<
     protected void becomeImmutable() {
         throwIfImmutable();
         immutable = true;
-        threadNamingConfiguration.becomeImmutable();
     }
 
     @SuppressWarnings("unchecked")
-    public <X extends AbstractThreadConfiguration<X, FullNameThreadNamingConfiguration>>
-            AbstractThreadConfiguration<X, FullNameThreadNamingConfiguration> withFullNameConfiguration(
-                    final String fullThreadName) {
-        this.threadNamingConfiguration =
-                (ThreadNamingConfiguration) new FullNameThreadNamingConfiguration(fullThreadName);
-        return (X) this;
+    public C withFullNameConfiguration(final String fullThreadName) {
+        throwIfImmutable();
+        this.threadNamingConfiguration = new FullNameThreadNamingConfiguration(fullThreadName);
+        return (C) this;
     }
 
     @SuppressWarnings("unchecked")
-    public <Y extends ThreadNamingConfiguration<Y>, X extends AbstractThreadConfiguration<X, Y>>
-            X setThreadNamingConfiguration(final ThreadNamingConfiguration<Y> threadNamingConfiguration) {
-
-        this.threadNamingConfiguration = (ThreadNamingConfiguration) threadNamingConfiguration;
-        return (X) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public N getThreadNamingConfiguration() {
-        return (N) threadNamingConfiguration;
+    public C setThreadNamingConfiguration(final ThreadNamingConfiguration threadNamingConfiguration) {
+        throwIfImmutable();
+        this.threadNamingConfiguration = threadNamingConfiguration;
+        return (C) this;
     }
 
     /**

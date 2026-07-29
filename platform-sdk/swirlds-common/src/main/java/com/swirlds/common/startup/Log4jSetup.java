@@ -67,7 +67,7 @@ public final class Log4jSetup {
                 // This allows us to write a final log message before the logger is shut down.
                 ((DefaultShutdownCallbackRegistry) contextFactory.getShutdownCallbackRegistry()).stop();
                 Runtime.getRuntime()
-                        .addShutdownHook(new ThreadConfiguration<>(getStaticThreadManager())
+                        .addShutdownHook(new ThreadConfiguration(getStaticThreadManager())
                                 .withCompositeNaming(
                                         tc -> tc.setComponent("browser").setThreadName("shutdown-hook"))
                                 .setRunnable(() -> {

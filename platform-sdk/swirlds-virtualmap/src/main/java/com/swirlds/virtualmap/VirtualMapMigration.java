@@ -62,7 +62,7 @@ public final class VirtualMapMigration {
             // Java only allows final values to be passed into a lambda
             final int index = threadIndex;
 
-            threads.add(new ThreadConfiguration<>(threadManager)
+            threads.add(new ThreadConfiguration(threadManager)
                     .withCompositeNaming(tc -> tc.setComponent(COMPONENT_NAME).setThreadName("reader-" + threadCount))
                     .setInterruptableRunnable(() -> {
                         for (long path = firstLeafPath + index; path <= lastLeafPath; path += threadCount) {
@@ -140,7 +140,7 @@ public final class VirtualMapMigration {
 
             final long firstPath = firstLeafPath + threadIndex;
 
-            threads.add(new ThreadConfiguration<>(threadManager)
+            threads.add(new ThreadConfiguration(threadManager)
                     .withCompositeNaming(tc -> tc.setComponent(COMPONENT_NAME).setThreadName("reader-" + threadCount))
                     .setInterruptableRunnable(() -> {
                         try {

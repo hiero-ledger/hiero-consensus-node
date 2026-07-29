@@ -198,7 +198,7 @@ public class CryptoBench extends VirtualMapEditBench {
                 1,
                 TimeUnit.SECONDS,
                 queue,
-                new ThreadConfiguration<>(getStaticThreadManager())
+                new ThreadConfiguration(getStaticThreadManager())
                         .withCompositeNaming(tc -> tc.setComponent("benchmark").setThreadName("prefetch"))
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());

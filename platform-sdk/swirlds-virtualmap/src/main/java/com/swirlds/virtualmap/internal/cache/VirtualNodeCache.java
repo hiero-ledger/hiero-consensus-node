@@ -307,7 +307,7 @@ public final class VirtualNodeCache implements FastCopyable {
                     60L,
                     TimeUnit.SECONDS,
                     new LinkedBlockingQueue<>(),
-                    new ThreadConfiguration<>(getStaticThreadManager())
+                    new ThreadConfiguration(getStaticThreadManager())
                             .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
                             .withCompositeNaming(
                                     tc -> tc.setComponent("virtual-map").setThreadName("cache-cleaner"))

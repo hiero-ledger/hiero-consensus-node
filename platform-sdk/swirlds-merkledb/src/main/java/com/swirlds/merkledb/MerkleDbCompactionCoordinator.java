@@ -88,7 +88,7 @@ class MerkleDbCompactionCoordinator {
                     50L,
                     TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<>(),
-                    new ThreadConfiguration<>(getStaticThreadManager())
+                    new ThreadConfiguration(getStaticThreadManager())
                             .setThreadGroup(new ThreadGroup("Compaction"))
                             .withCompositeNaming(
                                     tc -> tc.setComponent(MERKLEDB_COMPONENT).setThreadName("Compacting"))

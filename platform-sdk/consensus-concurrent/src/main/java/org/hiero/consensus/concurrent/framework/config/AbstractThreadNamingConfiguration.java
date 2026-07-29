@@ -6,13 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Basic implementation of ThreadNamingConfiguration, providing thread numbering and immutability support
  */
-public abstract class AbstractThreadNamingConfiguration<T extends AbstractThreadNamingConfiguration<T>>
-        implements ThreadNamingConfiguration<T> {
-
-    /**
-     * Is this instance effectively immutable and should be giving errors on any modifications?
-     */
-    private boolean immutable;
+public abstract class AbstractThreadNamingConfiguration implements ThreadNamingConfiguration {
 
     /**
      * If true then use thread numbers when generating the thread name.
@@ -31,34 +25,11 @@ public abstract class AbstractThreadNamingConfiguration<T extends AbstractThread
     }
 
     /**
-     * Make the configuration immutable. Throws if the thread is already immutable.
-     */
-    public void becomeImmutable() {
-        throwIfImmutable();
-        immutable = true;
-    }
-
-    /**
      * If this method is called then thread numbers will be used when naming the threads.
      */
     public void enableThreadNumbering() {
-        throwIfImmutable();
         useThreadNumbers = true;
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isImmutable() {
-        return immutable;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public abstract T copy();
 
     /**
      * {@inheritDoc}

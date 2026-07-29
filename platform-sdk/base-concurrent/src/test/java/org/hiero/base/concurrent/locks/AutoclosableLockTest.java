@@ -123,8 +123,7 @@ class AutoclosableLockTest {
         final CountDownLatch threadBlocker1 = new CountDownLatch(1);
         final AtomicBoolean threadGotLock1 = new AtomicBoolean(false);
 
-        final ThreadConfiguration<CompositeThreadNamingConfiguration> tc0 = new ThreadConfiguration<>(
-                        getStaticThreadManager())
+        final ThreadConfiguration tc0 = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(() -> {
                     try (final Locked locked0 = lock.lock()) {
                         // Lock is reentrant, second lock on same thread should not block
@@ -140,8 +139,7 @@ class AutoclosableLockTest {
 
         assertEventuallyTrue(threadGotLock0::get, Duration.ofSeconds(1), "thread should have acquired lock by now");
 
-        final ThreadConfiguration<CompositeThreadNamingConfiguration> tc1 = new ThreadConfiguration<>(
-                        getStaticThreadManager())
+        final ThreadConfiguration tc1 = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(() -> {
                     while (true) {
                         try (final MaybeLocked maybeLocked = lock.tryLock(1, MILLISECONDS)) {
@@ -188,7 +186,7 @@ class AutoclosableLockTest {
         final CountDownLatch threadBlocker1 = new CountDownLatch(1);
         final AtomicBoolean threadGotLock1 = new AtomicBoolean(false);
 
-        final Thread thread0 = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread thread0 = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(() -> {
                     try (final Locked locked0 = lock.lock()) {
                         try (final Locked locked1 = lock.lock()) {
@@ -199,7 +197,7 @@ class AutoclosableLockTest {
                 })
                 .build(true);
 
-        final Thread thread1 = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
                 .setInterruptableRunnable(() -> {
                     while (true) {
                         try (final MaybeLocked maybeLocked = lock.tryLock(1, MILLISECONDS)) {

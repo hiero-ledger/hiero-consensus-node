@@ -6,15 +6,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.concurrent.framework.config.AbstractThreadNamingConfiguration;
-import org.hiero.consensus.concurrent.framework.config.ThreadNamingConfiguration;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Thread naming scheme made out of component: name from_node to other_node + optional thread number.
  * Please see {@link #generateNextThreadName()} for the details.
  */
-public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfiguration<NodeThreadNamingConfiguration>
-        implements ThreadNamingConfiguration<NodeThreadNamingConfiguration> {
+public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfiguration {
 
     /**
      * The name of the component with which this thread is associated.
@@ -46,18 +44,6 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
 
     public NodeThreadNamingConfiguration() {}
 
-    public NodeThreadNamingConfiguration(final NodeThreadNamingConfiguration old) {
-        this.nodeId = old.nodeId;
-        this.otherNodeId = old.otherNodeId;
-        this.component = old.component;
-        this.threadName = old.threadName;
-    }
-
-    @Override
-    public NodeThreadNamingConfiguration copy() {
-        return new NodeThreadNamingConfiguration(this);
-    }
-
     /**
      * Set the node ID.
      *
@@ -65,19 +51,10 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
      */
     @SuppressWarnings("unchecked")
     public NodeThreadNamingConfiguration setNodeId(@NonNull final NodeId nodeId) {
-        throwIfImmutable();
         Objects.requireNonNull(nodeId, "nodeId must not be null");
 
         this.nodeId = nodeId;
         return this;
-    }
-
-    /**
-     * Get the node ID of the other node (if created threads will be dealing with a task related to a specific node).
-     */
-    @NonNull
-    public NodeId getOtherNodeId() {
-        return otherNodeId;
     }
 
     /**
@@ -88,7 +65,6 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
      */
     @SuppressWarnings("unchecked")
     public NodeThreadNamingConfiguration setOtherNodeId(@NonNull final NodeId otherNodeId) {
-        throwIfImmutable();
         Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
 
         this.otherNodeId = otherNodeId;
@@ -109,7 +85,6 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
      */
     @SuppressWarnings("unchecked")
     public NodeThreadNamingConfiguration setComponent(final String component) {
-        throwIfImmutable();
 
         this.component = component;
         return this;
@@ -129,8 +104,6 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
      */
     @SuppressWarnings("unchecked")
     public NodeThreadNamingConfiguration setThreadName(final String threadName) {
-        throwIfImmutable();
-
         this.threadName = threadName;
         return this;
     }

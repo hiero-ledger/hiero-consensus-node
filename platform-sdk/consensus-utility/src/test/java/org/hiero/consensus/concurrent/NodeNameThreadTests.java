@@ -12,6 +12,7 @@ import com.swirlds.base.state.MutabilityException;
 import java.util.concurrent.ThreadFactory;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.FullNameThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
@@ -32,8 +33,7 @@ class NodeNameThreadTests {
         final ClassLoader classLoader =
                 Thread.currentThread().getContextClassLoader().getParent();
 
-        final ThreadConfiguration<NodeThreadNamingConfiguration> tc =
-                new ThreadConfiguration<NodeThreadNamingConfiguration>(getStaticThreadManager());
+        final ThreadConfiguration tc = new ThreadConfiguration(getStaticThreadManager());
         tc.setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
                         .setNodeId(NodeId.of(1234L))
                         .setComponent("pool1")
@@ -62,20 +62,20 @@ class NodeNameThreadTests {
     @DisplayName("Naming Tests")
     void namingTests() {
 
-        final Thread thread0 = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread thread0 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .build();
         assertEquals("<unnamed>", thread0.getName(), "unexpected thread name");
 
-        final Thread thread1 = new ThreadConfiguration<>(getStaticThreadManager())
+        final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .withNaming(new CompositeThreadNamingConfiguration().setComponent("foo"))
+                .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration().setComponent("foo"))
                 .build();
         assertEquals("<foo: unnamed>", thread1.getName(), "unexpected thread name");
 
         final Thread thread2 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .withNaming(new CompositeThreadNamingConfiguration()
+                .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
                         .setComponent("foo")
                         .setThreadName("bar"))
                 .build();
@@ -83,7 +83,7 @@ class NodeNameThreadTests {
 
         final Thread thread3 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .withNaming(new NodeThreadNamingConfiguration()
+                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
                         .setComponent("foo")
                         .setThreadName("bar")
                         .setNodeId(NodeId.of(1234L)))
@@ -92,7 +92,7 @@ class NodeNameThreadTests {
 
         final Thread thread4 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .withNaming(new NodeThreadNamingConfiguration()
+                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
                         .setComponent("foo")
                         .setThreadName("bar")
                         .setNodeId(NodeId.of(1234L))
@@ -102,7 +102,7 @@ class NodeNameThreadTests {
 
         final ThreadFactory factory = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .withNaming(new NodeThreadNamingConfiguration()
+                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
                         .setComponent("foo")
                         .setThreadName("bar")
                         .setNodeId(NodeId.of(1234L))
@@ -121,8 +121,7 @@ class NodeNameThreadTests {
     @DisplayName("Configuration Mutability Test")
     void configurationMutabilityTest() {
         // Build should make the configuration immutable
-        final ThreadConfiguration<NodeThreadNamingConfiguration> configuration0 = new ThreadConfiguration<
-                        NodeThreadNamingConfiguration>(getStaticThreadManager())
+        final ThreadConfiguration configuration0 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .setThreadNamingConfiguration(new NodeThreadNamingConfiguration());
 
@@ -133,19 +132,7 @@ class NodeNameThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration0.getThreadNamingConfiguration().setNodeId(NodeId.of(0L)),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration0.getThreadNamingConfiguration().setComponent("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration0.getThreadNamingConfiguration().setThreadName("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration0.getThreadNamingConfiguration().setOtherNodeId(NodeId.of(0L)),
+                () -> configuration0.setThreadNamingConfiguration(new FullNameThreadNamingConfiguration("Abc")),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -169,8 +156,7 @@ class NodeNameThreadTests {
                 MutabilityException.class, () -> configuration0.setRunnable(null), "configuration should be immutable");
 
         // Build seed should make the configuration immutable
-        final ThreadConfiguration<NodeThreadNamingConfiguration> configuration1 = new ThreadConfiguration<
-                        NodeThreadNamingConfiguration>(getStaticThreadManager())
+        final ThreadConfiguration configuration1 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .setThreadNamingConfiguration(new NodeThreadNamingConfiguration());
 
@@ -181,19 +167,7 @@ class NodeNameThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration1.getThreadNamingConfiguration().setNodeId(NodeId.of(0L)),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.getThreadNamingConfiguration().setComponent("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.getThreadNamingConfiguration().setThreadName("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.getThreadNamingConfiguration().setOtherNodeId(NodeId.of(0L)),
+                () -> configuration1.setThreadNamingConfiguration(new FullNameThreadNamingConfiguration("Abc")),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -217,8 +191,7 @@ class NodeNameThreadTests {
                 MutabilityException.class, () -> configuration1.setRunnable(null), "configuration should be immutable");
 
         // Build factory should make the configuration immutable
-        final ThreadConfiguration<NodeThreadNamingConfiguration> configuration2 = new ThreadConfiguration<
-                        NodeThreadNamingConfiguration>(getStaticThreadManager())
+        final ThreadConfiguration configuration2 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .setThreadNamingConfiguration(new NodeThreadNamingConfiguration());
 
@@ -229,20 +202,9 @@ class NodeNameThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration2.getThreadNamingConfiguration().setNodeId(NodeId.of(0L)),
+                () -> configuration2.setThreadNamingConfiguration(new FullNameThreadNamingConfiguration("Abc")),
                 "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration2.getThreadNamingConfiguration().setComponent("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration2.getThreadNamingConfiguration().setThreadName("asdf"),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration2.getThreadNamingConfiguration().setOtherNodeId(NodeId.of(0L)),
-                "configuration should be immutable");
+
         assertThrows(
                 MutabilityException.class,
                 () -> configuration2.setThreadGroup(null),
@@ -277,9 +239,8 @@ class NodeNameThreadTests {
 
         final Runnable runnable = () -> {};
 
-        final ThreadConfiguration<NodeThreadNamingConfiguration> configuration = new ThreadConfiguration<
-                        NodeThreadNamingConfiguration>(getStaticThreadManager())
-                .withNaming(new NodeThreadNamingConfiguration()
+        final ThreadConfiguration configuration = new ThreadConfiguration(getStaticThreadManager())
+                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
                         .setNodeId(NodeId.of(1234L))
                         .setComponent("component")
                         .setThreadName("name"))
@@ -290,20 +251,8 @@ class NodeNameThreadTests {
                 .setExceptionHandler(exceptionHandler)
                 .setRunnable(runnable);
 
-        final ThreadConfiguration<NodeThreadNamingConfiguration> copy1 = configuration.copy();
+        final ThreadConfiguration copy1 = configuration.copy();
 
-        assertEquals(
-                configuration.getThreadNamingConfiguration().getNodeId(),
-                copy1.getThreadNamingConfiguration().getNodeId(),
-                "copy configuration should match");
-        assertEquals(
-                configuration.getThreadNamingConfiguration().getComponent(),
-                copy1.getThreadNamingConfiguration().getComponent(),
-                "copy configuration should match");
-        assertEquals(
-                configuration.getThreadNamingConfiguration().getThreadName(),
-                copy1.getThreadNamingConfiguration().getThreadName(),
-                "copy configuration should match");
         assertSame(configuration.getThreadGroup(), copy1.getThreadGroup(), "copy configuration should match");
         assertEquals(configuration.isDaemon(), copy1.isDaemon(), "copy configuration should match");
         assertEquals(configuration.getPriority(), copy1.getPriority(), "copy configuration should match");
@@ -317,21 +266,9 @@ class NodeNameThreadTests {
         // It should matter if the original is immutable.
         configuration.build();
 
-        final ThreadConfiguration<NodeThreadNamingConfiguration> copy2 = configuration.copy();
+        final ThreadConfiguration copy2 = configuration.copy();
         assertTrue(copy2.isMutable(), "copy should be mutable");
 
-        assertEquals(
-                configuration.getThreadNamingConfiguration().getNodeId(),
-                copy2.getThreadNamingConfiguration().getNodeId(),
-                "copy configuration should match");
-        assertEquals(
-                configuration.getThreadNamingConfiguration().getComponent(),
-                copy2.getThreadNamingConfiguration().getComponent(),
-                "copy configuration should match");
-        assertEquals(
-                configuration.getThreadNamingConfiguration().getThreadName(),
-                copy2.getThreadNamingConfiguration().getThreadName(),
-                "copy configuration should match");
         assertSame(configuration.getThreadGroup(), copy2.getThreadGroup(), "copy configuration should match");
         assertEquals(configuration.isDaemon(), copy2.isDaemon(), "copy configuration should match");
         assertEquals(configuration.getPriority(), copy2.getPriority(), "copy configuration should match");

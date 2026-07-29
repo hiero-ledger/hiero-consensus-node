@@ -47,7 +47,7 @@ public class ConnectionServer implements InterruptableRunnable {
         this.port = port;
         this.newConnectionHandler = newConnectionHandler;
         this.socketFactory = socketFactory;
-        this.incomingConnPool = Executors.newCachedThreadPool(new ThreadConfiguration<>(threadManager)
+        this.incomingConnPool = Executors.newCachedThreadPool(new ThreadConfiguration(threadManager)
                 .withCompositeNaming(tc -> tc.setThreadName("sync_server"))
                 .buildFactory());
     }

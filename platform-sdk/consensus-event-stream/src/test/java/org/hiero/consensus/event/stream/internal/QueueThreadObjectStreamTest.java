@@ -49,7 +49,8 @@ class QueueThreadObjectStreamTest {
         consumer = new WriteToStreamConsumer(
                 new SerializableDataOutputStream(new BufferedOutputStream(new ByteArrayOutputStream())), initialHash);
 
-        queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(consumer)
                 .build();
         runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread);
