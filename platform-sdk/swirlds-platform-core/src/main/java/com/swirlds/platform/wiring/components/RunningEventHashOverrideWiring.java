@@ -47,13 +47,4 @@ public record RunningEventHashOverrideWiring(
 
         return wiring;
     }
-
-    /**
-     * Update the running hash for all components that need it.
-     *
-     * @param runningHashUpdate the object containing necessary information to update the running hash
-     */
-    public void updateRunningHash(@NonNull final RunningEventHashOverride runningHashUpdate) {
-        runningHashUpdateInput.inject(runningHashUpdate);
-    }
 }

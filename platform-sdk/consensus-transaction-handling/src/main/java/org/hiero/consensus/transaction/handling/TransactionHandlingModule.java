@@ -27,7 +27,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
-import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;
@@ -61,7 +61,7 @@ public class TransactionHandlingModule {
      * @param latestImmutableStateNexus the latest immutable state nexus
      * @param transactionCallbacks the transaction callbacks
      * @param stateLifecycleManager the state lifecycle manager
-     * @param statusActionSubmitter the status action submitter
+     * @param statusMonitorModule the status action submitter
      * @param softwareVersion the software version
      * @param selfId the node id
      * @param transactionOffsetNanos the transaction offset in nanoseconds
@@ -74,7 +74,7 @@ public class TransactionHandlingModule {
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final NodeId selfId,
             final long transactionOffsetNanos) {
@@ -120,7 +120,7 @@ public class TransactionHandlingModule {
                 configuration,
                 metrics,
                 stateLifecycleManager,
-                statusActionSubmitter,
+                statusMonitorModule,
                 softwareVersion,
                 transactionCallbacks,
                 selfId,

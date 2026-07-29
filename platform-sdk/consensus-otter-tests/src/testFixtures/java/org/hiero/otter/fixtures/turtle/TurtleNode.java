@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -46,9 +47,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -88,7 +88,6 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
-import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -277,7 +276,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
 
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
-            final GossipModule gossipModule = new TurtleGossipModule(gossip);
 
             final TestPlatformBuilder builder = new TestPlatformBuilder(
                             currentConfiguration,
@@ -298,14 +296,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS)
                     .withWiringModel(model)
                     .withSecureRandom(new SecureRandomBuilder(randotron.nextLong()).get())
-                    .withGossipModuleOverride(gossipModule);
+                    .withAdditionalProperties(Map.of("simulatedGossip", gossip));
 
             platform = builder.build();
 
             buildingBlocks = builder.buildingBlocks();
-
-            // futurework: Investigate why this is not set via GossipModule.initialize()
-            gossip.provideIntakeEventCounter(buildingBlocks.intakeEventCounter());
 
             buildingBlocks
                     .hashgraphModule()
