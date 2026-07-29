@@ -3,9 +3,12 @@ package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -13,6 +16,10 @@ import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +32,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HintsControllersTest {
     private static final HintsConstruction ONE_CONSTRUCTION =
             HintsConstruction.newBuilder().constructionId(1L).build();
+    private static final Roster CURRENT_ROSTER = new Roster(List.of(
+            RosterEntry.newBuilder().nodeId(1L).build(),
+            RosterEntry.newBuilder().nodeId(2L).build()));
 
     @Mock
     private Executor executor;
@@ -100,11 +110,15 @@ class HintsControllersTest {
         given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(Bytes.EMPTY);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
         given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(Set.of(1L)));
+        given(activeRosters.currentRoster()).willReturn(CURRENT_ROSTER);
+        given(hintsStore.getVotes(1L, Set.of(1L, 2L))).willReturn(Map.of());
 
         final var controller =
                 subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, HintsConstruction.DEFAULT);
 
         assertInstanceOf(HintsControllerImpl.class, controller);
+        verify(hintsStore).getVotes(1L, Set.of(1L, 2L));
 
         assertDoesNotThrow(() -> subject.stop());
         assertDoesNotThrow(() -> subject.stop());

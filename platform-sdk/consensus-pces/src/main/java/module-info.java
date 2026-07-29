@@ -13,6 +13,7 @@ module org.hiero.consensus.pces {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility;
     requires static transitive com.github.spotbugs.annotations;
 
