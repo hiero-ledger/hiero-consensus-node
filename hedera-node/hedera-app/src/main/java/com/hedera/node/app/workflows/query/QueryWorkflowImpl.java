@@ -345,7 +345,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
     private Query parseQuery(Bytes requestBuffer) {
         try {
-            return queryParser.parseStrict(requestBuffer.toReadableSequentialData());
+            return queryParser.parseStrict(requestBuffer);
         } catch (ParseException e) {
             switch (e.getCause()) {
                 case MalformedProtobufException ignored:

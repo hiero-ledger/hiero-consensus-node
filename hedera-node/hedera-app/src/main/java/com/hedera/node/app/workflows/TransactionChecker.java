@@ -46,6 +46,7 @@ import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
@@ -218,7 +219,7 @@ public class TransactionChecker {
      */
     @NonNull
     public SignedTransaction parseSigned(@NonNull final Bytes buffer, final int maxSize) throws PreCheckException {
-        return parseStrict(buffer.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
+        return parseStrict(buffer.toPbjReader(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
     }
 
     /**
@@ -272,10 +273,7 @@ public class TransactionChecker {
         if (tx.signedTransactionBytes().length() > 0) {
             serializedSignedTx = tx.signedTransactionBytes();
             signedTx = parseStrict(
-                    serializedSignedTx.toReadableSequentialData(),
-                    SignedTransaction.PROTOBUF,
-                    INVALID_TRANSACTION,
-                    maxSize);
+                    serializedSignedTx.toPbjReader(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
             validateFalsePreCheck(
                     signedTx.useSerializedTxMessageHashAlgorithm(), INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM);
         } else {
@@ -669,6 +667,26 @@ public class TransactionChecker {
         }
     }
 
+    @NonNull
+    private <T> T parseStrict(
+            @NonNull final PbjReader data,
+            @NonNull final Codec<T> codec,
+            @NonNull final ResponseCodeEnum parseErrorCode,
+            final int maxSize)
+            throws PreCheckException {
+        try {
+            return codec.parse(data, true, false, DEFAULT_MAX_DEPTH, maxSize);
+        } catch (ParseException e) {
+            recordParseErrorMetric(e);
+            if (e.getCause() instanceof UnknownFieldException) {
+                // We do not allow newer clients to send transactions to older networks.
+                throw new PreCheckException(TRANSACTION_HAS_UNKNOWN_FIELDS);
+            }
+            logger.debug("ParseException while parsing protobuf: ", e);
+            throw new PreCheckException(parseErrorCode);
+        }
+    }
+
     private void recordParseErrorMetric(@NonNull final ParseException e) {
         final var cause = e.getCause();
         switch (cause) {
@@ -685,10 +703,7 @@ public class TransactionChecker {
         validateTruePreCheck(signedTx.hasSigMap(), INVALID_TRANSACTION_BODY);
         final var signatureMap = signedTx.sigMapOrThrow();
         final var txBody = parseStrict(
-                signedTx.bodyBytes().toReadableSequentialData(),
-                TransactionBody.PROTOBUF,
-                INVALID_TRANSACTION_BODY,
-                maxSize);
+                signedTx.bodyBytes().toPbjReader(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY, maxSize);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -749,7 +764,7 @@ public class TransactionChecker {
     @VisibleForTesting
     Transaction parse(@NonNull final Bytes buffer, final int maxSize) throws PreCheckException {
         requireNonNull(buffer);
-        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
+        return parseStrict(buffer.toPbjReader(), Transaction.PROTOBUF, INVALID_TRANSACTION, maxSize);
     }
 
     /**

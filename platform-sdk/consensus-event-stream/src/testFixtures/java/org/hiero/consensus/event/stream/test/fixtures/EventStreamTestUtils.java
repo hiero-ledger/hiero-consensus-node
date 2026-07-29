@@ -164,7 +164,7 @@ public final class EventStreamTestUtils {
                         return null;
                     })
                     .when(wrappedEvent)
-                    .serialize(any());
+                    .serialize(any(org.hiero.base.io.streams.SerializableDataOutputStream.class));
 
             wrappedEvents.add(wrappedEvent);
         }

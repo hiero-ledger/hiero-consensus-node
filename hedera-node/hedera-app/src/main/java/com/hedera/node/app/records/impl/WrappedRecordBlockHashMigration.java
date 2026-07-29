@@ -196,11 +196,7 @@ public class WrappedRecordBlockHashMigration {
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
         final var loadedBytes = Files.readAllBytes(recentHashesPath);
         final var allRecentWrappedRecordHashes = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
-                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(loadedBytes).toReadableSequentialData(),
-                true,
-                false,
-                Codec.DEFAULT_MAX_DEPTH,
-                loadedBytes.length + loadedBytes.length / 10);
+                loadedBytes, true, false, Codec.DEFAULT_MAX_DEPTH, loadedBytes.length + loadedBytes.length / 10);
         if (allRecentWrappedRecordHashes.entries().isEmpty()) {
             log.error("Recent wrapped record hashes file contains no entries. {}", RESUME_MESSAGE);
             return null;

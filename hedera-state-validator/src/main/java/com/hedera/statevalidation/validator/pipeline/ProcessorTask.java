@@ -169,7 +169,7 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getP2kv().incrementItemCount();
 
             final VirtualLeafBytes<?> virtualLeafBytes =
-                    VirtualLeafBytes.parseFrom(data.bytes().toReadableSequentialData());
+                    VirtualLeafBytes.parseFrom(data.bytes().toPbjReader());
 
             if (data.location() == pathToDiskLocationLeafNodes.get(virtualLeafBytes.path())) {
                 // Live object, perform ops on it...
@@ -212,7 +212,7 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getId2c().incrementItemCount();
 
             final VirtualHashChunk virtualHashChunk =
-                    VirtualHashChunk.parseFrom(data.bytes().toReadableSequentialData(), vds.getHashChunkHeight());
+                    VirtualHashChunk.parseFrom(data.bytes().toPbjReader(), vds.getHashChunkHeight());
 
             if (data.location() == idToDiskLocationHashChunks.get(virtualHashChunk.getChunkId())) {
                 // Live object, perform ops on it...
@@ -255,7 +255,7 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getK2p().incrementItemCount();
 
             try (final ParsedBucket bucket = new ParsedBucket()) {
-                bucket.readFrom(data.bytes().toReadableSequentialData());
+                bucket.readFrom(data.bytes().toPbjReader());
 
                 if (data.location() == bucketIndexToBucketLocation.get(bucket.getBucketIndex())) {
                     // Live object, perform ops on it...

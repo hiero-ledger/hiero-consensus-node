@@ -4,12 +4,11 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 
 /**
  * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
@@ -32,7 +31,7 @@ final class BinaryStateChangeParser {
             @NonNull final BinaryState binaryState,
             @NonNull final Bytes stateChangesBytes,
             @Nullable final BinaryStateChangeSummary stateChangesSummary) {
-        final ReadableSequentialData input = stateChangesBytes.toReadableSequentialData();
+        PbjReader input = stateChangesBytes.toPbjReader();
         while (input.hasRemaining()) {
             final int tag = input.readVarInt(false);
             switch (tag) {
@@ -53,7 +52,7 @@ final class BinaryStateChangeParser {
 
     private static void processStateChange(
             @NonNull final BinaryState binaryState,
-            @NonNull final ReadableSequentialData input,
+            @NonNull final PbjReader input,
             final long endPosition,
             @Nullable final BinaryStateChangeSummary stateChangesSummary) {
         int stateId = -1;
@@ -125,7 +124,7 @@ final class BinaryStateChangeParser {
     private static void processSingletonUpdateChange(
             @NonNull final BinaryState binaryState,
             final int stateId,
-            @NonNull final ReadableSequentialData input,
+            @NonNull final PbjReader input,
             final long endPosition) {
         final Bytes rawValue = readOneOfPayload(input, endPosition, "SingletonUpdateChange");
         binaryState.updateSingleton(stateId, rawValue);
@@ -134,7 +133,7 @@ final class BinaryStateChangeParser {
     private static void processMapUpdateChange(
             @NonNull final BinaryState binaryState,
             final int stateId,
-            @NonNull final ReadableSequentialData input,
+            @NonNull final PbjReader input,
             final long endPosition) {
         Bytes rawKey = null;
         Bytes rawValue = null;
@@ -167,7 +166,7 @@ final class BinaryStateChangeParser {
     private static void processMapDeleteChange(
             @NonNull final BinaryState binaryState,
             final int stateId,
-            @NonNull final ReadableSequentialData input,
+            @NonNull final PbjReader input,
             final long endPosition) {
         Bytes rawKey = null;
         while (input.position() < endPosition) {
@@ -192,7 +191,7 @@ final class BinaryStateChangeParser {
     private static void processQueuePushChange(
             @NonNull final BinaryState binaryState,
             final int stateId,
-            @NonNull final ReadableSequentialData input,
+            @NonNull final PbjReader input,
             final long endPosition) {
         final Bytes rawElement = readOneOfPayload(input, endPosition, "QueuePushChange");
         binaryState.pushQueue(stateId, rawElement);
@@ -203,7 +202,7 @@ final class BinaryStateChangeParser {
     }
 
     private static Bytes readOneOfPayload(
-            @NonNull final ReadableSequentialData input, final long endPosition, @NonNull final String description) {
+            @NonNull final PbjReader input, final long endPosition, @NonNull final String description) {
         Bytes payload = null;
         while (input.position() < endPosition) {
             final int tag = input.readVarInt(false);
@@ -226,7 +225,7 @@ final class BinaryStateChangeParser {
      * Token relationship keys are the important exception: block stream uses TokenAssociation while state stores
      * EntityIDPair, whose field ordering is different.
      */
-    private static Bytes readMapKeyPayload(@NonNull final ReadableSequentialData input, final long endPosition) {
+    private static Bytes readMapKeyPayload(@NonNull final PbjReader input, final long endPosition) {
         Bytes payload = null;
         while (input.position() < endPosition) {
             final int tag = input.readVarInt(false);
@@ -251,19 +250,15 @@ final class BinaryStateChangeParser {
         return stateId;
     }
 
-    private static void skipField(@NonNull final ReadableSequentialData input, final int tag) {
+    private static void skipField(@NonNull final PbjReader input, final int tag) {
         skipField(input, ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK));
     }
 
-    private static void skipField(@NonNull final ReadableSequentialData input, @NonNull final ProtoConstants wireType) {
-        try {
-            ProtoParserTools.skipField(input, wireType);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to skip protobuf field with wire type " + wireType, e);
-        }
+    private static void skipField(@NonNull final PbjReader input, @NonNull final ProtoConstants wireType) {
+        ProtoParserTools.skipField(input, wireType);
     }
 
-    private static void skipMessage(@NonNull final ReadableSequentialData input) {
+    private static void skipMessage(@NonNull final PbjReader input) {
         final int messageLength = input.readVarInt(false);
         input.skip(messageLength);
     }

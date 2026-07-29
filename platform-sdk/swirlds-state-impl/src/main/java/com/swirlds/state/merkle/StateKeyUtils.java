@@ -7,7 +7,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -131,7 +131,7 @@ public class StateKeyUtils {
     public static int extractStateIdFromStateKeyOneOf(@NonNull final Bytes stateKey) {
         Objects.requireNonNull(stateKey, "Null state key");
         // Assumption is the key bytes are a OneOf
-        return ProtoParserTools.readNextFieldNumber(stateKey.toReadableSequentialData());
+        return ProtoParserTools.readNextFieldNumber(stateKey.toPbjReader());
     }
 
     /**
@@ -145,7 +145,7 @@ public class StateKeyUtils {
             throws ParseException {
         Objects.requireNonNull(stateKey, "Null state key");
         Objects.requireNonNull(keyCodec, "Null key codec");
-        final ReadableSequentialData in = stateKey.toReadableSequentialData();
+        final PbjReader in = stateKey.toPbjReader();
         final int tag = in.readVarInt(false);
         assert tag >> ProtoParserTools.TAG_FIELD_OFFSET == extractStateIdFromStateKeyOneOf(stateKey);
         assert tag >> ProtoParserTools.TAG_FIELD_OFFSET != FIELD_NUM_SINGLETON; // must not be a singleton key

@@ -178,8 +178,7 @@ public class HookDispatchUtils {
         final var hookContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
         final StreamBuilder.SignedTxCustomizer executionCustomizer = signedTx -> {
             try {
-                final var dispatchedBody = TransactionBody.PROTOBUF.parseStrict(
-                        signedTx.bodyBytes().toReadableSequentialData());
+                final var dispatchedBody = TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes());
                 final var hookCall = dispatchedBody
                         .hookDispatchOrThrow()
                         .executionOrThrow()
