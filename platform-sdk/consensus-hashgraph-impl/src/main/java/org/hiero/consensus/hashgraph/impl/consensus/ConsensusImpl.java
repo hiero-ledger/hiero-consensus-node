@@ -41,6 +41,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.roster.RosterLookup;
 
 /**
@@ -224,14 +225,16 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
-                .map(judge -> new Hash(judge.judgeHash()))
-                .collect(toSet());
+        if (!GenesisSnapshotFactory.newGenesisSnapshot().equals(snapshot)) {
+            final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
+                    .map(judge -> new Hash(judge.judgeHash()))
+                    .collect(toSet());
 
-        initJudges = new InitJudges(snapshot.round(), judgeHashes);
-        rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
-        numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
+            initJudges = new InitJudges(snapshot.round(), judgeHashes);
+            rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
+            numConsensus = snapshot.nextConsensusNumber();
+            lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
+        }
     }
 
     /** Reset this instance to a state of a newly created instance */
