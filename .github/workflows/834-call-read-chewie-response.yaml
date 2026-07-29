@@ -73,10 +73,12 @@ jobs:
           checkout-ref: ${{ inputs.ref }}
 
       - name: Validate Test Type
+        env:
+          INPUT_TEST_TYPE: ${{ inputs.test-type }}
         run: |
           VALID_TEST_TYPES=("sdpt" "sdlt" "mqpt" "mdlt")
-          if [[ ! " ${VALID_TEST_TYPES[@]} " =~ "${{ inputs.test-type }}" ]]; then
-            echo "::error::Invalid test type: ${{ inputs.test-type }}. Must be one of: ${VALID_TEST_TYPES[*]}"
+          if [[ ! " ${VALID_TEST_TYPES[@]} " =~ "${INPUT_TEST_TYPE}" ]]; then
+            echo "::error::Invalid test type: ${INPUT_TEST_TYPE}. Must be one of: ${VALID_TEST_TYPES[*]}"
             exit 1
           fi
 
@@ -93,9 +95,12 @@ jobs:
       # The response from chewie will be a json object that we can parse.
       - name: Read Chewie Response
         id: read-chewie-response
+        env:
+          INPUT_TEST_ASSET: ${{ inputs.test-asset }}
+          INPUT_TEST_TYPE: ${{ inputs.test-type }}
         run: |
-          echo "::group::Collect Chewie Response for test asset: ${{ inputs.test-asset }}"
-          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${{ inputs.test-asset }}-${{ inputs.test-type }}.json"
+          echo "::group::Collect Chewie Response for test asset: ${INPUT_TEST_ASSET}"
+          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${INPUT_TEST_ASSET}-${INPUT_TEST_TYPE}.json"
           if [[ ! -f "${JSON_RESPONSE_FILE}" ]]; then
               echo "::error::file ${JSON_RESPONSE_FILE} does not exist."
               exit 1
@@ -140,7 +145,7 @@ jobs:
           # Write step summary
           echo "## Chewie Response Read" >> "${GITHUB_STEP_SUMMARY}"
           echo "namespace=${NAMESPACE}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "test asset=${{ inputs.test-asset }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "test asset=${INPUT_TEST_ASSET}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Network ID=${NETWORK_ID}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Owner=${OWNER}" >> "${GITHUB_STEP_SUMMARY}"
           echo "CN Quantity=${CN_QTY}" >> "${GITHUB_STEP_SUMMARY}"

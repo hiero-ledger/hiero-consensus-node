@@ -14,6 +14,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -72,13 +73,22 @@ public interface EventCreatorModule {
     InputWire<PlatformEvent> orderedEventInputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} component.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the event window
+     * @return the {@link InputWire} for the consensus round
      */
-    @InputWireLabel("event window")
+    @InputWireLabel("consensus round")
     @NonNull
-    InputWire<EventWindow> eventWindowInputWire();
+    InputWire<ConsensusRound> consensusRoundInputWire();
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    InputWire<EventWindow> initialEventWindowInputWire();
 
     /**
      * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
@@ -112,16 +122,18 @@ public interface EventCreatorModule {
     InputWire<SyncProgress> syncProgressInputWire();
 
     /**
+     * {@link InputWire} for the quiescence command.
+     *
+     * @return the {@link InputWire} for the quiescence command
+     */
+    @InputWireLabel("quiescence command")
+    @NonNull
+    InputWire<QuiescenceCommand> quiescenceCommandInputWire();
+
+    /**
      * Destroys the module.
      */
     void destroy();
-
-    /**
-     * Submit a quiescence command to the platform monitor.
-     *
-     * @param quiescenceCommand the quiescence command to submit
-     */
-    void submitQuiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
 
     /**
      * Flushes all events of the internal event creation manager.
