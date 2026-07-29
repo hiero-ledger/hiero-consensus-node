@@ -1144,11 +1144,19 @@ public class ConsensusImpl implements Consensus {
         }
 
         //
-        // if this event has no parents, then it's the first round
+        // if this event has no parents and we are deciding the first round even, this
+        // is a genesis event and has a round created of 1. if this event has no parents
+        // and we are deciding a later round, then it is not a descendant of any judge
+        // in the latest decided round and have a round of -infinity.
         //
         if (x.getAllParents().isEmpty()) {
-            x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
-            return x.getRoundCreated();
+            if (getFameDecidedBelow() == ConsensusConstants.ROUND_FIRST) {
+                x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
+                return x.getRoundCreated();
+            } else {
+                x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
+                return ConsensusConstants.ROUND_NEGATIVE_INFINITY;
+            }
         }
 
         long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
