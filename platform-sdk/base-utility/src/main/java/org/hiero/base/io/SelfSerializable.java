@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.io;
 
-import com.hedera.pbj.runtime.io.PbjWriter;
+import com.hedera.pbj.runtime.io.PbjReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -11,13 +11,6 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * A SerializableDet that knows how to serialize and deserialize itself.
  */
 public interface SelfSerializable extends SerializableDet, FunctionalSerialize, FunctionalSerializePbj {
-
-    @Override
-    default void serialize(@NonNull PbjWriter out) throws IOException {
-        throw new UnsupportedOperationException(
-                "Not yet migrated to PBJ serialization: " + getClass().getName());
-    }
-
     /**
      * Deserializes an instance that has been previously serialized by {@link FunctionalSerialize#serialize(SerializableDataOutputStream)}.
      * This method should support all versions of the serialized data.
@@ -31,4 +24,6 @@ public interface SelfSerializable extends SerializableDet, FunctionalSerialize, 
      * 		Thrown in case of an IO exception.
      */
     void deserialize(@NonNull SerializableDataInputStream in, int version) throws IOException;
+
+    void deserialize(@NonNull PbjReader in, int version) throws IOException;
 }

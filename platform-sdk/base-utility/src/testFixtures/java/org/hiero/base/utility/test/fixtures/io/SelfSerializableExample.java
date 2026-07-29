@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.utility.test.fixtures.io;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import java.io.IOException;
 import java.util.Objects;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 public class SelfSerializableExample implements SelfSerializable {
     private static final long CLASS_ID = 0x157bddfb3b8a7c75L;
@@ -30,6 +33,12 @@ public class SelfSerializableExample implements SelfSerializable {
     }
 
     @Override
+    public void deserialize(PbjReader in, int version) throws IOException {
+        this.aNumber = in.readInt();
+        this.aString = PbjUtils.readNormalisedString(in, STRING_MAX_BYTES);
+    }
+
+    @Override
     public long getClassId() {
         return CLASS_ID;
     }
@@ -50,6 +59,12 @@ public class SelfSerializableExample implements SelfSerializable {
     public void serialize(SerializableDataOutputStream out) throws IOException {
         out.writeInt(aNumber);
         out.writeNormalisedString(aString);
+    }
+
+    @Override
+    public void serialize(PbjWriter out) throws IOException {
+        out.writeInt(aNumber);
+        PbjUtils.writeNormalisedString(out, aString);
     }
 
     @Override
