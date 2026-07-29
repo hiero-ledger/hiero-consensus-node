@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -15,12 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
+import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.HashChunkStreamBuilder;
 import com.swirlds.virtualmap.test.fixtures.datasource.DelegateVirtualDataSource;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
@@ -30,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,12 +61,6 @@ public class RecordAccessorTest {
         records = new RecordAccessor(metadata, hashChunkHeight, cache, dataSource);
 
         // Prepopulate the database with some records
-        final VirtualHashRecord root = internal(0);
-        final VirtualHashRecord left = internal(1);
-        final VirtualHashRecord right = internal(2);
-        final VirtualHashRecord leftLeft = internal(3);
-        final VirtualHashRecord leftRight = internal(4);
-        final VirtualHashRecord rightLeft = internal(5);
         final VirtualLeafBytes firstLeaf = leaf(6);
         final VirtualLeafBytes secondLeaf = leaf(7);
         final VirtualLeafBytes thirdLeaf = leaf(8);
@@ -78,7 +72,13 @@ public class RecordAccessorTest {
         dataSource.saveRecords(
                 6,
                 12,
-                createHashChunkStream(hashChunkHeight, left, right, leftLeft, leftRight, rightLeft),
+                new HashChunkStreamBuilder(hashChunkHeight)
+                        .add(1, hashOf(1))
+                        .add(2, hashOf(2))
+                        .add(3, hashOf(3))
+                        .add(4, hashOf(4))
+                        .add(5, hashOf(5))
+                        .build(),
                 Stream.of(firstLeaf, secondLeaf, thirdLeaf, fourthLeaf, fifthLeaf, sixthLeaf, seventhLeaf),
                 Stream.empty(),
                 false);
@@ -309,8 +309,8 @@ public class RecordAccessorTest {
         }
     }
 
-    private static VirtualHashRecord internal(long num) {
-        return new VirtualHashRecord(num, CRYPTO.digestSync(("" + num).getBytes(StandardCharsets.UTF_8)));
+    private static Hash hashOf(long num) {
+        return CRYPTO.digestSync(("" + num).getBytes(StandardCharsets.UTF_8));
     }
 
     private static VirtualLeafBytes<TestValue> leaf(long num) {

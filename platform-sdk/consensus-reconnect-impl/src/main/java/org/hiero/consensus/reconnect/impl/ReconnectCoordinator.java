@@ -24,8 +24,8 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusMonitorModule;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
@@ -155,8 +155,10 @@ public class ReconnectCoordinator {
         final int roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
         buildingBlocks
-                .platformCoordinator()
-                .updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+                .initialEventWindowDispatcher()
+                .getInputWire()
+                .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+        buildingBlocks.gossipModule().flush();
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);

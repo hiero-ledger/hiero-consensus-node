@@ -16,9 +16,10 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
@@ -93,13 +94,22 @@ public interface PcesModule {
     OutputWire<PlatformEvent> writtenEventsOutputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} component.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the event window
+     * @return the {@link InputWire} for the consensus round
      */
-    @InputWireLabel("event window")
+    @InputWireLabel("consensus round")
     @NonNull
-    InputWire<EventWindow> eventWindowInputWire();
+    InputWire<ConsensusRound> consensusRoundInputWire();
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    InputWire<EventWindow> initialEventWindowInputWire();
 
     /**
      * {@link InputWire} for the minimum birth round to store on disk.

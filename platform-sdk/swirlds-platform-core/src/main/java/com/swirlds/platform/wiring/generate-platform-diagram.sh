@@ -11,7 +11,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # Emoji legend — each icon below replaces a (spammy) edge via a "-s" substitution.
 # The icon appears as a badge on every component that receives that edge.
-#   🌀  event window broadcast (EventWindowManager)
 #   ❤️  heartbeat tick
 #   🔮  transaction-prehandle futures (TransactionPrehandler)
 #   ✅  PCES replay complete ("done streaming pces")
@@ -29,7 +28,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 ../../../../../../../../swirlds-cli/pcli.sh diagram \
     -l 'TransactionPrehandler:futures:TransactionHandler' \
     -l 'ConsensusEventStream:future hash:TransactionHandler' \
-    -s 'EventWindowManager:event window:🌀' \
     -s 'Heartbeat:heartbeat:❤️' \
     -s 'TransactionPrehandler:futures:🔮' \
     -s 'pcesReplayer:done streaming pces:✅' \
@@ -46,7 +44,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'Branch Detection:BranchDetector,BranchReporter' \
     -g 'Event Intake Module:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,Branch Detection' \
     -g 'Consensus Engine:ConsensusEngine,RoundsToCesEvents' \
-    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
+    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
     -g 'Signed State Management:State Hasher,State Snapshot Manager,State Signature Collector,LatestCompleteStateNexus,StateGarbageCollector,StateSigner,HashLogger,ExecutionSignatureSubmission,postHasher_notifier,📀,💾' \
@@ -54,7 +52,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Module:pcesReplayer,InlinePcesWriter,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
-    -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,staleEventCallback,PreConsensusEvents,PreConsensusEventsSplitter,EventWindowManager,🌀,🕐' \
+    -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,staleEventCallback,PreConsensusEvents,PreConsensusEventsSplitter,🕐' \
     -g 'ISS Detection:ISS Detector,💥,💀' \
     -g 'Transaction Handling:Transaction Handler,TransactionPrehandler,LatestImmutableStateNexus,getSystemTransactions,🔮' \
     -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,AppNotifier,executionHealthInput,❔,🏥,❤️,💨,🚦' \

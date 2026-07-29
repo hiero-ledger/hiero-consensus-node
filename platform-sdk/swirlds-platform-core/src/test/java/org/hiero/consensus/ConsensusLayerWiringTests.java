@@ -22,14 +22,15 @@ import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -45,7 +46,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
@@ -108,8 +109,8 @@ class ConsensusLayerWiringTests {
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
                 RunningEventHashOverrideWiring.create(model);
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher =
+                new WireTransformer<>(model, "InitialEventWindowDispatcher", "event window", UnaryOperator.identity());
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
@@ -138,7 +139,7 @@ class ConsensusLayerWiringTests {
                 stateModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
-                eventWindowManagerWiring,
+                initialEventWindowDispatcher,
                 notifierWiring,
                 statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
@@ -146,11 +147,9 @@ class ConsensusLayerWiringTests {
                 null,
                 null,
                 null,
-                null,
                 null);
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
-        eventWindowManagerWiring.bind(mock(EventWindowManager.class));
         eventStreamWiring.bind(mock(ConsensusEventStream.class));
         notifierWiring.bind(mock(AppNotifier.class));
 

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl;
 
+import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
@@ -22,6 +24,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
@@ -38,12 +41,15 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 
 /**
  * Default implementation of the {@link PcesModule}.
  */
 public class DefaultPcesModule implements PcesModule {
+
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     @Nullable
     private ComponentWiring<InlinePcesWriter, PlatformEvent> pcesWriterWiring;
@@ -84,9 +90,16 @@ public class DefaultPcesModule implements PcesModule {
         }
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "Pces_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         final PcesWiringConfig wiringConfig = configuration.getConfigData(PcesWiringConfig.class);
         this.pcesWriterWiring = new ComponentWiring<>(model, InlinePcesWriter.class, wiringConfig.pcesInlineWriter());
         this.pcesReplayerWiring = PcesReplayerWiring.create(model);
+
+        // Wire components
+        eventWindowExtractor
+                .getOutputWire()
+                .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
         pcesReplayerWiring
                 .doneStreamingPcesOutputWire()
                 .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::beginStreamingNewEvents));
@@ -174,7 +187,16 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(pcesWriterWiring, "Not initialized")
                 .getInputWire(InlinePcesWriter::updateNonAncientEventBoundary);
     }
