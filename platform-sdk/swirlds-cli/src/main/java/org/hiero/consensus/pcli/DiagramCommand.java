@@ -65,7 +65,7 @@ import org.hiero.consensus.pcli.utility.VirtualTerminal;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
