@@ -79,6 +79,9 @@ public final class FindingsJson {
         if (f.autoFixLine() != null) {
             m.put("autoFixLine", f.autoFixLine());
         }
+        if (f.resolvedPath() != null) {
+            m.put("resolvedPath", f.resolvedPath());
+        }
         return m;
     }
 

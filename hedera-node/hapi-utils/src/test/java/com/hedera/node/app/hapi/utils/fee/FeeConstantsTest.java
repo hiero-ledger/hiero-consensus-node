@@ -30,6 +30,21 @@ class FeeConstantsTest {
     }
 
     @Test
+    void tinycentsToTinybarsConverts() {
+        final var exchangeRate =
+                ExchangeRate.newBuilder().setHbarEquiv(30).setCentEquiv(15).build();
+        assertEquals(200, FeeConstants.tinycentsToTinybars(100, exchangeRate));
+    }
+
+    @Test
+    void tinycentsToTinybarsFallsBackToBigIntegerMathOnOverflow() {
+        final var exchangeRate =
+                ExchangeRate.newBuilder().setHbarEquiv(2).setCentEquiv(4).build();
+        final long amount = 5_000_000_000_000_000_000L;
+        assertEquals(2_500_000_000_000_000_000L, FeeConstants.tinycentsToTinybars(amount, exchangeRate));
+    }
+
+    @Test
     void getContractFunctionSizeSumsComponents() {
         final var result = ContractFunctionResult.newBuilder()
                 .setContractCallResult(ByteString.copyFromUtf8("contractCallResult"))

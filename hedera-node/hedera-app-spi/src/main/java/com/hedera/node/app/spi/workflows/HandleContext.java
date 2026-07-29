@@ -30,6 +30,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Represents the context of a single {@code handle()}-call.
@@ -496,6 +498,16 @@ public interface HandleContext {
         @NonNull
         <T> T addRemovableChildRecordBuilder(
                 @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
+
+        /**
+         * For each stream builder in this stack other than the base builder, invokes the given consumer
+         * with the builder cast to the given type.
+         *
+         * @param builderClass the type to cast the builders to
+         * @param consumer     the consumer to invoke
+         * @param <T>          the type to cast the builders to
+         */
+        <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
     }
 
     /**
@@ -536,4 +548,11 @@ public interface HandleContext {
      * @return the gas price in tiny cents
      */
     long getGasPriceInTinycents();
+
+    /**
+     * Returns the simple fees schedule.
+     * @return the simple fees schedule
+     */
+    @NonNull
+    FeeSchedule simpleFeesSchedule();
 }

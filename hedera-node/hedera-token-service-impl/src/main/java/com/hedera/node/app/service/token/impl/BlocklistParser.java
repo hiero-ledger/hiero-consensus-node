@@ -133,5 +133,6 @@ public class BlocklistParser {
      * @param evmAddress the EVM address of the blocked account
      * @param memo      the memo of the blocked account
      */
-    public record BlockedInfo(@NonNull Bytes evmAddress, @NonNull String memo) {}
+    public record BlockedInfo(
+            @NonNull Bytes evmAddress, @NonNull String memo) {}
 }

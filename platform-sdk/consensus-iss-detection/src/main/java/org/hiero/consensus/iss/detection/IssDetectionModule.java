@@ -122,6 +122,11 @@ public class IssDetectionModule {
         issHandlerWiring.bind(issHandler);
     }
 
+    /**
+     * Get the input wire for post-consensus state signature transactions.
+     *
+     * @return the input wire for post-consensus state signature transactions
+     */
     @InputWireLabel("post consensus state signatures")
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> systemTransactionsInputWire() {
@@ -129,24 +134,40 @@ public class IssDetectionModule {
                 .getInputWire(IssDetector::handleStateSignatureTransactions);
     }
 
+    /**
+     * Get the input wire for hashed states.
+     *
+     * @return the input wire for hashed states
+     */
     @InputWireLabel("hashed states")
     @NonNull
     public InputWire<ReservedSignedState> stateInputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::handleState);
     }
 
+    /**
+     * Get the input wire for overriding state.
+     *
+     * @return the input wire for overriding state
+     */
     @InputWireLabel("overriding state")
     @NonNull
     public InputWire<ReservedSignedState> overridingStateInputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::overridingState);
     }
 
+    @InputWireLabel("signal end of preconsensus replay")
     @NonNull
     public InputWire<NoInput> signalEndOfPreconsensusReplayInputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized")
                 .getInputWire(IssDetector::signalEndOfPreconsensusReplay);
     }
 
+    /**
+     * Get the output wire for ISS notifications.
+     *
+     * @return the output wire for ISS notifications
+     */
     @NonNull
     public OutputWire<IssNotification> issNotificationOutputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getSplitOutput();

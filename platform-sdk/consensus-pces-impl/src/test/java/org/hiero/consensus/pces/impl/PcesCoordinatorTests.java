@@ -14,15 +14,15 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import java.util.function.Consumer;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,8 +42,8 @@ class PcesCoordinatorTests {
     private PcesFileTracker initialPcesFiles;
     private InputWire<IOIterator<PlatformEvent>> pcesIteratorInputWire;
     private PcesReplayerWiring pcesReplayerWiring;
-    private Consumer<PlatformStatusAction> statusActionConsumer;
-    private Runnable platformStatusFlusher;
+    private StatusMonitorModule statusMonitorModule;
+    private InputWire<PlatformStatusAction> statusActionInputWire;
     private Runnable signalEndOfPcesReplay;
 
     private PcesMultiFileIterator iterator;
@@ -56,8 +56,9 @@ class PcesCoordinatorTests {
         time = new FakeTime();
         initialPcesFiles = mock(PcesFileTracker.class);
         pcesIteratorInputWire = mock(InputWire.class);
-        statusActionConsumer = mock(Consumer.class);
-        platformStatusFlusher = mock(Runnable.class);
+        statusMonitorModule = mock(StatusMonitorModule.class);
+        statusActionInputWire = mock(InputWire.class);
+        when(statusMonitorModule.platformStatusActionInputWire()).thenReturn(statusActionInputWire);
         signalEndOfPcesReplay = mock(Runnable.class);
 
         // Only pcesIteratorInputWire() is exercised by the coordinator; the other wires are placeholders.
@@ -68,12 +69,7 @@ class PcesCoordinatorTests {
         when(initialPcesFiles.getEventIterator(LOWER_BOUND, STARTING_ROUND)).thenReturn(iterator);
 
         coordinator = new PcesCoordinator(
-                time,
-                initialPcesFiles,
-                pcesReplayerWiring,
-                statusActionConsumer,
-                platformStatusFlusher,
-                signalEndOfPcesReplay);
+                time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule, signalEndOfPcesReplay);
     }
 
     @Test
@@ -85,18 +81,18 @@ class PcesCoordinatorTests {
         // as the pivot: status started + status flush happen before it, and pipeline flush + end-of-replay signal +
         // status done happen after it.
         final InOrder inOrder = inOrder(
-                statusActionConsumer,
-                platformStatusFlusher,
+                statusActionInputWire,
+                statusMonitorModule,
                 initialPcesFiles,
                 pcesIteratorInputWire,
                 signalEndOfPcesReplay);
 
-        inOrder.verify(statusActionConsumer).accept(isA(StartedReplayingEventsAction.class));
-        inOrder.verify(platformStatusFlusher).run();
+        inOrder.verify(statusActionInputWire).put(isA(StartedReplayingEventsAction.class));
+        inOrder.verify(statusMonitorModule).flush();
         inOrder.verify(initialPcesFiles).getEventIterator(LOWER_BOUND, STARTING_ROUND);
         inOrder.verify(pcesIteratorInputWire).inject(iterator);
         inOrder.verify(signalEndOfPcesReplay).run();
-        inOrder.verify(statusActionConsumer).accept(isA(DoneReplayingEventsAction.class));
+        inOrder.verify(statusActionInputWire).put(isA(DoneReplayingEventsAction.class));
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -117,9 +113,9 @@ class PcesCoordinatorTests {
         coordinator.replayPcesEvents(LOWER_BOUND, STARTING_ROUND);
 
         // DoneReplayingEventsAction is stamped with the current time.
-        verify(statusActionConsumer).accept(isA(StartedReplayingEventsAction.class));
-        verify(statusActionConsumer).accept(new DoneReplayingEventsAction(time.now()));
-        verify(statusActionConsumer, times(2)).accept(isA(PlatformStatusAction.class));
-        verifyNoMoreInteractions(statusActionConsumer);
+        verify(statusActionInputWire).put(isA(StartedReplayingEventsAction.class));
+        verify(statusActionInputWire).put(isA(DoneReplayingEventsAction.class));
+        verify(statusActionInputWire, times(2)).put(isA(PlatformStatusAction.class));
+        verifyNoMoreInteractions(statusActionInputWire);
     }
 }

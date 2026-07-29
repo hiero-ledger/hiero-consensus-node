@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
@@ -9,9 +8,9 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NF
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -42,6 +41,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * Manages the fee schedule used to calculate fees. Whenever the fee schedule is updated,
@@ -232,17 +232,21 @@ public final class FeeManager {
     }
 
     /**
-     * Returns the gas price in tiny cents.
+     * Returns the gas price in tiny cents, sourced from the GAS extra of the simple fee schedule.
+     * The GAS extra is guaranteed by {@link org.hiero.hapi.fees.FeeScheduleUtils#isValid} for every
+     * loaded schedule, so this can only throw if no schedule has been loaded at all.
      *
      * @param consensusTime the consensus time
      * @return the gas price in tiny cents
+     * @throws IllegalStateException if no simple fee schedule with a GAS extra is loaded
      */
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
         requireNonNull(consensusTime);
-        return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
-                        .servicedataOrThrow()
-                        .gas()
-                / FEE_DIVISOR_FACTOR;
+        final var gasExtra = lookupExtraFee(getSimpleFeesSchedule(), Extra.GAS);
+        if (gasExtra == null) {
+            throw new IllegalStateException("The simple fee schedule is missing the required GAS extra");
+        }
+        return gasExtra.fee();
     }
 
     /**
@@ -279,5 +283,10 @@ public final class FeeManager {
     @NonNull
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
+    }
+
+    @NonNull
+    public org.hiero.hapi.support.fees.FeeSchedule getSimpleFeesSchedule() {
+        return simpleFeesSchedule != null ? simpleFeesSchedule : org.hiero.hapi.support.fees.FeeSchedule.DEFAULT;
     }
 }
