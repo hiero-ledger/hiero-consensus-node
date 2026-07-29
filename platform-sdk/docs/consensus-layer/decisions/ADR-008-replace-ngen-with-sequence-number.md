@@ -2,13 +2,13 @@
 type: decision
 id: ADR-008
 title: Adopt a monotonic event sequence number as the local ordering key, replacing nGen
-topics: [event-intake, event-creator, hashgraph, gossip]
+topics: [ event-intake, event-creator, hashgraph, gossip ]
 related:
-  invariants: [INV-015]
-  decisions: []
-  scenarios: [SCN-002, SCN-003]
-  heuristics: []
-  rules: [RUL-005]
+  invariants: [ INV-015 ]
+  decisions: [ ]
+  scenarios: [ SCN-002, SCN-003 ]
+  heuristics: [ ]
+  rules: [ RUL-005 ]
 status: accepted
 date: 2026-07-27
 deciders:
@@ -169,10 +169,7 @@ latest self event and cause a branch.
 
 - **Eliminates the reset hazard everywhere.** Because the sequence number is
   assigned at the buffer's exit and never derived from parents, it cannot reset to 1.
-  Once conversion completes, the "almost falling behind" reset that motivated
-
-# 24618 is gone from every consumer.
-
+  Once conversion completes, the "almost falling behind" reset that motivated #24618 is gone from every consumer.
 - **A single, simpler ordering primitive.** A plain monotonic counter replaces the
   subtle "non-deterministic generation" across the layer, and `nGen` retires.
 - **Ends the two-value coexistence.** Removing `nGen` removes the standing hazard
@@ -180,17 +177,13 @@ latest self event and cause a branch.
 
 ### Negative
 
-- **Two conversions are gated on external fixes.** Until #26529 (threshold) and
-
-  # 26530 (`lastSelfEvent`) land, those consumers stay on `nGen`, so `nGen` and the
-
+- **Two conversions are gated on external fixes.** Until #26529 (threshold) and #26530 (`lastSelfEvent`) land, those
+  consumers stay on `nGen`, so `nGen` and the
   sequence number coexist in the meantime and a consumer that reads the wrong one,
   or compares the two, is a live hazard.
-
 - **The sequence number is a foot-gun if misused.** Being local and
   non-deterministic, any accidental use for cross-node agreement is an ISS waiting
-  to happen — mitigated only by convention and the [Limitations](#limitations)
-  above, not by the type system.
+  to happen.
 
 ### Neutral
 
@@ -227,10 +220,6 @@ that only the topological-order consumers move.
 
 **Rejected because:**
 
-- Re-diagnosis showed neither incident reflects a fundamental need for a graph
-  height. SCN-002 was a latent `roundCreated` bug (#26529), which `nGen` merely
-  masked; SCN-003 is an improvable `lastSelfEvent` tracking path (#26530). Once
-  each prerequisite lands, the sequence number is safe for both.
 - Retaining `nGen` indefinitely would leave two ordering primitives in the
   codebase for good and forfeit the simplification the migration was for.
 
