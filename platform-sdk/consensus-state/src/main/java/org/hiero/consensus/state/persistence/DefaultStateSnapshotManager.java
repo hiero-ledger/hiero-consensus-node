@@ -198,7 +198,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * <b>Reservation contract:</b> This method passes the reservation to
      * {@link SignedStateFileWriter#writeSignedStateToDisk}, which takes ownership and releases it.
      * For synchronous snapshots, the reservation is released after the snapshot is written.
-     * For asynchronous snapshots (periodic snapshots with async enabled), the reservation is
+     * For asynchronous snapshots (periodic and freeze snapshots with async enabled), the reservation is
      * released early to unblock the virtual pipeline flush, and the method blocks until the
      * flush-triggered snapshot completes or times out.
      *

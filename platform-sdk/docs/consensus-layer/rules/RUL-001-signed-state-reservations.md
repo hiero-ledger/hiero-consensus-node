@@ -12,6 +12,7 @@ components:
   - consensus-state/src/main/java/org/hiero/consensus/state/utils/SignedStateReserver.java
   - consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityReserver.java
   - consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityToStateReserver.java
+  - consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateForPrehandleReserver.java
   - consensus-state/src/main/java/org/hiero/consensus/state/nexus/LockFreeStateNexus.java
   - consensus-state/src/main/java/org/hiero/consensus/state/nexus/DefaultLatestCompleteStateNexus.java
   - consensus-state/src/main/java/org/hiero/consensus/state/signing/DefaultStateSignatureCollector.java
@@ -85,13 +86,14 @@ ownership of a state crosses a boundary:
 - **Newly created states.** When constructing a `SignedState`, an
   explicit reservation is taken before the state is passed to any other
   component. No code path relies on an implicit initial reference.
-- **Wiring fan-out.** Three `AdvancedTransformation` reservers
+- **Wiring fan-out.** Four `AdvancedTransformation` reservers
   (`SignedStateReserver`, `StateWithHashComplexityReserver`,
-  `StateWithHashComplexityToStateReserver`) mint a fresh reservation per
-  downstream listener *before* the work item enters the scheduler queue,
-  so a state cannot become eligible for deletion while a task waits in
-  queue. Their `inputCleanup` releases the upstream reservation only
-  after every listener has received its own. See
+  `StateWithHashComplexityToStateReserver`, and
+  `StateForPrehandleReserver`) mint a fresh reservation per downstream
+  listener *before* the work item enters the scheduler queue, so a state
+  cannot become eligible for deletion while a task waits in queue. Their
+  `inputCleanup` releases the upstream reservation only after every
+  listener has received its own. See
   [Reservation in the wiring graph](../architecture/topics/signed-state-management.md#reservation-in-the-wiring-graph)
   for the mechanism.
 - **Holders.** `LockFreeStateNexus`, `DefaultLatestCompleteStateNexus`,

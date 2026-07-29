@@ -137,13 +137,12 @@ public final class SignedStateFileWriter {
      * <b>Sync vs async snapshot:</b> The snapshot creation strategy depends on configuration
      * ({@link StateConfig#saveStateAsync()}) and the state's save reason:
      * <ul>
-     *   <li><b>Synchronous</b> (default for non-periodic snapshots, or when async is disabled):
-     *       the snapshot is created inline, and the reservation is released after the snapshot
-     *       is fully written.</li>
-     *   <li><b>Asynchronous</b> (periodic snapshots with async enabled): the snapshot is
-     *       deferred to the virtual pipeline's flush operation. The reservation is released
-     *       early to allow the pipeline to flush the map copy, and this method blocks until
-     *       the flush-triggered snapshot completes or a configurable timeout
+     *   <li><b>Synchronous</b> (default for snapshots other than periodic and freeze snapshots, or when async is
+     *       disabled): the snapshot is created inline, and the reservation is released after the snapshot is fully
+     *       written.</li>
+     *   <li><b>Asynchronous</b> (periodic and freeze snapshots with async enabled): the snapshot is deferred to the
+     *       virtual pipeline's flush operation. The reservation is released early to allow the pipeline to flush the
+     *       map copy, and this method blocks until the flush-triggered snapshot completes or a configurable timeout
      *       ({@link StateConfig#asyncSnapshotTimeout()}) expires.</li>
      * </ul>
      * <p>
@@ -186,14 +185,15 @@ public final class SignedStateFileWriter {
             writeSnapshotSupplementalFiles(selfId, directory, signedState, configuration);
 
             if (stateConfig.saveStateAsync()
-                    && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
+                    && (StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())
+                            || StateToDiskReason.FREEZE_STATE.equals(signedState.getStateToDiskReason()))) {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
                 // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
                 // cache are already in place, so the only thing needed is an actual data source snapshot.
                 // Sync method would be slower here, and it would block the VirtualPipeline until it is done, causing
                 // the backpressure.
-                // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
-                // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
+                // For freeze snapshots, other consumers must first move to an immutable copy so that releasing this
+                // reservation allows the freeze state to be destroyed and flushed.
                 snapshotFuture = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
                 // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
                 // because the copy becomes destroyed and thus can be flushed.
