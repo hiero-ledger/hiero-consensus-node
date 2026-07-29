@@ -109,6 +109,7 @@ public class StateModule {
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final StateWiringConfig wiringConfig = configuration.getConfigData(StateWiringConfig.class);
         this.stateHasherWiring = new ComponentWiring<>(
                 model,
@@ -164,14 +165,13 @@ public class StateModule {
                     state.close();
                     return false;
                 });
-        allReservedSignedStatesWire.solderTo(saveToDiskFilter.getInputWire());
         saveToDiskFilter
                 .getOutputWire()
                 .solderTo(stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::saveStateTask));
 
         // Filter to complete states only and store in latestCompleteStateNexus
-        allReservedSignedStatesWire
-                .buildFilter("completeStateFilter", "states", rs -> {
+        final WireFilter<ReservedSignedState> completeStateFilter =
+                new WireFilter<>(model, "completeStateFilter", "states", rs -> {
                     if (rs.get().isComplete()) {
                         return true;
                     } else {
@@ -179,8 +179,25 @@ public class StateModule {
                         rs.close();
                         return false;
                     }
-                })
+                });
+        completeStateFilter
+                .getOutputWire()
                 .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
+
+        /*
+         * The observer must run before the snapshot and complete-state destinations. It releases the latest complete
+         * state before an async freeze snapshot can wait for the freeze state to be destroyed. The nexus consumes and
+         * closes the observer's reservation.
+         */
+        if (stateConfig.saveStateAsync()) {
+            allReservedSignedStatesWire.orderedSolderTo(List.of(
+                    latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::observeStateForAsyncFreeze),
+                    saveToDiskFilter.getInputWire(),
+                    completeStateFilter.getInputWire()));
+        } else {
+            allReservedSignedStatesWire.orderedSolderTo(
+                    List.of(saveToDiskFilter.getInputWire(), completeStateFilter.getInputWire()));
+        }
 
         // Setup heartbeat
         model.buildHeartbeatWire(wiringConfig.stateGarbageCollectorHeartbeatPeriod())
@@ -203,7 +220,6 @@ public class StateModule {
         final StateSignatureCollector stateSignatureCollector =
                 new DefaultStateSignatureCollector(configuration, signedStateMetrics);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
-        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
         final StateSnapshotManager stateSnapshotManager = new DefaultStateSnapshotManager(
                 configuration,
