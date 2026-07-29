@@ -5,7 +5,7 @@ title: Every node contributing to consensus is independently restartable
 class: structural
 topics: [restart-and-pces, signed-state-management, reconnect, event-creator]
 components:
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java
+  - swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java
   - consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java
@@ -64,7 +64,7 @@ persistence path, signed-state saving, and the reconnect gate.
 - **Steady state — persisted before observed.** Every validated event is written
   to PCES *before* any downstream component observes it: the writer's output wire
   is soldered ahead of consensus, gossip, and the event creator's parent-selection
-  input (`PlatformWiring.java:86-96`), and the inline writer writes the event to
+  input (`ConsensusLayerWiring.java:108-118`), and the inline writer writes the event to
   the current file before emitting it (`DefaultInlinePcesWriter.java:71-75`). So
   every event a node needs to reach consensus is durable on disk before consensus
   acts on it; on an ordinary restart the node rebuilds its hashgraph by replaying

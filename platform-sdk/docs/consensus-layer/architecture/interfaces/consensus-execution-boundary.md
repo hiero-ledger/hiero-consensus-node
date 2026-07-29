@@ -230,7 +230,7 @@ This lets the execution layer keep a balanced count of in-flight transactions.
   (`consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java`)
   — the chokepoint: one call admits an event, emits it to prehandle, produces consensus rounds, and
   partitions aged-out events into those that reached consensus (no action) and `!isConsensus()` (stale).
-- `PlatformWiring` (`swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java`)
+- `ConsensusLayerWiring` (`swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java`)
   — solders the three outputs to `TransactionPrehandler::prehandleApplicationTransactions`,
   `TransactionHandler::handleConsensusRound`, and `StaleEventConsumer::processStaleEvent`; its comment
   records the contract: *"the consensus engine ensures that all pre-consensus events either reach
