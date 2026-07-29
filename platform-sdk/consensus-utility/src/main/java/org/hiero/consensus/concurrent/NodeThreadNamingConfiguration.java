@@ -5,24 +5,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.concurrent.framework.config.AbstractThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Thread naming scheme made out of component: name from_node to other_node + optional thread number.
  * Please see {@link #generateNextThreadName()} for the details.
  */
-public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfiguration {
-
-    /**
-     * The name of the component with which this thread is associated.
-     */
-    protected String component;
-
-    /**
-     * A name for this thread.
-     */
-    protected String threadName;
+public class NodeThreadNamingConfiguration extends CompositeThreadNamingConfiguration {
 
     /**
      * The ID of the node that is running the thread.
@@ -33,14 +23,6 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
      * The ID of the other node if this thread is responsible for a task associated with a particular node.
      */
     private NodeId otherNodeId;
-
-    /**
-     * Get the node ID that will run threads created by this object.
-     */
-    @NonNull
-    public NodeId getNodeId() {
-        return nodeId;
-    }
 
     public NodeThreadNamingConfiguration() {}
 
@@ -63,48 +45,10 @@ public class NodeThreadNamingConfiguration extends AbstractThreadNamingConfigura
      *
      * @return this object
      */
-    @SuppressWarnings("unchecked")
     public NodeThreadNamingConfiguration setOtherNodeId(@NonNull final NodeId otherNodeId) {
         Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
 
         this.otherNodeId = otherNodeId;
-        return this;
-    }
-
-    /**
-     * Get the name of the component that new threads will be associated with.
-     */
-    public String getComponent() {
-        return component;
-    }
-
-    /**
-     * Set the name of the component that new threads will be associated with.
-     *
-     * @return this object
-     */
-    @SuppressWarnings("unchecked")
-    public NodeThreadNamingConfiguration setComponent(final String component) {
-
-        this.component = component;
-        return this;
-    }
-
-    /**
-     * Get the name for created threads.
-     */
-    public String getThreadName() {
-        return threadName;
-    }
-
-    /**
-     * Set the name for created threads.
-     *
-     * @return this object
-     */
-    @SuppressWarnings("unchecked")
-    public NodeThreadNamingConfiguration setThreadName(final String threadName) {
-        this.threadName = threadName;
         return this;
     }
 

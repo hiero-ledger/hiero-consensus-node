@@ -273,9 +273,9 @@ public class PeerCommunication implements ConnectionTracker {
                                     .toList()),
                             time));
             stc.setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
+                    .setOtherNodeId(otherId)
                     .setNodeId(selfId)
                     .setComponent(PLATFORM_THREAD_POOL_NAME)
-                    .setOtherNodeId(otherId)
                     .setThreadName("SyncProtocolWith" + otherId));
 
             syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(otherId, stc.build()));

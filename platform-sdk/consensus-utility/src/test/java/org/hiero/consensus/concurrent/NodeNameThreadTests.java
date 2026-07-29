@@ -84,29 +84,29 @@ class NodeNameThreadTests {
         final Thread thread3 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
+                        .setNodeId(NodeId.of(1234L))
                         .setComponent("foo")
-                        .setThreadName("bar")
-                        .setNodeId(NodeId.of(1234L)))
+                        .setThreadName("bar"))
                 .build();
         assertEquals("<foo: bar 1234>", thread3.getName(), "unexpected thread name");
 
         final Thread thread4 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
-                        .setComponent("foo")
-                        .setThreadName("bar")
                         .setNodeId(NodeId.of(1234L))
-                        .setOtherNodeId(NodeId.of(4321L)))
+                        .setOtherNodeId(NodeId.of(4321L))
+                        .setComponent("foo")
+                        .setThreadName("bar"))
                 .build();
         assertEquals("<foo: bar 1234 to 4321>", thread4.getName(), "unexpected thread name");
 
         final ThreadFactory factory = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
                 .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
-                        .setComponent("foo")
-                        .setThreadName("bar")
                         .setNodeId(NodeId.of(1234L))
-                        .setOtherNodeId(NodeId.of(4321L)))
+                        .setOtherNodeId(NodeId.of(4321L))
+                        .setComponent("foo")
+                        .setThreadName("bar"))
                 .buildFactory();
 
         assertEquals("<foo: bar 1234 to 4321 #0>", factory.newThread(null).getName(), "unexpected thread name");
