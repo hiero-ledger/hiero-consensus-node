@@ -47,7 +47,6 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.FallenBehindConfig_;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,8 +58,8 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
+import org.hiero.consensus.status.monitor.actions.ReconnectCompleteAction;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
@@ -158,10 +157,7 @@ class ReconnectControllerTest {
         reconnectCoordinator = mock(ReconnectCoordinator.class);
 
         // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
-                .getOrCreateConfig();
-        fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
+        fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.5);
 
         // Configure platformCoordinator.pauseGossip() to call fallenBehindMonitor.notifySyncProtocolPaused()
         doAnswer(inv -> {

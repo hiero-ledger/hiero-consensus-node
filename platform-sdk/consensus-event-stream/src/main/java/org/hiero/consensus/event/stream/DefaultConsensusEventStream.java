@@ -25,7 +25,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.concurrent.NodeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
-import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStreamConfiguration;

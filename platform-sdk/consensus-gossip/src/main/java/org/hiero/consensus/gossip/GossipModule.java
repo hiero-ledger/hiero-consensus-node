@@ -16,11 +16,13 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -49,6 +51,7 @@ public interface GossipModule {
      * @param reservedSignedStateResultPromise a promise for the result of reserving a signed state
      * @param fallenBehindMonitor the monitor for detecting if the node has fallen behind
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
+     * @param additionalParameters additional parameters for the gossip module
      */
     void initialize(
             @NonNull WiringModel model,
@@ -63,7 +66,8 @@ public interface GossipModule {
             @NonNull Supplier<ReservedSignedState> latestCompleteState,
             @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull FallenBehindMonitor fallenBehindMonitor,
-            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager);
+            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull Map<String, Object> additionalParameters);
 
     /**
      * {@link OutputWire} for events received through gossip.
@@ -91,13 +95,22 @@ public interface GossipModule {
     InputWire<PlatformEvent> eventToGossipInputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} module.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the event window
+     * @return the {@link InputWire} for the consensus round
      */
-    @InputWireLabel("event window")
+    @InputWireLabel("consensus round")
     @NonNull
-    InputWire<EventWindow> eventWindowInputWire();
+    InputWire<ConsensusRound> consensusRoundInputWire();
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    InputWire<EventWindow> initialEventWindowInputWire();
 
     /**
      * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
@@ -147,9 +160,13 @@ public interface GossipModule {
     InputWire<NoInput> resumeInputWire();
 
     /**
-     * Starts gossiping.
+     * {@link InputWire} for control signals to start gossiping.
+     *
+     * @return the {@link InputWire} for start signals
      */
-    void start();
+    @InputWireLabel("start")
+    @NonNull
+    InputWire<NoInput> startInputWire();
 
     /**
      * Flushes the gossip module.
