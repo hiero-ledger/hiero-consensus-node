@@ -88,7 +88,7 @@ simply the arrival of a `QUIESCE` command at the boundary:
 
 1. Execution calls
    [`Platform`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/Platform.java)`#quiescenceCommand(QuiescenceCommand)`.
-2. [`PlatformCoordinator`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java)`#quiescenceCommand`
+2. [`SwirldsPlatform`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java)`#quiescenceCommand`
    fans the command out on two wires: to
    [`PlatformMonitor`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/PlatformMonitor.java)
    and to the event-creator module.
