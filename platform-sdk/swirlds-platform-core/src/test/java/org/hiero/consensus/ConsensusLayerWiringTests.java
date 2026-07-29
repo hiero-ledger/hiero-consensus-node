@@ -29,10 +29,15 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -44,7 +49,6 @@ import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -80,7 +84,8 @@ class ConsensusLayerWiringTests {
     @ParameterizedTest
     @MethodSource("configurations")
     @DisplayName("Assert that all input wires are bound to something")
-    void testBindings(final Configuration configuration) {
+    void testBindings(final Configuration configuration)
+            throws KeyGeneratingException, NoSuchAlgorithmException, KeyStoreException, NoSuchProviderException {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tmpDir);
@@ -90,7 +95,7 @@ class ConsensusLayerWiringTests {
                 new NoOpMetrics(),
                 Time.getCurrent(),
                 RosterHistory.fakeRoster(),
-                KeysAndCerts.emptyKeysAndCerts(),
+                KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
                 NodeId.FIRST_NODE_ID,
                 new NoOpRecycleBin(),
                 fileSystemManager,
