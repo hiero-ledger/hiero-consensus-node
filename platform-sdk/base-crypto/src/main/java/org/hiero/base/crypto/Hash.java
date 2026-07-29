@@ -2,7 +2,10 @@
 package org.hiero.base.crypto;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.io.streams.SerializableStreamConstants.DEFAULT_CHECKSUM;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -14,6 +17,7 @@ import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * A cryptographic hash of some data.
@@ -148,6 +152,15 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     }
 
     @Override
+    public void serialize(@NonNull final PbjWriter out) throws IOException {
+        requireNonNull(digestType, "digestType");
+        requireNonNull(bytes, "bytes");
+        out.writeInt(digestType.id());
+        out.writeInt((int) bytes.length());
+        bytes.writeTo(out);
+    }
+
+    @Override
     public int getSerializedLength() {
         return Integer.BYTES // digest type
                 + Integer.BYTES // length of the hash
@@ -166,7 +179,24 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
         }
 
         this.digestType = digestType;
-        final byte[] value = in.readByteArray(digestType.digestLength());
+        final byte[] value = in.readByteArray(digestType.digestLength(), DEFAULT_CHECKSUM);
+
+        if (value == null) {
+            throw new BadIOException("Invalid hash value read from the stream");
+        }
+        this.bytes = Bytes.wrap(value);
+    }
+
+    @Override
+    public void deserialize(@NonNull final PbjReader in, final int version) throws IOException {
+        final DigestType digestType = DigestType.valueOf(in.readInt());
+
+        if (digestType == null) {
+            throw new BadIOException("Invalid DigestType identifier read from the stream");
+        }
+
+        this.digestType = digestType;
+        final byte[] value = PbjUtils.readByteArray(in, digestType.digestLength(), DEFAULT_CHECKSUM);
 
         if (value == null) {
             throw new BadIOException("Invalid hash value read from the stream");

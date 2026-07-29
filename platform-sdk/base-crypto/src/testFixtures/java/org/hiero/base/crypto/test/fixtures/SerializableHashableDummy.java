@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.test.fixtures;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import java.io.IOException;
 import org.hiero.base.crypto.AbstractSerializableHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 public class SerializableHashableDummy extends AbstractSerializableHashable {
     private static final long CLASS_ID = 0xeecd8387d5496ba3L;
@@ -39,8 +42,20 @@ public class SerializableHashableDummy extends AbstractSerializableHashable {
     }
 
     @Override
+    public void serialize(PbjWriter out) throws IOException {
+        out.writeInt(number);
+        PbjUtils.writeNormalisedString(out, string);
+    }
+
+    @Override
     public void deserialize(SerializableDataInputStream in, int version) throws IOException {
         number = in.readInt();
         string = in.readNormalisedString(MAX_STRING_LENGTH);
+    }
+
+    @Override
+    public void deserialize(PbjReader in, int version) throws IOException {
+        number = in.readInt();
+        string = PbjUtils.readNormalisedString(in, MAX_STRING_LENGTH);
     }
 }

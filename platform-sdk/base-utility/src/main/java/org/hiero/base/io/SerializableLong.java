@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.io;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import java.io.IOException;
 import java.util.Objects;
 import org.hiero.base.FastCopyable;
@@ -88,11 +90,21 @@ public class SerializableLong implements Comparable<SerializableLong>, FastCopya
         out.writeLong(this.value);
     }
 
+    @Override
+    public void serialize(PbjWriter out) throws IOException {
+        out.writeLong(this.value);
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void deserialize(SerializableDataInputStream in, int version) throws IOException {
+        this.value = in.readLong();
+    }
+
+    @Override
+    public void deserialize(PbjReader in, int version) throws IOException {
         this.value = in.readLong();
     }
 
