@@ -17,7 +17,7 @@ public class StatusMonitorConfigurationExtension implements ConfigurationExtensi
     @Override
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(StatusMonitorWiringConfig.class);
+        return Set.of(PlatformStatusConfig.class, StatusMonitorWiringConfig.class, UptimeConfig.class);
     }
 
     /**
