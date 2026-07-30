@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.internal.BufferedBlock;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BufferSaturationState.BufferMaxBytes;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BufferSaturationState.PruneResult;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -282,6 +284,7 @@ public class BlockBufferService {
         }
 
         final long bytes = BlockStreamingUtils.parseToBytes(rawMaxBytes);
+
         if (bytes < 0) {
             logger.warn("Invalid max buffer size in bytes (input: {}); defaulting to {} bytes", rawMaxBytes, DEFAULT_BUFFER_BYTES);
             bufferMaxBytesRef.compareAndSet(maxBytes, new BufferMaxBytes(rawMaxBytes, DEFAULT_BUFFER_BYTES));
@@ -736,6 +739,7 @@ public class BlockBufferService {
         int numInProgress = 0;
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
+        long bytesPruned = 0;
 
         int size = blockBuffer.size();
         for (final long blockNumber : orderedBuffer) {
@@ -764,7 +768,9 @@ public class BlockBufferService {
                 blockBuffer.remove(blockNumber);
                 ++numPruned;
                 --size;
-                bufferSizeInBytes.add(-block.sizeBytes()); // subtract the size of the block
+                final long blockBytes = block.sizeBytes();
+                bytesPruned += blockBytes;
+                bufferSizeInBytes.add(-blockBytes); // subtract the size of the block
             } else {
                 // Track all unacknowledged blocks
                 if (blockNumber > highestBlockAcked) {
@@ -792,15 +798,32 @@ public class BlockBufferService {
                 numInProgress,
                 numPendingAck,
                 numPruned,
+                bytesPruned,
                 newEarliestBlock,
                 newLatestBlock);
+    }
+
+    private record BufferSaturationState(boolean isSaturated, double unackedBlockCountSaturationPercent, double unackedBlockBytesSaturationPercent) {
+
+        double maxSaturationPercent() {
+            if (Double.compare(unackedBlockCountSaturationPercent, unackedBlockBytesSaturationPercent) > 0) {
+                return unackedBlockCountSaturationPercent;
+            } else {
+                return unackedBlockBytesSaturationPercent;
+            }
+        }
+    }
+
+    private BufferSaturationState calculateSaturation(final PruneResult latestPruneResult, final long latestBufferBytes) {
+
+
     }
 
     /**
      * Simple class that contains information related to the outcome of the buffer pruning.
      */
     static class PruneResult {
-        static final PruneResult NIL = new PruneResult(Instant.MIN, 0, 0, 0, 0, 0, 0, 0);
+        static final PruneResult NIL = new PruneResult(Instant.MIN, 0, 0, 0, 0, 0, 0, 0, 0);
 
         final Instant timestamp;
         final long idealMaxBufferSize;
@@ -808,6 +831,7 @@ public class BlockBufferService {
         final int numBlocksChecked;
         final int numBlocksPendingAck;
         final int numBlocksPruned;
+        final long numBlockBytesPruned;
         final long oldestBlockNumber;
         final long newestBlockNumber;
         final double saturationPercent;
@@ -820,6 +844,7 @@ public class BlockBufferService {
                 final int numBlocksInProgress,
                 final int numBlocksPendingAck,
                 final int numBlocksPruned,
+                final long numBlockBytesPruned,
                 final long oldestBlockNumber,
                 final long newestBlockNumber) {
             this.timestamp = timestamp;
@@ -828,6 +853,7 @@ public class BlockBufferService {
             this.numBlocksInProgress = numBlocksInProgress;
             this.numBlocksPendingAck = numBlocksPendingAck;
             this.numBlocksPruned = numBlocksPruned;
+            this.numBlockBytesPruned = numBlockBytesPruned;
             this.oldestBlockNumber = oldestBlockNumber;
             this.newestBlockNumber = newestBlockNumber;
 
@@ -871,15 +897,17 @@ public class BlockBufferService {
         final PruneResult pruningResult = pruneBuffer();
         final PruneResult previousPruneResult = lastPruningResultRef.getAndSet(pruningResult);
         final long bufferTotalBytes = bufferSizeInBytes.sum();
+        final BufferSaturationState saturationState = calculateSaturation(pruningResult, bufferTotalBytes);
 
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%, bufferSizeBytes: {}",
+                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, bytesPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%, bufferSizeBytes: {}",
                     pruningResult.idealMaxBufferSize,
                     pruningResult.numBlocksChecked,
                     pruningResult.numBlocksInProgress,
                     pruningResult.numBlocksPruned,
+                    pruningResult.numBlockBytesPruned,
                     pruningResult.numBlocksPendingAck,
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
                     pruningResult.saturationPercent,
