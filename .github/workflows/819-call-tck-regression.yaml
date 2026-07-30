@@ -108,13 +108,16 @@ jobs:
           cd platform-sdk/regression
           git fetch --tags
 
-          # if ${{ inputs.tck-version }} is in the tags check it out.
+          # Check out by tag first, then fall back to commit SHA.
           if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
-            echo "Checking out specified TCK version: ${{ inputs.tck-version }}"
+            echo "Checking out specified TCK version (tag): ${{ inputs.tck-version }}"
             git checkout "tags/${{ inputs.tck-version }}"
+          elif git rev-parse --verify "${{ inputs.tck-version }}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (commit SHA): ${{ inputs.tck-version }}"
+            git checkout "${{ inputs.tck-version }}"
           else
-            echo "Specified TCK version ${{ inputs.tck-version }} not found in tags."
-            exit 1 # fail the workflow if not present.
+            echo "Specified TCK version ${{ inputs.tck-version }} not found as a tag or commit SHA."
+            exit 1
           fi
 
       # Checkout the JS-SDK server
