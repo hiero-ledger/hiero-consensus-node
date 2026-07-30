@@ -99,7 +99,7 @@ MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.39.0}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -1101,10 +1101,12 @@ seed_block_node_tss_parameters() {
 }
 
 # After the 0.77 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.lastAvailableBlock twice over a window and requires it to advance —
-# if the BN were rejecting the real-TSS blocks (the pre-seed failure mode), it would be
-# stuck and lastAvailableBlock would not move. Also surfaces any recent 'Verification
-# failed' log lines on failure for diagnosis.
+# Reads serverStatus.nextExpectedBlock twice over a window and requires it to advance.
+# nextExpectedBlock is the live publisher position (= lastAvailableBlock + 1), bumped as the BN
+# receives/verifies each block; unlike lastAvailableBlock it does not lag behind the persistence/
+# available-store watermark, which can stay stuck after the cutover re-seed even while the BN is
+# verifying + persisting fine. If the BN were rejecting the real-TSS blocks it would be stuck.
+# Also surfaces any recent 'Verification failed' log lines on failure for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
   local bn_pod="block-node-${BLOCK_NODE_ID}-0"
@@ -1116,12 +1118,12 @@ verify_block_node_persists_post_cutover() {
   local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
   local proto_file="block-node/api/node_service.proto"
 
-  read_bn_last_available() {
+  read_bn_next_expected() {
     local raw
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
+    echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -1132,20 +1134,20 @@ verify_block_node_persists_post_cutover() {
   wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 || { kill "${pf_pid}" >/dev/null 2>&1 || true; echo "post-cutover: BN port-forward failed" >&2; return 1; }
 
   local baseline="" current=""
-  baseline="$(read_bn_last_available)"
+  baseline="$(read_bn_next_expected)"
   [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=0
-  log "Asserting BN persists post-cutover blocks (baseline lastAvailableBlock=${baseline}; must climb within ${timeout_secs}s)"
+  log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline}; must climb within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     sleep 10
-    current="$(read_bn_last_available)"
+    current="$(read_bn_next_expected)"
     if [[ "${current}" =~ ^[0-9]+$ && "${current}" -gt "${baseline}" ]]; then
-      log "verify_block_node_persists_post_cutover: lastAvailableBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
+      log "verify_block_node_persists_post_cutover: nextExpectedBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
   done
-  echo "post-cutover: BN lastAvailableBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
+  echo "post-cutover: BN nextExpectedBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
   echo "  recent BN verification failures:" >&2
   kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" --since=10m 2>/dev/null | grep -E "Verification failed for block=" | tail -5 >&2 || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
