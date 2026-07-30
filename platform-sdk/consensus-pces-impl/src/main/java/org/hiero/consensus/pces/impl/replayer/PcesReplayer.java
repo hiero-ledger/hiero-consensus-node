@@ -97,7 +97,8 @@ public class PcesReplayer {
             return;
         }
 
-        final long roundNumBeforeReplay = consensusRoundBeforeReplay == null ? 0 : consensusRoundBeforeReplay.getRoundNum();
+        final long roundNumBeforeReplay =
+                consensusRoundBeforeReplay == null ? 0 : consensusRoundBeforeReplay.getRoundNum();
         final long roundNumAfterReplay = consensusRoundAfterReplay.getRoundNum();
         final long elapsedRounds = roundNumAfterReplay - roundNumBeforeReplay;
 

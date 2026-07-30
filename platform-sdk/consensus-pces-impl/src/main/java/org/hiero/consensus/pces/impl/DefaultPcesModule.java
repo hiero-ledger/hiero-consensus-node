@@ -94,9 +94,7 @@ public class DefaultPcesModule implements PcesModule {
         this.pcesReplayerWiring = PcesReplayerWiring.create(model);
 
         // Wire components
-        consensusRoundDispatcher
-                .getOutputWire()
-                .solderTo(eventWindowExtractor.getInputWire(), INJECT);
+        consensusRoundDispatcher.getOutputWire().solderTo(eventWindowExtractor.getInputWire(), INJECT);
         eventWindowExtractor
                 .getOutputWire()
                 .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
@@ -146,7 +144,9 @@ public class DefaultPcesModule implements PcesModule {
         this.pcesCoordinator = new PcesCoordinator(
                 time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule, signalEndOfPcesReplay);
 
-        consensusRoundDispatcher.getOutputWire().solderTo("PcesReplayer", "consensus round", pcesReplayer::setLatestConsensusRound);
+        consensusRoundDispatcher
+                .getOutputWire()
+                .solderTo("PcesReplayer", "consensus round", pcesReplayer::setLatestConsensusRound);
     }
 
     /**

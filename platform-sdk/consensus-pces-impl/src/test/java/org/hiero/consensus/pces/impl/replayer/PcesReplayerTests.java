@@ -91,8 +91,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         replayer.replayPces(ioIterator);
 
@@ -108,8 +108,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);

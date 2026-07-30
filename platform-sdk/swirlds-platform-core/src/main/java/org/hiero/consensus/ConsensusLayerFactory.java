@@ -237,11 +237,7 @@ public class ConsensusLayerFactory {
                 eventCreatorModule,
                 stateModule);
         initializePcesModule(
-                pcesModule,
-                pipelineFlusher,
-                statusMonitorModule,
-                issDetectionModule,
-                eventPipelineTracker);
+                pcesModule, pipelineFlusher, statusMonitorModule, issDetectionModule, eventPipelineTracker);
 
         ConsensusLayerStaticSetup.setup(configuration);
 
