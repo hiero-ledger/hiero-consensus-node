@@ -39,8 +39,8 @@ import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
+import org.hiero.consensus.status.monitor.actions.ReconnectCompleteAction;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 
