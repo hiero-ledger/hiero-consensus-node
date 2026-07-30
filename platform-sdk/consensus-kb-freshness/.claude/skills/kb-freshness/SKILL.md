@@ -63,7 +63,8 @@ For each `review` entry:
    anchors). Never rely on memory of what the code does — open the files.
 3. For each **load-bearing prose claim** about behavior in the topic, judge it three ways:
    - `supported` — the current code backs the claim.
-   - `contradicted` — the current code makes the claim false.
+   - `contradicted` — the current code makes the claim false, **or** names a symbol (method, class,
+     field, path) that no longer exists; a rename or removal counts even if the behavior survives.
    - `can't-determine` — you cannot tell from the source available.
 
 An `unknown` entry has no `changedPaths` to read — its `note` names why (usually
@@ -114,7 +115,8 @@ Close with a short, concrete action list derived from this run (skip lines that 
    `supported` (or whose contradictions have since been fixed), suggest bumping its `last_reviewed`
    date — mechanically, via `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; a spec without
    a date uses `--date`). Without the bump, every future run re-worklists the same topics. Never
-   suggest bumping a topic that still has an unresolved contradiction.
+   suggest bumping a topic that still has an unresolved contradiction (which now includes a dangling
+   reference to a renamed or removed symbol).
 5. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
    copying `baseline.proposed.tsv`) and triaging the rows.
 
