@@ -475,8 +475,10 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 A monotonic counter the *Orphan buffer* stamps on each event as it is released
 (`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between nodes.
 Unlike *NGen* it never resets, but it is a release-order counter, **not** a graph height: among
-events numbered since the buffer was last cleared it gives a valid topological order (an ancestor
-has a smaller number), and no more. Used where only a local topological order is needed — event
+events numbered since the buffer was last cleared it gives a valid topological order, and no more.
+Within that window an ancestor is released — and numbered — before its descendant, so it carries a
+smaller value; but the converse fails, a smaller value does **not** make an event an ancestor
+(concurrent events are ordered too). Used where only a local topological order is needed — event
 creation's advancement scoring and *Sync* send order — never for cross-node agreement; consumers
 that need height keep *NGen*.
 See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).

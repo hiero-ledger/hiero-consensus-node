@@ -134,18 +134,10 @@ it reintroduces an agreement / liveness risk, or an ISS (SCN-002).
   ancestry stalls consensus) both concern how old events' rounds are frozen or
   cleared across roster changes; the sentinel assigned here is part of that
   mechanism.
-- The property this short-circuit enforces — every non-descendant of the decided
-  judges is terminal — is INV-015. An earlier reading of SCN-002 held that the
-  frontier had to be keyed on a graph height and that the sequence number was
-  fundamentally unsafe here; re-diagnosis (2026-07-27) showed the SCN-002 ISS was a
-  latent round-assignment bug (#26529), not a property of the key, and that the
-  frontier is sound on either key once INV-015 is upheld.
 - **Future state — the short-circuit becomes redundant once #26529 is fixed.** With
   a non-descendant that has no non-ancient parents assigned `ROUND_NEGATIVE_INFINITY`
-  rather than `ROUND_FIRST`, every non-descendant reaches terminal anyway — via the
-  `x.isConsensus()` guard, parent-propagation (all non-ancient parents terminal), and
-  the fixed no-parent branch — none of which enter the strongly-see walk. The
-  frontier check would then save only a shallow parent recursion for the narrow set
-  of non-consensus events below the lowest decided judge (and memoization already
-  bounds recursion depth), so it could be removed. This is future state; today the
-  check is still load-bearing (it masks #26529 — see *Why it holds now*).
+  rather than `ROUND_FIRST`, every non-descendant reaches terminal anyway — via
+  `x.isConsensus()`, parent-propagation, and the fixed no-parent branch, none
+  entering the strongly-see walk — so the check could be removed (memoization already
+  bounds recursion depth). Today it is still load-bearing: it masks #26529. See
+  *Why it holds now* for how the frontier enforces INV-015 on either key.

@@ -41,7 +41,7 @@ marks a known correctness gap, not a stale entry.
 | [INV-012](INV-012-min-non-ancient-round-monotonic.md)                    | The minimum non-ancient round never decreases                                             | safety    | hashgraph               | enforced |
 | [INV-013](INV-013-honest-event-coin-is-unpredictable.md)                 | An honest event's coin value is unpredictable                                             | integrity | hashgraph               | enforced |
 | [INV-014](INV-014-consensus-order-is-a-strict-total-order.md)            | Consensus order is a strict total order with unique ranks                                 | ordering  | hashgraph               | enforced |
-| [INV-015](INV-015-non-descendants-of-decided-judges-terminal.md)         | Events that are not descendants of the latest decided round's judges are terminal         | agreement | hashgraph               | enforced |
+| [INV-015](INV-015-non-descendants-of-decided-judges-deterministic.md)    | Non-descendants of the latest decided round's judges get a roundCreated fixed by bootstrap data alone | agreement | hashgraph               | enforced |
 
 <!--
 Row convention, one line per entry, kept in INV-NNN order:

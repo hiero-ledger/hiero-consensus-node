@@ -181,9 +181,6 @@ latest self event and cause a branch.
   consumers stay on `nGen`, so `nGen` and the
   sequence number coexist in the meantime and a consumer that reads the wrong one,
   or compares the two, is a live hazard.
-- **The sequence number is a foot-gun if misused.** Being local and
-  non-deterministic, any accidental use for cross-node agreement is an ISS waiting
-  to happen.
 
 ### Neutral
 
@@ -191,6 +188,11 @@ latest self event and cause a branch.
   `nGen` (graph height), `sequenceNumber` (orphan-buffer exit order), and
   `consensusSequence` (consensus-add order). `consensusSequence` is unrelated and
   stays; `nGen` is on the way out.
+- Like `nGen` before it, the sequence number is local and non-deterministic, so it
+  must never feed cross-node agreement — misuse would be an ISS. That property is
+  carried over, not introduced by this decision; nothing structural enforces it (the
+  value is a plain `long`), so the guard is convention and the
+  [Limitations](#limitations) above.
 - The GUI can display an event's `nGen` value as an optional per-event label
   (`HashgraphPicture`, gated by the `writeNGen` option) for as long as `nGen`
   exists anywhere in the system; that display retires with `nGen` itself.

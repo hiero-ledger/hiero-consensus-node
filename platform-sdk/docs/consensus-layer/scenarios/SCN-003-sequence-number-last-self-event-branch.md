@@ -123,9 +123,6 @@ None.
 - 2026-07-17 — created from the #26376 fix. `(observed)` steps come from the code
   and the reproducing otter test; `(reasoned)` steps from the sequence-number
   re-release argument — Kelly Greco (@poulok).
-- 2026-07-27 — RUL-006 deleted (added under an incomplete understanding of the
-  nGen/sequence-number trade-off); its references here redirected to ADR-008
-  — Kelly Greco (@poulok).
 - 2026-07-21 — made the overwrite guard explicit in steps 1–2: the
   `hasSequenceNumber()`/`hasNGen()` operand short-circuits only until the orphan
   buffer stamps the held self event's key, after which the strictly-greater
