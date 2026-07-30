@@ -27,7 +27,7 @@
 # Verifications after the 0.77 cutover:
 #   - local-build version on all consensus nodes
 #   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (lastAvailableBlock
+#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (nextExpectedBlock
 #     advances)
 #   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. The cutover itself comes up
 #     ACTIVE; the SELF_ISS only surfaced when a node restarted (e.g. OOMKilled) and replayed events
@@ -73,6 +73,11 @@ APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/applicati
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
+# Back the native WRAPS prover's large allocations with a sparse, memory-mapped file instead of
+# anonymous RAM (avoids OOM-killing a node during the genesis WRAPS ceremony, which on replay
+# surfaces as a SELF_ISS). HAPI_PATH is PVC-backed and every consensus StatefulSet owns a distinct
+# PVC, so this identical in-container path resolves to a unique real-disk file per node.
+WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/wraps-alloc-swap.bin}"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
@@ -99,7 +104,7 @@ MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.39.0}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -138,9 +143,9 @@ RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
 BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-cutover-values.yaml"
 LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
 LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
-BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-parameters.bin"
+BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-bootstrap-roster.json"
 BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
-BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/verification/tss-parameters.bin}"
+BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-bootstrap-roster.json}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 MIRROR_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/mirror-node-block-cutover-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
@@ -224,7 +229,10 @@ inject_wraps_env_into_statefulsets() {
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
+  local -a wraps_env_args=(
+    "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
+    "TSS_LIB_WRAPS_SWAP_FILE=${WRAPS_SWAP_FILE_CONTAINER_PATH}"
+  )
   if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
     wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
   fi
@@ -472,7 +480,7 @@ verify_wraps_on_consensus_nodes() {
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
   expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  log "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  log "Verifying WRAPS runtime on each consensus node (expecting >=${expected_wraps} self-downloaded artifact files at ${wraps_dir} + proof construction, up to ${timeout_secs}s/node; the in-JVM env var is logged as a best-effort diagnostic only)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -486,9 +494,12 @@ verify_wraps_on_consensus_nodes() {
         echo "  ${pod}: WRAPS reported a runtime failure (check ${HAPI_PATH}/output/hgcaa.log)" >&2
         return 1
       fi
+      # found_env is a best-effort diagnostic: the /proc/<pid>/environ probe false-negatives on nodes
+      # that provably have the env set + are building proofs, so gate on the artifacts and let the
+      # authoritative proof-in-log check below decide.
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
+      if [[ "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -496,11 +507,11 @@ verify_wraps_on_consensus_nodes() {
     done
 
     if ! ${ready_for_proof}; then
-      echo "  ${pod}: timed out waiting for WRAPS env+artifacts (env='${found_env:-unset}' wanted '${wraps_dir}'; artifacts=${found_wraps:-0}/${expected_wraps})" >&2
+      echo "  ${pod}: timed out waiting for >=${expected_wraps} WRAPS artifacts in ${wraps_dir} (artifacts=${found_wraps:-0}/${expected_wraps}; env='${found_env:-unset}' [best-effort diagnostic])" >&2
       return 1
     fi
 
-    echo "  ${pod}: env + ${found_wraps} artifacts OK; waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
+    echo "  ${pod}: ${found_wraps} WRAPS artifacts present (env='${found_env:-unset}' [best-effort diagnostic]); waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
     local progress_tick=0
     while (( SECONDS < deadline )); do
       if wraps_failure_present_in_log "${pod}"; then
@@ -766,15 +777,15 @@ blockNode:
           mkdir -p /archive-pvc/archive-data && \\
           chown 2000:2000 /archive-pvc/archive-data && \\
           chmod 700 /archive-pvc/archive-data && \\
-          chown 2000:2000 /verification-pvc && \\
-          chmod 700 /verification-pvc
+          chown 2000:2000 /application-state-pvc && \\
+          chmod 700 /application-state-pvc
       volumeMounts:
         - name: live-storage
           mountPath: /live-pvc
         - name: archive-storage
           mountPath: /archive-pvc
-        - name: verification-storage
-          mountPath: /verification-pvc
+        - name: application-state-storage
+          mountPath: /application-state-pvc
     - name: seed-rsa-bootstrap-roster
       image: busybox
       command:
@@ -830,13 +841,46 @@ validate_block_node_repo() {
   fi
 }
 
-# Poll BN serverStatus until lastAvailableBlock > 0, proving CN is streaming into it.
+# Read serverStatus and return the BN's EFFECTIVE next-expected block. The v0.39 BN pins
+# nextExpectedBlock to the uint64_max sentinel (grpcurl prints it unsigned as 18446744073709551615)
+# while it is a fresh mid-join node (earliestManagedBlock above the CN tip) — and keeps reporting it
+# even while it verifies + persists blocks. In that state the value that actually advances is the
+# persisted-store watermark, so fall back to lastAvailableBlock + 1 (mirrors the CN's own handling,
+# and gives the pollers a concrete, climbing number instead of an un-comparable sentinel — the BN
+# NEVER leaves the sentinel in this mid-join scenario, so keying on the raw field falsely reads as
+# "stuck" even while lastAvailableBlock climbs).
+# Emits: <concrete effective next-expected block> | "" (unreachable / empty / no concrete watermark).
+# Args: $1 = local gRPC port (a BN port-forward must already be open).
+read_bn_next_expected() {
+  local local_port="$1" raw ne la
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
+  local proto_file="block-node/api/node_service.proto"
+  raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
+          -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
+          org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
+  ne="$(printf '%s' "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
+  if [[ "${ne}" == "18446744073709551615" ]]; then
+    la="$(printf '%s' "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
+    if [[ "${la}" =~ ^[0-9]+$ && "${la}" != "18446744073709551615" ]]; then
+      echo $((la + 1)); return
+    fi
+    echo ""; return
+  fi
+  case "${ne}" in
+    ''|*[!0-9]*) echo "" ;;
+    *)           echo "${ne}" ;;
+  esac
+}
+
+# Poll BN serverStatus until its effective next-expected block is > 1 (the BN holds >= block 1),
+# proving the CN is streaming into it. read_bn_next_expected resolves the v0.39 mid-join uint64_max
+# sentinel to lastAvailableBlock + 1, so this is a concrete comparison even before the BN snaps on.
 verify_block_node_has_blocks() {
   local timeout_secs="${1:-120}"
   local svc="block-node-${BLOCK_NODE_ID}"
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-block-node-status.log" pf_pid=""
-  local grpc_err="${WORK_DIR}/grpcurl-block-node-status.err"
   require_cmd grpcurl
   local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
   # node_service.proto imports services/basic_types.proto; resolve it from this repo's tracked hapi
@@ -860,23 +904,18 @@ verify_block_node_has_blocks() {
     return 1
   fi
 
-  local deadline=$((SECONDS + timeout_secs)) last_available="" raw=""
-  log "Polling ${svc} serverStatus for lastAvailableBlock > 0 (up to ${timeout_secs}s)"
+  local deadline=$((SECONDS + timeout_secs)) next_expected=""
+  log "Polling ${svc} serverStatus for effective nextExpectedBlock > 1 (up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
-            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
-    last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
-    if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" -gt 0 ]]; then
-      log "verify_block_node_has_blocks: lastAvailableBlock=${last_available} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
+    next_expected="$(read_bn_next_expected "${local_port}")"
+    if [[ "${next_expected}" =~ ^[0-9]+$ && "${next_expected}" -gt 1 ]]; then
+      log "verify_block_node_has_blocks: effective nextExpectedBlock=${next_expected} — CN is streaming into the BN"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 5
   done
-  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
-  echo "  --- last grpcurl stderr (serverStatus) ---" >&2
-  cat "${grpc_err}" >&2 2>/dev/null || true
+  echo "BN ${svc} did not report an effective nextExpectedBlock > 1 within ${timeout_secs}s" >&2
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
   cat "${pf_log}" >&2 2>/dev/null || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -900,10 +939,10 @@ minio_discover_pod_credentials() {
 }
 
 # Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
-# and slices out the serialized LedgerIdPublicationTransactionBody (Block.items[1] ->
+# and converts the LedgerIdPublicationTransactionBody (Block.items[1] ->
 # BlockItem.signed_transaction[4] -> SignedTransaction.bodyBytes[1] ->
-# TransactionBody.ledger_id_publication[77]) — the form the BN expects at
-# verification.tssParametersFilePath.
+# TransactionBody.ledger_id_publication[77]) into the canonical TssData JSON that the v0.39
+# block-verification plugin reads from app.state.tssBootstrapFilePath.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -911,6 +950,9 @@ write_ledger_id_extractor() {
 # SPDX-License-Identifier: Apache-2.0
 import sys
 import gzip
+import base64
+import json
+import os
 
 
 def read_varint(buf, pos):
@@ -972,9 +1014,41 @@ def extract_from_block(data):
     return None
 
 
+def tss_data_json(pub, block_number):
+    ledger_id = find_field(pub, 1)
+    wraps_key = find_field(pub, 2)
+    contributions = []
+    for fnum, wtype, val in iter_fields(pub):
+        if fnum != 3 or wtype != 2:
+            continue
+        node_id = 0
+        weight = 0
+        history_key = b""
+        for cnum, ctype, cval in iter_fields(val):
+            if cnum == 1 and ctype == 0:
+                node_id = cval
+            elif cnum == 2 and ctype == 0:
+                weight = cval
+            elif cnum == 3 and ctype == 2:
+                history_key = cval
+        contributions.append({
+            "nodeId": str(node_id),
+            "weight": str(weight),
+            "schnorrPublicKey": base64.b64encode(history_key).decode("ascii"),
+        })
+    if not ledger_id or not wraps_key or not contributions:
+        raise ValueError("LedgerIdPublication is missing ledger id, WRAPS key, or node contributions")
+    return {
+        "ledgerId": base64.b64encode(ledger_id).decode("ascii"),
+        "wrapsVerificationKey": base64.b64encode(wraps_key).decode("ascii"),
+        "currentRoster": {"rosterEntries": contributions},
+        "validFromBlock": str(block_number),
+    }
+
+
 def main():
     if len(sys.argv) < 3:
-        sys.stderr.write("usage: extract.py <out.bin> <blockFile.blk[.gz]> [...]\n")
+        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz]> [...]\n")
         sys.exit(2)
     out = sys.argv[1]
     for path in sys.argv[2:]:
@@ -984,9 +1058,10 @@ def main():
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
             pub = extract_from_block(data)
             if pub is not None:
-                with open(out, "wb") as o:
-                    o.write(pub)
-                print("FOUND ledgerIdPublication in %s -> wrote %d bytes to %s" % (path, len(pub), out))
+                block_number = int(os.path.basename(path).split(".", 1)[0])
+                with open(out, "w", encoding="utf-8") as o:
+                    json.dump(tss_data_json(pub, block_number), o, separators=(",", ":"))
+                print("FOUND ledgerIdPublication in %s -> wrote canonical TssData JSON to %s" % (path, out))
                 return
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("skip %s: %s\n" % (path, e))
@@ -1051,7 +1126,7 @@ seed_block_node_tss_parameters() {
   if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
     echo "seed: no LedgerIdPublication found in block stream (was it published during 0.76?)" >&2; return 1
   fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted tss-parameters.bin is empty" >&2; return 1; }
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted TssData JSON is empty" >&2; return 1; }
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   log "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
@@ -1059,7 +1134,7 @@ seed_block_node_tss_parameters() {
   # Tar-free push (kubectl cp needs tar in the target container): stream the file into the
   # pod's cat via stdin.
   if ! kubectl -n "${SOLO_NAMESPACE}" exec -i "${bn_pod}" -- sh -lc "cat > '${BN_TSS_PARAMS_CONTAINER_PATH}'" < "${BN_TSS_PARAMS_LOCAL}"; then
-    echo "seed: streaming tss-parameters into ${bn_pod} failed" >&2; return 1
+    echo "seed: streaming TssData JSON into ${bn_pod} failed" >&2; return 1
   fi
   kubectl -n "${SOLO_NAMESPACE}" delete pod "${bn_pod}" --wait=true >/dev/null 2>&1 || true
   # Wait on the StatefulSet rollout, NOT `wait pod/<name>`: a `wait --for=condition=ready pod/<name>`
@@ -1075,36 +1150,39 @@ seed_block_node_tss_parameters() {
   if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- sh -lc "test -s '${BN_TSS_PARAMS_CONTAINER_PATH}'" >/dev/null 2>&1; then
     echo "seed: ${BN_TSS_PARAMS_CONTAINER_PATH} missing or empty in ${bn_pod} after roll" >&2; return 1
   fi
-  # Confirmation: the BN logs "Loaded TSS parameters from file" during init. `kubectl logs` can
-  # briefly return a transitioning container right after the roll, so poll generously. An explicit
-  # parse/load failure is fatal; but if we merely never observe the marker (a logs-cutover race)
-  # while the file is present and the pod is Ready, continue with a warning —
+  # Confirmation: the active v0.39 block-verification plugin logs "Successfully updated TSS data"
+  # once it ingests the seeded application-state TssData. `kubectl logs` can briefly return a
+  # transitioning container right after the roll, so poll generously. An explicit load/parse failure
+  # is fatal; but if we merely never observe the marker (a logs-cutover race) while the file is
+  # present and the pod is Ready, continue with a warning —
   # verify_block_node_persists_post_cutover is the real gate on whether the BN verifies the blocks.
   sleep 5
   local deadline=$((SECONDS + 180))
   local bn_logs=""
   while (( SECONDS < deadline )); do
     bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
-    if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
-      log "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
+    if grep -q "Successfully updated TSS data" <<<"${bn_logs}"; then
+      log "Block Node loaded the seeded TSS application state — ready to verify real-TSS blocks"
       return 0
     fi
-    if grep -qiE "failed to (load|parse|read).*tss|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
+    # Match the v0.39 TssData load/update failures specifically (not the benign single-BN roster line
+    # "Failed to read/parse block node sources ... TssBootstrapPlugin", which has no peers).
+    if grep -qiE "Failed to read TssData file|Failed to update TSS data in verification|invalid TssData|TssData.*(error|corrupt)" <<<"${bn_logs}"; then
       echo "seed: BN reported a TSS parameters load failure:" >&2
       grep -iE "tss" <<<"${bn_logs}" | tail -5 >&2
       return 1
     fi
     sleep 3
   done
-  log "WARN seed: did not observe 'Loaded TSS parameters from file' in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
+  log "WARN seed: did not observe a successful TSS application-state update in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
   return 0
 }
 
 # After the 0.77 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.lastAvailableBlock twice over a window and requires it to advance —
-# if the BN were rejecting the real-TSS blocks (the pre-seed failure mode), it would be
-# stuck and lastAvailableBlock would not move. Also surfaces any recent 'Verification
-# failed' log lines on failure for diagnosis.
+# Reads the BN's effective next-expected block (read_bn_next_expected resolves the v0.39 mid-join
+# uint64_max sentinel to lastAvailableBlock + 1, the persisted watermark) over a window and requires
+# it to CLIMB. That watermark advances as the BN verifies + persists each post-cutover block; a flat
+# value means the BN is not verifying. Also surfaces recent 'Verification failed' lines for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
   local bn_pod="block-node-${BLOCK_NODE_ID}-0"
@@ -1112,17 +1190,6 @@ verify_block_node_persists_post_cutover() {
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-bn-postcutover.log" pf_pid=""
   require_cmd grpcurl
-  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
-  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
-  local proto_file="block-node/api/node_service.proto"
-
-  read_bn_last_available() {
-    local raw
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
-            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
-  }
 
   kill_processes_on_local_port "${local_port}"
   : > "${pf_log}"
@@ -1131,21 +1198,24 @@ verify_block_node_persists_post_cutover() {
   disown "${pf_pid}" 2>/dev/null || true
   wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 || { kill "${pf_pid}" >/dev/null 2>&1 || true; echo "post-cutover: BN port-forward failed" >&2; return 1; }
 
-  local baseline="" current=""
-  baseline="$(read_bn_last_available)"
-  [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=0
-  log "Asserting BN persists post-cutover blocks (baseline lastAvailableBlock=${baseline}; must climb within ${timeout_secs}s)"
+  local baseline base_concrete="" current=""
+  baseline="$(read_bn_next_expected "${local_port}")"
+  [[ "${baseline}" =~ ^[0-9]+$ ]] && base_concrete="${baseline}"
+  log "Asserting BN persists post-cutover blocks (baseline effective nextExpectedBlock=${baseline:-unreachable}; must climb within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     sleep 10
-    current="$(read_bn_last_available)"
-    if [[ "${current}" =~ ^[0-9]+$ && "${current}" -gt "${baseline}" ]]; then
-      log "verify_block_node_persists_post_cutover: lastAvailableBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
+    current="$(read_bn_next_expected "${local_port}")"
+    # Progress = the effective next-expected (lastAvailableBlock + 1 while mid-join) climbed past the
+    # baseline, i.e. the BN verified + persisted at least one more post-cutover block. A flat value
+    # means it is not verifying — keep waiting until the deadline.
+    if [[ "${current}" =~ ^[0-9]+$ ]] && { [[ -z "${base_concrete}" ]] || (( current > base_concrete )); }; then
+      log "verify_block_node_persists_post_cutover: effective nextExpectedBlock ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
   done
-  echo "post-cutover: BN lastAvailableBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
+  echo "post-cutover: BN effective nextExpectedBlock did not climb (baseline=${baseline}, last=${current:-unreachable}) within ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
   echo "  recent BN verification failures:" >&2
   kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" --since=10m 2>/dev/null | grep -E "Verification failed for block=" | tail -5 >&2 || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -1164,19 +1234,8 @@ wait_for_block_node_caught_up() {
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-bn-catchup.log" pf_pid=""
   require_cmd grpcurl
-  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
-  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
-  local proto_file="block-node/api/node_service.proto"
   local cn_pod="network-${NODE_ALIASES%%,*}-0"
   local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
-
-  read_bn_last_available() {
-    local raw
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
-            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
-  }
 
   kill_processes_on_local_port "${local_port}"
   : > "${pf_log}"
@@ -1197,23 +1256,23 @@ wait_for_block_node_caught_up() {
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
-    cur="$(read_bn_last_available)"
+    cur="$(read_bn_next_expected "${local_port}")"
     cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
       "grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' '${comms_log}' 2>/dev/null | tail -1" 2>/dev/null || true)"
     case "${cn_view}" in
       *"available for streaming (wantedBlock"*)
-        log "Block Node is caught up — CN reports it in-range for streaming (BN lastAvailableBlock=${cur:-?}); safe to cut over"
+        log "Block Node is caught up — CN reports it in-range for streaming (BN nextExpectedBlock=${cur:-?}); safe to cut over"
         kill "${pf_pid}" >/dev/null 2>&1 || true
         return 0
         ;;
     esac
-    if [[ "${cur}" =~ ^[0-9]+$ && "${cur}" != "${prev}" ]]; then
-      log "  BN lastAvailableBlock=${cur} (CN view: ${cn_view:-pending})"
+    if [[ -n "${cur}" && "${cur}" != "${prev}" ]]; then
+      log "  BN nextExpectedBlock=${cur} (CN view: ${cn_view:-pending})"
       prev="${cur}"
     fi
     sleep 5
   done
-  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN lastAvailableBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
+  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN nextExpectedBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
 }
