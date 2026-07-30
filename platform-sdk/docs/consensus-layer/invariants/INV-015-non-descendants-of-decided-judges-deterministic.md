@@ -101,11 +101,12 @@ defect to be stopped, not a tradeoff — its symptom is an ISS (SCN-002).
   non-descendants the constant `ROUND_NEGATIVE_INFINITY` — a valid,
   bootstrap-independent choice — and the RUL-005 frontier, keyed on `nGen`, keeps
   every non-descendant below the frontier so they all take that path and never reach
-  the no-parent `ROUND_FIRST` branch (#26529, Change risk). The bug is masked, not
-  fixed: re-keying the frontier to the orphan-buffer sequence number without fixing
-  #26529 lets a non-descendant clear the frontier on some nodes and take the
-  `ROUND_FIRST` branch, so its value differs across nodes — the ISS in SCN-002.
-  ADR-008 makes #26529 the prerequisite for that re-keying.
+  the no-parent `ROUND_FIRST` branch (#26529, Change risk). That bug is masked, not
+  fixed: re-keying the frontier to the orphan-buffer sequence number without the fix
+  lets a non-descendant clear the frontier on some nodes and take the `ROUND_FIRST`
+  branch, so its value differs across nodes — the ISS in SCN-002. ADR-008 makes the
+  fix the prerequisite for that re-keying.
+
 - RUL-005 and the round-assignment code choose the specific value
   (`ROUND_NEGATIVE_INFINITY`) that realizes this invariant today; INV-001 (voting
   round monotonic along ancestry) and INV-007 (judge set agreed across deciders) are
