@@ -44,6 +44,9 @@ public class ReconnectCoordinator {
     }
 
     /**
+     * Submits a status action to the status monitor module.
+     *
+     * @param action the status action to submit
      * @see StatusMonitorModule#platformStatusActionInputWire()
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
@@ -111,6 +114,9 @@ public class ReconnectCoordinator {
     }
 
     /**
+     * Sends a notification to the application that the reconnect process has completed.
+     *
+     * @param signedState the signed state that was loaded into the platform
      * @see AppNotifier#sendReconnectCompleteNotification
      */
     public void sendReconnectCompleteNotification(@NonNull final SignedState signedState) {
@@ -158,6 +164,10 @@ public class ReconnectCoordinator {
                 .initialEventWindowDispatcher()
                 .getInputWire()
                 .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+        // Peer threads read the shadowgraph outside the gossip scheduler, so it must ingest the new window
+        // before gossip resumes. Ordering already holds today, since pausing gossip drains all sync permits
+        // and the sequential scheduler runs this update ahead of the resume that follows. The flush keeps
+        // that guarantee here instead of relying on the pause/permit machinery.
         buildingBlocks.gossipModule().flush();
 
         final RunningEventHashOverride runningEventHashOverride =

@@ -21,6 +21,7 @@ import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
+import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
@@ -99,6 +100,9 @@ public class ConsensusLayerFactory {
     private final Configuration configuration;
 
     @NonNull
+    private final ModulesConfig modulesConfig;
+
+    @NonNull
     private final Metrics metrics;
 
     @NonNull
@@ -164,6 +168,7 @@ public class ConsensusLayerFactory {
      */
     public ConsensusLayerFactory(@NonNull final ConsensusLayerInputs inputs) {
         configuration = inputs.configuration();
+        modulesConfig = configuration.getConfigData(ModulesConfig.class);
         metrics = inputs.metrics();
         time = inputs.time();
         rosterHistory = inputs.rosterHistory();
@@ -215,7 +220,7 @@ public class ConsensusLayerFactory {
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         final StateModule stateModule = createStateModule(latestCompleteStateNexus, savedStateController);
 
-        final PcesModule pcesModule = createModule(PcesModule.class, configuration);
+        final PcesModule pcesModule = createModule(PcesModule.class, modulesConfig.pces());
 
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = createConsensusEventStreamWiring();
 
@@ -340,7 +345,7 @@ public class ConsensusLayerFactory {
      */
     public void setupReconnectModule(
             @NonNull final Platform platform, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
-        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
+        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, modulesConfig.reconnect());
         reconnectModule.initialize(
                 configuration,
                 time,
@@ -395,7 +400,7 @@ public class ConsensusLayerFactory {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        final GossipModule module = createModule(GossipModule.class, configuration);
+        final GossipModule module = createModule(GossipModule.class, modulesConfig.gossip());
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         module.initialize(
@@ -418,7 +423,7 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private HashgraphModule createHashgraphModule(@Nullable final EventPipelineTracker eventPipelineTracker) {
-        final HashgraphModule module = createModule(HashgraphModule.class, configuration);
+        final HashgraphModule module = createModule(HashgraphModule.class, modulesConfig.hashgraph());
         module.initialize(
                 wiringModel,
                 configuration,
@@ -504,7 +509,7 @@ public class ConsensusLayerFactory {
     private EventIntakeModule createEventIntakeModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final EventIntakeModule module = createModule(EventIntakeModule.class, configuration);
+        final EventIntakeModule module = createModule(EventIntakeModule.class, modulesConfig.eventIntake());
         module.initialize(
                 wiringModel,
                 configuration,
@@ -519,7 +524,7 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private EventCreatorModule createEventCreatorModule() {
-        final EventCreatorModule module = createModule(EventCreatorModule.class, configuration);
+        final EventCreatorModule module = createModule(EventCreatorModule.class, modulesConfig.eventCreator());
         module.initialize(
                 wiringModel,
                 configuration,
