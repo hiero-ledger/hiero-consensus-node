@@ -204,30 +204,51 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     @Override
     public boolean handoff(
             @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
-        if (toRosterHash == null
-                || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
-            // The next construction is becoming the active one; so purge obsolete votes now
-            final var obsoleteConstruction = requireNonNull(activeConstruction.get());
-            purgePublications(obsoleteConstruction.constructionId(), fromRoster);
-            if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
-                final var survivingNodeIds = toRoster.rosterEntries().stream()
-                        .map(RosterEntry::nodeId)
-                        .collect(Collectors.toSet());
-                fromRoster.rosterEntries().forEach(entry -> {
-                    final long nodeId = entry.nodeId();
-                    if (!survivingNodeIds.contains(nodeId)) {
-                        proofKeySets.remove(new NodeId(nodeId));
-                    }
-                });
+        return handoff(fromRoster, toRoster, toRosterHash, false);
+    }
+
+    @Override
+    public boolean handoff(
+            @NonNull final Roster fromRoster,
+            @Nullable final Roster toRoster,
+            @Nullable final Bytes toRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(fromRoster);
+        final var upcomingConstruction = requireNonNull(nextConstruction.get());
+        final boolean handoffMatches =
+                toRosterHash == null || upcomingConstruction.targetRosterHash().equals(toRosterHash);
+        if (!handoffMatches) {
+            if (!forceHandoff) {
+                return false;
             }
-            final var upcomingConstruction = requireNonNull(nextConstruction.get());
-            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
-            // And finally, make the next construction the active one
-            activeConstruction.put(upcomingConstruction);
-            nextConstruction.put(HistoryProofConstruction.DEFAULT);
-            return true;
+            if (!upcomingConstruction.hasTargetProof()) {
+                log.warn(
+                        "Ignoring forced handoff to incomplete history construction #{}",
+                        upcomingConstruction.constructionId());
+                return false;
+            }
+            log.warn(
+                    "Forcing handoff to history construction #{} with different target roster",
+                    upcomingConstruction.constructionId());
         }
-        return false;
+        // The next construction is becoming the active one; so purge obsolete votes now
+        final var obsoleteConstruction = requireNonNull(activeConstruction.get());
+        purgePublications(obsoleteConstruction.constructionId(), fromRoster);
+        if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
+            final var survivingNodeIds =
+                    toRoster.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
+            fromRoster.rosterEntries().forEach(entry -> {
+                final long nodeId = entry.nodeId();
+                if (!survivingNodeIds.contains(nodeId)) {
+                    proofKeySets.remove(new NodeId(nodeId));
+                }
+            });
+        }
+        log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
+        // And finally, make the next construction the active one
+        activeConstruction.put(upcomingConstruction);
+        nextConstruction.put(HistoryProofConstruction.DEFAULT);
+        return true;
     }
 
     /**
