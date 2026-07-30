@@ -3,7 +3,6 @@ open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures;
     exports com.swirlds.common.test.fixtures.map;
     exports com.swirlds.common.test.fixtures.set;
-    exports com.swirlds.common.test.fixtures.platform;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;

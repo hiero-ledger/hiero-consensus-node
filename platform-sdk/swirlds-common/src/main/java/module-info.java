@@ -2,7 +2,6 @@
 module com.swirlds.common {
 
     /* Exported packages. This list should remain alphabetized. */
-    exports com.swirlds.common.context;
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;
     exports com.swirlds.common.startup;

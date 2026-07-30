@@ -16,6 +16,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.components.common.output;
     exports com.swirlds.platform.components;
+    exports com.swirlds.platform.context;
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.config;

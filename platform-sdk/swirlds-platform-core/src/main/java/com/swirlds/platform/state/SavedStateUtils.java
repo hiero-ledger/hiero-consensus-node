@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
@@ -30,13 +32,16 @@ public final class SavedStateUtils {
      * Prepares the state for transplanting by removing future events from the PCES files.
      *
      * @param statePath the path to the state directory
-     * @param platformContext the platform context
+     * @param configuration the platform configuration
+     * @param metrics the platform metrics
+     * @param time the source of time
+     * @param recycleBin the platform recycle bin
      * @return the number of events that were discarded due to being from a future round
      * @throws IOException if an I/O error occurs
      */
     public static int prepareStateForTransplant(
-            @NonNull final Path statePath, @NonNull final PlatformContext platformContext) throws IOException {
-        final Configuration configuration = platformContext.getConfiguration();
+            @NonNull final Path statePath, @NonNull final Configuration configuration, @NonNull final Metrics metrics,
+            @NonNull final Time time, @NonNull final RecycleBin recycleBin) throws IOException {
         final Path pcesFiles =
                 statePath.resolve(configuration.getConfigData(PcesConfig.class).databaseDirectory());
         final Path pcesTmp = statePath.resolve(PCES_TEMPORARY_DIR);
@@ -48,7 +53,7 @@ public final class SavedStateUtils {
                 SavedStateMetadata.parse(statePath.resolve(SavedStateMetadata.FILE_NAME));
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                configuration, platformContext.getRecycleBin(), pcesTmp, stateMetadata.round(), false);
+                configuration, recycleBin, pcesTmp, stateMetadata.round(), false);
 
         final PcesMultiFileIterator eventIterator =
                 fileTracker.getEventIterator(stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
@@ -56,8 +61,8 @@ public final class SavedStateUtils {
                 configuration,
                 new PcesFileManager(
                         configuration,
-                        platformContext.getMetrics(),
-                        platformContext.getTime(),
+                        metrics,
+                        time,
                         new PcesFileTracker(),
                         pcesFiles,
                         stateMetadata.round()));

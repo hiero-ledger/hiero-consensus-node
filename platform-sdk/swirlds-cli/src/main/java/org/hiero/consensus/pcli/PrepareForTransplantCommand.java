@@ -2,7 +2,7 @@
 package org.hiero.consensus.pcli;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.SavedStateUtils;
@@ -68,15 +68,10 @@ public class PrepareForTransplantCommand extends AbstractCommand {
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
-        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        final FileSystemManager fileSystemManager =
-                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-
-        final PlatformContext platformContext = PlatformContext.create(
-                configuration, Time.getCurrent(), new NoOpMetrics(), fileSystemManager, new SimpleRecycleBin());
 
         System.out.println("Transplanting state from: " + statePath);
-        final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(statePath, platformContext);
+        final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(statePath, configuration,
+                new NoOpMetrics(), Time.getCurrent(), new SimpleRecycleBin());
         System.out.printf(
                 "Transplant complete. %d events were discarded due to being from a future round.%n",
                 discardedEventCount);

@@ -6,7 +6,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.Platform;

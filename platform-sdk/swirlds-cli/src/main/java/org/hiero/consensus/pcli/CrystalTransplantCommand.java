@@ -11,10 +11,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.SavedStateUtils;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,6 +33,8 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -86,7 +88,11 @@ public class CrystalTransplantCommand extends AbstractCommand {
     @SuppressWarnings("unused") // used by picocli
     private boolean bumpVersion = true;
 
-    private PlatformContext platformContext;
+    private Configuration configuration;
+    private Time time;
+    private Metrics metrics;
+    private RecycleBin recycleBin;
+    private FileSystemManager fileSystemManager;
     private Roster overrideRoster;
     private Path targetNodePath = Paths.get("");
 
@@ -161,18 +167,17 @@ public class CrystalTransplantCommand extends AbstractCommand {
             System.exit(RETURN_CODE_ERROR);
         }
 
-        final Configuration configuration = ConfigurationBuilder.create()
+        this.configuration = ConfigurationBuilder.create()
                 .withSource(new LegacyFileConfigSource(configtxtFile))
                 .withSource(new LegacyFileConfigSource(settingsTxtFile))
                 .autoDiscoverExtensions()
                 .build();
-
+        this.time = Time.getCurrent();
+        this.metrics = new NoOpMetrics();
+        this.recycleBin = new NoOpRecycleBin();
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        final FileSystemManager fileSystemManager =
+        this.fileSystemManager =
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-
-        this.platformContext = PlatformContext.create(
-                configuration, Time.getCurrent(), new NoOpMetrics(), fileSystemManager, new SimpleRecycleBin());
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 
@@ -213,7 +218,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private StateInformation loadSourceState(final Configuration configuration) {
         setupConstructableRegistry();
 
-        final SwirldMain appMain = HederaUtils.createHederaAppMain(platformContext);
+        final SwirldMain appMain = HederaUtils.createHederaAppMain(configuration, time);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -225,7 +230,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 appMain.getSemanticVersion(),
                 savedStateFiles,
-                platformContext,
+                configuration,
                 appMain.getStateLifecycleManager());
         try (final var reservedState = deserializedState.reservedSignedState()) {
             final var signedState = reservedState.get();
@@ -270,7 +275,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private void copyStateFilesToCorrectDirectory(final Path sourceDir) {
         requestConfirmation(
                 String.format("Copy state files from source dir: %s to target: %s", sourceDir, targetStateDir));
-        final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
         try {
             FileUtils.deleteDirectory(targetStateDir.getParent());
             FileUtils.copyDirectory(sourceDir, targetStateDir);
@@ -317,7 +322,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
         stateMetadata = SavedStateMetadata.parse(targetStateDir.resolve(SavedStateMetadata.FILE_NAME));
         if (stateMetadata.freezeState() == null || !stateMetadata.freezeState()) {
             requestConfirmation("Truncate PCES files");
-            final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(targetStateDir, platformContext);
+            final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(targetStateDir, configuration,
+                    metrics, time, recycleBin);
             System.out.printf(
                     "PCES file truncation complete. %d events were discarded due to being from a future round.%n",
                     discardedEventCount);
@@ -353,10 +359,13 @@ public class CrystalTransplantCommand extends AbstractCommand {
      * <li>If the configuration key is missing from the file, it adds a new entry with a predefined version</li>
      * <li>Saves the updated properties file</li>
      * </ol>
+     *
      * @throws IOException If the application properties file is missing or cannot be read or written.
      */
     private void performConfigBump() throws IOException {
-        if (!bumpVersion) return;
+        if (!bumpVersion) {
+            return;
+        }
 
         requestConfirmation("Perform config bumping");
         final Path propertiesPath = targetNodePath.resolve(CONFIG_LOCATION).resolve(APPLICATION_PROPERTIES_FILE_NAME);
@@ -444,5 +453,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
         return null;
     }
 
-    record StateInformation(Long round, Roster roster, Hash hash, SavedStateInfo fileInfo) {}
+    record StateInformation(Long round, Roster roster, Hash hash, SavedStateInfo fileInfo) {
+    }
 }

@@ -10,7 +10,7 @@ import static org.hiero.consensus.state.signed.ReservedSignedState.createNullRes
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
 import com.swirlds.platform.internal.SignedStateLoadingException;
@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig;
@@ -47,12 +48,14 @@ public final class StartupStateUtils {
     /**
      * Looks at the states on disk, chooses one to load, and then loads the chosen state.
      *
-     * @param selfId                   the ID of this node
-     * @param mainClassName            the name of the main class
-     * @param swirldName               the name of the swirld
-     * @param currentSoftwareVersion   the current software version
-     * @param platformContext          the platform context
-     * @param stateLifecycleManager    state lifecycle manager
+     * @param recycleBin             the recycle bin
+     * @param selfId                 the ID of this node
+     * @param mainClassName          the name of the main class
+     * @param swirldName             the name of the swirld
+     * @param currentSoftwareVersion the current software version
+     * @param configuration          the platform configuration
+     * @param fileSystemManager      the file system manager
+     * @param stateLifecycleManager  state lifecycle manager
      * @return a deserialized signed state (with original hash), or a null-reservation if no state could be loaded
      * @throws SignedStateLoadingException if there was a problem parsing states on disk and we are not configured to
      *                                     delete malformed states
@@ -64,15 +67,15 @@ public final class StartupStateUtils {
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final SemanticVersion currentSoftwareVersion,
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
-        final Configuration config = platformContext.getConfiguration();
-        final StateConfig stateConfig = config.getConfigData(StateConfig.class);
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
 
         final List<SavedStateInfo> savedStateFiles = new SignedStateFilePath(
-                        platformContext.getFileSystemManager(), actualMainClassName, selfId, swirldName)
+                fileSystemManager, actualMainClassName, selfId, swirldName)
                 .getSavedStateFiles();
         logStatesFound(savedStateFiles);
 
@@ -82,7 +85,7 @@ public final class StartupStateUtils {
         }
 
         return loadLatestState(
-                recycleBin, currentSoftwareVersion, savedStateFiles, platformContext, stateLifecycleManager);
+                recycleBin, currentSoftwareVersion, savedStateFiles, configuration, stateLifecycleManager);
     }
 
     /**
@@ -108,16 +111,16 @@ public final class StartupStateUtils {
      * state is found or there are no more states to try.
      *
      * @param currentSoftwareVersion the current software version
-     * @param savedStateList        the saved states to try
-     * @param platformContext       the platform context
-     * @param stateLifecycleManager state lifecycle manager
+     * @param savedStateList         the saved states to try
+     * @param configuration          the platform configuration
+     * @param stateLifecycleManager  state lifecycle manager
      * @return the loaded deserialized state (with original hash), or a null-reservation if none found
      */
     public static DeserializedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateList,
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws SignedStateLoadingException {
 
@@ -125,7 +128,7 @@ public final class StartupStateUtils {
 
         for (final SavedStateInfo savedStateInfo : savedStateList) {
             final DeserializedSignedState state = loadStateFile(
-                    recycleBin, currentSoftwareVersion, savedStateInfo, platformContext, stateLifecycleManager);
+                    recycleBin, currentSoftwareVersion, savedStateInfo, configuration, stateLifecycleManager);
             if (state != null) {
                 return state;
             }
@@ -140,7 +143,7 @@ public final class StartupStateUtils {
      *
      * @param currentSoftwareVersion the current software version
      * @param savedStateInfo         the state to load
-     * @param platformContext        the platform context
+     * @param configuration          the platform configuration
      * @param stateLifecycleManager  state lifecycle manager
      * @return the loaded deserialized state (with original hash), or null if the state could not be loaded
      */
@@ -149,17 +152,15 @@ public final class StartupStateUtils {
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateInfo,
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateInfo.stateDirectory());
 
         final DeserializedSignedState deserializedSignedState;
-        final Configuration configuration = platformContext.getConfiguration();
         try {
-            deserializedSignedState = readState(
-                    savedStateInfo.stateDirectory(), platformContext.getConfiguration(), stateLifecycleManager);
+            deserializedSignedState = readState(savedStateInfo.stateDirectory(), configuration, stateLifecycleManager);
         } catch (final IOException | UncheckedIOException | ParseException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
@@ -207,7 +208,7 @@ public final class StartupStateUtils {
     /**
      * Recycle a state.
      *
-     * @param recycleBin  the recycleBin
+     * @param recycleBin the recycleBin
      * @param stateInfo  the state to recycle
      */
     private static void recycleState(@NonNull final RecycleBin recycleBin, @NonNull final SavedStateInfo stateInfo) {
@@ -220,19 +221,20 @@ public final class StartupStateUtils {
     }
 
     /**
-     * Get the initial state to be used by a node. May return a state loaded from disk, or may return a genesis state
-     * if no valid state is found on disk.
+     * Get the initial state to be used by a node. May return a state loaded from disk, or may return a genesis state if
+     * no valid state is found on disk.
      * <br>
      * The {@link StateLifecycleManager} is used to load the state: for the restart path, it loads the snapshot from
      * disk and initializes itself; for the genesis path, it already holds a genesis state created eagerly in its
      * constructor. In both cases the state is wrapped in a {@link SignedState} and returned as a
      * {@link HashedReservedSignedState}.
-     * @param recycleBin          the recycle bin to use
-     * @param softwareVersion     the software version of the app
-     * @param mainClassName       the name of the app's SwirldMain class
-     * @param swirldName          the name of this swirld
-     * @param selfId              the node id of this node
-     * @param platformContext     the platform context
+     *
+     * @param recycleBin            the recycle bin to use
+     * @param softwareVersion       the software version of the app
+     * @param mainClassName         the name of the app's SwirldMain class
+     * @param swirldName            the name of this swirld
+     * @param selfId                the node id of this node
+     * @param platformContext       the platform context
      * @param stateLifecycleManager the state lifecycle manager
      * @return the initial state to be used by this node
      */

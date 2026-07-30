@@ -15,5 +15,6 @@ open module org.hiero.consensus.network.simulation.test.fixtures {
     requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility.test.fixtures;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.utility; requires com.swirlds.platform.core.test.fixtures;
+    requires com.swirlds.platform.core;
 }

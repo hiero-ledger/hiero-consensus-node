@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import static org.hiero.consensus.pcli.PcesSliceCommand.createDefaultPlatformContext;
 import static org.hiero.consensus.pcli.PcesSliceCommand.generateSigners;
 
 import com.hedera.hapi.platform.event.EventCore;
@@ -9,7 +8,9 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +26,8 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -49,7 +52,8 @@ public class PcesGraphSlicer {
     private final Map<Bytes, EventDescriptor> migratedParents;
     private final PbjStreamHasher eventHasher;
     private final Map<NodeId, PlatformSigner> signers;
-    private final PlatformContext context;
+    private final Configuration configuration;
+    private final Metrics metrics;
     private final Function<EventCore, EventCore> eventCoreModifier;
     private final EventGraphPipeline graphPipeline;
 
@@ -76,19 +80,20 @@ public class PcesGraphSlicer {
         this.pcesOutputLocation = builder.exportPcesFileLocation;
         this.migratedParents = new HashMap<>();
         this.eventHasher = new PbjStreamHasher();
+        this.metrics = new NoOpMetrics();
         this.signers = generateSigners(builder.keysAndCertsMap, PlatformSigner::new);
-        this.context = builder.context != null ? builder.context : createDefaultPlatformContext();
+        this.configuration = builder.configuration;
         this.eventCoreModifier = builder.graphEventCoreModifier;
 
         final PcesEventGraphSource rawSource = new PcesEventGraphSource(
-                builder.existingPcesFilesLocation, context.getConfiguration(), context.getRecycleBin());
+                builder.existingPcesFilesLocation, configuration, new NoOpRecycleBin());
         // Use OrphanBufferEventGraphSource to process events through hasher and orphan buffer
         // This computes ngen and links parents without the overhead of running consensus
         final OrphanBufferEventGraphSource orphanBufferSource =
-                new OrphanBufferEventGraphSource(rawSource, this.context);
+                new OrphanBufferEventGraphSource(rawSource, metrics);
 
         if (builder.consensusSnapshot != null) {
-            final int roundsNonAncient = context.getConfiguration()
+            final int roundsNonAncient = configuration
                     .getConfigData(ConsensusConfig.class)
                     .roundsNonAncient();
             final EventWindow eventWindow =
@@ -105,7 +110,7 @@ public class PcesGraphSlicer {
      * Builder for {@link PcesGraphSlicer}.
      */
     public static class Builder {
-        private PlatformContext context;
+        private Configuration configuration;
         private Map<NodeId, KeysAndCerts> keysAndCertsMap;
         private Function<EventCore, EventCore> graphEventCoreModifier;
         private Predicate<PlatformEvent> graphEventFilter;
@@ -116,14 +121,14 @@ public class PcesGraphSlicer {
         private Builder() {}
 
         /**
-         * Sets the platform context for configuration.
+         * Sets the platform configuration.
          *
-         * @param context the platform context
+         * @param configuration the platform configuration
          * @return this builder
          */
         @NonNull
-        public Builder context(@NonNull final PlatformContext context) {
-            this.context = Objects.requireNonNull(context);
+        public Builder configuration(@NonNull final Configuration configuration) {
+            this.configuration = Objects.requireNonNull(configuration);
             return this;
         }
 
@@ -276,11 +281,11 @@ public class PcesGraphSlicer {
         try {
             Files.createDirectories(pcesOutputLocation);
             pcesWriter = new CommonPcesWriter(
-                    context.getConfiguration(),
+                   configuration,
                     new PcesFileManager(
-                            context.getConfiguration(),
-                            context.getMetrics(),
-                            context.getTime(),
+                            configuration,
+                            metrics,
+                            Time.getCurrent(),
                             new PcesFileTracker(),
                             pcesOutputLocation,
                             0));

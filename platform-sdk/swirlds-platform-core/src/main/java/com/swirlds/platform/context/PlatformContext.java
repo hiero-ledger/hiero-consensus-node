@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.context;
+package com.swirlds.platform.context;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.internal.PlatformUncaughtExceptionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import org.hiero.base.concurrent.ExecutorFactory;
