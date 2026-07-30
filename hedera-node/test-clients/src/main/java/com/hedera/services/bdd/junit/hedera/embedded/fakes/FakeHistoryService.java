@@ -92,6 +92,11 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
+    public void stop() {
+        delegate.stop();
+    }
+
+    @Override
     public void onFinished(
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final HistoryProofConstruction construction,
