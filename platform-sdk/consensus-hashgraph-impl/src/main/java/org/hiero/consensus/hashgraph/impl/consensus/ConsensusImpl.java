@@ -225,6 +225,8 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
+        // This if-check supports use of the GenesisPlatformStateCommand
+        // See ticket #26603 to rework this
         if (!GenesisSnapshotFactory.newGenesisSnapshot().equals(snapshot)) {
             final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
                     .map(judge -> new Hash(judge.judgeHash()))
