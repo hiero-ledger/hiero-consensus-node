@@ -44,7 +44,6 @@ public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
-    private final StatusMonitorModule statusMonitorModule;
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final Instant freezeTime;
@@ -68,10 +67,6 @@ public class TransactionHandlerTester implements AutoCloseable {
         final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
         final SignedState state = randomSignedStateGenerator.build();
 
-        statusMonitorModule = mock(StatusMonitorModule.class);
-        final InputWire<PlatformStatusAction> statusActionWire = mock(InputWire.class);
-        when(statusMonitorModule.platformStatusActionInputWire()).thenReturn(statusActionWire);
-
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
@@ -88,7 +83,6 @@ public class TransactionHandlerTester implements AutoCloseable {
                 configuration,
                 metrics,
                 stateLifecycleManager,
-                statusMonitorModule,
                 SemanticVersion.DEFAULT,
                 consensusStateEventHandler,
                 NodeId.of(1),
@@ -107,13 +101,6 @@ public class TransactionHandlerTester implements AutoCloseable {
      */
     public PlatformStateModifier getPlatformState() {
         return platformState;
-    }
-
-    /**
-     * @return the {@link StatusMonitorModule} used by this tester
-     */
-    public StatusMonitorModule getStatusMonitorModule() {
-        return statusMonitorModule;
     }
 
     /**

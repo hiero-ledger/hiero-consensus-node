@@ -14,6 +14,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.config.PlatformStatusConfig;
+import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -47,7 +48,8 @@ public class StatusMonitorModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final FreezePeriodChecker freezePeriodChecker) {
         final StatusMonitorWiringConfig wiringConfig = configuration.getConfigData(StatusMonitorWiringConfig.class);
         platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, wiringConfig.statusMonitor());
 
@@ -60,7 +62,7 @@ public class StatusMonitorModule {
         platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
         platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand);
 
-        final PlatformMonitor platformMonitor = new DefaultPlatformMonitor(configuration, metrics, time, selfId);
+        final PlatformMonitor platformMonitor = new DefaultPlatformMonitor(configuration, metrics, time, selfId, freezePeriodChecker);
         platformMonitorWiring.bind(platformMonitor);
     }
 

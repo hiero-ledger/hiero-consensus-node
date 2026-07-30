@@ -43,6 +43,7 @@ public record ConsensusLayerAdapterInputs(
         @NonNull String consensusEventStreamName,
         long transactionOffsetNanos,
         @Nullable StaleEventConsumer staleEventConsumer,
+        // The fields below are for testing only.
         @Nullable WiringModel wiringModel,
         @Nullable SecureRandom secureRandom,
         @Nullable Instant freezeTime,

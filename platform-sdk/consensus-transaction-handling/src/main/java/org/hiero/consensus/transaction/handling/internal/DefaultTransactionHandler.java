@@ -91,11 +91,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private Hash previousRoundLegacyRunningEventHash;
 
-    /**
-     * Enables submitting platform status actions.
-     */
-    private final StatusMonitorModule statusMonitorModule;
-
     private final SemanticVersion softwareVersion;
 
     /**
@@ -140,7 +135,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param configuration the configuration data
      * @param metrics the metrics system
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param statusMonitorModule enables submitting of platform status actions
      * @param softwareVersion the current version of the software
      */
     public DefaultTransactionHandler(
@@ -148,7 +142,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final NodeId selfId,
@@ -156,7 +149,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
-        this.statusMonitorModule = requireNonNull(statusMonitorModule);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionCallbacks = requireNonNull(transactionCallbacks);
         this.selfId = requireNonNull(selfId);
@@ -216,9 +208,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
-            statusMonitorModule
-                    .platformStatusActionInputWire()
-                    .put(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
                     STARTUP.getMarker(),

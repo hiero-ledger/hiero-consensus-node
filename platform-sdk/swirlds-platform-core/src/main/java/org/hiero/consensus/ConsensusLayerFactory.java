@@ -37,7 +37,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
-import org.hiero.consensus.hashgraph.FreezePeriodChecker;
+import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
@@ -160,7 +160,7 @@ public class ConsensusLayerFactory {
         final GossipModule gossipModule = createGossipModule(
                 intakeEventCounter, latestCompleteStateNexus, reservedSignedStateResultPromise, fallenBehindMonitor);
 
-        final StatusMonitorModule statusMonitorModule = createStatusMonitorModule();
+        final StatusMonitorModule statusMonitorModule = createStatusMonitorModule(freezePeriodChecker);
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
         final WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher = new WireTransformer<>(
@@ -195,8 +195,8 @@ public class ConsensusLayerFactory {
     }
 
     @NonNull
-    private StatusMonitorModule createStatusMonitorModule() {
-        return new StatusMonitorModule(wiringModel, configuration, metrics, time, selfId);
+    private StatusMonitorModule createStatusMonitorModule(@NonNull final FreezePeriodChecker freezePeriodChecker) {
+        return new StatusMonitorModule(wiringModel, configuration, metrics, time, selfId, freezePeriodChecker);
     }
 
     @NonNull

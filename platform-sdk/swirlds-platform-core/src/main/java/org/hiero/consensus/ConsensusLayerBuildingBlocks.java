@@ -11,7 +11,7 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.hashgraph.FreezePeriodChecker;
+import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
