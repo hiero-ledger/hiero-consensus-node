@@ -126,8 +126,9 @@ intake-order sequence number and the consensus-order sequence are not confused.
 The RUL-005 frontier is an **optimization** — a short cut so that `round(x)` need
 not walk to the bottom of the graph. Its correctness does not require the key to
 be a graph height. What must hold is INV-015: every event that is **not** a
-descendant of any judge in the latest decided round is assigned
-`roundCreated = ROUND_NEGATIVE_INFINITY`. The sequence number fills the frontier's
+descendant of any judge in the latest decided round is assigned a `roundCreated`
+fixed by the decided round's bootstrap data — the same value on every node (the
+constant `ROUND_NEGATIVE_INFINITY` in the current code). The sequence number fills the frontier's
 role because a descendant of a judge always carries a **higher** sequence number
 than that judge (a parent leaves the orphan buffer before its child):
 

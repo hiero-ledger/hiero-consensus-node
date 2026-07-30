@@ -55,12 +55,13 @@ threshold can key on the sequence number; see
 
 ## Why it holds now
 
-The short-circuit runs only once a round's judges are decided. From that point
-every event that is not a descendant of those judges must carry
-`ROUND_NEGATIVE_INFINITY` (INV-015), and no such event can become a witness in — or
-change the outcome of — any undecided round, so skipping its witness and round
-computation is safe; it can still reach consensus as an ancestor of the judges. That
-sentinel carries downstream: it makes `notRelevantForConsensus(e)` true, so the
+The short-circuit runs only once a round's judges are decided. From that point every
+event that is not a descendant of those judges must carry a `roundCreated` that every
+node computes alike from the decided round's bootstrap data (INV-015); this
+implementation uses the constant `ROUND_NEGATIVE_INFINITY`. No such event can become
+a witness in — or change the outcome of — any undecided round, so skipping its witness
+and round computation is safe; it can still reach consensus as an ancestor of the
+judges. That sentinel carries downstream: it makes `notRelevantForConsensus(e)` true, so the
 dependent walks — `lastSee`, `stronglySeeP`, `seeThru`, `firstWitnessS`,
 `firstSelfWitnessS` — return `null` at the event and `witness(x)` rejects it.
 
@@ -102,10 +103,11 @@ See INV-001, INV-015, and SCN-001.
 - **Re-keying the frontier without preserving INV-015.** The frontier is safe on
   any key for which a judge's descendant outranks the judge — nGen and the sequence
   number both qualify (see *Why it holds now*) — *provided* every non-descendant of
-  the decided judges still collapses to `ROUND_NEGATIVE_INFINITY`. The hazard is not
-  the key's units but an unfixed #26529: keyed on the sequence number, a parentless
-  non-descendant cleared the frontier and reached the branch that assigns a real
-  round, diverging consensus (SCN-002). Re-key only once #26529 is fixed (ADR-008).
+  the decided judges still resolves to the same value on every node (INV-015). The
+  hazard is not the key's units but an unfixed #26529: keyed on the sequence number, a
+  non-descendant with no non-ancient parents cleared the frontier and reached the
+  branch that assigns a real round, so its value differed across nodes and consensus
+  diverged (SCN-002). Re-key only once #26529 is fixed (ADR-008).
 - **Removing the short-circuit while #26529 is unfixed.** This is not merely a
   performance regression. Without the frontier check, an event with no non-ancient
   parents that is a non-descendant of the decided judges reaches the `ROUND_FIRST`
@@ -118,10 +120,11 @@ See INV-001, INV-015, and SCN-001.
 
 Breaking this rule is a **flag for confirmation**. Confirmation looks like
 answering: does the frontier remain a sound lower bound — is every event below it
-provably unable to affect any undecided round — and does INV-015 still hold, i.e. is
-every event that is not a descendant of the decided judges still made
-`ROUND_NEGATIVE_INFINITY` under the key in use? If yes, the change is safe; if not,
-it reintroduces an agreement / liveness risk, or an ISS (SCN-002).
+provably unable to affect any undecided round — and does INV-015 still hold: does
+every non-descendant of the decided judges still resolve to the same bootstrap-fixed
+value on every node (here `ROUND_NEGATIVE_INFINITY`), rather than one that varies with
+node-local ordering? If yes, the change is safe; if not, it reintroduces an
+agreement / liveness risk, or an ISS (SCN-002).
 
 ## Notes
 

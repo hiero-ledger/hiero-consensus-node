@@ -61,7 +61,8 @@ events resolved differently across nodes.
    (ConsensusImpl.java:1188). But an event with **no parents** takes neither branch:
    it is assigned `ROUND_FIRST` (=1) (ConsensusImpl.java:1149–1151). That last
    assignment is the latent defect (#26529) — a parentless event that is not a
-   descendant of the decided judges must be `ROUND_NEGATIVE_INFINITY` (INV-015), and
+   descendant of the decided judges must instead be assigned the value every node
+   agrees on for it (`ROUND_NEGATIVE_INFINITY` in this implementation; INV-015), and
    with no parents it cannot reach short-circuit (b). (observed — code)
 3. The events in question were a node's **genesis event and its child**, in the
    ancestry of a decided-round judge `J` that was *not* the lowest-key judge and
@@ -105,9 +106,10 @@ the threshold is keyed on the sequence number.
 - **A latent bug in `roundCreated` for parentless events (#26529).** `round(x)`
   assigns `ROUND_FIRST` to any event with no parents
   (ConsensusImpl.java:1149–1151), even a genesis event that is not a descendant of
-  the latest decided round's judges and so must be `ROUND_NEGATIVE_INFINITY`
-  (INV-015). The defect was always present; nothing before had let a genesis event
-  reach that branch on one node but not another.
+  the latest decided round's judges and so must instead take the value every node
+  agrees on (`ROUND_NEGATIVE_INFINITY` here; INV-015). The defect was always present;
+  nothing before had let a genesis event reach that branch on one node but not
+  another.
 - **nGen masked the defect.** A genesis event carries `nGen = 1`, always below the
   frontier, so short-circuit (a) sent it to `ROUND_NEGATIVE_INFINITY` before it
   could reach the parentless branch. The bug stayed invisible for as long as the
