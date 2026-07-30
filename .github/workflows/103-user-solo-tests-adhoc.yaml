@@ -64,7 +64,7 @@ on:
         type: string
         default: ""
       cutover-076-to-077-starting-tag:
-        description: "[076-to-077-cutover] Consensus-node release tag for the initial 0.76 network deploy. The 0.77 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.76.0-rc.1."
+        description: "[076-to-077-cutover] Consensus-node release tag for the initial 0.77 network deploy. The 0.78 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.77.0-rc.3."
         required: false
         type: string
         default: ""
@@ -702,7 +702,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@0.84.0"
           solo --version
 
       - name: Setup Kind
@@ -751,7 +751,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.cutover-076-to-077-starting-tag || 'v0.76.0-rc.1' }}" \
+              DEPLOY_RELEASE_TAG="${{ inputs.cutover-076-to-077-starting-tag || 'v0.77.0-rc.3' }}" \
             "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/076-to-077-cutover-script.log"
 
       - name: Collect Diagnostics On Failure

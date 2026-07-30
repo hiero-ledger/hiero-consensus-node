@@ -510,7 +510,7 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       custom-job-name: "${{ inputs.custom-job-label }} Solo 0.76 -> 0.77 Cutover"
-      solo-version: "${{ inputs.solo-version }}"
+      solo-version: "0.84.0"
       java-version: "${{ inputs.java-version }}"
 
   set-failure-mode:
