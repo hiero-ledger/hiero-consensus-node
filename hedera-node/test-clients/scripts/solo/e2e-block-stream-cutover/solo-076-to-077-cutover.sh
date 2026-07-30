@@ -140,7 +140,7 @@ LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
 LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
 BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-parameters.bin"
 BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
-BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/verification/tss-parameters.bin}"
+BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-parameters.bin}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 MIRROR_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/mirror-node-block-cutover-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
@@ -766,15 +766,15 @@ blockNode:
           mkdir -p /archive-pvc/archive-data && \\
           chown 2000:2000 /archive-pvc/archive-data && \\
           chmod 700 /archive-pvc/archive-data && \\
-          chown 2000:2000 /verification-pvc && \\
-          chmod 700 /verification-pvc
+          chown 2000:2000 /application-state-pvc && \\
+          chmod 700 /application-state-pvc
       volumeMounts:
         - name: live-storage
           mountPath: /live-pvc
         - name: archive-storage
           mountPath: /archive-pvc
-        - name: verification-storage
-          mountPath: /verification-pvc
+        - name: application-state-storage
+          mountPath: /application-state-pvc
     - name: seed-rsa-bootstrap-roster
       image: busybox
       command:
