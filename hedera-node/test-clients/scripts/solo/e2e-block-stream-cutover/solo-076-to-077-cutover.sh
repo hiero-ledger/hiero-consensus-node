@@ -417,38 +417,18 @@ async function main() {
 
   const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
   client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
-  client.setMaxAttempts(5);
-  client.setRequestTimeout(30000);
+  client.setMaxAttempts(3);
+  client.setRequestTimeout(20000);
 
-  // Post-cutover, the real-TSS genesis WRAPS proof can park a node off transaction processing
-  // (nominally ACTIVE, but blocked in the native prover) for a couple of minutes. The submissions
-  // still drive the consensus rounds the ceremony needs, so we keep retrying each tx until its
-  // receipt comes back once the node unblocks, rather than failing on the first timeout. A genuine
-  // wedge still fails when the deadline passes with no receipt.
-  const deadlineMs = Date.now() + Number(process.env.NUDGE_RECEIPT_DEADLINE_SECS || "300") * 1000;
   for (let i = 1; i <= txCount; i++) {
-    for (;;) {
-      try {
-        const tx = new AccountCreateTransaction()
-          .setInitialBalance(new Hbar(1))
-          .setKey(PrivateKey.generateED25519().publicKey)
-          .setMaxTransactionFee(new Hbar(5));
-        const response = await tx.execute(client);
-        const receipt = await response.getReceipt(client);
-        if (receipt.status !== Status.Success) {
-          throw new Error(`non-success status ${receipt.status.toString()}`);
-        }
-        const accountId = receipt.accountId ? receipt.accountId.toString() : "(no id)";
-        console.log(`  nudge tx ${i}/${txCount}: cryptoCreate -> ${accountId}`);
-        break;
-      } catch (err) {
-        if (Date.now() >= deadlineMs) {
-          throw new Error(`tx ${i}/${txCount}: no receipt within ${process.env.NUDGE_RECEIPT_DEADLINE_SECS || "300"}s (node likely still constructing the genesis WRAPS proof): ${err.message}`);
-        }
-        console.log(`  nudge tx ${i}/${txCount}: node busy (${err.message}); retrying...`);
-        await sleep(5000);
-      }
-    }
+    const tx = new AccountCreateTransaction()
+      .setInitialBalance(new Hbar(1))
+      .setKey(PrivateKey.generateED25519().publicKey)
+      .setMaxTransactionFee(new Hbar(5));
+    const response = await tx.execute(client);
+    const receipt = await response.getReceipt(client);
+    if (receipt.status !== Status.Success) {
+      throw new Error(`tx ${i}/${txCount}: non-success status ${receipt.status.toString()}`);
     }
     const accountId = receipt.accountId ? receipt.accountId.toString() : "(no id)";
     console.log(`  nudge tx ${i}/${txCount}: cryptoCreate -> ${accountId}`);
@@ -861,33 +841,41 @@ validate_block_node_repo() {
   fi
 }
 
-# Read serverStatus.nextExpectedBlock, normalized to the CN's Java view of the field. The uint64_max
-# "accept-any" sentinel is printed by grpcurl/jq unsigned as 18446744073709551615; in the CN (PBJ
-# uint64 -> signed long) that is -1, which production treats as a VALID "no fixed position; stream from
-# the live tip" state (BlockNodeConnectionManager only cools down wantedBlock < -1). A fresh mid-join
-# BN (earliestManagedBlock above the CN tip) reports it until it snaps onto the CN's stream.
-# Emits: ACCEPT_ANY (the sentinel) | <concrete block number> | "" (unreachable / no serverStatus).
+# Read serverStatus and return the BN's EFFECTIVE next-expected block. The v0.39 BN pins
+# nextExpectedBlock to the uint64_max sentinel (grpcurl prints it unsigned as 18446744073709551615)
+# while it is a fresh mid-join node (earliestManagedBlock above the CN tip) — and keeps reporting it
+# even while it verifies + persists blocks. In that state the value that actually advances is the
+# persisted-store watermark, so fall back to lastAvailableBlock + 1 (mirrors the CN's own handling,
+# and gives the pollers a concrete, climbing number instead of an un-comparable sentinel — the BN
+# NEVER leaves the sentinel in this mid-join scenario, so keying on the raw field falsely reads as
+# "stuck" even while lastAvailableBlock climbs).
+# Emits: <concrete effective next-expected block> | "" (unreachable / empty / no concrete watermark).
 # Args: $1 = local gRPC port (a BN port-forward must already be open).
 read_bn_next_expected() {
-  local local_port="$1" raw v
+  local local_port="$1" raw ne la
   local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
   local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
   local proto_file="block-node/api/node_service.proto"
   raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
           -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
           org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-  v="$(printf '%s' "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
-  case "${v}" in
-    18446744073709551615) echo "ACCEPT_ANY" ;;
-    ''|*[!0-9]*)          echo "" ;;
-    *)                    echo "${v}" ;;
+  ne="$(printf '%s' "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
+  if [[ "${ne}" == "18446744073709551615" ]]; then
+    la="$(printf '%s' "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
+    if [[ "${la}" =~ ^[0-9]+$ && "${la}" != "18446744073709551615" ]]; then
+      echo $((la + 1)); return
+    fi
+    echo ""; return
+  fi
+  case "${ne}" in
+    ''|*[!0-9]*) echo "" ;;
+    *)           echo "${ne}" ;;
   esac
 }
 
-# Poll BN serverStatus until it returns a valid nextExpectedBlock (a concrete block OR the ACCEPT_ANY
-# sentinel), proving the BN is up and engaged with the publisher. A fresh mid-join BN reports
-# ACCEPT_ANY until it snaps onto the CN's stream, so that counts as engaged (mirrors production
-# accepting wantedBlock >= -1).
+# Poll BN serverStatus until its effective next-expected block is > 1 (the BN holds >= block 1),
+# proving the CN is streaming into it. read_bn_next_expected resolves the v0.39 mid-join uint64_max
+# sentinel to lastAvailableBlock + 1, so this is a concrete comparison even before the BN snaps on.
 verify_block_node_has_blocks() {
   local timeout_secs="${1:-120}"
   local svc="block-node-${BLOCK_NODE_ID}"
@@ -917,19 +905,17 @@ verify_block_node_has_blocks() {
   fi
 
   local deadline=$((SECONDS + timeout_secs)) next_expected=""
-  log "Polling ${svc} serverStatus for a valid nextExpectedBlock (concrete or ACCEPT_ANY; up to ${timeout_secs}s)"
+  log "Polling ${svc} serverStatus for effective nextExpectedBlock > 1 (up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
     next_expected="$(read_bn_next_expected "${local_port}")"
-    # ACCEPT_ANY (fresh mid-join sentinel) and any concrete block both mean the BN is up and validly
-    # engaged with the publisher; only an unreachable BN (empty) keeps us polling.
-    if [[ -n "${next_expected}" ]]; then
-      log "verify_block_node_has_blocks: nextExpectedBlock=${next_expected} — BN is up and engaged with the publisher"
+    if [[ "${next_expected}" =~ ^[0-9]+$ && "${next_expected}" -gt 1 ]]; then
+      log "verify_block_node_has_blocks: effective nextExpectedBlock=${next_expected} — CN is streaming into the BN"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 5
   done
-  echo "BN ${svc} serverStatus returned no nextExpectedBlock (unreachable) within ${timeout_secs}s" >&2
+  echo "BN ${svc} did not report an effective nextExpectedBlock > 1 within ${timeout_secs}s" >&2
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
   cat "${pf_log}" >&2 2>/dev/null || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -1193,11 +1179,10 @@ seed_block_node_tss_parameters() {
 }
 
 # After the 0.77 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.nextExpectedBlock over a window and requires it to reach a concrete, climbing
-# value. A fresh mid-join BN reports the ACCEPT_ANY sentinel (uint64_max) until it snaps onto the CN's
-# stream; the ACCEPT_ANY -> concrete transition (or a concrete value climbing) is the proof the BN
-# locked on and is demanding + persisting the post-cutover blocks. If it stays ACCEPT_ANY or never
-# climbs, the BN is not verifying. Also surfaces recent 'Verification failed' log lines for diagnosis.
+# Reads the BN's effective next-expected block (read_bn_next_expected resolves the v0.39 mid-join
+# uint64_max sentinel to lastAvailableBlock + 1, the persisted watermark) over a window and requires
+# it to CLIMB. That watermark advances as the BN verifies + persists each post-cutover block; a flat
+# value means the BN is not verifying. Also surfaces recent 'Verification failed' lines for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
   local bn_pod="block-node-${BLOCK_NODE_ID}-0"
@@ -1216,21 +1201,21 @@ verify_block_node_persists_post_cutover() {
   local baseline base_concrete="" current=""
   baseline="$(read_bn_next_expected "${local_port}")"
   [[ "${baseline}" =~ ^[0-9]+$ ]] && base_concrete="${baseline}"
-  log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline:-unreachable}; must reach a concrete, climbing value within ${timeout_secs}s)"
+  log "Asserting BN persists post-cutover blocks (baseline effective nextExpectedBlock=${baseline:-unreachable}; must climb within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     sleep 10
     current="$(read_bn_next_expected "${local_port}")"
-    # Progress = nextExpectedBlock is concrete now AND it either snapped from ACCEPT_ANY (the BN locked
-    # onto the CN's stream and now demands specific blocks) or climbed past a concrete baseline. A
-    # persistent ACCEPT_ANY means the BN has not snapped yet — keep waiting.
+    # Progress = the effective next-expected (lastAvailableBlock + 1 while mid-join) climbed past the
+    # baseline, i.e. the BN verified + persisted at least one more post-cutover block. A flat value
+    # means it is not verifying — keep waiting until the deadline.
     if [[ "${current}" =~ ^[0-9]+$ ]] && { [[ -z "${base_concrete}" ]] || (( current > base_concrete )); }; then
-      log "verify_block_node_persists_post_cutover: nextExpectedBlock ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
+      log "verify_block_node_persists_post_cutover: effective nextExpectedBlock ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
   done
-  echo "post-cutover: BN nextExpectedBlock did not reach a concrete climbing value (baseline=${baseline}, last=${current:-unreachable}) within ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
+  echo "post-cutover: BN effective nextExpectedBlock did not climb (baseline=${baseline}, last=${current:-unreachable}) within ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
   echo "  recent BN verification failures:" >&2
   kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" --since=10m 2>/dev/null | grep -E "Verification failed for block=" | tail -5 >&2 || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
