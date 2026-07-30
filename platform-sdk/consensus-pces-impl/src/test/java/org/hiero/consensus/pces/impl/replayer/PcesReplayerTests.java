@@ -19,11 +19,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +38,6 @@ class PcesReplayerTests {
     private AtomicInteger eventOutputCount;
     private AtomicBoolean flushPrimaryPipelineCalled;
     private Runnable flushPrimaryPipeline;
-    private Supplier<PcesReplayProgress> replayProgressSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
     private final int eventCount = 100;
@@ -62,8 +59,6 @@ class PcesReplayerTests {
 
         flushPrimaryPipelineCalled = new AtomicBoolean(false);
         flushPrimaryPipeline = () -> flushPrimaryPipelineCalled.set(true);
-
-        replayProgressSupplier = () -> new PcesReplayProgress(0L, null);
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < eventCount; i++) {
@@ -97,7 +92,7 @@ class PcesReplayerTests {
                 .getOrCreateConfig();
 
         final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, replayProgressSupplier, () -> true);
+                configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         replayer.replayPces(ioIterator);
 
@@ -114,7 +109,7 @@ class PcesReplayerTests {
                 .getOrCreateConfig();
 
         final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, replayProgressSupplier, () -> true);
+                configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);
