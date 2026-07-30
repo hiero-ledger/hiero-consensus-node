@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -13,6 +15,7 @@ import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +61,9 @@ class HintsControllersTest {
 
     @Mock
     private OnHintsFinished onHintsFinished;
+
+    @Mock
+    private HintsController controller;
 
     private HintsControllers subject;
 
@@ -105,8 +111,34 @@ class HintsControllersTest {
                 subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, HintsConstruction.DEFAULT);
 
         assertInstanceOf(HintsControllerImpl.class, controller);
+    }
 
-        assertDoesNotThrow(() -> subject.stop());
-        assertDoesNotThrow(() -> subject.stop());
+    @Test
+    void stopCancelsAndRefreshesControllerForSameConstructionId() throws Exception {
+        final var learnedConstruction = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .preprocessingStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        given(controller.constructionId()).willReturn(1L);
+        setController(controller);
+
+        final var staleController =
+                subject.getOrCreateFor(activeRosters, learnedConstruction, hintsStore, HintsConstruction.DEFAULT);
+        assertSame(controller, staleController);
+
+        subject.stop();
+        subject.stop();
+
+        verify(controller).cancelPendingWork();
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        final var refreshedController =
+                subject.getOrCreateFor(activeRosters, learnedConstruction, hintsStore, HintsConstruction.DEFAULT);
+        assertNotSame(staleController, refreshedController);
+    }
+
+    private void setController(final HintsController controller) throws Exception {
+        final var field = HintsControllers.class.getDeclaredField("controller");
+        field.setAccessible(true);
+        field.set(subject, controller);
     }
 }
