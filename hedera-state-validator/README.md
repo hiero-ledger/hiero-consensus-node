@@ -485,6 +485,74 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - Service name and state key should both be either omitted or specified.
 - When `--ignore-field` is used, the fast byte-level comparison is still performed first. Parsing and field masking only runs on entries whose raw bytes already differ, so there is no performance impact on identical entries.
 
+## Sorted Diff
+
+[SortedDiffCommand](src/main/java/com/hedera/statevalidation/SortedDiffCommand.java) compares two states and produces sorted diff output grouped by service and state key — the same layout as `sorted-export`, but containing only the entries that differ.
+
+### Usage
+
+1. Download the state files for both rounds.
+2. Run the following command to execute the sorted diff:
+
+```shell
+java -jar [-DmaxObjPerFile=<number>] ./validator-<version>.jar {path-to-state1} sorted-diff {path-to-state2} \
+  --out=<output-directory> \
+  [--service-name=<service-name> --state-key=<state-key>]
+```
+
+### Parameters
+
+- `{path-to-state1}` - Location of the first state files (required).
+- `{path-to-state2}` - Location of the second state files (required).
+
+### Options
+
+- `--out` (or `-o`) - Directory where the resulting diff files are written (required). Must exist before invocation.
+- `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
+- `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+
+### Output Structure
+
+The command creates two subdirectories under the output directory:
+
+```
+<out>/
+  state1/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+  state2/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+```
+
+- `state1/` contains entries that were either deleted in the second state or modified (showing the old value).
+- `state2/` contains entries that were either added in the second state or modified (showing the new value).
+
+Each file uses the same `{"k":..., "v":...}` JSON-lines format as `sorted-export`, sorted by key bytes. Files under `state1/` and `state2/` are directly comparable file by file (e.g. `diff state1/TokenService_ACCOUNTS_1.json state2/TokenService_ACCOUNTS_1.json`).
+
+### Examples
+
+Diff all states between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result
+```
+
+Diff only accounts between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result \
+  --service-name=TokenService --state-key=ACCOUNTS
+```
+
+### Notes
+
+- Service name and state key should both be either omitted or specified.
+- The data is sorted by the **byte representation of the key** (same ordering and caveats as `sorted-export`).
+- The exporter limits the number of objects per file to 1 million; to customize the limit, use VM parameter `-DmaxObjPerFile`.
+
 ## Compact
 
 [CompactionCommand](src/main/java/com/hedera/statevalidation/CompactionCommand.java) performs compaction of state files.

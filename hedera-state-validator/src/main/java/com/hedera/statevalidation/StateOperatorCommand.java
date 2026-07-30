@@ -26,6 +26,7 @@ import picocli.CommandLine.Parameters;
             ExportCommand.class,
             SortedExportCommand.class,
             DiffCommand.class,
+            SortedDiffCommand.class,
             CompactionCommand.class,
             ApplyBlocksCommand.class,
             BlocksToPcesCommand.class
