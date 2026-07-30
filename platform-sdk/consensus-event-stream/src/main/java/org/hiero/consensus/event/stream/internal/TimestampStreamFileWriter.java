@@ -12,7 +12,7 @@ import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.gener
 import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.getPeriod;
 import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 
-import java.io.BufferedOutputStream;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -31,7 +31,7 @@ import org.hiero.base.crypto.SerializableHashable;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.Signer;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.event.stream.StreamType;
 import org.hiero.consensus.model.stream.StreamAligned;
@@ -104,12 +104,12 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
     /**
      * Data destined for the output file should be written to this stream.
      */
-    private SerializableDataOutputStream out = null;
+    private PbjWriter out = null;
     /**
      * Metadata should be written to this stream. Any data written to this stream is used to generate a running
      * metadata hash.
      */
-    private SerializableDataOutputStream metadataOut = null;
+    private PbjWriter metadataOut = null;
     /**
      * The current file being written.
      */
@@ -198,8 +198,7 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
             final StreamType streamType)
             throws IOException {
 
-        try (final SerializableDataOutputStream output =
-                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(sigFilePath)))) {
+        try (final PbjWriter output = new PbjWriter(new FileOutputStream(sigFilePath))) {
 
             // write signature file header
             for (final byte num : streamType.getSigFileHeader()) {
@@ -207,9 +206,9 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
             }
 
             output.writeInt(OBJECT_STREAM_SIG_VERSION);
-            output.writeSerializable(entireHash, true);
+            PbjUtils.writeSerializable(output, entireHash, true);
             entireSignature.serialize(output, true);
-            output.writeSerializable(metaHash, true);
+            PbjUtils.writeSerializable(output, metaHash, true);
             metaSignature.serialize(output, true);
 
             logger.info(OBJECT_STREAM_FILE.getMarker(), "signature file saved: {}", sigFilePath);
@@ -221,7 +220,7 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
      */
     private void serialize(final T object) {
         try {
-            out.writeSerializable(object, true);
+            PbjUtils.writeSerializable(out, object, true);
             out.flush();
         } catch (IOException e) {
             logger.warn(EXCEPTION.getMarker(), "IOException when serializing {}", object, e);
@@ -241,9 +240,8 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
                 logger.info(OBJECT_STREAM.getMarker(), "Stream file already exists {}", currentFile::getName);
             } else {
                 fileStream = new FileOutputStream(currentFile, false);
-                out = new SerializableDataOutputStream(
-                        new BufferedOutputStream(new HashingOutputStream(streamDigest, fileStream)));
-                metadataOut = new SerializableDataOutputStream(new HashingOutputStream(metadataStreamDigest));
+                out = new PbjWriter(new HashingOutputStream(streamDigest, fileStream));
+                metadataOut = new PbjWriter(new HashingOutputStream(metadataStreamDigest));
                 logger.info(OBJECT_STREAM_FILE.getMarker(), "Stream file created {}", currentFile::getName);
             }
         } catch (final FileNotFoundException e) {
@@ -270,8 +268,8 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
                     OBJECT_STREAM_FILE.getMarker(), "begin :: write OBJECT_STREAM_VERSION {}", OBJECT_STREAM_VERSION);
             // write startRunningHash
             Hash startRunningHash = runningHash.getFutureHash().getAndRethrow();
-            out.writeSerializable(startRunningHash, true);
-            metadataOut.writeSerializable(startRunningHash, true);
+            PbjUtils.writeSerializable(out, startRunningHash, true);
+            PbjUtils.writeSerializable(metadataOut, startRunningHash, true);
             logger.info(OBJECT_STREAM_FILE.getMarker(), "begin :: write startRunningHash {}", startRunningHash);
         } catch (final IOException e) {
             logger.error(
@@ -297,8 +295,8 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
         if (fileStream != null) {
             try {
                 final Hash finalRunningHash = runningHash.getFutureHash().getAndRethrow();
-                out.writeSerializable(finalRunningHash, true);
-                metadataOut.writeSerializable(finalRunningHash, true);
+                PbjUtils.writeSerializable(out, finalRunningHash, true);
+                PbjUtils.writeSerializable(metadataOut, finalRunningHash, true);
                 logger.info(
                         OBJECT_STREAM_FILE.getMarker(),
                         "closeCurrentAndSign {} :: write endRunningHash {}",

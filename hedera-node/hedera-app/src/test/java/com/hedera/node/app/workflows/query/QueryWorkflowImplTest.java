@@ -55,7 +55,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfoHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetExecutionTimeHandler;
@@ -78,7 +77,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -735,7 +734,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                 .build();
         when(queryParser.parseStrict((Bytes) notNull())).thenReturn(query);
 
-        final var requestBytes = CommonPbjConverters.asBytes(localRequestBuffer);
+        final var requestBytes = localRequestBuffer.toByteArray();
         when(handler.extractHeader(query)).thenReturn(queryHeader);
         when(dispatcher.getHandler(query)).thenReturn(handler);
         final var responseBuffer = newEmptyBuffer();
@@ -975,7 +974,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                         NetworkGetExecutionTimeQuery.newBuilder().header(localQueryHeader))
                 .build();
 
-        final var requestBytes = CommonPbjConverters.asBytes(localRequestBuffer);
+        final var requestBytes = localRequestBuffer.toByteArray();
         when(queryParser.parseStrict((Bytes) notNull())).thenReturn(localQuery);
         when(networkHandler.extractHeader(localQuery)).thenReturn(localQueryHeader);
         when(dispatcher.getHandler(localQuery)).thenReturn(networkHandler);
@@ -1062,15 +1061,12 @@ class QueryWorkflowImplTest extends AppTestBase {
         verify(opWorkflowMetrics).updateDuration(eq(FILE_GET_INFO), anyInt());
     }
 
-    private static Response parseResponse(BufferedData responseBuffer) throws ParseException {
-        final byte[] bytes = new byte[Math.toIntExact(responseBuffer.position())];
-        responseBuffer.resetPosition();
-        responseBuffer.readBytes(bytes);
-        return Response.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
+    private static Response parseResponse(PbjWriter responseBuffer) throws ParseException {
+        return Response.PROTOBUF.parseStrict(responseBuffer.toPbjReader());
     }
 
-    private static BufferedData newEmptyBuffer() {
-        return BufferedData.allocate(BUFFER_SIZE);
+    private static PbjWriter newEmptyBuffer() {
+        return new PbjWriter(BUFFER_SIZE);
     }
 
     private void mockQueryContext() {

@@ -13,7 +13,7 @@ import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATU
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.state.StateLifecycleManager;
@@ -41,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.impl.DefaultPcesModule;
@@ -116,9 +117,13 @@ public final class SignedStateFileWriter {
     public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
             throws IOException {
         final Path sigSetFile = directory.resolve(SIGNATURE_SET_FILE_NAME);
-        try (final FileOutputStream fos = new FileOutputStream(sigSetFile.toFile());
-                final WritableStreamingData out = new WritableStreamingData(fos)) {
+        PbjWriter out = PbjUtils.takeTlsWriter();
+        try (final FileOutputStream fos = new FileOutputStream(sigSetFile.toFile())) {
+            out.resetWith(fos);
             signedState.getSigSet().serialize(out);
+            out.flush();
+        } finally {
+            PbjUtils.returnTlsWriter();
         }
     }
 

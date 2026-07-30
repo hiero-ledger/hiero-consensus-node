@@ -7,9 +7,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.streams.RecordStreamFile;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -26,6 +25,7 @@ import java.util.zip.GZIPInputStream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * A Record File Version 6 Reader that can be used in tests to read record files and validate then and return the contents
@@ -81,17 +81,28 @@ public class BlockRecordReaderV6 {
      */
     public static RecordStreamFile read(@NonNull final Path filePath) throws Exception {
         if (filePath.getFileName().toString().endsWith(".rcd.gz")) {
-            try (final ReadableStreamingData in =
-                    new ReadableStreamingData(new GZIPInputStream(Files.newInputStream(filePath)))) {
+            PbjReader in = PbjUtils.takeTlsReaderStream();
+            try {
+                in.resetWith(new GZIPInputStream(Files.newInputStream(filePath)));
                 int version = in.readInt();
                 assertEquals(VERSION, version, "File version does not match, on file " + filePath);
-                return RecordStreamFile.PROTOBUF.parse(in);
+                var res = RecordStreamFile.PROTOBUF.parse(in);
+                in.throwOnError();
+                return res;
+            } finally {
+                PbjUtils.returnTlsReaderStream();
             }
         } else if (filePath.getFileName().toString().endsWith(".rcd")) {
-            try (final ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(filePath))) {
+            PbjReader in = PbjUtils.takeTlsReaderStream();
+            try {
+                in.resetWith(Files.newInputStream(filePath));
                 int version = in.readInt();
                 assertEquals(VERSION, version);
-                return RecordStreamFile.PROTOBUF.parse(in);
+                var res = RecordStreamFile.PROTOBUF.parse(in);
+                in.throwOnError();
+                return res;
+            } finally {
+                PbjUtils.returnTlsReaderStream();
             }
         } else {
             fail("Unknown file type: " + filePath.getFileName());
@@ -107,10 +118,15 @@ public class BlockRecordReaderV6 {
      * @throws Exception If there is an error reading the file
      */
     public static RecordStreamFile read(byte[] uncompressedData) throws Exception {
-        final BufferedData in = BufferedData.wrap(uncompressedData);
-        int version = in.readInt();
-        assertEquals(VERSION, version, "File version does not match");
-        return RecordStreamFile.PROTOBUF.parse(in);
+        PbjReader in = PbjUtils.takeTlsReaderBytes();
+        try {
+            in.resetWith(uncompressedData);
+            int version = in.readInt();
+            assertEquals(VERSION, version, "File version does not match");
+            return RecordStreamFile.PROTOBUF.parse(in);
+        } finally {
+            PbjUtils.returnTlsReaderBytes();
+        }
     }
 
     /**
