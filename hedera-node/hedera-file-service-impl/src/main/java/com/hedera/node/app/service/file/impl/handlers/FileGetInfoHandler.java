@@ -69,6 +69,21 @@ public class FileGetInfoHandler extends FileQueryBase {
         if (!op.hasFileID()) {
             throw new PreCheckException(INVALID_FILE_ID);
         }
+        if (!fileExists(op.fileIDOrThrow(), context)) {
+            throw new PreCheckException(INVALID_FILE_ID);
+        }
+    }
+
+    /**
+     * Mirrors the lookup {@link #infoForFile} performs, without reading any file contents.
+     */
+    private boolean fileExists(@NonNull final FileID fileID, @NonNull final QueryContext context) {
+        final var filesConfig = context.configuration().getConfigData(FilesConfig.class);
+        // Upgrade files span all shards and realms, so only the file number matters here
+        if (filesConfig.softwareUpdateRange().containsInclusive(fileID.fileNum())) {
+            return context.createStore(ReadableUpgradeFileStore.class).peek(fileID) != null;
+        }
+        return context.createStore(ReadableFileStore.class).getFileMetadata(fileID) != null;
     }
 
     @Override

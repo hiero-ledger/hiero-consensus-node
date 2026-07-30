@@ -129,6 +129,29 @@ class FileGetInfoTest extends FileTestBase {
     }
 
     @Test
+    void validateFailsIfFileMissingFromState() {
+        givenValidFile();
+
+        final var query = createGetFileInfoQuery(fileIdNotExist);
+        when(context.query()).thenReturn(query);
+        when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
+
+        assertThrowsPreCheck(() -> subject.validate(context), INVALID_FILE_ID);
+    }
+
+    @Test
+    void validatesQueryForUpgradeFile() {
+        givenValidUpgradeFile(false, true);
+        refreshStoresWithCurrentFileInBothReadableAndWritable();
+
+        final var query = createGetFileInfoQuery(fileUpgradeFileId);
+        when(context.query()).thenReturn(query);
+        when(context.createStore(ReadableUpgradeFileStore.class)).thenReturn(readableUpgradeFileStore);
+
+        assertDoesNotThrow(() -> subject.validate(context));
+    }
+
+    @Test
     void getsResponseIfFailedResponse() {
         final var responseHeader = ResponseHeader.newBuilder()
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.FAIL_FEE)

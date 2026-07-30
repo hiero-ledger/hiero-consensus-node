@@ -241,7 +241,7 @@ public class FileServiceSimpleFeesSmokeTest {
     }
 
     @HapiTest
-    @DisplayName("file get info - invalid file fails - no fee charged")
+    @DisplayName("file get info - invalid file fails at cost-answer, so no fee is charged")
     final Stream<DynamicTest> fileGetInfoInvalidFileFails() {
         final AtomicLong initialBalance = new AtomicLong();
         final AtomicLong afterBalance = new AtomicLong();
@@ -249,7 +249,7 @@ public class FileServiceSimpleFeesSmokeTest {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
                 getAccountBalance(CIVILIAN).exposingBalanceTo(initialBalance::set),
-                getFileInfo("0.0.99999999").payingWith(CIVILIAN).hasAnswerOnlyPrecheck(INVALID_FILE_ID),
+                getFileInfo("0.0.99999999").payingWith(CIVILIAN).hasCostAnswerPrecheck(INVALID_FILE_ID),
                 getAccountBalance(CIVILIAN).exposingBalanceTo(afterBalance::set),
                 withOpContext((spec, log) -> {
                     assertEquals(initialBalance.get(), afterBalance.get());
@@ -257,7 +257,7 @@ public class FileServiceSimpleFeesSmokeTest {
     }
 
     @HapiTest
-    @DisplayName("file get contents - invalid file fails - no fee charged")
+    @DisplayName("file get contents - invalid file fails at cost-answer, so no fee is charged")
     final Stream<DynamicTest> fileGetContentsInvalidFileFails() {
         final AtomicLong initialBalance = new AtomicLong();
         final AtomicLong afterBalance = new AtomicLong();
@@ -265,7 +265,7 @@ public class FileServiceSimpleFeesSmokeTest {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
                 getAccountBalance(CIVILIAN).exposingBalanceTo(initialBalance::set),
-                getFileContents("0.0.99999999").payingWith(CIVILIAN).hasAnswerOnlyPrecheck(INVALID_FILE_ID),
+                getFileContents("0.0.99999999").payingWith(CIVILIAN).hasCostAnswerPrecheck(INVALID_FILE_ID),
                 getAccountBalance(CIVILIAN).exposingBalanceTo(afterBalance::set),
                 withOpContext((spec, log) -> {
                     assertEquals(initialBalance.get(), afterBalance.get());

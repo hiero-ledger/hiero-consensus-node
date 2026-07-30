@@ -65,6 +65,12 @@ public class FileGetContentsHandler extends FileQueryBase {
         if (!op.hasFileID()) {
             throw new PreCheckException(INVALID_FILE_ID);
         }
+        // Genesis system files are served from generated content even when absent from the store
+        final var fileID = op.fileIDOrThrow();
+        if (notGenesisCreation(fileID, context.configuration())
+                && context.createStore(ReadableFileStore.class).getFileMetadata(fileID) == null) {
+            throw new PreCheckException(INVALID_FILE_ID);
+        }
     }
 
     @Override
