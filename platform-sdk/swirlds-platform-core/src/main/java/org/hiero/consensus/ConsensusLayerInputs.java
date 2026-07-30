@@ -17,6 +17,7 @@ import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.transaction.TransactionLimits;
 
 public record ConsensusLayerInputs(
         @NonNull Configuration configuration,
@@ -31,6 +32,7 @@ public record ConsensusLayerInputs(
         @Nullable ConsensusSnapshot consensusSnapshot,
         @NonNull SemanticVersion version,
         long transactionOffsetNanos,
+        @NonNull TransactionLimits transactionLimits,
         @Nullable Instant freezeTime,
         // The fields below are for testing only.
         @Nullable WiringModel wiringModel,

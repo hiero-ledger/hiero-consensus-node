@@ -45,9 +45,9 @@ class EventCreationRulesTests {
     @Test
     void aggregateTest() {
         final EventCreationRule rule1 = mock(EventCreationRule.class);
-        when(rule1.isEventCreationPermitted()).thenAnswer(invocation -> true);
+        when(rule1.isEventCreationPermitted()).thenAnswer(_ -> true);
         final AtomicInteger rule1Count = new AtomicInteger(0);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     rule1Count.incrementAndGet();
                     return null;
                 })
@@ -55,9 +55,9 @@ class EventCreationRulesTests {
                 .eventWasCreated();
 
         final EventCreationRule rule2 = mock(EventCreationRule.class);
-        when(rule2.isEventCreationPermitted()).thenAnswer(invocation -> true);
+        when(rule2.isEventCreationPermitted()).thenAnswer(_ -> true);
         final AtomicInteger rule2Count = new AtomicInteger(0);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     rule2Count.incrementAndGet();
                     return null;
                 })
@@ -65,9 +65,9 @@ class EventCreationRulesTests {
                 .eventWasCreated();
 
         final EventCreationRule rule3 = mock(EventCreationRule.class);
-        when(rule3.isEventCreationPermitted()).thenAnswer(invocation -> true);
+        when(rule3.isEventCreationPermitted()).thenAnswer(_ -> true);
         final AtomicInteger rule3Count = new AtomicInteger(0);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     rule3Count.incrementAndGet();
                     return null;
                 })
@@ -75,9 +75,9 @@ class EventCreationRulesTests {
                 .eventWasCreated();
 
         final EventCreationRule rule4 = mock(EventCreationRule.class);
-        when(rule4.isEventCreationPermitted()).thenAnswer(invocation -> true);
+        when(rule4.isEventCreationPermitted()).thenAnswer(_ -> true);
         final AtomicInteger rule4Count = new AtomicInteger(0);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     rule4Count.incrementAndGet();
                     return null;
                 })
@@ -88,16 +88,16 @@ class EventCreationRulesTests {
 
         assertTrue(aggregateRule.isEventCreationPermitted());
 
-        when(rule3.isEventCreationPermitted()).thenAnswer(invocation -> false);
+        when(rule3.isEventCreationPermitted()).thenAnswer(_ -> false);
         assertFalse(aggregateRule.isEventCreationPermitted());
 
-        when(rule2.isEventCreationPermitted()).thenAnswer(invocation -> false);
+        when(rule2.isEventCreationPermitted()).thenAnswer(_ -> false);
         assertFalse(aggregateRule.isEventCreationPermitted());
 
-        when(rule1.isEventCreationPermitted()).thenAnswer(invocation -> false);
+        when(rule1.isEventCreationPermitted()).thenAnswer(_ -> false);
         assertFalse(aggregateRule.isEventCreationPermitted());
 
-        when(rule4.isEventCreationPermitted()).thenAnswer(invocation -> false);
+        when(rule4.isEventCreationPermitted()).thenAnswer(_ -> false);
         assertFalse(aggregateRule.isEventCreationPermitted());
 
         aggregateRule.eventWasCreated();
@@ -108,47 +108,21 @@ class EventCreationRulesTests {
     }
 
     @Test
-    void blockedByFreeze() {
-
-        final AtomicInteger numSignatureTransactions = new AtomicInteger(0);
-        final SignatureTransactionCheck signatureTransactionCheck = () -> numSignatureTransactions.get() > 0;
-
-        final AtomicInteger eventCreationCount = new AtomicInteger(0);
-        final EventCreator baseEventCreator = mock(EventCreator.class);
-        when(baseEventCreator.maybeCreateEvent()).thenAnswer(invocation -> {
-            eventCreationCount.incrementAndGet();
-            return null;
-        });
-
-        final PlatformStatusRule rule = new PlatformStatusRule(signatureTransactionCheck);
-        rule.setPlatformStatus(PlatformStatus.FREEZING);
-
-        assertFalse(rule.isEventCreationPermitted());
-        numSignatureTransactions.set(1);
-        assertTrue(rule.isEventCreationPermitted());
-    }
-
-    @Test
     void blockedByStatus() {
-
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
-        when(baseEventCreator.maybeCreateEvent()).thenAnswer(invocation -> {
+        when(baseEventCreator.maybeCreateEvent()).thenAnswer(_ -> {
             eventCreationCount.incrementAndGet();
             return null;
         });
 
-        final PlatformStatusRule rule = new PlatformStatusRule(() -> false);
+        final PlatformStatusRule rule = new PlatformStatusRule();
 
         for (final PlatformStatus platformStatus : PlatformStatus.values()) {
-            if (platformStatus == FREEZING) {
-                // this is checked in another test, don't bother checking
-                continue;
-            }
 
             rule.setPlatformStatus(platformStatus);
 
-            if (platformStatus == ACTIVE || platformStatus == CHECKING) {
+            if (platformStatus == ACTIVE || platformStatus == CHECKING || platformStatus == FREEZING) {
                 assertTrue(rule.isEventCreationPermitted());
             } else {
                 assertFalse(rule.isEventCreationPermitted());
@@ -164,7 +138,7 @@ class EventCreationRulesTests {
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
-        when(baseEventCreator.maybeCreateEvent()).thenAnswer(invocation -> {
+        when(baseEventCreator.maybeCreateEvent()).thenAnswer(_ -> {
             eventCreationCount.incrementAndGet();
             return mock(PlatformEvent.class);
         });

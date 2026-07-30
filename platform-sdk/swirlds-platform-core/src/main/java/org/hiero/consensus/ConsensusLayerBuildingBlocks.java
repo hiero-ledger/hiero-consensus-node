@@ -31,5 +31,4 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
         @NonNull IntakeEventCounter intakeEventCounter,
-        @NonNull PipelineFlusher pipelineFlusher,
         @NonNull FreezePeriodChecker freezePeriodChecker) {}

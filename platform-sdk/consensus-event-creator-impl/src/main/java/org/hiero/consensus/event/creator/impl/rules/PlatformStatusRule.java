@@ -14,21 +14,10 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
  */
 public class PlatformStatusRule implements EventCreationRule {
 
-    private final SignatureTransactionCheck signatureTransactionCheck;
-
     /**
      * The current platform status.
      */
     private PlatformStatus platformStatus;
-
-    /**
-     * Constructor.
-     *
-     * @param signatureTransactionCheck checks for pending signature transactions
-     */
-    public PlatformStatusRule(@NonNull final SignatureTransactionCheck signatureTransactionCheck) {
-        this.signatureTransactionCheck = Objects.requireNonNull(signatureTransactionCheck);
-    }
 
     /**
      * {@inheritDoc}
@@ -37,11 +26,7 @@ public class PlatformStatusRule implements EventCreationRule {
     public boolean isEventCreationPermitted() {
         final PlatformStatus currentStatus = this.platformStatus;
 
-        if (currentStatus == PlatformStatus.FREEZING) {
-            return signatureTransactionCheck.hasBufferedSignatureTransactions();
-        }
-
-        return currentStatus == PlatformStatus.ACTIVE || currentStatus == PlatformStatus.CHECKING;
+        return currentStatus == PlatformStatus.ACTIVE || currentStatus == PlatformStatus.CHECKING || currentStatus == PlatformStatus.FREEZING;
     }
 
     public void setPlatformStatus(final PlatformStatus platformStatus) {

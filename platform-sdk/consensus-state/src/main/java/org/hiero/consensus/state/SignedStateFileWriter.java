@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
@@ -43,7 +44,6 @@ import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.impl.DefaultPcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.persistence.SignedStateFileUtils;
@@ -306,7 +306,8 @@ public final class SignedStateFileWriter {
 
         // This is a temporary measure that allows us to move this functionality into the consensus module
         // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-        final PcesModule pcesModule = new DefaultPcesModule();
+        final PcesModule pcesModule =
+                ServiceLoader.load(PcesModule.class).findFirst().orElseThrow();
         pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, fileSystemManager, directory, lowerBound, round);
     }
 

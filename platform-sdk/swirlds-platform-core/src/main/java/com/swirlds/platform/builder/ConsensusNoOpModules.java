@@ -35,6 +35,7 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
@@ -144,13 +145,14 @@ public class ConsensusNoOpModules {
         final RecycleBin recycleBin = new SimpleRecycleBin();
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
-        final Runnable flushPrimaryPipeline = () -> {};
-        final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
-        final Runnable signalEndOfPcesReplay = () -> {};
+        final Runnable flushGossipModule = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
         final PcesModule pcesModule =
                 createModule(PcesModule.class, "org.hiero.consensus.pces.noop.impl.test.fixtures");
+        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
+        final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
         pcesModule.initialize(
                 model,
                 configuration,
@@ -160,10 +162,11 @@ public class ConsensusNoOpModules {
                 recycleBin,
                 fileSystemManager,
                 startingRound,
-                flushPrimaryPipeline,
-                replayProgressSupplier,
                 statusMonitorModule,
-                signalEndOfPcesReplay,
+                eventIntakeModule,
+                eventCreatorModule,
+                hashgraphModule,
+                flushGossipModule,
                 eventPipelineTracker);
         return pcesModule;
     }
@@ -184,8 +187,9 @@ public class ConsensusNoOpModules {
         final Roster roster = new Roster(List.of(rosterEntry));
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
+        final FreezePeriodChecker freezePeriodChecker = new FreezePeriodChecker(null);
         hashgraphModule.initialize(
-                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker, 0L);
+                model, configuration, metrics, time, roster, selfId, freezePeriodChecker, eventPipelineTracker, 0L);
         return hashgraphModule;
     }
 

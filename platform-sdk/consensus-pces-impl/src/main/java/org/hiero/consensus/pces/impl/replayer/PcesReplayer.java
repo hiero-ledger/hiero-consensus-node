@@ -22,10 +22,15 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.config.PcesConfig;
 
 /**
@@ -38,7 +43,14 @@ public class PcesReplayer {
 
     private final StandardOutputWire<PlatformEvent> eventOutputWire;
 
-    private final Runnable flushPrimaryPipeline;
+    private final PcesModule pcesModule;
+    private final EventIntakeModule eventIntakeModule;
+    private final EventCreatorModule eventCreatorModule;
+    private final HashgraphModule hashgraphModule;
+
+    // This must be a runnable, and not the GossipModule until the circular dependency
+    // from Gossip -> State -> Pces is broken.
+    private final Runnable flushGossipModule;
 
     private final Supplier<Boolean> isSystemHealthy;
 
@@ -50,23 +62,30 @@ public class PcesReplayer {
     /**
      * Constructor
      *
-     * @param configuration the platform configuration
-     * @param time the time source
-     * @param eventOutputWire the wire to put events on, to be replayed
-     * @param flushPrimaryPipeline a runnable that flushes PCES events through the system to all the locations they need to be before resuming normal operations
-     * @param isSystemHealthy a supplier that returns true if the system is healthy and false if the system is
-     * overwhelmed
+     * @param configuration        the platform configuration
+     * @param time                 the time source
+     * @param eventOutputWire      the wire to put events on, to be replayed
+     * @param isSystemHealthy      a supplier that returns true if the system is healthy and false if the system is
+     *                             overwhelmed
      */
     public PcesReplayer(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
+            @NonNull final PcesModule pcesModule,
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final HashgraphModule hashgraphModule,
+            @NonNull final Runnable flushGossipModule,
             @NonNull final StandardOutputWire<PlatformEvent> eventOutputWire,
-            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Supplier<Boolean> isSystemHealthy) {
 
         this.time = requireNonNull(time);
         this.eventOutputWire = requireNonNull(eventOutputWire);
-        this.flushPrimaryPipeline = requireNonNull(flushPrimaryPipeline);
+        this.pcesModule = requireNonNull(pcesModule);
+        this.eventIntakeModule = requireNonNull(eventIntakeModule);
+        this.eventCreatorModule = requireNonNull(eventCreatorModule);
+        this.hashgraphModule = requireNonNull(hashgraphModule);
+        this.flushGossipModule = requireNonNull(flushGossipModule);
         this.isSystemHealthy = requireNonNull(isSystemHealthy);
 
         this.config = configuration.getConfigData(PcesConfig.class);
@@ -76,10 +95,10 @@ public class PcesReplayer {
      * Log information about the replay
      *
      * @param initialConsensusRound the consensus round before replaying
-     * @param eventCount the number of events replayed
-     * @param transactionCount the number of transactions replayed
-     * @param elapsedTime the elapsed wall clock time during replay
-     * @param maxBirthRound the maximum birth round of the events that were replayed
+     * @param eventCount            the number of events replayed
+     * @param transactionCount      the number of transactions replayed
+     * @param elapsedTime           the elapsed wall clock time during replay
+     * @param maxBirthRound         the maximum birth round of the events that were replayed
      */
     private void logReplayInfo(
             @Nullable final ConsensusRound initialConsensusRound,
@@ -120,8 +139,8 @@ public class PcesReplayer {
                 commaSeparatedNumber(elapsedRounds),
                 elapsedConsensusTime != null
                         ? new UnitFormatter(elapsedConsensusTime.toMillis(), UNIT_MILLISECONDS)
-                                .setAbbreviate(false)
-                                .render()
+                        .setAbbreviate(false)
+                        .render()
                         : "n/a",
                 commaSeparatedNumber(roundAfterReplay),
                 new UnitFormatter(elapsedTime.toMillis(), UNIT_MILLISECONDS)
@@ -130,7 +149,7 @@ public class PcesReplayer {
     }
 
     /**
-     * Replays preconsensus events from disk and flushes the data through the system.
+     * Replays pre-consensus events from disk and flushes the data through the system.
      *
      * @param eventIterator an iterator over the events in the preconsensus stream
      * @return a trigger object indicating when the replay is complete
@@ -170,7 +189,13 @@ public class PcesReplayer {
             throw new UncheckedIOException("error encountered while reading from the PCES", e);
         }
 
-        flushPrimaryPipeline.run();
+        eventIntakeModule.flush();
+        pcesModule.flush();
+        flushGossipModule.run();
+        hashgraphModule.flush();
+        eventCreatorModule.flush();
+//        transactionHandlingModule.flush();
+//        stateModule.flush();
 
         final Duration elapsedTime = Duration.between(start, time.now());
 

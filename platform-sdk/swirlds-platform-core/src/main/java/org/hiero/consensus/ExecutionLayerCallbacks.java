@@ -12,7 +12,7 @@ public interface ExecutionLayerCallbacks {
 
     void onBehind();
 
-    List<TimestampedTransaction> getTransactionForNewEvent();
+    List<TimestampedTransaction> getTransactionsForNewEvent();
 
     void onStaleEvent(final Event event);
 

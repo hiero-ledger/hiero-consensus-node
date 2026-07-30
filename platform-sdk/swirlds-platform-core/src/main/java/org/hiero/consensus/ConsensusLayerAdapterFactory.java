@@ -232,16 +232,7 @@ public class ConsensusLayerAdapterFactory {
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
         final ComponentWiring<AppNotifier, Void> notifierWiring = createNotifierWiring(notificationEngine);
 
-        // Future Work: Once reconnect has been redesigned, only pces requires the pipeline flush
-        //              At this point, we can merge the functionality into PCES directly and remove PipelineFlusher.
-        final PipelineFlusher pipelineFlusher = new PipelineFlusher(
-                eventIntakeModule,
-                pcesModule,
-                gossipModule,
-                hashgraphModule,
-                transactionHandlingModule,
-                eventCreatorModule,
-                stateModule);
+
         initializePcesModule(
                 pcesModule,
                 pipelineFlusher,

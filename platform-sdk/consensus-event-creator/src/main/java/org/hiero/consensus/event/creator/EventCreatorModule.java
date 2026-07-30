@@ -40,7 +40,6 @@ public interface EventCreatorModule {
      * @param roster                    provides the current roster
      * @param selfId                    the ID of this node
      * @param transactionSupplier       provides transactions to include in events
-     * @param signatureTransactionCheck checks for pending signature transactions
      */
     void initialize(
             @NonNull WiringModel model,
@@ -51,8 +50,7 @@ public interface EventCreatorModule {
             @NonNull KeysAndCerts keysAndCerts,
             @NonNull Roster roster,
             @NonNull NodeId selfId,
-            @NonNull EventTransactionSupplier transactionSupplier,
-            @NonNull SignatureTransactionCheck signatureTransactionCheck);
+            @NonNull EventTransactionSupplier transactionSupplier);
 
     /**
      * {@link OutputWire} for new self events created by this component.

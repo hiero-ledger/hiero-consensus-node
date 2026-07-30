@@ -12,6 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -37,22 +40,28 @@ public interface PcesModule {
      * @param recycleBin the recycle bin for deleting old PCES files
      * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
-     * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
      * @param statusMonitorModule the {@link StatusMonitorModule} for monitoring the status of the platform
+     * @param eventIntakeModule the event intake module
+     * @param eventCreatorModule the event creator module
+     * @param hashgraphModule the hashgraph module
+     * @param flushGossipModule a runnable that flushes the gossip module
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
      */
     void initialize(
-            @NonNull WiringModel model,
-            @NonNull Configuration configuration,
-            @NonNull Metrics metrics,
-            @NonNull Time time,
-            @NonNull NodeId selfId,
-            @NonNull RecycleBin recycleBin,
-            @NonNull FileSystemManager fileSystemManager,
-            long startingRound,
-            @NonNull Runnable flushPrimaryPipeline,
-            @NonNull StatusMonitorModule statusMonitorModule,
-            @Nullable EventPipelineTracker pipelineTracker);
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId,
+            @NonNull final RecycleBin recycleBin,
+            @NonNull final FileSystemManager fileSystemManager,
+            final long startingRound,
+            @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final HashgraphModule hashgraphModule,
+            @NonNull final Runnable flushGossipModule,
+            @Nullable final EventPipelineTracker pipelineTracker);
 
     /**
      * Replay preconsensus events from storage.

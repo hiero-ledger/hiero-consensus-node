@@ -86,7 +86,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * @param configuration provides the configuration for the event creator
      * @param metrics provides the metrics for the event creator
      * @param time provides the time source for the event creator
-     * @param signatureTransactionCheck checks for pending signature transactions
      * @param eventCreator creates events
      * @param roster current roster
      * @param selfId id of current node
@@ -95,7 +94,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final SignatureTransactionCheck signatureTransactionCheck,
             @NonNull final EventCreator eventCreator,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId) {
@@ -103,7 +101,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         this.syncLagCalculator = new SyncLagCalculator(selfId, roster);
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
-        platformStatusRule = new PlatformStatusRule(signatureTransactionCheck);
+        platformStatusRule = new PlatformStatusRule();
         quiescenceRule = new QuiescenceRule();
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));

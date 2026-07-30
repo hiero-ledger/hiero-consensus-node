@@ -3,6 +3,7 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.state.config.StateConfigurationExtension;
 
 module org.hiero.consensus.state {
+    uses org.hiero.consensus.pces.PcesModule;
     exports org.hiero.consensus.state.config;
     exports org.hiero.consensus.state.nexus;
     exports org.hiero.consensus.state.saved;
@@ -30,7 +31,6 @@ module org.hiero.consensus.state {
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.concurrent;
-    requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;

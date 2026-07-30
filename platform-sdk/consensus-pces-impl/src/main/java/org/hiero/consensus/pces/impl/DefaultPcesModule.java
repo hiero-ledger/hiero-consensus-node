@@ -2,6 +2,7 @@
 package org.hiero.consensus.pces.impl;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
+import static java.util.Objects.hash;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
 
@@ -21,6 +22,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.function.Function;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -81,8 +86,11 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final HashgraphModule hashgraphModule,
+            @NonNull final Runnable flushGossipModule,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (pcesWriterWiring != null) {
@@ -141,8 +149,12 @@ public class DefaultPcesModule implements PcesModule {
         final PcesReplayer pcesReplayer = new PcesReplayer(
                 configuration,
                 time,
+                this,
+                eventIntakeModule,
+                eventCreatorModule,
+                hashgraphModule,
+                flushGossipModule,
                 pcesReplayerWiring.eventOutput(),
-                flushPrimaryPipeline,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         consensusRoundDispatcher
                 .getOutputWire()

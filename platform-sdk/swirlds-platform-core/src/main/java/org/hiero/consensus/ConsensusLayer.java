@@ -37,5 +37,16 @@ public interface ConsensusLayer {
      */
     void requestNextRound(@Nullable final Roster newRoster, @Nullable final Instant freezeTime);
 
+    /**
+     * <p>Instructs the consensus layer on what its quiescence state should be. It will use the latest command that has
+     * been provided. If multiple threads call this method at the same time, there is no guarantee about which command
+     * will be used.
+     *
+     * <p>This command is also used to stop event creation once it is no longer needed during the freeze process. It is
+     * important to stop event creation in order to limit memory usage, since events created after the freeze time are
+     * not garbage collected.
+     *
+     * @param command the quiescence command
+     */
     void sendQuiescenceCommand(final QuiescenceCommand command);
 }

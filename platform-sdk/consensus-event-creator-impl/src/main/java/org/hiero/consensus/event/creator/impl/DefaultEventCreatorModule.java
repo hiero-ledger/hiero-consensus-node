@@ -59,8 +59,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final EventTransactionSupplier transactionSupplier,
-            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
         //noinspection VariableNotUsedInsideIf
         if (eventCreationManagerWiring != null) {
             throw new IllegalStateException("Already initialized");
@@ -98,7 +97,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, random, bytesSigner, roster, selfId, transactionSupplier);
         final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
-                configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
+                configuration, metrics, time, eventCreator, roster, selfId);
         eventCreationManagerWiring.bind(eventCreationManager);
     }
 

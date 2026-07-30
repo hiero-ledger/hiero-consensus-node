@@ -53,7 +53,7 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     public void onBehind() {}
 
     @Override
-    public List<TimestampedTransaction> getTransactionForNewEvent() {
+    public List<TimestampedTransaction> getTransactionsForNewEvent() {
         return executionLayer.getTransactionsForEvent();
     }
 

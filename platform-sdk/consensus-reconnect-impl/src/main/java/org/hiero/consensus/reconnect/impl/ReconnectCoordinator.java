@@ -80,7 +80,13 @@ public class ReconnectCoordinator {
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
-        buildingBlocks.pipelineFlusher().flushPrimaryPipeline();
+        buildingBlocks.eventIntakeModule().flush();
+        buildingBlocks.pcesModule().flush();
+        buildingBlocks.gossipModule().flush();
+        buildingBlocks.hashgraphModule().flush();
+        buildingBlocks.transactionHandlingModule().flush();
+        buildingBlocks.eventCreatorModule().flush();
+        buildingBlocks.stateModule().flush();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
