@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.engine;
 
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.swirlds.logging.legacy.LogMarker;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -9,7 +10,7 @@ import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * A {@link CachingOperationProvider} capable of computing hashes for {@link SelfSerializable} objects by hashing the
@@ -36,13 +37,16 @@ public class SerializationDigestProvider
             final SelfSerializable item,
             final Void optionalData) {
         algorithm.resetDigest(); // probably not needed, just to be safe
-        try (SerializableDataOutputStream out = new SerializableDataOutputStream(algorithm)) {
-            out.writeSerializable(item, true);
+        PbjWriter out = PbjUtils.takeTlsWriter();
+        try {
+            out.resetWith(algorithm);
+            PbjUtils.writeSerializable(out, item, true);
             out.flush();
-
             return algorithm.getDigest();
         } catch (IOException ex) {
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
+        } finally {
+            PbjUtils.returnTlsWriter();
         }
     }
 }

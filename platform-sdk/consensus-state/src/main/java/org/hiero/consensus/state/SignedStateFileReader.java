@@ -7,7 +7,7 @@ import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATU
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Schema;
@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
@@ -71,8 +72,12 @@ public final class SignedStateFileReader {
         final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
         if (pbjFile.exists()) {
             sigSet = new SigSet();
-            try (final ReadableStreamingData in = new ReadableStreamingData(new FileInputStream(pbjFile))) {
+            PbjReader in = PbjUtils.takeTlsReaderStream();
+            try {
+                in.resetWith(new FileInputStream(pbjFile));
                 sigSet.deserialize(in);
+            } finally {
+                PbjUtils.returnTlsReaderStream();
             }
         } else {
             throw new IOException("No signature set file found at " + pbjFile.getAbsolutePath());
