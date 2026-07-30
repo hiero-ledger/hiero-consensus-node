@@ -27,7 +27,7 @@
 # Verifications after the 0.77 cutover:
 #   - local-build version on all consensus nodes
 #   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (lastAvailableBlock
+#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (nextExpectedBlock
 #     advances)
 #   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. The cutover itself comes up
 #     ACTIVE; the SELF_ISS only surfaced when a node restarted (e.g. OOMKilled) and replayed events
@@ -472,7 +472,7 @@ verify_wraps_on_consensus_nodes() {
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
   expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  log "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  log "Verifying WRAPS runtime on each consensus node (expecting >=${expected_wraps} self-downloaded artifact files at ${wraps_dir} + proof construction, up to ${timeout_secs}s/node; the in-JVM env var is logged as a best-effort diagnostic only)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -486,9 +486,12 @@ verify_wraps_on_consensus_nodes() {
         echo "  ${pod}: WRAPS reported a runtime failure (check ${HAPI_PATH}/output/hgcaa.log)" >&2
         return 1
       fi
+      # found_env is a best-effort diagnostic: the /proc/<pid>/environ probe false-negatives on nodes
+      # that provably have the env set + are building proofs, so gate on the artifacts and let the
+      # authoritative proof-in-log check below decide.
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
+      if [[ "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -496,11 +499,11 @@ verify_wraps_on_consensus_nodes() {
     done
 
     if ! ${ready_for_proof}; then
-      echo "  ${pod}: timed out waiting for WRAPS env+artifacts (env='${found_env:-unset}' wanted '${wraps_dir}'; artifacts=${found_wraps:-0}/${expected_wraps})" >&2
+      echo "  ${pod}: timed out waiting for >=${expected_wraps} WRAPS artifacts in ${wraps_dir} (artifacts=${found_wraps:-0}/${expected_wraps}; env='${found_env:-unset}' [best-effort diagnostic])" >&2
       return 1
     fi
 
-    echo "  ${pod}: env + ${found_wraps} artifacts OK; waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
+    echo "  ${pod}: ${found_wraps} WRAPS artifacts present (env='${found_env:-unset}' [best-effort diagnostic]); waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
     local progress_tick=0
     while (( SECONDS < deadline )); do
       if wraps_failure_present_in_log "${pod}"; then
@@ -830,7 +833,7 @@ validate_block_node_repo() {
   fi
 }
 
-# Poll BN serverStatus until lastAvailableBlock > 0, proving CN is streaming into it.
+# Poll BN serverStatus until nextExpectedBlock > 1 (BN holds >= block 1), proving CN is streaming into it.
 verify_block_node_has_blocks() {
   local timeout_secs="${1:-120}"
   local svc="block-node-${BLOCK_NODE_ID}"
@@ -860,21 +863,21 @@ verify_block_node_has_blocks() {
     return 1
   fi
 
-  local deadline=$((SECONDS + timeout_secs)) last_available="" raw=""
-  log "Polling ${svc} serverStatus for lastAvailableBlock > 0 (up to ${timeout_secs}s)"
+  local deadline=$((SECONDS + timeout_secs)) next_expected="" raw=""
+  log "Polling ${svc} serverStatus for nextExpectedBlock > 1 (up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
-    last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
-    if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" -gt 0 ]]; then
-      log "verify_block_node_has_blocks: lastAvailableBlock=${last_available} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
+    next_expected="$(echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
+    if [[ "${next_expected}" =~ ^[0-9]+$ && "${next_expected}" -gt 1 ]]; then
+      log "verify_block_node_has_blocks: nextExpectedBlock=${next_expected} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 5
   done
-  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
+  echo "BN ${svc} did not report nextExpectedBlock > 1 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
   echo "  --- last grpcurl stderr (serverStatus) ---" >&2
   cat "${grpc_err}" >&2 2>/dev/null || true
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
@@ -1172,12 +1175,12 @@ wait_for_block_node_caught_up() {
   local cn_pod="network-${NODE_ALIASES%%,*}-0"
   local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
 
-  read_bn_last_available() {
+  read_bn_next_expected() {
     local raw
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
+    echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -1199,23 +1202,23 @@ wait_for_block_node_caught_up() {
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
-    cur="$(read_bn_last_available)"
+    cur="$(read_bn_next_expected)"
     cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
       "grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' '${comms_log}' 2>/dev/null | tail -1" 2>/dev/null || true)"
     case "${cn_view}" in
       *"available for streaming (wantedBlock"*)
-        log "Block Node is caught up — CN reports it in-range for streaming (BN lastAvailableBlock=${cur:-?}); safe to cut over"
+        log "Block Node is caught up — CN reports it in-range for streaming (BN nextExpectedBlock=${cur:-?}); safe to cut over"
         kill "${pf_pid}" >/dev/null 2>&1 || true
         return 0
         ;;
     esac
     if [[ "${cur}" =~ ^[0-9]+$ && "${cur}" != "${prev}" ]]; then
-      log "  BN lastAvailableBlock=${cur} (CN view: ${cn_view:-pending})"
+      log "  BN nextExpectedBlock=${cur} (CN view: ${cn_view:-pending})"
       prev="${cur}"
     fi
     sleep 5
   done
-  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN lastAvailableBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
+  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN nextExpectedBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
 }
