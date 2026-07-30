@@ -84,6 +84,7 @@
 | 858-call-get-chewie-jwt.yaml                 | 858: [CALL] Get Chewie JWT         |                                                        |                                                                   |
 | 859-call-create-chewie-request.yaml          | 859: [CALL] Create Chewie Request  |                                                        |                                                                   |
 | 860-call-validate-chewie-jwt.yaml            | 860: [CALL] Validate Chewie JWT    |                                                        |                                                                   |
+| 861-call-get-test-config.yaml                | 861: [CALL] Get Test Config        |                                                        |                                                                   |
 |                                              |                                    |                                                        |                                                                   |
 | # CRON (900-999)                             |                                    |                                                        |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite    | zxcron-extended-test-suite.yaml                        | ZXCron: [CITR] Extended Test Suite                                |
