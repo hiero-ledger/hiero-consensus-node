@@ -1114,7 +1114,9 @@ seed_block_node_tss_parameters() {
       log "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
       return 0
     fi
-    if grep -qiE "failed to (load|parse|read).*tss|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
+    # Scope to the tss-PARAMETERS file: a bare ".*tss" also matches the benign single-BN roster line
+    # "Failed to read/parse block node sources ... TssBootstrapPlugin" (no peers), a false positive.
+    if grep -qiE "failed to (load|parse|read).*tss[ -]?param|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
       echo "seed: BN reported a TSS parameters load failure:" >&2
       grep -iE "tss" <<<"${bn_logs}" | tail -5 >&2
       return 1
