@@ -12,7 +12,7 @@
 #      tss.forceMockSignatures=true (the
 #      0.77 "dual-write, mock signatures" state). The WRAPS env is injected before the JVMs start
 #      so all nodes initialize the WRAPS library in lockstep at genesis. (Now that a 0.77 tag
-#      exists there's no need to deploy 0.76 first and upgrade into 0.77.)
+#      exists there's no need to deploy an earlier version first and upgrade into 0.77.)
 #   2. Deploy a mirror node + explorer UI on the 0.77 network (importer reads RECORD streams from
 #      MinIO, which the CN writes in 0.77 / streamMode=BOTH).
 #   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks streamed by the CN
@@ -52,7 +52,7 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
 # We deploy the network directly at the published 0.77 release tag (genesis at 0.77 with TSS +
 # WRAPS, mock signatures), then upgrade to the local 0.78 build for the focused cutover test.
-# Now that a 0.77 release tag exists, there's no need to deploy 0.76 first and upgrade into 0.77.
+# Now that a 0.77 release tag exists, there's no need to deploy an earlier version first.
 DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.77.0-rc.3}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
@@ -1327,8 +1327,8 @@ setup_cluster_prereqs() {
 }
 
 # Deploy the network directly at the 0.77 release tag (genesis: TSS + WRAPS enabled, mock
-# signatures). Now that a published 0.77 tag exists we no longer deploy 0.76 first and upgrade
-# into 0.77 — this is the prerequisite state the 0.78 cutover upgrades from.
+# signatures). The published 0.77 tag provides the prerequisite state the 0.78 cutover upgrades
+# from.
 deploy_077() {
   log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock signatures)"
 
