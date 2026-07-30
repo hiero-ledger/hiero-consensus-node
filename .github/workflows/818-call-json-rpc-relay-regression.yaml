@@ -117,6 +117,12 @@ jobs:
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
 
+      # Install build tools required by redis-memory-server native module compilation
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends cmake pkg-config libssl-dev
+
       # Set up the npm dependencies and cache on the json-rpc-relay repository
       - name: Install NodeJS Dependencies (json-rpc-relay)
         run: npm ci
