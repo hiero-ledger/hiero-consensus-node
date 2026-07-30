@@ -417,18 +417,38 @@ async function main() {
 
   const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
   client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
-  client.setMaxAttempts(3);
-  client.setRequestTimeout(20000);
+  client.setMaxAttempts(5);
+  client.setRequestTimeout(30000);
 
+  // Post-cutover, the real-TSS genesis WRAPS proof can park a node off transaction processing
+  // (nominally ACTIVE, but blocked in the native prover) for a couple of minutes. The submissions
+  // still drive the consensus rounds the ceremony needs, so we keep retrying each tx until its
+  // receipt comes back once the node unblocks, rather than failing on the first timeout. A genuine
+  // wedge still fails when the deadline passes with no receipt.
+  const deadlineMs = Date.now() + Number(process.env.NUDGE_RECEIPT_DEADLINE_SECS || "300") * 1000;
   for (let i = 1; i <= txCount; i++) {
-    const tx = new AccountCreateTransaction()
-      .setInitialBalance(new Hbar(1))
-      .setKey(PrivateKey.generateED25519().publicKey)
-      .setMaxTransactionFee(new Hbar(5));
-    const response = await tx.execute(client);
-    const receipt = await response.getReceipt(client);
-    if (receipt.status !== Status.Success) {
-      throw new Error(`tx ${i}/${txCount}: non-success status ${receipt.status.toString()}`);
+    for (;;) {
+      try {
+        const tx = new AccountCreateTransaction()
+          .setInitialBalance(new Hbar(1))
+          .setKey(PrivateKey.generateED25519().publicKey)
+          .setMaxTransactionFee(new Hbar(5));
+        const response = await tx.execute(client);
+        const receipt = await response.getReceipt(client);
+        if (receipt.status !== Status.Success) {
+          throw new Error(`non-success status ${receipt.status.toString()}`);
+        }
+        const accountId = receipt.accountId ? receipt.accountId.toString() : "(no id)";
+        console.log(`  nudge tx ${i}/${txCount}: cryptoCreate -> ${accountId}`);
+        break;
+      } catch (err) {
+        if (Date.now() >= deadlineMs) {
+          throw new Error(`tx ${i}/${txCount}: no receipt within ${process.env.NUDGE_RECEIPT_DEADLINE_SECS || "300"}s (node likely still constructing the genesis WRAPS proof): ${err.message}`);
+        }
+        console.log(`  nudge tx ${i}/${txCount}: node busy (${err.message}); retrying...`);
+        await sleep(5000);
+      }
+    }
     }
     const accountId = receipt.accountId ? receipt.accountId.toString() : "(no id)";
     console.log(`  nudge tx ${i}/${txCount}: cryptoCreate -> ${accountId}`);
