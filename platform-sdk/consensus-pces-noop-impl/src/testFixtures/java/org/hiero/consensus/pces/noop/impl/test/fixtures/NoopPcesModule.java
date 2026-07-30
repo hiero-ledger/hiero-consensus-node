@@ -21,11 +21,12 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 
 /**
  * No-op implementation of the {@link PcesModule}.
@@ -37,6 +38,7 @@ public class NoopPcesModule implements PcesModule {
     private InputWire<Long> minimumBirthRoundInputWire;
     private InputWire<Long> discontinuityInputWire;
     private OutputWire<PlatformEvent> writtenEventsOutputWire;
+    private InputWire<ConsensusRound> consensusRoundInputWire;
     private InputWire<EventWindow> eventWindowInputWire;
 
     /**
@@ -96,6 +98,10 @@ public class NoopPcesModule implements PcesModule {
         final BindableInputWire<Long, PlatformEvent> discontinuity = scheduler.buildInputWire("discontinuity");
         discontinuity.bindConsumer(_ -> {});
         this.discontinuityInputWire = discontinuity;
+        final BindableInputWire<ConsensusRound, PlatformEvent> consensusRound =
+                scheduler.buildInputWire("consensus round");
+        consensusRound.bindConsumer(_ -> {});
+        this.consensusRoundInputWire = consensusRound;
         final BindableInputWire<EventWindow, PlatformEvent> eventWindow = scheduler.buildInputWire("event window");
         eventWindow.bindConsumer(_ -> {});
         this.eventWindowInputWire = eventWindow;
@@ -141,7 +147,13 @@ public class NoopPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(consensusRoundInputWire, "Not initialized");
+    }
+
+    @NonNull
+    @Override
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventWindowInputWire, "Not initialized");
     }
 
