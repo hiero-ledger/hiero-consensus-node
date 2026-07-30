@@ -105,6 +105,11 @@ public interface HistoryService extends Service, OnProofFinished {
             @Nullable HintsConstruction activeConstruction);
 
     /**
+     * Stops the history service, causing it to abandon any in-progress work.
+     */
+    void stop();
+
+    /**
      * Returns a proof of inclusion of the given metadata for the current roster.
      *
      * @param metadata the metadata that must be included in the proof
