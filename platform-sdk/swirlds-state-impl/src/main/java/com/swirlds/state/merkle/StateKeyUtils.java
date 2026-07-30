@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -16,6 +17,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * A set of utility methods to work with state keys. These methods are used by readable
@@ -89,8 +91,8 @@ public class StateKeyUtils {
 
     // K/V key: OneOf field number is K/V state ID, field value is the key
     public static <K> Bytes kvKey(final int stateId, final K key, final Codec<K> keyCodec) {
-        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
-            final WritableSequentialData out = new WritableStreamingData(bout);
+        PbjWriter out = PbjUtils.takeTlsWriter();
+        try {
             // Write tag: field number == state ID, wire type == DELIMITED
             out.writeVarInt(
                     (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
@@ -99,16 +101,16 @@ public class StateKeyUtils {
             out.writeVarInt(keyCodec.measureRecord(key), false);
             // Write key
             keyCodec.write(key, out);
-            return Bytes.wrap(bout.toByteArray());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
+            return out.toByteArrayWrapped();
+        } finally {
+            PbjUtils.returnTlsWriter();
         }
     }
 
     // K/V key: OneOf field number is K/V state ID, field value is the key
     public static Bytes kvKey(final int stateId, final Bytes key) {
-        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
-            final WritableSequentialData out = new WritableStreamingData(bout);
+        PbjWriter out = PbjUtils.takeTlsWriter();
+        try {
             // Write tag: field number == state ID, wire type == DELIMITED
             out.writeVarInt(
                     (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
@@ -117,9 +119,9 @@ public class StateKeyUtils {
             out.writeVarInt(toIntExact(key.length()), false);
             // Write key
             out.writeBytes(key);
-            return Bytes.wrap(bout.toByteArray());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
+            return out.toByteArrayWrapped();
+        } finally {
+            PbjUtils.returnTlsWriter();
         }
     }
 
@@ -145,7 +147,7 @@ public class StateKeyUtils {
             throws ParseException {
         Objects.requireNonNull(stateKey, "Null state key");
         Objects.requireNonNull(keyCodec, "Null key codec");
-        final PbjReader in = stateKey.toPbjReader();
+        PbjReader in = stateKey.toPbjReader();
         final int tag = in.readVarInt(false);
         assert tag >> ProtoParserTools.TAG_FIELD_OFFSET == extractStateIdFromStateKeyOneOf(stateKey);
         assert tag >> ProtoParserTools.TAG_FIELD_OFFSET != FIELD_NUM_SINGLETON; // must not be a singleton key

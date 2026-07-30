@@ -24,7 +24,7 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.internal.network.Network;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.AbstractFakePlatform;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeHintsService;
@@ -223,7 +223,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
             // It's possible this was intentional, but make a little noise to remind test author this happens
             log.warn("All paid queries get INVALID_NODE_ACCOUNT for non-default nodes in embedded mode");
         }
-        final var responseBuffer = BufferedData.allocate(MAX_QUERY_RESPONSE_SIZE);
+        final var responseBuffer = new PbjWriter(MAX_QUERY_RESPONSE_SIZE);
         if (asNodeOperator) {
             hedera.operatorQueryWorkflow().handleQuery(Bytes.wrap(query.toByteArray()), responseBuffer);
         } else {
@@ -312,7 +312,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 .toByteArray();
     }
 
-    protected static TransactionResponse parseTransactionResponse(@NonNull final BufferedData responseBuffer) {
+    protected static TransactionResponse parseTransactionResponse(@NonNull final PbjWriter responseBuffer) {
         try {
             return TransactionResponse.parseFrom(AbstractEmbeddedHedera.usedBytesFrom(responseBuffer));
         } catch (IOException e) {
@@ -320,7 +320,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         }
     }
 
-    protected static Response parseQueryResponse(@NonNull final BufferedData responseBuffer) {
+    protected static Response parseQueryResponse(@NonNull final PbjWriter responseBuffer) {
         try {
             return Response.parseFrom(AbstractEmbeddedHedera.usedBytesFrom(responseBuffer));
         } catch (IOException e) {
@@ -345,10 +345,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         return query.hasCryptogetAccountBalance() || query.hasTransactionGetReceipt();
     }
 
-    private static byte[] usedBytesFrom(@NonNull final BufferedData responseBuffer) {
-        final byte[] bytes = new byte[Math.toIntExact(responseBuffer.position())];
-        responseBuffer.resetPosition();
-        responseBuffer.readBytes(bytes);
-        return bytes;
+    private static byte[] usedBytesFrom(@NonNull final PbjWriter responseBuffer) {
+        return responseBuffer.toByteArray();
     }
 }

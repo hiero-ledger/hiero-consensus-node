@@ -9,7 +9,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.AbstractFakePlatform;
 import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeConsensusEvent;
@@ -103,7 +103,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         requireNonNull(transaction);
         requireNonNull(nodeAccountId);
         if (defaultNodeAccountId.equals(nodeAccountId)) {
-            final var responseBuffer = BufferedData.allocate(MAX_PLATFORM_TXN_SIZE);
+            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE);
             hedera.ingestWorkflow().submitTransaction(Bytes.wrap(transaction.toByteArray()), responseBuffer);
             return parseTransactionResponse(responseBuffer);
         } else {
@@ -126,7 +126,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         requireNonNull(nodeAccountId);
         requireNonNull(semanticVersion);
         if (defaultNodeAccountId.equals(nodeAccountId)) {
-            final var responseBuffer = BufferedData.allocate(MAX_PLATFORM_TXN_SIZE);
+            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE);
             hedera.ingestWorkflow().submitTransaction(Bytes.wrap(transaction.toByteArray()), responseBuffer);
             return parseTransactionResponse(responseBuffer);
         } else {

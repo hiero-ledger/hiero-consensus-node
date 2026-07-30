@@ -3,6 +3,8 @@ package com.hedera.node.app.grpc.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
@@ -39,15 +41,15 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
     private static final String SPEEDOMETER_RECEIVED_DESC_TPL = "number of %s received per second";
 
     /**
-     * Per-thread shared {@link BufferedData} for responses. We store these in a thread local, because we do
+     * Per-thread shared {@link PbjWriter} for responses. We store these in a thread local, because we do
      * not have control over the thread pool used by the underlying gRPC server.
      */
     @SuppressWarnings(
             "java:S5164") // looks like a false positive ("ThreadLocal" variables should be cleaned up when no longer
     // used), but these threads are long-lived and the lifetime of the thread local is the same as
     // the application
-    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> BufferedData.allocate(MAX_RESPONSE_SIZE));
+    private static final ThreadLocal<PbjWriter> BUFFER_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> new PbjWriter(MAX_RESPONSE_SIZE));
 
     /** The name of the service associated with this method. */
     protected final String serviceName;
@@ -124,8 +126,8 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
             handle(requestBytes, responseBuffer);
 
             // Respond to the client
-            responseBuffer.flip();
-            responseObserver.onNext(responseBuffer);
+            PbjReader pbjReader = responseBuffer.toPbjReader();
+            responseObserver.onNext(BufferedData.wrap(pbjReader.array(), 0, (int) pbjReader.limit()));
             responseObserver.onCompleted();
 
             // Track the number of times we successfully handled a call
@@ -146,9 +148,9 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
      * if a gRPC <b>ERROR</b> is to be returned.
      *
      * @param requestBuffer The {@link Bytes} containing the protobuf bytes for the request
-     * @param responseBuffer A {@link BufferedData} into which the response protobuf bytes may be written
+     * @param responseBuffer A {@link PbjWriter} into which the response protobuf bytes may be written
      */
-    protected abstract void handle(@NonNull final Bytes requestBuffer, @NonNull final BufferedData responseBuffer);
+    protected abstract void handle(@NonNull final Bytes requestBuffer, @NonNull final PbjWriter responseBuffer);
 
     /**
      * Helper method for creating a {@link Counter} metric.

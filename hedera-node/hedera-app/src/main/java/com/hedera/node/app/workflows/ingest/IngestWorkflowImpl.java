@@ -13,13 +13,11 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.QuiescenceConfig;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -66,7 +64,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
     }
 
     @Override
-    public void submitTransaction(@NonNull final Bytes requestBuffer, @NonNull final BufferedData responseBuffer) {
+    public void submitTransaction(@NonNull final Bytes requestBuffer, @NonNull final PbjWriter responseBuffer) {
         requireNonNull(requestBuffer);
         requireNonNull(responseBuffer);
 
@@ -122,13 +120,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                     .cost(estimatedFee)
                     .build();
 
-            try {
-                TransactionResponse.PROTOBUF.write(transactionResponse, responseBuffer);
-            } catch (IOException ex) {
-                // It may be that the response couldn't be written because the response buffer was
-                // too small, which would be an internal server error.
-                throw new UncheckedIOException("Failed to write bytes to response buffer", ex);
-            }
+            TransactionResponse.PROTOBUF.write(transactionResponse, responseBuffer);
         } finally {
             if (quiescenceEnabled) {
                 txPipelineTracker.decrementPreFlight();

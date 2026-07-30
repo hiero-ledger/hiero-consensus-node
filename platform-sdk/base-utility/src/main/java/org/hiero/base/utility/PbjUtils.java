@@ -115,11 +115,20 @@ public final class PbjUtils {
     }
 
     public static void writeByteArray(@NonNull final PbjWriter out, @Nullable final byte[] data) {
+        writeByteArray(out, data, false);
+    }
+
+    public static void writeByteArray(
+            @NonNull final PbjWriter out, @Nullable final byte[] data, final boolean writeChecksum) {
         if (data == null) {
             out.writeInt(NULL_LIST_ARRAY_LENGTH);
             return;
         }
         out.writeInt(data.length);
+        if (writeChecksum) {
+            // write a simple checksum to detect if at wrong place in the stream
+            out.writeInt(101 - data.length);
+        }
         out.writeBytes(data);
     }
 
