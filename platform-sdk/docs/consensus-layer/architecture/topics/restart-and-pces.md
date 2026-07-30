@@ -31,7 +31,7 @@ PCES exists so that consensus can recover its in-memory state after a crash. Eve
 every node in the network crashes simultaneously, every node loses every non-ancient event it has not yet written down.
 Replaying PCES at startup is what rebuilds the hashgraph so consensus can resume. For this to work, PCES must persist
 every validated, deduplicated event in topological order — not only self-events. The writer's input is the event-intake
-module's validated-events output (`PlatformWiring.java:78-81`), so every event that survives intake validation is
+module's validated-events output (`ConsensusLayerWiring.java:84-88`), so every event that survives intake validation is
 written.
 
 The writer is synchronous: it accepts a `PlatformEvent` on its input wire and emits the same event on its output wire
@@ -49,18 +49,18 @@ No downstream component sees an event before the writer has written it. The writ
 consensus, gossip, and the event creator's parent-selection input:
 
 ```text
-// platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:86-96
+// platform-sdk/swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:108-118
 // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
 // reach consensus with events that might be lost due to a crash
-writtenEventOutputWire.solderTo(components.hashgraphModule().eventInputWire());
+writtenEventOutputWire.solderTo(buildingBlocks.hashgraphModule().eventInputWire());
 
 // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
 // where an event is created, gossipped, and then the node crashes before the event is persisted.
 // After restart, a node will not be aware of this event, so it can create a branch
-writtenEventOutputWire.solderTo(components.gossipModule().eventToGossipInputWire(), INJECT);
+writtenEventOutputWire.solderTo(buildingBlocks.gossipModule().eventToGossipInputWire(), INJECT);
 
 // Avoid using events as parents before they are persisted
-writtenEventOutputWire.solderTo(components.eventCreatorModule().orderedEventInputWire());
+writtenEventOutputWire.solderTo(buildingBlocks.eventCreatorModule().orderedEventInputWire());
 ```
 
 The general guarantee applies to every event: consensus never observes an event whose write has not returned. Applied

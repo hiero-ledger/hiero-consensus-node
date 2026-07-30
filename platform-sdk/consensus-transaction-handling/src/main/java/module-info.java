@@ -16,7 +16,7 @@ module org.hiero.consensus.transaction.handling {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.state;
-    requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.status.monitor;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;

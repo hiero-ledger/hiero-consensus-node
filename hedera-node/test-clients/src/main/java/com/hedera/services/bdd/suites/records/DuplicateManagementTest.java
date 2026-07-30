@@ -27,14 +27,18 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import java.nio.charset.StandardCharsets;
+import java.security.cert.CertificateEncodingException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -115,9 +119,11 @@ public class DuplicateManagementTest {
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
-    final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature() {
+    final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature()
+            throws CertificateEncodingException {
         final var submittingNodeAccountId = "4";
         final var nodeAccount = "nodeAccount";
+        final var gossipCertificate = generateX509Certificates(1).getFirst().getEncoded();
         return hapiTest(
                 newKeyNamed("notTreasuryKey"),
                 cryptoCreate(nodeAccount),
@@ -127,10 +133,27 @@ public class DuplicateManagementTest {
                 // Bypass ingest using a non-default node to submit a privileged transaction that claims
                 // 0.0.2 as the payer, but signs with the wrong key
                 nodeCreate("newNode", nodeAccount)
+                        .gossipCaCertificate(gossipCertificate)
                         .signedBy("notTreasuryKey")
                         .setNode(submittingNodeAccountId)
                         .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                 // And verify that the node is charged the network fee for submitting this transaction
+                getAccountBalance(submittingNodeAccountId).hasTinyBars(reducedFromSnapshot("preConsensus")));
+    }
+
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
+    @DisplayName("if a node submits a transaction with an invalid gossip certificate, it is charged the network fee")
+    final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsInvalidGossipCertificate() {
+        final var submittingNodeAccountId = "4";
+        final var nodeAccount = "nodeAccount";
+        return hapiTest(
+                cryptoCreate(nodeAccount),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccountId, ONE_HBAR)),
+                balanceSnapshot("preConsensus", submittingNodeAccountId),
+                nodeCreate("newNode", nodeAccount)
+                        .gossipCaCertificate("invalidCert".getBytes(StandardCharsets.UTF_8))
+                        .setNode(submittingNodeAccountId)
+                        .hasKnownStatus(INVALID_GOSSIP_CA_CERTIFICATE),
                 getAccountBalance(submittingNodeAccountId).hasTinyBars(reducedFromSnapshot("preConsensus")));
     }
 

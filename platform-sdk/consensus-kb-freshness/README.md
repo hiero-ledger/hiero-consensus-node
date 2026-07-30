@@ -1,5 +1,7 @@
 # consensus-kb-freshness
 
+![](assets/fressness_checker_logo.png)
+
 A deterministic checker that detects when the curated consensus-layer knowledge base
 (`platform-sdk/docs/consensus-layer/`) has drifted out of sync with the code it documents, so a
 human curator can repair it.
