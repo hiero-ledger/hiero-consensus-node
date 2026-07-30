@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.TestTags.CUTOVER;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -14,7 +15,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContai
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -43,7 +43,7 @@ public class TssCutoverTest implements LifecycleTest {
     private static final String GENESIS_WRAPS_PROOF_STARTED = "Constructing genesis WRAPS proof";
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
+    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(22);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
@@ -57,13 +57,9 @@ public class TssCutoverTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS / 100, stakedNodeId = 3)
-    static SpecAccount NODE3_STAKER;
-
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo(), NODE3_STAKER.getInfo());
+        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo());
     }
 
     @HapiTest
@@ -91,7 +87,7 @@ public class TssCutoverTest implements LifecycleTest {
                                 () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
                                 this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
                         untilHgcaaLogContainsText(
-                                        byNodeId(0),
+                                        allNodes(),
                                         GENESIS_WRAPS_PROOF_STARTED,
                                         Duration.ofMinutes(1),
                                         LOG_POLL_INTERVAL,
@@ -99,7 +95,7 @@ public class TssCutoverTest implements LifecycleTest {
                                         })
                                 .loggingOff(),
                         untilHgcaaLogContainsText(
-                                        byNodeId(0),
+                                        allNodes(),
                                         GENESIS_WRAPS_PROOF_CONSTRUCTED,
                                         WRAPS_PROOF_TIMEOUT,
                                         LOG_POLL_INTERVAL,
@@ -133,6 +129,6 @@ public class TssCutoverTest implements LifecycleTest {
     }
 
     private static List<SpecAccount> stakers() {
-        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER);
+        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER);
     }
 }

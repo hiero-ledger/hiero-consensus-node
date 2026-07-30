@@ -3,8 +3,18 @@ package com.swirlds.platform.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.swirlds.component.framework.WiringConfig;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.ConfigUtils;
+import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
+import com.swirlds.platform.builder.ModulesConfig;
+import com.swirlds.platform.health.OSHealthCheckConfig;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
+import java.util.Arrays;
 import java.util.Set;
+import org.hiero.consensus.BasicConfig;
+import org.hiero.consensus.FallenBehindConfig;
 import org.junit.jupiter.api.Test;
 
 class PlatformConfigurationExtensionTests {
@@ -12,13 +22,34 @@ class PlatformConfigurationExtensionTests {
     @Test
     void testIfAllConfigDataTypesAreRegistered() {
         // given
-        final var allRecordsFound = ConfigUtils.loadAllConfigDataRecords(Set.of("com.swirlds"));
-        final var extension = new PlatformConfigurationExtension();
+        final Set<Class<? extends Record>> allRecordsFound =
+                ConfigUtils.loadAllConfigDataRecords(Set.of("com.swirlds"));
+        final Configuration config =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
-        // when
-        final var allConfigDataTypes = extension.getConfigDataTypes();
+        for (final Class<? extends Record> record : allRecordsFound) {
+            // when
+            final Object configData = config.getConfigData(record);
 
-        // then
-        assertThat(allConfigDataTypes).containsExactlyInAnyOrderElementsOf(allRecordsFound);
+            // then
+            assertThat(configData)
+                    .as("Config data for " + record.getName() + " should be registered.")
+                    .isNotNull();
+        }
+    }
+
+    @Test
+    void testConfigTypes() {
+        final PlatformConfigurationExtension extension = new PlatformConfigurationExtension();
+
+        assertThat(extension.getConfigDataTypes())
+                .containsExactlyInAnyOrderElementsOf(Arrays.asList(
+                        BasicConfig.class,
+                        ModulesConfig.class,
+                        FallenBehindConfig.class,
+                        OSHealthCheckConfig.class,
+                        PlatformMetricsConfig.class,
+                        WiringConfig.class,
+                        InternalLoggingConfig.class));
     }
 }

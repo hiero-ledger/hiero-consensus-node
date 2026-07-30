@@ -32,7 +32,7 @@ class TokenKeyCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenKeyTranslator.TOKEN_KEY
                         .getOutputs()
@@ -45,7 +45,7 @@ class TokenKeyCallTest extends CallTestBase {
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
                                         headlongAddressOf(ZERO_CONTRACT_ID))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -56,7 +56,7 @@ class TokenKeyCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenKeyTranslator.TOKEN_KEY
                         .getOutputs()
@@ -69,7 +69,7 @@ class TokenKeyCallTest extends CallTestBase {
                                         key.ecdsaSecp256k1().toByteArray(),
                                         headlongAddressOf(ZERO_CONTRACT_ID))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -79,7 +79,7 @@ class TokenKeyCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenKeyTranslator.TOKEN_KEY
                         .getOutputs()
@@ -92,7 +92,7 @@ class TokenKeyCallTest extends CallTestBase {
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
                                         headlongAddressOf(ZERO_CONTRACT_ID))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -103,7 +103,7 @@ class TokenKeyCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenKeyTranslator.TOKEN_KEY
                         .getOutputs()
@@ -116,7 +116,7 @@ class TokenKeyCallTest extends CallTestBase {
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
                                         headlongAddressOf(VALID_CONTRACT_ADDRESS))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -125,7 +125,7 @@ class TokenKeyCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenKeyTranslator.TOKEN_KEY
                         .getOutputs()
@@ -138,7 +138,7 @@ class TokenKeyCallTest extends CallTestBase {
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
                                         headlongAddressOf(ZERO_CONTRACT_ID))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -147,7 +147,7 @@ class TokenKeyCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

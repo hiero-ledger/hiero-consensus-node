@@ -46,6 +46,8 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
@@ -81,6 +83,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -91,9 +94,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -215,10 +220,23 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Map<Long, CompletableFuture<Bytes>> endRoundStateHashes = new ConcurrentHashMap<>();
 
     /**
-     * If not null, a future to complete when the block manager's fatal shutdown process is done.
+     * Set on any thread when the platform reaches CATASTROPHIC_FAILURE; read on the handler thread to stop the
+     * block stream and trigger the one-shot triage flush at the next round boundary.
      */
-    @Nullable
-    private volatile CompletableFuture<Void> fatalShutdownFuture = null;
+    private volatile boolean fatalShutdownRequested = false;
+
+    private volatile boolean roundInProgress = false;
+    /**
+     * Completed once the triage flush has run (by the handler thread, or by the status-thread fallback in
+     * {@link #awaitFatalShutdown}). Pre-allocated and never reassigned; {@code isDone()} (checked under
+     * {@link #fatalShutdownLock}) is the one-shot done-guard.
+     */
+    private final CompletableFuture<Void> fatalShutdownFuture = new CompletableFuture<>();
+    /**
+     * Guards the one-shot triage flush so its body runs at most once and completes {@link #fatalShutdownFuture}
+     * exactly once across the handler thread and the status-thread fallback.
+     */
+    private final Object fatalShutdownLock = new Object();
 
     /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
@@ -228,6 +246,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * The counter for the number of blocks closed with indirect proofs.
      */
     private final Counter indirectProofCounter;
+
+    private final BlockStreamingObs streamingObs;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -242,7 +262,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final SemanticVersion version,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -267,6 +288,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
+        this.streamingObs = requireNonNull(streamingObs);
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
         indirectProofCounter = requireNonNull(metrics)
@@ -288,17 +310,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
+    public void init(
+            @NonNull final State state, @Nullable final Bytes lastBlockHash, final boolean cutoverSchemaExecuted) {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
 
         // Cutover case
-        if (loadCutoverData(
-                configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .enableCutover(),
-                state)) {
+        if (cutoverSchemaExecuted
+                && loadCutoverData(
+                        configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .enableCutover(),
+                        state)) {
             log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
 
             // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
@@ -426,11 +450,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void startRound(@NonNull final Round round, @NonNull final State state) {
+        try {
+            startRoundInternal(round, state);
+        } catch (final RuntimeException e) {
+            // A failed start means no matching endRound will run for this round; clear the in-progress flag so a
+            // concurrent fatal-shutdown waiter does not block on a round boundary that will never arrive.
+            roundInProgress = false;
+            throw e;
+        }
+    }
+
+    private void startRoundInternal(@NonNull final Round round, @NonNull final State state) {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
-        if (fatalShutdownFuture != null) {
-            log.fatal("Ignoring round {} after fatal shutdown request", round.getRoundNum());
+        roundInProgress = true;
+        // After catastrophic failure the block stream is stopped; capture any open/pending blocks for triage (once)
+        // and do not open a new block.
+        if (fatalShutdownRequested) {
+            flushOpenAndPendingBlocksForTriage();
+            roundInProgress = false;
             return;
         }
 
@@ -478,6 +517,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
+            streamingObs.onBlockInit(blockNumber);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
@@ -513,32 +553,56 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 return;
             }
 
-            for (int i = 0; i < onDiskPendingBlocks.size(); i++) {
-                var block = onDiskPendingBlocks.get(i);
-                try {
-                    final var pendingWriter = writerSupplier.get();
-
-                    pendingWriter.openBlock(block.number());
-                    block.items()
-                            .forEach(
-                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
-                    addPendingBlock(new PendingBlock(
-                            block.number(),
-                            block.contentsPath(),
-                            block.blockHash(),
-                            block.pendingProof().previousBlockHash(),
-                            block.proofBuilder(),
-                            pendingWriter,
-                            block.pendingProof().blockTimestamp(),
-                            block.siblingHashesIfUseful()));
-                    log.info("Recovered pending block #{}", block.number());
-                } catch (Exception e) {
-                    log.warn("Failed to recover pending block #{}", block.number(), e);
-                }
+            for (final var pendingBlock : recoverableSuffixOf(onDiskPendingBlocks)) {
+                addPendingBlock(pendingBlock);
+                log.info("Recovered pending block #{}", pendingBlock.number());
             }
         } catch (Exception e) {
             log.warn("Failed to load pending blocks", e);
         }
+    }
+
+    /**
+     * Re-creates in-memory pending blocks for as many of the given on-disk pending blocks as possible while keeping
+     * the result contiguous. Since an indirect proof for a pending block requires the sibling hashes of every later
+     * block up to the one whose signature anchors the proof, a recovered block is only useful if all blocks after it
+     * were also recovered; so blocks are recovered newest-first and recovery stops at the first failure, discarding
+     * any older blocks as unprovable.
+     *
+     * @param onDiskPendingBlocks the on-disk pending blocks, in ascending block number order
+     * @return the recovered pending blocks, in ascending block number order
+     */
+    @VisibleForTesting
+    List<PendingBlock> recoverableSuffixOf(@NonNull final List<OnDiskPendingBlock> onDiskPendingBlocks) {
+        final LinkedList<PendingBlock> recovered = new LinkedList<>();
+        for (int i = onDiskPendingBlocks.size() - 1; i >= 0; i--) {
+            final var block = onDiskPendingBlocks.get(i);
+            try {
+                final var pendingWriter = writerSupplier.get();
+
+                pendingWriter.openBlock(block.number());
+                block.items()
+                        .forEach(item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
+                recovered.addFirst(new PendingBlock(
+                        block.number(),
+                        block.contentsPath(),
+                        block.blockHash(),
+                        block.pendingProof().previousBlockHash(),
+                        block.proofBuilder(),
+                        pendingWriter,
+                        block.pendingProof().blockTimestamp(),
+                        block.siblingHashesIfUseful()));
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to recover pending block #{}; discarding {} older pending block(s) that could not"
+                                + " be proven without it",
+                        block.number(),
+                        i,
+                        e);
+                break;
+            }
+        }
+        return recovered;
     }
 
     private void addPendingBlock(@NonNull final PendingBlock pendingBlock) {
@@ -625,6 +689,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean willCloseBlock(@NonNull final State state, final long roundNum) {
+        if (fatalShutdownRequested) {
+            return false;
+        }
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
@@ -633,10 +700,27 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
+        try {
+            return endRoundInternal(state, roundNum);
+        } finally {
+            // Always clear the in-progress flag, even if endRoundInternal threw, so a concurrent fatal-shutdown
+            // waiter does not block on a round boundary that will never arrive.
+            roundInProgress = false;
+        }
+    }
+
+    private boolean endRoundInternal(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
+        // After catastrophic failure the block stream is stopped; dump the in-progress block + any pending blocks for
+        // triage (once) instead of running the normal close. This captures the open block as-is on the handler thread
+        // and issues no new signing request during shutdown.
+        if (fatalShutdownRequested) {
+            flushOpenAndPendingBlocksForTriage();
+            return false;
+        }
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // No-op if quiescence is disabled
@@ -730,6 +814,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Write BlockFooter to block stream (last item before BlockProof)
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
+            streamingObs.onBlockFooterCreate(blockNumber);
             worker.addItem(footerItem);
             worker.sync();
 
@@ -831,7 +916,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
                 if (diskNetworkExportTss) {
-                    log.warn("Including dev-only TSS private key material in exported network info");
+                    log.warn("Including dev-only TSS metadata in exported network info; private key "
+                            + "material is embedded only under non-PROD profiles");
                     infoTypes.add(InfoType.TSS);
                 }
                 log.info(
@@ -850,29 +936,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndexInBlock.clear();
             eventIndex = 0;
         }
-        if (fatalShutdownFuture != null) {
-            // Flush all pending blocks to local disk for triage (e.g. ISS diagnosis)
-            // before abandoning their incomplete proofs
-            pendingBlocks.forEach(block -> {
-                log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
-                try {
-                    block.writer().flushPendingBlock(block.asPendingProof());
-                } catch (final Exception e) {
-                    log.fatal("Failed to flush pending block #{}", block.number(), e);
-                }
-            });
-            if (writer != null) {
-                log.fatal("Prematurely closing block {}", blockNumber);
-                writer.closeCompleteBlock();
-                writer = null;
-            }
-            requireNonNull(fatalShutdownFuture).complete(null);
-        }
+        // The round is finished; the handler is no longer mutating the writer/worker until the next startRound
+        // (the in-progress flag is cleared by the endRound wrapper's finally).
         return closesBlock;
     }
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
+        // After catastrophic failure the stream is stopped and the worker has been released; drop further items
+        // rather than mutate the flushed snapshot or NPE on the null worker.
+        if (fatalShutdownRequested) {
+            return;
+        }
         lastUsedTime = switch (item.item().kind()) {
             case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
@@ -884,11 +959,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void writeItem(@NonNull final Function<Timestamp, BlockItem> itemSpec) {
         requireNonNull(itemSpec);
+        if (fatalShutdownRequested) {
+            return;
+        }
         writeItem(itemSpec.apply(lastUsedTime));
     }
 
     @Override
     public @Nullable Bytes prngSeed() {
+        // After catastrophic failure the worker has been released and the stream is stopped; there is no seed to give.
+        if (fatalShutdownRequested) {
+            return null;
+        }
         // Incorporate all pending results before returning the seed to guarantee
         // no two consecutive transactions ever get the same seed
         worker.sync();
@@ -974,13 +1056,31 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-                final var stateProof = BlockStateProofGenerator.generateStateProof(
-                        currentPendingBlock,
-                        blockNumber,
-                        effectiveSignature,
-                        signedBlock.blockTimestamp(),
-                        // Pass the remaining pending blocks, but don't remove them from the queue
-                        pendingBlocks.stream());
+                final StateProof stateProof;
+                try {
+                    stateProof = BlockStateProofGenerator.generateStateProof(
+                            currentPendingBlock,
+                            blockNumber,
+                            effectiveSignature,
+                            signedBlock.blockTimestamp(),
+                            // Pass the remaining pending blocks, but don't remove them from the queue
+                            pendingBlocks.stream());
+                } catch (final IllegalStateException e) {
+                    // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
+                    // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path
+                    // will — then mark it complete so a freeze waiting on pendingBlockProofsFuture resolves instead
+                    // of hanging on a block that will never be proven.
+                    log.error(
+                            "Cannot construct indirect proof for pending block #{}; dropping it",
+                            currentPendingBlock.number(),
+                            e);
+                    currentPendingBlock.writer().flushIncompleteBlock();
+                    if (currentPendingBlock.contentsPath() != null) {
+                        cleanUpPendingBlock(currentPendingBlock.contentsPath());
+                    }
+                    markPendingBlockProofComplete(currentPendingBlock);
+                    continue;
+                }
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
                 if (log.isDebugEnabled()) {
@@ -992,6 +1092,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
 
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
+            streamingObs.onBlockProofCreate(currentPendingBlock.number());
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first
@@ -1033,9 +1134,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {
-        if (fatalShutdownFuture != null) {
-            return true;
-        }
         // We need the signer to be ready
         if (!blockHashSigner.isReady()) {
             return false;
@@ -1078,18 +1176,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     class BlockStreamManagerTask {
 
+        // First failure seen in this block's hashing pipeline; sync() rethrows it so the handler thread fails fast
+        // instead of deadlocking on join() when a task never completes.
+        final AtomicReference<Throwable> pipelineFailure = new AtomicReference<>();
         SequentialTask prevTask;
         SequentialTask currentTask;
 
         BlockStreamManagerTask() {
             prevTask = null;
-            currentTask = new SequentialTask();
+            currentTask = new SequentialTask(pipelineFailure);
             currentTask.send();
         }
 
         void addItem(BlockItem item) {
-            new ParallelTask(item, currentTask).send();
-            SequentialTask nextTask = new SequentialTask();
+            new ParallelTask(item, currentTask, pipelineFailure).send();
+            SequentialTask nextTask = new SequentialTask(pipelineFailure);
             currentTask.send(nextTask);
             prevTask = currentTask;
             currentTask = nextTask;
@@ -1098,79 +1199,116 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         void sync() {
             if (prevTask != null) {
                 prevTask.join();
+                final var failure = pipelineFailure.get();
+                if (failure != null) {
+                    throw new IllegalStateException("Block stream hashing pipeline failed", failure);
+                }
             }
         }
     }
 
     class ParallelTask extends AbstractTask {
 
+        final AtomicReference<Throwable> pipelineFailure;
         BlockItem item;
         SequentialTask out;
 
-        ParallelTask(BlockItem item, SequentialTask out) {
+        ParallelTask(BlockItem item, SequentialTask out, AtomicReference<Throwable> pipelineFailure) {
             super(executor, 1);
             this.item = item;
             this.out = out;
+            this.pipelineFailure = pipelineFailure;
         }
 
         @Override
         protected boolean onExecute() {
+            byte[] bytes = null;
             try {
-                final byte[] bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                out.send(item, bytes);
-                return true;
-            } catch (Exception e) {
-                log.error("{} - error hashing item {}", ALERT_MESSAGE, item, e);
-                return false;
+                bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
+            } catch (final Exception e) {
+                log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, e);
+                pipelineFailure.compareAndSet(null, e);
             }
-        }
-    }
-
-    class SequentialTask extends AbstractTask {
-
-        SequentialTask next;
-        BlockItem item;
-        byte[] serialized;
-
-        SequentialTask() {
-            super(executor, 3);
-        }
-
-        @Override
-        protected boolean onExecute() {
-            final var kind = item.item().kind();
-            switch (kind) {
-                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
-                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
-                case TRANSACTION_RESULT -> {
-                    outputTreeHasher.addLeaf(serialized);
-
-                    // Also update running hashes
-                    final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
-                    runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
-                }
-                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
-                case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
-                case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
-                case BLOCK_FOOTER, BLOCK_PROOF -> {
-                    // BlockFooter and BlockProof are not included in any merkle tree
-                    // They are metadata about the block, not part of the hashed content
-                }
-            }
-
-            final BlockHeader header = item.blockHeader();
-            if (header != null) {
-                writer.openBlock(header.number());
-            }
-            writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
-
-            next.send();
+            // Always hand the item downstream (bytes is null on failure) so the sequential task fires and the chain
+            // keeps advancing; it observes the recorded failure and skips its work.
+            out.send(item, bytes);
             return true;
         }
 
         @Override
         protected void onException(final Throwable t) {
-            log.error("Error occurred while executing task", t);
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute() and slipped past the catch above;
+            // record it and still hand the item downstream so the sequential task fires and sync()/join() does not
+            // hang.
+            log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, t);
+            pipelineFailure.compareAndSet(null, t);
+            out.send(item, null);
+        }
+    }
+
+    class SequentialTask extends AbstractTask {
+
+        final AtomicReference<Throwable> pipelineFailure;
+        SequentialTask next;
+        BlockItem item;
+        byte[] serialized;
+
+        SequentialTask(final AtomicReference<Throwable> pipelineFailure) {
+            super(executor, 3);
+            this.pipelineFailure = pipelineFailure;
+        }
+
+        @Override
+        protected boolean onExecute() {
+            // Skip hashing/writing once the pipeline has failed, but always advance the chain so sync()/join() does
+            // not hang; a failure here is recorded rather than swallowed.
+            if (pipelineFailure.get() == null) {
+                try {
+                    final var kind = item.item().kind();
+                    switch (kind) {
+                        case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
+                        case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
+                        case TRANSACTION_RESULT -> {
+                            outputTreeHasher.addLeaf(serialized);
+
+                            // Also update running hashes
+                            final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
+                            runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
+                        }
+                        case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
+                        case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
+                        case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
+                        case BLOCK_FOOTER, BLOCK_PROOF -> {
+                            // BlockFooter and BlockProof are not included in any merkle tree
+                            // They are metadata about the block, not part of the hashed content
+                        }
+                    }
+
+                    final BlockHeader header = item.blockHeader();
+                    if (header != null) {
+                        writer.openBlock(header.number());
+                    }
+                    writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
+                } catch (final Exception e) {
+                    log.error("{} - error hashing/writing block item {}", ALERT_MESSAGE, item, e);
+                    pipelineFailure.compareAndSet(null, e);
+                }
+            }
+
+            if (next != null) {
+                next.send();
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute(); record it and keep the chain moving.
+            log.error("{} - error executing block item hashing task", ALERT_MESSAGE, t);
+            pipelineFailure.compareAndSet(null, t);
+            if (next != null) {
+                next.send();
+            }
         }
 
         void send(SequentialTask next) {
@@ -1299,18 +1437,115 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void notifyFatalEvent() {
-        fatalShutdownFuture = new CompletableFuture<>();
+        if (!fatalShutdownRequested) {
+            log.fatal("Catastrophic failure signalled; stopping block stream and scheduling a triage flush of "
+                    + "open/pending blocks at the next round boundary");
+        }
+        fatalShutdownRequested = true;
     }
 
     @Override
     public void awaitFatalShutdown(@NonNull final java.time.Duration timeout) {
         requireNonNull(timeout);
-        log.fatal("Awaiting any in-progress round to be closed within {}", timeout);
-        Optional.ofNullable(fatalShutdownFuture)
-                .orElse(CompletableFuture.completedFuture(null))
-                .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
-                .join();
+        if (!fatalShutdownRequested) {
+            log.warn("awaitFatalShutdown called without a prior notifyFatalEvent; ignoring");
+            return;
+        }
+        if (!roundInProgress) {
+            log.fatal("No round in progress at fatal shutdown; flushing open and pending blocks for triage directly");
+            flushOpenAndPendingBlocksForTriage();
+        } else {
+            log.fatal("Awaiting handler-thread triage flush (round in progress) within {}", timeout);
+            try {
+                fatalShutdownFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.fatal("Interrupted while awaiting triage flush", e);
+            } catch (final TimeoutException e) {
+                log.fatal(
+                        "Open in-progress block NOT captured for triage: handler still in a round after {}; "
+                                + "flushing already-closed pending blocks only",
+                        timeout);
+            } catch (final ExecutionException e) {
+                log.fatal("Triage flush failed while awaiting it", e);
+            }
+            flushPendingBlocksOnlyForTriage();
+        }
         log.fatal("Block stream fatal shutdown complete");
+    }
+
+    /**
+     * One-shot, idempotent flush of the in-progress block plus all pending blocks to local disk for triage (e.g. ISS
+     * diagnosis).
+     */
+    private void flushOpenAndPendingBlocksForTriage() {
+        synchronized (fatalShutdownLock) {
+            if (fatalShutdownFuture.isDone()) {
+                return;
+            }
+            try {
+                // Quiesce in-flight writes to the in-progress writer. Done OUTSIDE synchronized(this) on purpose: it
+                // joins block-item write tasks on the (common) ForkJoinPool, and the signing callbacks that complete
+                // proofs also run on that pool while synchronized(this). Holding the monitor across this join could
+                // otherwise starve it if the pool were saturated with those callbacks.
+                if (worker != null) {
+                    try {
+                        worker.sync();
+                    } catch (final Exception e) {
+                        log.fatal("Failed to sync in-flight block items before triage flush", e);
+                    }
+                }
+                // Only the pending-block drain shares writers with finishProofWithSignature, so only it needs the lock.
+                synchronized (this) {
+                    drainAndFlushPendingBlocks();
+                }
+                // The in-progress writer is handler-owned (quiesced above) and is never touched by signing callbacks,
+                // so it can be flushed without the monitor. flushIncompleteBlock persists the open, unproven block as
+                // a ".open.gz" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
+                if (writer != null) {
+                    log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
+                    try {
+                        writer.flushIncompleteBlock();
+                    } catch (final Exception e) {
+                        log.fatal("Failed to flush in-progress block {}", blockNumber, e);
+                    }
+                    writer = null;
+                }
+                worker = null;
+            } finally {
+                fatalShutdownFuture.complete(null);
+            }
+        }
+    }
+
+    /**
+     * Status-thread fallback used by {@link #awaitFatalShutdown} when the handler thread does not reach a round
+     * boundary within the timeout. Flushes ONLY already-closed pending blocks (their writers are quiescent once
+     * enqueued); it never touches the handler-owned in-progress {@code writer}/{@code worker}, so it is race-free
+     * from the status thread. No-op if the handler flush already drained the queue.
+     */
+    private void flushPendingBlocksOnlyForTriage() {
+        synchronized (this) {
+            drainAndFlushPendingBlocks();
+        }
+    }
+
+    /**
+     * Drains {@code pendingBlocks}, flushing each to disk as a recoverable pending block and keeping the pending-proof
+     * bookkeeping consistent (so a freeze waiting on {@link #pendingBlockProofsFuture()} does not hang). Callers must
+     * hold {@code synchronized(this)} to exclude {@link #finishProofWithSignature}.
+     */
+    private void drainAndFlushPendingBlocks() {
+        PendingBlock block;
+        while ((block = pendingBlocks.poll()) != null) {
+            log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
+            try {
+                block.writer().flushPendingBlock(block.asPendingProof());
+            } catch (final Exception e) {
+                log.fatal("Failed to flush pending block #{}", block.number(), e);
+            }
+            markPendingBlockProofComplete(block);
+        }
     }
 
     @Override
@@ -1486,20 +1721,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Returns true iff the following conditions are met:
+     * Returns true iff the following persistent-state and configuration safeguards are met:
      * <ul>
      *     <li>The {@code enableCutover} flag is set to true</li>
      *     <li>The preview {@code BlockStreamInfo} object has been overwritten with the real wrapped record
      *     block hash (i.e. cutover) data from {@code BlockInfo}</li>
      *     <li>{@code BlockInfo.previewStreamOverwritten} has been marked as true</li>
-     *     <li>No post-cutover blocks have been produced yet (i.e. {@code BlockStreamInfo.blockNumber}
-     *     is still equal to {@code BlockInfo.lastBlockNumber} following the schema overwrite)</li>
+     *     <li>{@code BlockStreamInfo.blockNumber} is equal to {@code BlockInfo.lastBlockNumber}</li>
      * </ul>
      *
-     * If any of these conditions are not met this method returns false, indicating that cutover logic
-     * should not be executed and the block stream manager should proceed with normal initialization. If
-     * all of these conditions are met this method returns true, signaling that the block stream manager
-     * should initialize with the cutover data from state.
+     * <p>The caller separately requires the authoritative, non-persisted signal that the schema overwrite executed
+     * during this startup. Equal block numbers alone are insufficient because record and block streams can continue
+     * advancing in lockstep after cutover.
+     *
+     * <p>If any of these safeguards are not met this method returns false, indicating that the block stream manager
+     * should proceed with normal initialization.
      */
     private static boolean loadCutoverData(final boolean cutoverEnabled, final @NonNull State state) {
         if (!cutoverEnabled) {
@@ -1510,8 +1746,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
-            // This case also applies _after_ cutover, since future restarts shouldn't ever overwrite a preview block
-            // stream
             log.info(
                     "Preview block stream info not overwritten, skipping cutover init logic (previewStreamOverwritten={})",
                     blockInfo != null ? false : "null");

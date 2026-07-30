@@ -3,12 +3,13 @@ import com.hedera.node.app.service.networkadmin.NetworkService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 
 module com.hedera.node.app.service.network.admin.impl {
-    requires transitive com.hedera.node.app.hapi.fees;
-    requires transitive com.hedera.node.app.service.addressbook;
+    exports com.hedera.node.app.service.networkadmin.impl.handlers;
+    exports com.hedera.node.app.service.networkadmin.impl.schemas;
+    exports com.hedera.node.app.service.networkadmin.impl;
+
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.service.network.admin;
-    requires transitive com.hedera.node.app.service.token;
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -18,7 +19,9 @@ module com.hedera.node.app.service.network.admin.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
+    requires com.hedera.node.app.service.token;
     requires com.hedera.node.config;
     requires org.hiero.base.utility;
     requires com.google.common;
@@ -26,12 +29,8 @@ module com.hedera.node.app.service.network.admin.impl {
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
-    provides com.hedera.node.app.service.networkadmin.FreezeService with
-            FreezeServiceImpl;
     provides NetworkService with
             com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
-
-    exports com.hedera.node.app.service.networkadmin.impl;
-    exports com.hedera.node.app.service.networkadmin.impl.handlers;
-    exports com.hedera.node.app.service.networkadmin.impl.schemas;
+    provides com.hedera.node.app.service.networkadmin.FreezeService with
+            FreezeServiceImpl;
 }

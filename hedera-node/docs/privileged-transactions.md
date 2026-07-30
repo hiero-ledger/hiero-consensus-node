@@ -62,26 +62,23 @@ This document lists the privileged transactions recognized by the Hedera network
 
 ## Authorization privileges
 
-First we consider the four transaction types that always require authorization to execute. These include:
+First we consider the three transaction types that always require authorization to execute. These include:
 1. The `Freeze` transaction that schedules a maintenance window in which the network
 will stop accepting transactions and possibly perform a software update.
 2. The `SystemDelete` transaction that deletes a file or contract (even an immutable
 file or contract), without requiring the target entity's key to sign the transaction.
 3. The `SystemUndelete` transaction that reverses the action of a `SystemDelete`
 transaction, if within the window during which such a reversal is possible.
-4. The `UncheckedSubmit` transaction that submits a transaction to the network
-without enforcing standard prechecks. (The only real use cases for `UncheckedSubmit`
-are in development environments, where it can be invaluable for testing.)
 
 ### Authorization privileges for special transactions
 
-|               Payer               | `Freeze` | `SystemDelete` | `SystemUndelete` | `UncheckedSubmit` |
-|-----------------------------------|:--------:|:--------------:|:----------------:|:-----------------:|
-| `accounts.treasury=2`             |    X     |       X        |        X         |         X         |
-| `accounts.systemAdmin=50`         |    X     |       X        |        X         |         X         |
-| `accounts.freezeAdmin=58`         |    X     |                |                  |                   |
-| `accounts.systemDeleteAdmin=59`   |          |       X        |                  |                   |
-| `accounts.systemUndeleteAdmin=60` |          |                |        X         |                   |
+|               Payer               | `Freeze` | `SystemDelete` | `SystemUndelete` |
+|-----------------------------------|:--------:|:--------------:|:----------------:|
+| `accounts.treasury=2`             |    X     |       X        |        X         |
+| `accounts.systemAdmin=50`         |    X     |       X        |        X         |
+| `accounts.freezeAdmin=58`         |    X     |                |                  |
+| `accounts.systemDeleteAdmin=59`   |          |       X        |                  |
+| `accounts.systemUndeleteAdmin=60` |          |                |        X         |
 
 ### Authorization privileges for file updates and appends
 

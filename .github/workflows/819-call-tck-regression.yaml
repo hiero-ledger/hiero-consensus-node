@@ -24,6 +24,14 @@ on:
         type: string
         required: false
         default: "temurin"
+      tck-version:
+        description: "The version of the TCK to test against:"
+        required: true
+        type: string
+      js-sdk-version:
+        description: "The version of the JS-SDK to test against:"
+        required: true
+        type: string
 
     secrets:
       access-token:
@@ -58,6 +66,7 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   RUN_LOG_NAME: "run.tck-regression.log"
+  MIRROR_NODE_VERSION: "v0.156.0"
 
 jobs:
   # Execute TCK Regression Tests using specified version of hiero-consensus-node
@@ -69,7 +78,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -94,13 +103,22 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (TCK)
+      - name: Checkout TCK Tag
         run: |
           cd platform-sdk/regression
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest TCK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # Check out by tag first, then fall back to commit SHA.
+          if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (tag): ${{ inputs.tck-version }}"
+            git checkout "tags/${{ inputs.tck-version }}"
+          elif git rev-parse --verify "${{ inputs.tck-version }}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (commit SHA): ${{ inputs.tck-version }}"
+            git checkout "${{ inputs.tck-version }}"
+          else
+            echo "Specified TCK version ${{ inputs.tck-version }} not found as a tag or commit SHA."
+            exit 1
+          fi
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -111,17 +129,23 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (JS-SDK)
+      - name: Checkout JS-SDK Tag
         run: |
           cd platform-sdk/sdk-server
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
+          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
+            git checkout "tags/${{ inputs.js-sdk-version }}"
+          else
+            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       - name: Setup PNPM
         run: |
-          npm install -g pnpm
+          npm install -g pnpm@10.11.0
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
@@ -155,15 +179,116 @@ jobs:
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
         working-directory: platform-sdk/sdk-server/tck
 
-      # Prepare Hiero Solo
-      - name: Prepare Hiero Solo
-        id: solo-action
-        timeout-minutes: 20
-        uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
+      # The network under test is deployed from THIS checkout's build artifacts (the ref being
+      # tested), not a released consensus-node image, so the panel regression-tests the code
+      # each PR actually changes. Deployment mirrors 821-call-block-node-regression.yaml.
+      - name: Get Version of Checkout CN Codebase
+        run: |
+          RAW_VERSION=$(cat version.txt)
+          echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_VERSION env var"
+          echo "CN_VERSION=${RAW_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
-          installMirrorNode: true
-          mirrorNodeVersion: v0.138.0
-          soloVersion: ${{ inputs.solo-version || 'latest' }}
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          cp -f "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          chmod +x "${RUNNER_TEMP}/helm"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Cluster setup (Kind + Solo)
+        run: |
+          set -eo pipefail
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          sleep 10
+          solo init
+          solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+          solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes 1
+          solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+
+      - name: Create CN application properties File
+        run: |
+          cat <<EOF > application.env
+          TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps
+          EOF
+
+          echo "=== application.env ==="
+          cat ./application.env
+
+          # application.properties only applies to CN >= 0.77; skip for 0.75 and 0.76
+          if [[ "${CN_VERSION}" != 0.75* && "${CN_VERSION}" != 0.76* ]]; then
+            cat <<EOF > application.properties
+            blockStream.streamWrappedRecordBlocks=false
+          EOF
+
+            echo "=== application.properties ==="
+            cat ./application.properties
+          fi
+
+      - name: Solo Nodes deployment (CN local build + MN)
+        timeout-minutes: 35
+        env:
+          # A fresh kind cluster pulls every container image; solo's default pod-Running gate
+          # (900 x 1s) can expire on slow pulls, so widen it.
+          PODS_RUNNING_MAX_ATTEMPTS: "2700"
+        run: |
+          set -eo pipefail
+          solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
+          SOLO_PROPS_ARG=""
+          [[ -f ./application.properties ]] && SOLO_PROPS_ARG="--application-properties ./application.properties"
+          # shellcheck disable=SC2086
+          solo consensus network deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" --pvcs true --application-env ./application.env ${SOLO_PROPS_ARG}
+          solo consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+          solo consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
+          solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --pinger --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --mirror-node-version "${MIRROR_NODE_VERSION}"
+
+      # The TCK client expects the network on fixed localhost ports (see the Start tck-client
+      # env). NOTE: /api/v1/network/nodes is served by the restjava service on mirror-node
+      # >= ~0.15x (the JS rest module dropped it), hence the dedicated 8084 forward; 5600 must
+      # target mirror-1-grpc (the mirror gRPC API), not the monitor.
+      - name: Solo Port forwards
+        run: |
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc 50211:non-tls-grpc-client-port &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest 5551:http &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-restjava 8084:http &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-grpc 5600:5600 &
+          sleep 5
+
+      - name: Wait for network readiness
+        run: |
+          set -eo pipefail
+          kubectl -n "${SOLO_NAMESPACE}" get pods
+          echo "Waiting for mirror REST to serve /api/v1/blocks (up to 5m)"
+          for i in {1..60}; do
+            if curl -sf "http://127.0.0.1:5551/api/v1/blocks?limit=1" >/dev/null; then
+              echo "Mirror REST ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Mirror REST did not become ready on 127.0.0.1:5551" >&2
+          kubectl -n "${SOLO_NAMESPACE}" get pods >&2
+          exit 1
 
       # Start the TCK client
       - name: Start tck-client
@@ -181,9 +306,9 @@ jobs:
         run: |
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1000000
           else
-            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1000000
           fi
           cp .env.custom_node .env
           npm run test
@@ -230,6 +355,12 @@ jobs:
           echo ${{ steps.start-sdk-server.outputs.pid }}
           kill -9 ${{ steps.start-sdk-server.outputs.pid }}
 
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
@@ -239,36 +370,27 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-  report-tck-regression-status:
-    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+  build-slack-payload:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
     runs-on: hl-cn-sdk-tck-lin-sm
     needs:
       - tck-regression
-    if: ${{ always() }}
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
-          egress-policy: audit
-
-      - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          sparse-checkout: |
-            .github/workflows/templates
-          sparse-checkout-cone-mode: false
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+          setup-jq: "true"
 
       - name: Build Slack Payload Message
-        id: payload
+        id: build-payload
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report"
           STATUS_TEXT: "*TCK Regression Panel was executed. See status below.*"
@@ -278,19 +400,24 @@ jobs:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          COLOR="#FF0000"
-          if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
-            COLOR="#00FF00"
-          elif [[ "${{ needs.tck-regression.result }}" == "cancelled" ]]; then
-            COLOR="#555555"
-          fi
-          export SLACK_COLOR="${COLOR}"
-          gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
+          PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
+          echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
+
+  report-tck-regression-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hl-cn-sdk-tck-lin-sm
+    needs:
+      - build-slack-payload
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
 
       - name: Report Status to CITR Detailed Test Results
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
+          payload: ${{ needs.build-slack-payload.outputs.slack_payload }}

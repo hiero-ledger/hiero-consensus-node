@@ -9,14 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,10 +34,9 @@ class OrphanBufferEventGraphSourceTest {
 
     @BeforeEach
     void setUp() {
-        context = PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+        context = PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
-        final Roster roster =
-                RandomRosterBuilder.create(new Random(SEED)).withSize(NUM_NODES).build();
+        final Roster roster = RosterFactory.randomRoster(new Random(SEED), NUM_NODES);
 
         // Generate raw events
         rawEvents = generateEvents(Randotron.create(), NUM_EVENTS, context, roster, null);

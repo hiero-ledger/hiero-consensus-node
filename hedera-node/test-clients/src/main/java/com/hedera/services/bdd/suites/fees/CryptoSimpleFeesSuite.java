@@ -30,6 +30,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.List.*;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -67,12 +68,10 @@ public class CryptoSimpleFeesSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "fees.simpleFeesEnabled", "true",
-                "hooks.hooksEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto create plain")
     final Stream<DynamicTest> cryptoCreatePlain() {
         return compareSimpleToOld(
@@ -86,7 +85,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto create with key")
     final Stream<DynamicTest> cryptoCreateWithKey() {
         return compareSimpleToOld(
@@ -104,7 +103,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto delete plain")
     final Stream<DynamicTest> cryptoDeletePlain() {
         return compareSimpleToOld(
@@ -124,13 +123,12 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto update basic (no key change)")
     final Stream<DynamicTest> cryptoUpdateBasic() {
         // Extra signatures: payer only (node includes 1 signature).
         final var extraSignatures = 0L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate("accountToUpdate").balance(ONE_HBAR),
                 cryptoUpdate("accountToUpdate")
                         .memo("Updated memo")
@@ -143,17 +141,15 @@ public class CryptoSimpleFeesSuite {
                     final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
                     allRunFor(
                             spec, validateChargedSimpleFees("Simple Fees", "updateAccountBasicTxn", expectedFee, 1.0));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto update with key change")
     final Stream<DynamicTest> cryptoUpdateWithKey() {
         // Extra signatures: payer + new key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed("newAccountKey"),
                 cryptoCreate("accountToUpdate").balance(ONE_HBAR),
                 cryptoUpdate("accountToUpdate")
@@ -166,17 +162,15 @@ public class CryptoSimpleFeesSuite {
                     final var signedTxnSize = signedTxnSizeFor(spec, "updateAccountKeyTxn");
                     final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "updateAccountKeyTxn", expectedFee, 1.0));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto update memo only")
     final Stream<DynamicTest> cryptoUpdateMemo() {
         // Extra signatures: payer only (node includes 1 signature).
         final var extraSignatures = 0L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original memo"),
                 cryptoUpdate("accountToUpdate")
                         .memo("Updated memo text")
@@ -188,17 +182,15 @@ public class CryptoSimpleFeesSuite {
                     final var signedTxnSize = signedTxnSizeFor(spec, "updateAccountMemoTxn");
                     final var expectedFee = cryptoUpdateSimpleFeeUsd(extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "updateAccountMemoTxn", expectedFee, 1.0));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto update combined (key + memo)")
     final Stream<DynamicTest> cryptoUpdateCombined() {
         // Extra signatures: payer + new key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed("combinedKey"),
                 cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original"),
                 cryptoUpdate("accountToUpdate")
@@ -214,11 +206,10 @@ public class CryptoSimpleFeesSuite {
                     allRunFor(
                             spec,
                             validateChargedSimpleFees("Simple Fees", "updateAccountCombinedTxn", expectedFee, 1.0));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto create with single hook")
     final Stream<DynamicTest> cryptoCreateWithSingleHook() {
         return compareSimpleToOld(
@@ -239,7 +230,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto create with two hooks")
     final Stream<DynamicTest> cryptoCreateWithTwoHooks() {
         return compareSimpleToOld(
@@ -261,7 +252,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto create with five hooks")
     final Stream<DynamicTest> cryptoCreateWithFiveHooks() {
         return compareSimpleToOld(
@@ -287,7 +278,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto create with hooks and key")
     final Stream<DynamicTest> cryptoCreateWithHooksAndKeys() {
         return compareSimpleToOld(
@@ -311,7 +302,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto update with single hook creation")
     final Stream<DynamicTest> cryptoUpdateWithSingleHook() {
         return compareSimpleToOld(
@@ -334,7 +325,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto update with multiple hook")
     final Stream<DynamicTest> cryptoUpdateWithMultipleHooks() {
         return compareSimpleToOld(
@@ -358,7 +349,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto update with hook deletion")
     final Stream<DynamicTest> cryptoUpdateWithHookDeletion() {
         return compareSimpleToOld(
@@ -383,7 +374,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto update with hook creation and deletion")
     final Stream<DynamicTest> cryptoUpdateWithHookCreationAndDeletion() {
         return compareSimpleToOld(
@@ -408,7 +399,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @LeakyHapiTest(overrides = {"hooks.hooksEnabled"})
     @DisplayName("crypto update with hook and key change")
     final Stream<DynamicTest> cryptoUpdateWithHookAndKey() {
         return compareSimpleToOld(
@@ -432,7 +423,7 @@ public class CryptoSimpleFeesSuite {
                 1.0);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto approve allowance plain")
     final Stream<DynamicTest> cryptoApproveAllowancePlain() {
         return hapiTest(
@@ -445,7 +436,7 @@ public class CryptoSimpleFeesSuite {
                 validateChargedUsd("approveTxn", CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto approve allowance with multiple allowances")
     final Stream<DynamicTest> cryptoApproveAllowanceMultiple() {
         return hapiTest(
@@ -463,7 +454,7 @@ public class CryptoSimpleFeesSuite {
                 validateChargedUsd("approveMultipleTxn", 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto delete allowance plain")
     final Stream<DynamicTest> cryptoDeleteAllowancePlain() {
         return hapiTest(
@@ -481,7 +472,7 @@ public class CryptoSimpleFeesSuite {
                 validateChargedUsd("deleteTxn", CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto delete allowance with multiple allowances")
     final Stream<DynamicTest> cryptoDeleteAllowanceMultiple() {
         return hapiTest(
@@ -514,7 +505,7 @@ public class CryptoSimpleFeesSuite {
                 validateChargedUsd("deleteMultipleTxn", 3 * CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto approve allowance with multiple signatures")
     final Stream<DynamicTest> cryptoApproveAllowanceMultipleSignatures() {
         return hapiTest(
@@ -532,7 +523,7 @@ public class CryptoSimpleFeesSuite {
                         "approveMultiSigTxn", CRYPTO_APPROVE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto delete allowance with multiple signatures")
     final Stream<DynamicTest> cryptoDeleteAllowanceMultipleSignatures() {
         return hapiTest(

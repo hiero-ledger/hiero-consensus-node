@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.shuffle;
@@ -17,13 +17,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.collections.HashListByteBuffer;
-import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -31,9 +27,6 @@ import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
@@ -50,12 +43,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
 
@@ -504,8 +494,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             assertTrue(dataSource.getKeyToPath().isResizeNeeded(0, 100), "Resize should be needed for key-to-path");
 
             final ThreadPoolExecutor compactingExecutor =
-                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
-                            CONFIGURATION.getConfigData(MerkleDbConfig.class));
+                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(DEFAULT_MERKLE_DB_CONFIG);
             final long initialTaskCount = compactingExecutor.getTaskCount();
 
             dataSource.enableBackgroundCompaction();
@@ -619,78 +608,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         });
     }
 
-    @ParameterizedTest
-    @ValueSource(longs = {0, 50_000, 299_999, 300_000, 300_001, 400_000, 1_000_000, 8388608, Long.MAX_VALUE})
-    void migrateHashesToChunks(final long hashesRamToDiskThreshold) throws IOException {
-        final String dbName = "vm";
-        final int size = 300_000;
-        final long firstLeafPath = size - 1;
-        final long lastLeafPath = 2 * size - 2;
-        createAndApplyDataSource(dbName, size, dataSource -> {
-            final Path snapshotDbPath = fileSystemManager.resolveNewTemp("migrateHashesToChunks-snapshot");
-            // MerkleDbDataSource.snapshot() builds a snapshot in a new format with hash chunks.
-            // Let's hack the snapshot so it looks like the old format, so hash migration can
-            // be tested
-            // Update first/last leaf paths
-            dataSource.saveRecords(firstLeafPath, lastLeafPath, Stream.empty(), Stream.empty(), Stream.empty(), false);
-            // Update hashes RAM/disk threshold. It isn't used now, but it was used previously. snapshot()
-            // will write the threshold to DB metadata regardless
-            dataSource.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
-            dataSource.snapshot(snapshotDbPath);
-
-            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
-            // Drop hash chunk index file and hash chunks store folder, they don't exist in
-            // legacy snapshots
-            Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
-            FileUtils.deleteDirectory(snapshotPaths.hashChunkDirectory);
-
-            // Now save some hashes in the old format
-            if (hashesRamToDiskThreshold > 0) {
-                final HashListByteBuffer hashStoreRam = new HashListByteBuffer(hashesRamToDiskThreshold, CONFIGURATION);
-                for (long i = 1; i < Math.min(lastLeafPath + 1, hashesRamToDiskThreshold); i++) {
-                    hashStoreRam.put(i, hash((int) (i + 1)));
-                }
-
-                hashStoreRam.writeToFile(snapshotPaths.hashStoreRamFile);
-            }
-            if (hashesRamToDiskThreshold <= lastLeafPath) {
-                final Path tmpDir = fileSystemManager.resolveNewTemp("migrateHashesToChunks-tmp");
-                final LongListSegment hashStoreDiskIndex = new LongListSegment(1024, 2 * size, 1024);
-                final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
-                        CONFIGURATION.getConfigData(MerkleDbConfig.class),
-                        tmpDir,
-                        dbName + "_internalhashes",
-                        null,
-                        null,
-                        hashStoreDiskIndex);
-                hashStoreDisk.updateValidKeyRange(hashesRamToDiskThreshold, lastLeafPath);
-                hashStoreDisk.startWriting();
-                for (long i = hashesRamToDiskThreshold; i <= lastLeafPath; i++) {
-                    final VirtualHashRecord rec = new VirtualHashRecord(i, hash((int) (i + 1)));
-                    hashStoreDisk.put(i, rec::writeTo, rec.getSizeInBytes());
-                }
-                hashStoreDisk.endWriting();
-
-                hashStoreDiskIndex.writeToFile(snapshotPaths.pathToDiskLocationInternalNodesFile);
-                hashStoreDisk.snapshot(snapshotPaths.hashStoreDiskDirectory);
-            }
-
-            // Restore
-            final MerkleDbDataSource snapshot = restoreDataSource(snapshotDbPath, dbName, false);
-            // Check all hashes are migrated successfully
-            try {
-                for (long i = firstLeafPath; i <= lastLeafPath; i++) {
-                    final long chunkId = VirtualHashChunk.pathToChunkId(i, dataSource.getHashChunkHeight());
-                    final VirtualHashChunk hashChunk = snapshot.loadHashChunk(chunkId);
-                    assertNotNull(hashChunk);
-                    assertEquals(hash((int) (i + 1)), hashChunk.getHashAtPath(i));
-                }
-            } finally {
-                snapshot.close();
-            }
-        });
-    }
-
     @Test
     void testRebuildHDHMIndex() throws Exception {
         final String label = "testRebuildHDHMIndex";
@@ -724,12 +641,11 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
 
         // Load snapshot 1 with empty tablesToRepairHdhm config. It's expected to contain a stale key
-        final Configuration config1 = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(VirtualMapConfig.class)
-                .withConfigDataType(PathsConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
-                .build();
+        final MerkleDbConfig config1 = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.TABLES_TO_REPAIR_HDHM, "")
+                .build()
+                .getConfigData(MerkleDbConfig.class);
         final MerkleDbDataSource snapshotDataSource1 = restoreDataSource(config1, snapshotDbPath1, label, false);
         try {
             IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
@@ -739,11 +655,11 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         }
 
         // Now load snapshot 2, but with HDHM bucket index rebuilt. There must be no stale keys there
-        final Configuration config2 = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(VirtualMapConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", label))
-                .build();
+        final MerkleDbConfig config2 = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.TABLES_TO_REPAIR_HDHM, label)
+                .build()
+                .getConfigData(MerkleDbConfig.class);
         final MerkleDbDataSource snapshotDataSource2 = restoreDataSource(config2, snapshotDbPath2, label, false);
         try {
             IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));

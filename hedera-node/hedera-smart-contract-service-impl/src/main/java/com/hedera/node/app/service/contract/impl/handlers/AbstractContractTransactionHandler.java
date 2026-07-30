@@ -5,20 +5,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Factory;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Provider;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * Holds some state and functionality common to the smart contract transaction handlers.
@@ -27,13 +24,12 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
 
     protected final Provider<Factory> provider;
     protected final ContractServiceComponent component;
-    protected final GasCalculator gasCalculator;
+    protected final HederaGasCalculator gasCalculator;
     protected final EntityIdFactory entityIdFactory;
-    protected final SmartContractFeeBuilder usageEstimator = new SmartContractFeeBuilder();
 
     protected AbstractContractTransactionHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         this.provider = requireNonNull(provider);
@@ -53,20 +49,6 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
         if (e instanceof PreCheckException pce && pce.responseCode() == INSUFFICIENT_GAS) {
             contractMetrics.incrementRejectedForGasTx(functionality);
         }
-    }
-
-    /**
-     * Return the fee matrix for the given transaction.  Inheritor is responsible for picking
-     * the correct fee matrix for the transactions it is handling.
-     * <p>
-     * Used by the default implementation of `calculateFees`, above.  If inheritor overrides
-     * `calculateFees` then it doesn't need to override this method.
-     */
-    protected /*abstract*/ @NonNull FeeData getFeeMatrices(
-            @NonNull final SmartContractFeeBuilder usageEstimator,
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
-            @NonNull final SigValueObj sigValObj) {
-        throw new IllegalStateException("must be overridden if `calculateFees` _not_ overridden");
     }
 
     protected @NonNull TransactionComponent getTransactionComponent(

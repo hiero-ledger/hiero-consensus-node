@@ -89,7 +89,9 @@ input and output wires plus an `EventTransactionSupplier` passed at
   See [Permission gates](#permission-gates).
 - **Platform status, sync progress, quiescence** — `platformStatusInputWire`,
   `syncProgressInputWire`, and `quiescenceCommandInputWire` feed the
-  `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively.
+  `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively. The
+  status feeding `PlatformStatusRule` comes from the state machine documented in
+  [`platform-status.md`](platform-status.md), the primary consumer of status.
 - **Transactions from execution** — `EventTransactionSupplier` is a
   functional interface
   (`consensus-model/.../transaction/EventTransactionSupplier.java`)
@@ -192,7 +194,9 @@ the advancement score it would produce against the current snapshot,
 and keeps only the candidates whose advancement weight is non-zero. If
 no candidate qualifies and this is not a genesis event, no event is
 created. Otherwise the event creator builds the new event with the
-top-ranked candidate(s) up to `maxOtherParents`. This is the
+top-ranked candidates up to `maxOtherParents` (TUN-140). Selecting several
+other-parents per event advances more tipset slots at once, so
+consensus is reached in fewer rounds. This is the
 snapshot-improvement-score gate from the source doc.
 
 The gate is implemented in
@@ -309,7 +313,7 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
   `eventIntakeThrottle`, `maximumPermissibleUnhealthyDuration`,
   `maxAllowedSyncLag`, `maxOtherParents`, `maxCreationRate`, `period`.
 - Source doc: [../../../core/tipset-algorithm.md](../../../core/tipset-algorithm.md).
-- Invariants: [TBD: INV-NNN once invariants.md catalog populates].
+- Invariants: INV-011 — birth round is monotonic along ancestry; INV-013 — an honest event's coin value is unpredictable; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
 
 ## Future state

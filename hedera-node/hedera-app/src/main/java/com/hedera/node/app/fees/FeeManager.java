@@ -1,31 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
-import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.FeeSchedule;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
@@ -33,7 +29,6 @@ import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.BufferUnderflowException;
 import java.time.Instant;
 import java.util.Collections;
@@ -46,9 +41,10 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
- * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
+ * Manages the fee schedule used to calculate fees. Whenever the fee schedule is updated,
  * the {@link #update(Bytes)} method should be called. Until updated, the fee schedule will be empty, which will
  * manifest as errors in attempting to execute a given transaction (a transaction without an entry in the fee schedule
  * cannot be executed).
@@ -208,70 +204,11 @@ public final class FeeManager {
         }
     }
 
-    /**
-     * Create a {@link FeeCalculator} for the given transaction and its details.
-     */
-    @NonNull
-    public FeeCalculator createFeeCalculator(
-            @Nullable final TransactionBody txBody,
-            @Nullable final Key payerKey,
-            @Nullable HederaFunctionality functionality,
-            final int numVerifications,
-            final int signatureMapSize,
-            @NonNull final Instant consensusTime,
-            @NonNull final SubType subType,
-            final boolean isInternalDispatch,
-            final ReadableStoreFactory storeFactory) {
-
-        if (txBody == null || payerKey == null || functionality == null) {
-            return NoOpFeeCalculator.INSTANCE;
-        }
-
-        // HookStore is charged based on the equivalent gas cost in an EVM transaction, so it inherits EVM prices
-        functionality = functionality == HOOK_STORE ? CONTRACT_CALL : functionality;
-
-        // Determine which fee schedule to use, based on the consensus time
-        // If it is not known, that is, if we have no fee data for that transaction, then we MUST NOT execute that
-        // transaction! We will not be able to charge appropriately for it.
-        final var feeData = getFeeData(functionality, consensusTime, subType);
-
-        // Create the fee calculator
-        return new FeeCalculatorImpl(
-                txBody,
-                payerKey,
-                numVerifications,
-                signatureMapSize,
-                feeData,
-                exchangeRateManager.activeRate(consensusTime),
-                isInternalDispatch,
-                congestionMultipliers,
-                storeFactory,
-                this.simpleFeesSchedule);
-    }
-
     public long congestionMultiplierFor(
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
-    }
-
-    @NonNull
-    public FeeCalculator createFeeCalculator(
-            @NonNull final HederaFunctionality functionality,
-            @NonNull final Instant consensusTime,
-            @NonNull final ReadableStoreFactory storeFactory) {
-        // Determine which fee schedule to use, based on the consensus time
-        final var feeData = getFeeData(functionality, consensusTime, SubType.DEFAULT);
-
-        // Create the fee calculator
-        return new FeeCalculatorImpl(
-                feeData,
-                exchangeRateManager.activeRate(consensusTime),
-                congestionMultipliers,
-                storeFactory,
-                functionality,
-                this.simpleFeesSchedule);
     }
 
     /**
@@ -295,17 +232,21 @@ public final class FeeManager {
     }
 
     /**
-     * Returns the gas price in tiny cents.
+     * Returns the gas price in tiny cents, sourced from the GAS extra of the simple fee schedule.
+     * The GAS extra is guaranteed by {@link org.hiero.hapi.fees.FeeScheduleUtils#isValid} for every
+     * loaded schedule, so this can only throw if no schedule has been loaded at all.
      *
      * @param consensusTime the consensus time
      * @return the gas price in tiny cents
+     * @throws IllegalStateException if no simple fee schedule with a GAS extra is loaded
      */
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
         requireNonNull(consensusTime);
-        return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
-                        .servicedataOrThrow()
-                        .gas()
-                / FEE_DIVISOR_FACTOR;
+        final var gasExtra = lookupExtraFee(getSimpleFeesSchedule(), Extra.GAS);
+        if (gasExtra == null) {
+            throw new IllegalStateException("The simple fee schedule is missing the required GAS extra");
+        }
+        return gasExtra.fee();
     }
 
     /**
@@ -342,5 +283,10 @@ public final class FeeManager {
     @NonNull
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
+    }
+
+    @NonNull
+    public org.hiero.hapi.support.fees.FeeSchedule getSimpleFeesSchedule() {
+        return simpleFeesSchedule != null ? simpleFeesSchedule : org.hiero.hapi.support.fees.FeeSchedule.DEFAULT;
     }
 }

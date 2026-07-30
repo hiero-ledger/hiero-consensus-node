@@ -3,7 +3,7 @@ package com.hedera.node.app.spi.fees.util;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import org.hiero.hapi.fees.FeeResult;
@@ -37,7 +37,7 @@ public class FeeUtils {
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
         if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
+            return FeeConstants.getTinybarsFromTinyCents(rate, amount);
         }
         return amount * hbarEquiv / rate.getCentEquiv();
     }

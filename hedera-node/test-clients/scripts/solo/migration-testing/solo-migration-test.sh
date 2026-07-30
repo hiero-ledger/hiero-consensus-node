@@ -7,8 +7,9 @@
 #
 #   Step 1 — Version detection
 #     Read version.txt, derive MAJOR.MINOR, compute the previous minor series,
-#     pick the latest matching v<MAJOR>.<MINOR-1>.* tag, derive UPGRADE_VERSION
-#     by stripping -SNAPSHOT.
+#     pick the latest matching v<MAJOR>.<MINOR-1>.* tag as the baseline
+#     (source) version. The upgrade target is always the local build; its
+#     version is read from HederaNode.jar's manifest.
 #
 #   Step 2 — Solo 3-node + Mirror Node deployment at the previous-minor tag
 #     kind cluster + solo {init, cluster-ref, deployment, cluster-ref-setup,
@@ -17,9 +18,10 @@
 #     the tag computed in step 1.
 #
 #   Step 3 — Upgrade to the local build (current branch)
-#     `solo consensus network upgrade --local-build-path` with UPGRADE_VERSION,
-#     wait for pods + haproxy, then verify each consensus node is actually
-#     running the local build's HederaNode.jar via META-INF/MANIFEST.MF.
+#     `solo consensus network upgrade --local-build-path` (intentionally no
+#     --upgrade-version; see upgrade_to_local), wait for pods + haproxy, then
+#     verify each consensus node is actually running the local build's
+#     HederaNode.jar via META-INF/MANIFEST.MF.
 #
 # Steps 4+ (CryptoCreate smoke, runner label, Slack reporting, XTS plumbing)
 # are out of scope here — they belong in the wrapping `zxc-*.yaml` workflow,
@@ -67,7 +69,20 @@ CLUSTER_CREATED_THIS_RUN="false"
 
 # Filled in by step 1.
 DEPLOY_RELEASE_TAG=""
-UPGRADE_VERSION=""
+TARGET_VERSION=""
+
+# Baseline source selection (step 1). BASELINE_MODE is "release-tag" (deploy a
+# published v<prev>.* release, downloaded by solo) or "local-build" (no such tag
+# yet — build the previous minor's release/<prev> branch from source and deploy
+# it via --local-build-path). BASELINE_BUILD_PATH/BASELINE_WORKTREE are only set
+# in local-build mode. DEPLOY_VERSION_LABEL is the semver label handed to
+# `network deploy --release-tag` (a label only; not an artifact download);
+# BASELINE_DESC is a human-readable label for logs.
+BASELINE_MODE="release-tag"
+BASELINE_BUILD_PATH=""
+BASELINE_WORKTREE=""
+DEPLOY_VERSION_LABEL=""
+BASELINE_DESC=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -84,6 +99,12 @@ cleanup() {
   local ec=$?
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
+  # Remove the previous-minor baseline worktree (local-build fallback) if we
+  # created one, so the primary checkout isn't left with a dangling worktree.
+  if [[ -n "${BASELINE_WORKTREE}" ]]; then
+    git -C "${REPO_ROOT}" worktree remove --force "${BASELINE_WORKTREE}" >/dev/null 2>&1 || true
+    rm -rf "${BASELINE_WORKTREE}" >/dev/null 2>&1 || true
   fi
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
   exit "${ec}"
@@ -118,9 +139,15 @@ wait_for_haproxy_ready() {
   done
 }
 
-local_build_implementation_version() {
-  unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
+# Read the Implementation-Version from a built data dir's HederaNode.jar manifest.
+build_implementation_version() {
+  local build_path="${1}"
+  unzip -p "${build_path}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
     | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1
+}
+
+local_build_implementation_version() {
+  build_implementation_version "${LOCAL_BUILD_PATH}"
 }
 
 consensus_pod_implementation_version() {
@@ -180,7 +207,9 @@ run_command_with_timeout() {
 
 # === Step 1 ====================================================================
 # Read version.txt -> extract MAJOR.MINOR -> previous minor -> latest matching
-# released/RC tag. Derive UPGRADE_VERSION by stripping -SNAPSHOT.
+# released/RC tag; that tag is the BASELINE (source) version the network is
+# first deployed at. The upgrade TARGET is always the local build staged via
+# --local-build-path; its real version comes from HederaNode.jar's manifest.
 compute_versions() {
   local raw major_minor major minor prev_series prev_tag
   raw="$(cat "${REPO_ROOT}/version.txt")"
@@ -197,26 +226,76 @@ compute_versions() {
   git -C "${REPO_ROOT}" fetch --tags --quiet
 
   prev_tag="$(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" | sort -V | tail -n 1)"
-  [[ -n "${prev_tag}" ]] || {
-    echo "No tag matches v${prev_series}.*; cannot determine previous-minor baseline" >&2
+
+  TARGET_VERSION="$(local_build_implementation_version)"
+  [[ -n "${TARGET_VERSION}" ]] || {
+    echo "Unable to read Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
     return 1
   }
 
-  DEPLOY_RELEASE_TAG="${prev_tag}"
-  UPGRADE_VERSION="v${raw%-SNAPSHOT}"
-
-  # `solo consensus network upgrade --upgrade-version <tag>` validates the tag
-  # against solo's image registry before applying --local-build-path. For an
-  # in-development MAJOR.MINOR (no rc or final yet published) the derived label
-  # won't resolve, so fall back to the deploy tag — the label is purely
-  # informational; what actually gets staged is `--local-build-path`.
-  if ! git -C "${REPO_ROOT}" rev-parse -q --verify "refs/tags/${UPGRADE_VERSION}" >/dev/null 2>&1; then
-    log "No published tag ${UPGRADE_VERSION}; falling back upgrade label to ${DEPLOY_RELEASE_TAG}"
-    UPGRADE_VERSION="${DEPLOY_RELEASE_TAG}"
+  if [[ -n "${prev_tag}" ]]; then
+    # Normal path: a published previous-minor release exists; solo downloads it
+    # by tag for the baseline deploy/setup.
+    BASELINE_MODE="release-tag"
+    DEPLOY_RELEASE_TAG="${prev_tag}"
+    DEPLOY_VERSION_LABEL="${prev_tag}"
+    BASELINE_DESC="${prev_tag} (latest released v${prev_series}.* tag)"
+  else
+    # Fallback: no v${prev_series}.* tag yet — the window between a version roll
+    # and the previous minor's first tag. Build the previous minor's
+    # release/${prev_series} branch from source and deploy it as the baseline
+    # via --local-build-path (a git branch is not a valid --release-tag, and
+    # solo does not build from source itself).
+    log "No v${prev_series}.* tag found; falling back to a release/${prev_series} source build"
+    build_baseline_from_release_branch "${prev_series}"
   fi
 
-  log "DEPLOY_RELEASE_TAG = ${DEPLOY_RELEASE_TAG}"
-  log "UPGRADE_VERSION    = ${UPGRADE_VERSION}"
+  log "Migration source (baseline): ${BASELINE_DESC}"
+  log "Migration target           : ${TARGET_VERSION} (local build at ${LOCAL_BUILD_PATH})"
+}
+
+# Fallback baseline: build the previous minor's release/<prev_series> branch from
+# source in a detached git worktree (so the primary checkout — which holds the
+# upgrade-target build in hedera-node/data — is untouched) and stage it as the
+# baseline local build. Sets BASELINE_MODE=local-build plus BASELINE_BUILD_PATH,
+# BASELINE_WORKTREE, DEPLOY_VERSION_LABEL and BASELINE_DESC.
+build_baseline_from_release_branch() {
+  local prev_series="${1}"
+  local branch="release/${prev_series}"
+  local baseline_version=""
+
+  # `git worktree add` wants a path that does not exist yet.
+  BASELINE_WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/solo-migration-baseline.XXXXXX")"
+  rm -rf "${BASELINE_WORKTREE}"
+
+  log "Fetching ${branch}"
+  git -C "${REPO_ROOT}" fetch --quiet origin "${branch}" || {
+    echo "Unable to fetch ${branch}; cannot build previous-minor baseline" >&2
+    return 1
+  }
+
+  log "Adding detached worktree for ${branch} at ${BASELINE_WORKTREE}"
+  git -C "${REPO_ROOT}" worktree add --quiet --detach "${BASELINE_WORKTREE}" FETCH_HEAD
+
+  log "Building ${branch} baseline (./gradlew assemble) — this takes several minutes"
+  # No ionice/nice here: this driver also runs on macOS (ionice is Linux-only).
+  ( cd "${BASELINE_WORKTREE}" && ./gradlew assemble )
+
+  BASELINE_BUILD_PATH="${BASELINE_WORKTREE}/hedera-node/data"
+  validate_local_build_path "${BASELINE_BUILD_PATH}" || {
+    echo "release/${prev_series} build did not produce ${BASELINE_BUILD_PATH}/apps/HederaNode.jar + lib" >&2
+    return 1
+  }
+
+  baseline_version="$(build_implementation_version "${BASELINE_BUILD_PATH}")"
+  BASELINE_MODE="local-build"
+  # `network deploy --release-tag` needs a valid semver LABEL (no download); use
+  # the previous series' .0 so version-gated features match the baseline series.
+  DEPLOY_VERSION_LABEL="v${prev_series}.0"
+  DEPLOY_RELEASE_TAG="${branch}"   # for logs only; not passed to solo in this mode
+  BASELINE_DESC="${branch} source build (${baseline_version:-unknown}) via --local-build-path"
+
+  log "Built ${branch} baseline: ${baseline_version:-unknown} at ${BASELINE_BUILD_PATH}"
 }
 
 # === Step 2 ====================================================================
@@ -262,7 +341,7 @@ setup_cluster_prereqs() {
 # Deploy the baseline 3-node consensus network at the previous-minor tag and
 # attach a Mirror Node with the pinger enabled.
 deploy_baseline() {
-  log "Deploying baseline consensus network at ${DEPLOY_RELEASE_TAG}"
+  log "Deploying baseline consensus network: ${BASELINE_DESC}"
 
   solo keys consensus generate \
     --gossip-keys \
@@ -273,16 +352,30 @@ deploy_baseline() {
   # `--pvcs true` is required because step 3 uses `consensus network upgrade
   # --local-build-path`, which stages new JARs through persistent volumes that
   # must survive the upgrade-driven pod restarts.
+  #
+  # `--release-tag` on `network deploy` is a semver version LABEL only (it drives
+  # version gating + the remote-config version, not an artifact download), so in
+  # local-build mode DEPLOY_VERSION_LABEL is the previous series' .0.
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
     --pvcs true \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
+    --release-tag "${DEPLOY_VERSION_LABEL}"
 
-  solo consensus node setup \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
+  # Stage the baseline software: a published release (downloaded by tag) or, in
+  # the fallback, the release/<prev> build we compiled, staged onto the nodes
+  # directly via --local-build-path (`node setup` is where the JARs land).
+  if [[ "${BASELINE_MODE}" == "local-build" ]]; then
+    solo consensus node setup \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --node-aliases "${NODE_ALIASES}" \
+      --local-build-path "${BASELINE_BUILD_PATH}"
+  else
+    solo consensus node setup \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --node-aliases "${NODE_ALIASES}" \
+      --release-tag "${DEPLOY_RELEASE_TAG}"
+  fi
 
   solo consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" \
@@ -330,16 +423,26 @@ deploy_baseline() {
 
 # === Step 3 ====================================================================
 # Upgrade the running consensus network to the local build (current branch
-# checkout) labeled UPGRADE_VERSION, then verify each CN is actually running
-# the local build's HederaNode.jar.
+# checkout), then verify each CN is actually running the local build's
+# HederaNode.jar.
 upgrade_to_local() {
-  log "Upgrading consensus network to local build (labeled ${UPGRADE_VERSION})"
+  log "Upgrading consensus network: ${DEPLOY_RELEASE_TAG} -> ${TARGET_VERSION} (local build)"
 
+  # Intentionally NO --upgrade-version here. As of solo v0.79.0 the flag is
+  # optional (only --deployment is required for `consensus network upgrade`),
+  # and when it IS passed solo HEAD-checks
+  # https://builds.hedera.com/node/software/vX.Y/build-<version>.zip and fails
+  # the whole command if that artifact doesn't exist — which is always the
+  # case for an in-development -SNAPSHOT version, and is why this script used
+  # to pass a confusing released-tag stand-in. Omitting the flag alongside
+  # --local-build-path is explicitly supported: solo's fetchPlatformSoftware
+  # (src/commands/node/tasks.ts) falls through to uploading the local build
+  # whenever localBuildPath is set, and skips the platform swap only when
+  # BOTH the flag and the local build path are absent.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --quiet-mode
     --force
@@ -476,4 +579,4 @@ deploy_baseline              #         CN @ prev_tag + MN with pinger
 upgrade_to_local             # Step 3 (CN upgrade to local build)
 step4_crypto_create_smoke    # Step 4 + 4a (CryptoCreate via SDK + MN log scan)
 
-log "PASS: baseline ${DEPLOY_RELEASE_TAG} -> local ${UPGRADE_VERSION} upgrade + CryptoCreate smoke completed"
+log "PASS: migration ${BASELINE_DESC} -> ${TARGET_VERSION} (local build) + CryptoCreate smoke completed"

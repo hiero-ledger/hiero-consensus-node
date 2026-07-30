@@ -11,7 +11,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -58,11 +57,6 @@ public class HapiSysUndelete extends HapiTxnOp<HapiSysUndelete> {
                             contract.ifPresent(n -> b.setContractID(asContractId(n, spec)));
                         });
         return b -> b.setSystemUndelete(opBody);
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees().maxFeeTinyBars();
     }
 
     @Override

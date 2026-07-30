@@ -82,9 +82,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("Outer Batch PROCESSING_BYTES Scaling Scenarios")

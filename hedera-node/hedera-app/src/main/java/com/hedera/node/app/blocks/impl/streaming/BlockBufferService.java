@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.internal.BufferedBlock;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
@@ -16,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -128,6 +131,16 @@ public class BlockBufferService {
      * Flag indicating if the buffer service has been started.
      */
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
+    /**
+     * Low-level observability mechanism for block streaming.
+     */
+    private final BlockStreamingObs streamingObs;
+    /**
+     * Tracks the amount of data (in bytes) held by the block buffer in memory. This value represents the serialized
+     * data and does not include any overhead of things like the ConcurrentMap or overhead related to sending the block
+     * data to a block node or persisting on disk.
+     */
+    private final LongAdder bufferSizeInBytes = new LongAdder();
 
     /**
      * Creates a new BlockBufferService with the given configuration.
@@ -137,9 +150,12 @@ public class BlockBufferService {
      */
     @Inject
     public BlockBufferService(
-            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        this.configProvider = configProvider;
-        this.blockStreamMetrics = blockStreamMetrics;
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final BlockStreamingObs streamingObs) {
+        this.configProvider = requireNonNull(configProvider);
+        this.blockStreamMetrics = requireNonNull(blockStreamMetrics);
+        this.streamingObs = requireNonNull(streamingObs);
         this.bufferIO = new BlockBufferIO(bufferConfig().bufferDirectory(), maxReadDepth());
     }
 
@@ -221,6 +237,7 @@ public class BlockBufferService {
         lastProducedBlockNumber.set(-1);
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResultRef.set(PruneResult.NIL);
+        bufferSizeInBytes.reset();
         awaitingRecovery = false;
         completeAcknowledgementFuturesExceptionally(
                 new IllegalStateException("Block buffer service shut down before acknowledgement completed"));
@@ -301,6 +318,7 @@ public class BlockBufferService {
 
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
+        streamingObs.onBlockOpen(blockNumber);
         blockBuffer.put(blockNumber, blockState);
         // update the earliest block number if this is the first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
@@ -331,8 +349,19 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
-        blockStreamMetrics.recordBlockItemBytes((int) serializedItem.length());
-        blockState.addSerializedItem(serializedItem, itemType);
+
+        final long sizeInBytes = serializedItem.length();
+        bufferSizeInBytes.add(sizeInBytes);
+        blockStreamMetrics.recordBlockItemBytes(sizeInBytes);
+        final int itemIndex = blockState.addSerializedItem(serializedItem, itemType);
+
+        if (itemIndex != -1) {
+            streamingObs.onBlockItemAdd(
+                    blockNumber,
+                    itemIndex,
+                    (int) serializedItem.length(),
+                    itemType == BlockItem.ItemOneOfType.BLOCK_PROOF);
+        }
     }
 
     /**
@@ -349,6 +378,9 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
+
+        streamingObs.onBlockClose(blockNumber);
+
         blockStreamMetrics.recordBlockClosed();
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
@@ -416,7 +448,21 @@ public class BlockBufferService {
             return;
         }
 
-        final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
+        // gives both old and new value, which is needed to compute the newly-acked range
+        final long previousHighest = highestAckedBlockNumber.getAndUpdate(current -> Math.max(current, blockNumber));
+        final long highestBlock = Math.max(previousHighest, blockNumber);
+
+        // only walk the newly-acked range; clamp it to the earliest buffered block so the walk stays bounded on the
+        // first ack (previousHighest == MIN_VALUE) and does not depend on buffer contents for termination, so an
+        // ack for an already-pruned block still marks the rest of the range
+        final long earliest = earliestBlockNumber.get();
+        if (earliest != Long.MIN_VALUE) {
+            final long lowestToMark = Math.max(previousHighest + 1, earliest);
+            for (long blockNum = highestBlock; blockNum >= lowestToMark; --blockNum) {
+                streamingObs.onBlockAcknowledge(blockNum);
+            }
+        }
+
         blockStreamMetrics.recordLatestBlockAcked(highestBlock);
         completeAcknowledgementFutures(highestBlock);
     }
@@ -520,10 +566,18 @@ public class BlockBufferService {
         }
 
         logger.info("Block buffer is being restored from disk (blocksRead: {})", blocks.size());
+        BigInteger totalBlockSizeLoaded = BigInteger.ZERO;
+        long totalItemsLoaded = 0;
+        int numBlocksLoaded = 0;
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
-            bufferedBlock.block().items().forEach(block::addSerializedItem);
+            long blockItemTotalSize = 0L;
+            for (final Bytes itemBytes : bufferedBlock.block().items()) {
+                block.addSerializedItem(itemBytes);
+                blockItemTotalSize += itemBytes.length();
+                ++totalItemsLoaded;
+            }
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
@@ -542,8 +596,18 @@ public class BlockBufferService {
                 logger.debug(
                         "Block {} was read from disk but it was already in the buffer; ignoring block from disk",
                         bufferedBlock.blockNumber());
+            } else {
+                ++numBlocksLoaded;
+                bufferSizeInBytes.add(blockItemTotalSize);
+                totalBlockSizeLoaded = totalBlockSizeLoaded.add(BigInteger.valueOf(blockItemTotalSize));
             }
         }
+
+        logger.info(
+                "Finished loading blocks from disk (blocks: {}, items: {}, bytes: {})",
+                numBlocksLoaded,
+                totalItemsLoaded,
+                totalBlockSizeLoaded);
     }
 
     /**
@@ -584,7 +648,7 @@ public class BlockBufferService {
                     .toList();
 
             if (blocksToPersist.isEmpty()) {
-                logger.info("No unacked blocks in the buffer to persist");
+                logger.debug("No unacked blocks in the buffer to persist");
                 return;
             }
 
@@ -671,6 +735,7 @@ public class BlockBufferService {
                 blockBuffer.remove(blockNumber);
                 ++numPruned;
                 --size;
+                bufferSizeInBytes.add(-block.sizeBytes()); // subtract the size of the block
             } else {
                 // Track all unacknowledged blocks
                 if (blockNumber > highestBlockAcked) {
@@ -776,20 +841,25 @@ public class BlockBufferService {
 
         final PruneResult pruningResult = pruneBuffer();
         final PruneResult previousPruneResult = lastPruningResultRef.getAndSet(pruningResult);
+        final long bufferTotalBytes = bufferSizeInBytes.sum();
 
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%",
+                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%, bufferSizeBytes: {}",
                     pruningResult.idealMaxBufferSize,
                     pruningResult.numBlocksChecked,
                     pruningResult.numBlocksInProgress,
                     pruningResult.numBlocksPruned,
                     pruningResult.numBlocksPendingAck,
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
-                    pruningResult.saturationPercent);
+                    pruningResult.saturationPercent,
+                    bufferTotalBytes);
         }
 
+        blockStreamMetrics.recordBufferedBlocks(blockBuffer.size());
+        blockStreamMetrics.recordBufferedBlocksPendingAck(pruningResult.numBlocksPendingAck);
+        blockStreamMetrics.recordBufferSizeInBytes(bufferTotalBytes);
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
 
         final double actionStageThreshold = actionStageThreshold();

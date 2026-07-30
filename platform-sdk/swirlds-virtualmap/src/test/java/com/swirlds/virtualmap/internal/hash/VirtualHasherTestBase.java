@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -30,13 +29,13 @@ import org.junit.jupiter.params.provider.Arguments;
 
 class VirtualHasherTestBase extends VirtualTestBase {
 
-    protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.hashChunkHeight();
+    protected static final int CHUNK_HEIGHT = 6;
 
     protected VirtualHasher defaultHasher;
 
     @BeforeEach
     void setup() {
-        defaultHasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
+        defaultHasher = new VirtualHasher(DEFAULT_VIRTUAL_MAP_CONFIG);
     }
 
     @AfterEach
@@ -83,7 +82,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
 
     protected static Hash hashTree(final TestDataSource ds) throws NoSuchAlgorithmException {
         final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-        return hashSubTree(ds, md, Path.ROOT_PATH).hash();
+        return hashSubTree(ds, md, Path.ROOT_PATH);
     }
 
     @SuppressWarnings("rawtypes")
@@ -91,34 +90,29 @@ class VirtualHasherTestBase extends VirtualTestBase {
         return dirtyPaths.peek(l -> ds.setHash(l, new Hash())).map(ds::getLeaf).collect(Collectors.toList());
     }
 
-    protected static VirtualHashRecord hashSubTree(
-            final TestDataSource ds, final MessageDigest md, final long nodePath) {
+    protected static Hash hashSubTree(final TestDataSource ds, final MessageDigest md, final long nodePath) {
         final long leftChildPath = Path.getLeftChildPath(nodePath);
         final Hash leftHash;
-        VirtualHashRecord leftChild;
         if (leftChildPath < ds.firstLeafPath) {
-            leftChild = hashSubTree(ds, md, leftChildPath);
+            leftHash = hashSubTree(ds, md, leftChildPath);
         } else {
             final VirtualLeafBytes<TestValue> leaf = ds.getLeaf(leftChildPath);
             assert leaf != null;
-            leftChild = new VirtualHashRecord(leftChildPath, hash(leaf));
+            leftHash = hash(leaf);
         }
-        leftHash = leftChild.hash();
         ds.setHash(leftChildPath, leftHash);
 
         final long rightChildPath = Path.getRightChildPath(nodePath);
         Hash rightHash = null;
-        VirtualHashRecord rightChild = null;
         if (rightChildPath < ds.firstLeafPath) {
-            rightChild = hashSubTree(ds, md, rightChildPath);
+            rightHash = hashSubTree(ds, md, rightChildPath);
         } else {
             final VirtualLeafBytes<TestValue> leaf = ds.getLeaf(rightChildPath);
             if (leaf != null) {
-                rightChild = new VirtualHashRecord(rightChildPath, hash(leaf));
+                rightHash = hash(leaf);
             }
         }
-        if (rightChild != null) {
-            rightHash = rightChild.hash();
+        if (rightHash != null) {
             ds.setHash(rightChildPath, rightHash);
         }
 
@@ -131,7 +125,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
         }
         final Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         ds.setHash(nodePath, hash);
-        return new VirtualHashRecord(nodePath, hash);
+        return hash;
     }
 
     protected static final class TestDataSource {

@@ -4,6 +4,7 @@ package com.hedera.statevalidation.validator;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -96,7 +97,8 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 return;
             }
 
-            final Hash calculatedChunkHash = hashChunk.chunkRootHash(firstLeafPath, lastLeafPath);
+            final Hash calculatedChunkHash =
+                    hashChunk.chunkRootHash(MerkleHasher.threadSafeDefault(), firstLeafPath, lastLeafPath);
 
             if (chunkId == 0) {
                 // The root chunk. Compare the hash with VM root hash

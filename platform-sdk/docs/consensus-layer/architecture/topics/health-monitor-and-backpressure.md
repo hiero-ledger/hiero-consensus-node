@@ -33,7 +33,7 @@ The monitor records, per scheduler, the time of the first unhealthy observation 
 
 Output reaches consumers two ways:
 
-- A wire publication via `StandardWiringModel.getHealthMonitorWire()` returning `OutputWire<Duration>` (line 165). Soldered to consumers in `swirlds-platform-core/.../PlatformWiring` (around lines 98–110): event creator, gossip module, and the execution layer (which forwards to `TransactionPoolNexus`).
+- A wire publication via `StandardWiringModel.getHealthMonitorWire()` returning `OutputWire<Duration>` (line 165). Soldered to consumers in `swirlds-platform-core/.../ConsensusLayerWiring` (`wireInfrastructure`, around lines 274–278): event creator, gossip module, and the execution layer (which forwards to `TransactionPoolNexus`).
 - A polled accessor `WiringModel.getUnhealthyDuration()` (line 174), used by PCES replay.
 
 A reported `Duration.ZERO` means all watched schedulers are healthy. A non-zero value means at least one scheduler is over capacity, with the magnitude indicating how long. To avoid spamming consumers, the monitor suppresses repeat reports of the same duration unless the system has been continuously healthy for `platform.wiring.healthyReportThreshold` (TUN-011), at which point a healthy state is re-asserted (`HealthMonitor.checkSystemHealth`, lines 142–157).
@@ -74,7 +74,7 @@ Site: `consensus-utility/.../transaction/TransactionPoolNexus.submitApplicationT
 
 Trigger: when the unhealthy duration meets or exceeds the configured threshold, `submitApplicationTransaction` returns `false` immediately, rejecting the application transaction. Priority transactions (system transactions, submitted via `submitPriorityTransaction`) are not gated.
 
-Wiring: the signal reaches `TransactionPoolNexus` through the execution layer rather than directly off the platform wire. `swirlds-platform-core/.../PlatformWiring` (line 110) solders the health-monitor output to `ExecutionLayer.reportUnhealthyDuration(Duration)`; the Hedera implementation forwards to its `TransactionPoolNexus` (`DefaultSwirldMain.reportUnhealthyDuration`, line 66). The threshold is a Hedera-side config: `transaction.maximumPermissibleUnhealthySeconds` (`HederaConfig`, default `1`), converted to a `Duration` when the nexus is built.
+Wiring: the signal reaches `TransactionPoolNexus` through the execution layer rather than directly off the platform wire. `swirlds-platform-core/.../ConsensusLayerWiring` (line 277) solders the health-monitor output to `ExecutionLayer.reportUnhealthyDuration(Duration)`; the Hedera implementation forwards to its `TransactionPoolNexus` (`DefaultSwirldMain.reportUnhealthyDuration`, line 66). The threshold is a Hedera-side config: `transaction.maximumPermissibleUnhealthySeconds` (`HederaConfig`, default `1`), converted to a `Duration` when the nexus is built.
 
 Note: this is a **separate** config key from the event-creator threshold, even though both currently default to one second. The two reactions are intentionally tunable independently, and operators are not expected to keep them in lockstep. In practice it is preferable to set `transaction.maximumPermissibleUnhealthySeconds` lower than `event.creation.maximumPermissibleUnhealthyDuration` so that transaction acceptance closes before event creation does — otherwise transactions admitted into the pool can expire there with no events left to drain them.
 
@@ -119,7 +119,6 @@ relevant entries, grouped by where they act:
 
 - Topics: [wiring-framework.md](wiring-framework.md), [event-creator.md](event-creator.md), [gossip.md](gossip.md), [restart-and-pces.md](restart-and-pces.md), [reasons-not-to-gossip.md](reasons-not-to-gossip.md).
 - Tunables: [../../tunables.md](../../tunables.md).
-- Invariants: [TBD: INV-NNN once invariants.md catalog populates].
 - Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
 - Source doc: [../../../core/health-monitor.md](../../../core/health-monitor.md).
 

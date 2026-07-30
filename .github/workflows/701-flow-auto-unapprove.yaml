@@ -22,7 +22,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     steps:
       - name: Initialize Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -30,7 +30,7 @@ jobs:
           node-version: "20"
 
       - name: Dismiss Reviews from Code Owners and Teams
-        uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
+        uses: step-security/auto-unapprove@c87029c4f62d004fb8979a7a5cb90b3c1729df32 # v1.0.3
         with:
           github-token: ${{ secrets.GH_AUTO_UNAPPROVE_TOKEN }}
           pr-number: ${{ github.event.pull_request.number }}

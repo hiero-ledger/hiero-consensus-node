@@ -103,9 +103,7 @@ public class FileServiceSimpleFeesTest {
     private static final int NODE_PROCESSING_BYTES_ABOVE_THRESHOLD = NODE_PROCESSING_BYTES_THRESHOLD + 1;
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("File Service Simple Fees Positive Test Cases")

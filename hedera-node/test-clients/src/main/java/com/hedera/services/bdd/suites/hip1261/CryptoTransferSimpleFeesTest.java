@@ -139,9 +139,7 @@ public class CryptoTransferSimpleFeesTest {
     private static final String nftTransferTxn = "nftTransferTxn";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("Crypto Transfer Simple Fees Tests")

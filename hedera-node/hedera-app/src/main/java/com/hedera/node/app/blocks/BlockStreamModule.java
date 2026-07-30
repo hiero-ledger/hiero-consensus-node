@@ -9,6 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
@@ -30,11 +31,20 @@ import javax.inject.Singleton;
 
 @Module
 public interface BlockStreamModule {
+
+    @Provides
+    @Singleton
+    static BlockStreamingObs provideBlockStreamingObs(@NonNull final ConfigProvider configProvider) {
+        return new BlockStreamingObs(configProvider);
+    }
+
     @Provides
     @Singleton
     static BlockBufferService provideBlockBufferService(
-            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        return new BlockBufferService(configProvider, blockStreamMetrics);
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final BlockStreamingObs streamingObs) {
+        return new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
     }
 
     @Provides
@@ -51,14 +61,16 @@ public interface BlockStreamModule {
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
-            @NonNull final BlockNodeConfigService blockNodeConfigService) {
+            @NonNull final BlockNodeConfigService blockNodeConfigService,
+            @NonNull final BlockStreamingObs streamingObs) {
         final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
                 configProvider,
                 blockBufferService,
                 blockStreamMetrics,
                 networkInfo,
                 blockingIoExecutorSupplier,
-                blockNodeConfigService);
+                blockNodeConfigService,
+                streamingObs);
         manager.start();
         return manager;
     }

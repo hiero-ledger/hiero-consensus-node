@@ -16,7 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
-import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.Key;
@@ -94,9 +94,11 @@ public class TokenAttributesValidator {
     }
 
     /**
-     * Validates the token keys, if it is exists and is not empty or not too long.
-     * For token admin key, allows empty {@link KeyList} to be set. It is used for removing keys.
-     * This method is both used in TokenCreate and TokenUpdate.
+     * Validates the token keys for TokenCreate. Each supplied non-empty key must be structurally valid.
+     * The empty {@link KeyList} sentinel ({@code IMMUTABILITY_SENTINEL_KEY}) is accepted for any key and
+     * stored verbatim; it counts as "no key" for that function (the privileged handlers treat an empty
+     * key as absent), so the function is disabled and cannot be re-added later, matching HIP-540's
+     * treatment of a removed key. TokenUpdate performs its own key validation.
      *
      * @param hasAdminKey whether the token has an admin key
      * @param adminKey the token admin key to validate
@@ -132,28 +134,33 @@ public class TokenAttributesValidator {
             @Nullable final Key pauseKey,
             final boolean hasMetadataKey,
             @Nullable final Key metadataKey) {
-        if (hasAdminKey && !isKeyRemoval(adminKey)) {
+        // Any key may be set to the IMMUTABILITY_SENTINEL_KEY (empty KeyList) on TokenCreate. The empty
+        // key is accepted and stored verbatim; it counts as "no key" for that function because the
+        // privileged handlers treat an empty key as absent (see KeyUtils.isEmpty usages). The function is
+        // therefore disabled and cannot be re-added later, matching HIP-540's treatment of a removed key.
+        // Any non-empty key must still be structurally valid.
+        if (hasAdminKey && !isImmutableKey(adminKey)) {
             validateTrue(isValid(adminKey), INVALID_ADMIN_KEY);
         }
-        if (hasKycKey && !isKeyRemoval(kycKey)) {
+        if (hasKycKey && !isImmutableKey(kycKey)) {
             validateTrue(isValid(kycKey), INVALID_KYC_KEY);
         }
-        if (hasWipeKey && !isKeyRemoval(wipeKey)) {
+        if (hasWipeKey && !isImmutableKey(wipeKey)) {
             validateTrue(isValid(wipeKey), INVALID_WIPE_KEY);
         }
-        if (hasSupplyKey && !isKeyRemoval(supplyKey)) {
+        if (hasSupplyKey && !isImmutableKey(supplyKey)) {
             validateTrue(isValid(supplyKey), INVALID_SUPPLY_KEY);
         }
-        if (hasFreezeKey && !isKeyRemoval(freezeKey)) {
+        if (hasFreezeKey && !isImmutableKey(freezeKey)) {
             validateTrue(isValid(freezeKey), INVALID_FREEZE_KEY);
         }
-        if (hasFeeScheduleKey && !isKeyRemoval(feeScheduleKey)) {
+        if (hasFeeScheduleKey && !isImmutableKey(feeScheduleKey)) {
             validateTrue(isValid(feeScheduleKey), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
         }
-        if (hasPauseKey && !isKeyRemoval(pauseKey)) {
+        if (hasPauseKey && !isImmutableKey(pauseKey)) {
             validateTrue(isValid(pauseKey), INVALID_PAUSE_KEY);
         }
-        if (hasMetadataKey && !isKeyRemoval(metadataKey)) {
+        if (hasMetadataKey && !isImmutableKey(metadataKey)) {
             validateTrue(isValid(metadataKey), INVALID_METADATA_KEY);
         }
     }

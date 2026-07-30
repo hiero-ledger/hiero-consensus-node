@@ -78,6 +78,13 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public void flushIncompleteBlock() {
+        // The file writer persists the open block as a ".open.gz" triage artifact. The gRPC buffer block is left as-is
+        // for the buffer service to discard on shutdown (closing it would make it eligible for buffer persistence).
+        this.fileBlockItemWriter.flushIncompleteBlock();
+    }
+
+    @Override
     public void writePbjItem(@NonNull final BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }

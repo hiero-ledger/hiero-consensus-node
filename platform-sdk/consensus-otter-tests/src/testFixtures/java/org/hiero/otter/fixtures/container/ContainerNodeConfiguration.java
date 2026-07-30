@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -15,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
@@ -50,8 +51,13 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final Supplier<LifeCycle> lifecycleSupplier,
             @NonNull final OverrideProperties overrideProperties) {
         super(lifecycleSupplier, overrideProperties);
-        this.overrideProperties.withConfigValue(
-                EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY));
+        this.overrideProperties
+                .withConfigValue(
+                        EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY))
+                // The default MerkleDb capacity (1e9 keys) sizes each data source's off-heap structures for a
+                // billion keys regardless of the tiny state used in Otter tests. Sizing the
+                // capacity to the handful of keys these tests actually use keeps the footprint small.
+                .withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 1_000_000L);
     }
 
     /**

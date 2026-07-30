@@ -2,10 +2,10 @@
 package org.hiero.consensus.pcli;
 
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
-import static com.swirlds.platform.util.HederaUtils.SWIRLD_NAME;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
+import static org.hiero.consensus.pcli.utility.HederaUtils.SWIRLD_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.internal.network.Network;
@@ -16,11 +16,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.platform.state.SavedStateUtils;
-import com.swirlds.platform.state.snapshot.SavedStateInfo;
-import com.swirlds.platform.state.snapshot.SavedStateMetadata;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.util.HederaUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;
 import java.io.IOException;
@@ -41,8 +37,12 @@ import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pcli.utility.HederaUtils;
 import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.saved.SavedStateInfo;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
 import picocli.CommandLine;
 
 @CommandLine.Command(

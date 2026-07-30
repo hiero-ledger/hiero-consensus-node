@@ -128,7 +128,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
@@ -263,11 +263,13 @@ jobs:
 
       - name: Set CN Version
         id: set-hcn-version
+        env:
+          INPUT_REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
           # trim the input ref
-          echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
+          echo "run-hcn-version=$(echo "${INPUT_REF}" | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
 
       - name: Check for namespace collision
         run: |
@@ -488,6 +490,8 @@ jobs:
       - name: Deploy with Solo
         env:
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          INPUT_ADD_APP_PROPS: ${{ inputs.add-app-props }}
+          INPUT_ADD_SETTINGS: ${{ inputs.add-settings }}
         run: |
           set +x
           set +e
@@ -536,16 +540,16 @@ jobs:
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
-          if [[ "${{ inputs.add-app-props }}" != "" ]]
+          if [[ "${INPUT_ADD_APP_PROPS}" != "" ]]
           then
-            echo -e "${{ inputs.add-app-props }}" >> application.properties
+            echo -e "${INPUT_ADD_APP_PROPS}" >> application.properties
             echo "New application.properties:"
             cat application.properties
           fi
 
-          if [[ "${{ inputs.add-settings }}" != "" ]]
+          if [[ "${INPUT_ADD_SETTINGS}" != "" ]]
           then
-            echo -e "${{ inputs.add-settings }}" >> settings.txt
+            echo -e "${INPUT_ADD_SETTINGS}" >> settings.txt
             echo "New settings.txt:"
             cat settings.txt
           fi
@@ -902,25 +906,30 @@ jobs:
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Start SwirldsMerkleDB test
+        env:
+          INPUT_JAVA_ARGS: ${{ inputs.crypto-bench-merkle-db-java-args }}
+          INPUT_TEST_PARAMS: ${{ inputs.crypto-bench-merkle-db-test-params }}
         run: |
           set +x
           set +e
 
           merklebenchpod="merklebench"
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > swirlds-benchmarks.log 2>&1 &"
+          --jvmArgs '${INPUT_JAVA_ARGS}' CryptoBench.transferPrefetch ${INPUT_TEST_PARAMS} > swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
+        env:
+          INPUT_NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
+          n="$(expr "${INPUT_NLG_ACCOUNTS}" / 1000)"
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${INPUT_NLG_ACCOUNTS}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -1060,16 +1069,19 @@ jobs:
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
       - name: Start test
+        env:
+          INPUT_NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
+          INPUT_NLG_TIME: ${{ inputs.nlg-time }}
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
+          n="$(expr "${INPUT_NLG_ACCOUNTS}" / 1000)"
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${INPUT_NLG_ACCOUNTS}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -1081,11 +1093,11 @@ jobs:
           echo \
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
+          ${NLGargs} -tt ${INPUT_NLG_TIME}m > client.log 2>&1 &"
 
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
+          ${NLGargs} -tt ${INPUT_NLG_TIME}m > client.log 2>&1 &"
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
@@ -1819,7 +1831,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -2054,7 +2066,7 @@ jobs:
 
       ## Slack notifications
       - name: Report status (slack detailed reports)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-report-webhook }}
           webhook-type: incoming-webhook

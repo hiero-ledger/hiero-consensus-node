@@ -108,7 +108,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
@@ -218,11 +218,13 @@ jobs:
 
       - name: Set CN Version
         id: set-hcn-version
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
           # trim the input ref
-          echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
+          echo "run-hcn-version=$(echo ${REF} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
 
       - name: Check for namespace collision
         run: |
@@ -249,9 +251,11 @@ jobs:
             });
 
       - name: Print parameters
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.bnref=${{ inputs.bnref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -425,6 +429,7 @@ jobs:
       - name: Deploy with Solo
         env:
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
@@ -650,6 +655,7 @@ jobs:
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
@@ -661,11 +667,12 @@ jobs:
           cd "${{ github.workspace }}"
           mkdir solo_deploy
           cp -r "${HOME}"/.solo/logs solo_deploy/
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}""
-          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}"" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          cd "${{ github.workspace}}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+
+          exit "${task_code}"
 
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
@@ -1092,6 +1099,8 @@ jobs:
 
       - name: Publish logs
         if: ${{ !cancelled() }}
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1105,8 +1114,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
@@ -1262,6 +1271,8 @@ jobs:
 
       - name: Publish logs
         if: ${{ !cancelled() }}
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1272,8 +1283,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
@@ -1350,8 +1361,10 @@ jobs:
 
       - name: Build Summary Details
         id: summary
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${REF})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
@@ -1389,8 +1402,10 @@ jobs:
 
       - name: Clean branch or tag name from input.ref
         id: clean-branch-name
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          raw_ref="${{ inputs.ref }}"
+          raw_ref="${REF}"
           echo "Raw input ref: ${raw_ref}"
           clean_ref=""
 
@@ -1407,6 +1422,8 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
+        env:
+          REF: ${{ inputs.ref }}
         run: |
 
           report="\
@@ -1491,7 +1508,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*Version*: ${{ inputs.ref }}"
+                        "text": "*Version*: ${REF}"
                       },
                       {
                         "type": "mrkdwn",
@@ -1507,7 +1524,7 @@ jobs:
 
       ## Slack notifications
       - name: Report status (slack detailed reports)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-report-webhook }}
           webhook-type: incoming-webhook

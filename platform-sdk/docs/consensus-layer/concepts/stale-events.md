@@ -72,7 +72,7 @@ create their own events (see
 [`../architecture/topics/event-creator.md`](../architecture/topics/event-creator.md));
 peers fail to do that for `s` either because they never received it
 (gossip never delivered it — partition is one cause, and
-[`reasons-not-to-gossip.md`](reasons-not-to-gossip.md) covers the
+[`reasons-not-to-gossip.md`](../architecture/topics/reasons-not-to-gossip.md) covers the
 others) or because they had `s` but chose different other-parents.
 Eventually the ancient threshold advances past 50; the linker
 unlinks `s` as ancient, and because `s` never reached consensus the
@@ -112,4 +112,5 @@ is tracked in
   [`../architecture/topics/event-intake.md`](../architecture/topics/event-intake.md),
   [`../architecture/topics/gossip.md`](../architecture/topics/gossip.md).
 - Sibling concept: [`event-lifecycle.md`](event-lifecycle.md).
+- Invariants: INV-004 (a stale event is never ordered on any node — the network-wide *fate*, not the local stale-report stream this concept calls non-deterministic), INV-005 (every honest event eventually reaches consensus or becomes stale).
 - Glossary entry: [`../glossary.md`](../glossary.md).

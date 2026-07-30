@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.test.fixtures.sync;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,27 +10,20 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.concurrent.ExecutionException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Utility methods for testing virtual map reconnects.
@@ -37,8 +31,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 public final class ReconnectTestUtils {
 
     private static Metrics createMetrics() {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = new MetricKeyRegistry();
         return new DefaultPlatformMetrics(
                 null,
@@ -57,12 +50,12 @@ public final class ReconnectTestUtils {
      *
      * @param learnerMap leaner map to synchronize with teacher map
      * @param teacherMap teacher map as desired virtual map
-     * @param reconnectConfig reconnect config
+     * @param configuration configuration
      * @return resulting map after synchronization
      * @throws Exception if any exception happens during synchronization
      */
     public static VirtualMap testSynchronization(
-            final VirtualMap learnerMap, final VirtualMap teacherMap, final ReconnectConfig reconnectConfig)
+            final VirtualMap learnerMap, final VirtualMap teacherMap, final Configuration configuration)
             throws Exception {
         System.out.println("------------");
         System.out.println("learner map: " + learnerMap.getMetadata());
@@ -73,62 +66,38 @@ public final class ReconnectTestUtils {
 
         try (PairedStreams streams = new PairedStreams()) {
             final LearningSynchronizer learner =
-                    new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics) {
+                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics) {
 
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
-                                ThreadManager threadManager,
-                                Runnable breakConnection,
-                                Function<Throwable, Boolean> reconnectExceptionListener) {
+                                ThreadManager threadManager, Runnable breakConnection) {
                             return new StandardWorkGroup(
-                                    threadManager,
-                                    "test-learning-synchronizer",
-                                    breakConnection,
-                                    createSuppressedExceptionListener(reconnectExceptionListener),
-                                    true);
+                                    threadManager, "test-learning-synchronizer", breakConnection, true);
                         }
                     };
 
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(teacherMap, Time.getCurrent(), getStaticThreadManager(), reconnectConfig) {
+                    new TeachingSynchronizer(teacherMap, getStaticThreadManager(), configuration) {
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
-                                ThreadManager threadManager,
-                                Runnable breakConnection,
-                                Function<Throwable, Boolean> exceptionListener) {
+                                @NonNull ThreadManager threadManager, @NonNull Runnable breakConnection) {
                             return new StandardWorkGroup(
-                                    threadManager,
-                                    "test-teaching-synchronizer",
-                                    breakConnection,
-                                    createSuppressedExceptionListener(exceptionListener),
-                                    true);
+                                    threadManager, "test-teaching-synchronizer", breakConnection, true);
                         }
                     };
 
-            final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = createSuppressedExceptionListener(t -> {
-                firstReconnectException.compareAndSet(null, t);
-                return false;
-            });
+            final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(
+                    getStaticThreadManager(), "synchronization-test", streams::disconnect, true)) {
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
+                        "learning-synchronizer-main",
+                        () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
 
-            AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
-            final StandardWorkGroup workGroup = new StandardWorkGroup(
-                    getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
-            workGroup.execute(
-                    "learning-synchronizer-main",
-                    () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
-
-            try {
-                workGroup.waitForTermination();
+                workGroup.join();
             } catch (InterruptedException e) {
-                workGroup.shutdown();
                 Thread.currentThread().interrupt();
-            }
-
-            if (workGroup.hasExceptions()) {
-                throw new MerkleSynchronizationException(
-                        "Exception(s) in synchronization test", firstReconnectException.get());
+                throw new RuntimeException(e);
             }
 
             final VirtualMap syncMap = syncMapContainer.get();
@@ -179,29 +148,5 @@ public final class ReconnectTestUtils {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * Creates an exception listener that suppresses specific expected exceptions during testing.
-     *
-     * @param originalListener the original exception listener to delegate to first
-     * @return a listener that suppresses expected exceptions
-     */
-    private static Function<Throwable, Boolean> createSuppressedExceptionListener(
-            Function<Throwable, Boolean> originalListener) {
-        return t -> {
-            boolean handled = originalListener.apply(t);
-            if (handled) {
-                return true;
-            }
-            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
-            if (cause instanceof IOException
-                    || cause instanceof UncheckedIOException
-                    || cause instanceof ExecutionException
-                    || cause instanceof MerkleSynchronizationException) {
-                return true; // Suppress print/log for simulated
-            }
-            return false; // Allow print/log for unexpected
-        };
     }
 }

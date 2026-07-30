@@ -16,16 +16,17 @@ import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.BlockHashOperation;
 import org.hyperledger.besu.evm.operation.Operation;
 
@@ -92,6 +93,13 @@ class BEVM {
 
         // Local temp storage
         _mem = new Memory();
+    }
+
+    // Test-only: bare instance for exercising the stack/arithmetic in isolation.
+    BEVM() {
+        _top = null;
+        _gasCalc = null;
+        _mem = null;
     }
 
     // Setup for a new contract execution
@@ -210,7 +218,7 @@ class BEVM {
     //
     ExceptionalHaltReason push(Address adr) {
         if (adr == null) return push0();
-        byte[] bs = adr.toArrayUnsafe();
+        byte[] bs = adr.getBytes().toArrayUnsafe();
         assert bs.length == 20;
         long val0 = 0;  for( int i = 0; i < 8; i++) val0 = (val0 << 8) | (bs[12 + i] & 0xFF);
         long val1 = 0;  for( int i = 0; i < 8; i++) val1 = (val1 << 8) | (bs[ 4 + i] & 0xFF);
@@ -229,10 +237,14 @@ class BEVM {
         return push(x0, x1, x2, x3);
     }
 
-    private ExceptionalHaltReason push(BigInteger bi) {
+    // Sign-extend negatives into the high bytes; push() zero-fills otherwise.
+    ExceptionalHaltReason push(BigInteger bi) {
         var bytes = bi.toByteArray();
+        var out = new byte[32];
+        if( bi.signum() < 0 ) Arrays.fill(out, (byte) 0xFF);
         var len = Math.min(32, bytes.length);
-        return push(bytes, bytes.length - len, len);
+        System.arraycopy(bytes, bytes.length - len, out, 32 - len, len);
+        return push32(out);
     }
 
     // TODO, common case, optimize
@@ -649,7 +661,7 @@ class BEVM {
         return push(dividend.divide(divisor));
     }
 
-    private ExceptionalHaltReason sdiv() {
+    ExceptionalHaltReason sdiv() {
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         // Divide by 0,1,2^n shortcuts
@@ -661,17 +673,18 @@ class BEVM {
             if( rhs0 == 1) return push(lhs0, lhs1, lhs2, lhs3);
         }
         int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
-        if( rbc0 + rbc1 + rbc2 + rbc3 == 1) {
+        // sar floors, SDIV truncates: only equal for non-negative dividend, positive power-of-two divisor.
+        if( rbc0 + rbc1 + rbc2 + rbc3 == 1 && lhs3 >= 0 && rhs3 >= 0) {
             int shf = shf(rbc0, rbc1, rbc2, rbc3, rhs0, rhs1, rhs2, rhs3);
             return sar(shf, lhs0, lhs1, lhs2, lhs3);
         }
         if( lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2 && lhs3 == rhs3)
             return push(1);
 
-        // BigInteger fallback
+        // Signed two's-complement decode of the 32-byte stack words.
         _sp += 2; // Re-push bytes
-        var dividend = new BigInteger((int) (lhs3 >> 63), popBytes().toArrayUnsafe());
-        var divisor  = new BigInteger((int) (rhs3 >> 63), popBytes().toArrayUnsafe());
+        var dividend = new BigInteger(popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(popBytes().toArrayUnsafe());
         return push(dividend.divide(divisor));
     }
 
@@ -701,16 +714,17 @@ class BEVM {
     }
 
     // Signed mod
-    private ExceptionalHaltReason smod() {
+    ExceptionalHaltReason smod() {
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        if( (lhs0 | lhs1 | lhs2 | lhs3) == 0) return push0();
-        if( lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2 && lhs3 == rhs3) return push(1);
-        // BigInteger fallback
+        if( (lhs0 | lhs1 | lhs2 | lhs3) == 0) return push0();      // a==0
+        if( (rhs0 | rhs1 | rhs2 | rhs3) == 0) return push0();      // b==0
+        if( lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2 && lhs3 == rhs3) return push(0); // a%a
+        // Signed decode; remainder() keeps the dividend's sign (mod() does not).
         _sp += 2; // Re-push bytes
-        var dividend = new BigInteger((int) (lhs3 >> 63), popBytes().toArrayUnsafe());
-        var divisor  = new BigInteger((int) (rhs3 >> 63), popBytes().toArrayUnsafe());
-        return push(dividend.mod(divisor));
+        var dividend = new BigInteger(popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(popBytes().toArrayUnsafe());
+        return push(dividend.remainder(divisor));
     }
 
     private ExceptionalHaltReason addmod() {
@@ -1166,7 +1180,7 @@ class BEVM {
 
         AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0(); // No account, zero code size
-        return push32(acct.getCodeHash().toArrayUnsafe());
+        return push32(acct.getCodeHash().getBytes().toArrayUnsafe());
     }
 
     boolean assertValidSolidity(Address adr) {
@@ -1337,7 +1351,7 @@ class BEVM {
                   soughtBlock >= currentBlockNumber - blockHashLookup.getLookback()/*256*/) )
                 return push0();
             var blockHash = blockHashLookup.apply(_frame, soughtBlock);
-            return push32(blockHash.toArrayUnsafe());
+            return push32(blockHash.getBytes().toArrayUnsafe());
         }
 
         // assume custom from TransactionExecutorsTest
@@ -1397,7 +1411,7 @@ class BEVM {
         if( !(0 <= idx && idx < verHashes.size()) )
             return push0();
         var verHash = verHashes.get(idx);
-        return push((UInt256) verHash.toBytes());
+        return push((UInt256) verHash.getBytes());
     }
 
     private ExceptionalHaltReason blobBaseFee() {
@@ -1581,7 +1595,7 @@ class BEVM {
 
         ArrayList<LogTopic> ary = new ArrayList<>();
         for (int i = 0; i < ntopics; i++)
-            ary.add(LogTopic.create(popBytes()));
+            ary.add(LogTopic.create((Bytes32) popBytes()));
 
         // Since these are consumed by mirror nodes, which always want to know the Hedera id
         // of the emitting contract, we always resolve to a long-zero address for the log
@@ -1610,7 +1624,7 @@ class BEVM {
     // Returns true if the address lower 8 bytes, treated as a long, are
     // grandfathered accounts.
     private boolean contractRequired(Address address) {
-        byte[] bs = address.toArrayUnsafe();
+        byte[] bs = address.getBytes().toArrayUnsafe();
         Long longZeroAddr = ConversionUtils.isLongZeroAddress(bs)
             ? ConversionUtils.numberOfLongZero(bs)
             : null;

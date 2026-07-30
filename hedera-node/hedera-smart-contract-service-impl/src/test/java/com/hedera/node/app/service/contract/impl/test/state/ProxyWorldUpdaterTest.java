@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -98,6 +99,9 @@ class ProxyWorldUpdaterTest {
     @Mock
     private EvmFrameState evmFrameState;
 
+    @Mock
+    private AccountID accountID;
+
     private ProxyWorldUpdater subject;
 
     @BeforeEach
@@ -124,7 +128,7 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void getsHederaAccountByNumber() {
-        final var num = ADDRESS_6.toBigInteger().longValueExact();
+        final var num = ADDRESS_6.getBytes().toBigInteger().longValueExact();
         final var numericId = AccountID.newBuilder().accountNum(num).build();
         given(evmFrameState.getAddress(numericId)).willReturn(ADDRESS_6);
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
@@ -133,7 +137,7 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void getsHederaContractByNumber() {
-        final var num = ADDRESS_6.toBigInteger().longValueExact();
+        final var num = ADDRESS_6.getBytes().toBigInteger().longValueExact();
         final var numericId = ContractID.newBuilder().contractNum(num).build();
         given(hederaOperations.shardAndRealmValidated(numericId)).willReturn(numericId);
         given(evmFrameState.getAddress(num)).willReturn(ADDRESS_6);
@@ -143,7 +147,7 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void returnsNullHederaAccountIfMissing() {
-        final var num = ADDRESS_6.toBigInteger().longValueExact();
+        final var num = ADDRESS_6.getBytes().toBigInteger().longValueExact();
         final var numericId = AccountID.newBuilder().accountNum(num).build();
         doThrow(IllegalArgumentException.class).when(evmFrameState).getAddress(numericId);
         assertNull(subject.getHederaAccount(numericId));
@@ -151,7 +155,7 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void returnsNullHederaContractIfMissing() {
-        final var num = ADDRESS_6.toBigInteger().longValueExact();
+        final var num = ADDRESS_6.getBytes().toBigInteger().longValueExact();
         final var numericId = ContractID.newBuilder().contractNum(num).build();
         given(hederaOperations.shardAndRealmValidated(numericId)).willReturn(numericId);
         doThrow(IllegalArgumentException.class).when(evmFrameState).getAddress(num);
@@ -162,7 +166,8 @@ class ProxyWorldUpdaterTest {
     void getsHederaAccountByAlias() {
         final var aliasId = AccountID.newBuilder()
                 .alias(tuweniToPbjBytes(
-                        asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
+                        asLongZeroAddress(ADDRESS_6.getBytes().toBigInteger().longValueExact())
+                                .getBytes()))
                 .build();
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
         assertSame(proxyEvmContract, subject.getHederaAccount(aliasId));
@@ -172,7 +177,8 @@ class ProxyWorldUpdaterTest {
     void getsHederaContractByAlias() {
         final var aliasId = ContractID.newBuilder()
                 .evmAddress(tuweniToPbjBytes(
-                        asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
+                        asLongZeroAddress(ADDRESS_6.getBytes().toBigInteger().longValueExact())
+                                .getBytes()))
                 .build();
         given(hederaOperations.shardAndRealmValidated(aliasId)).willReturn(aliasId);
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
@@ -282,7 +288,7 @@ class ProxyWorldUpdaterTest {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
         given(evmFrameState.getMutableAccount(SOME_EVM_ADDRESS)).willReturn(mutableAccount);
         given(evmFrameState.getIdNumber(ADDRESS_6))
-                .willReturn(ADDRESS_6.toBigInteger().longValueExact());
+                .willReturn(ADDRESS_6.getBytes().toBigInteger().longValueExact());
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
 
@@ -290,7 +296,8 @@ class ProxyWorldUpdaterTest {
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
 
         verify(hederaOperations)
-                .createContract(NEXT_NUMBER, ADDRESS_6.toBigInteger().longValueExact(), aliasFrom(SOME_EVM_ADDRESS));
+                .createContract(
+                        NEXT_NUMBER, ADDRESS_6.getBytes().toBigInteger().longValueExact(), aliasFrom(SOME_EVM_ADDRESS));
     }
 
     @Test
@@ -362,7 +369,7 @@ class ProxyWorldUpdaterTest {
         subject.deleteAccount(ADDRESS_6);
 
         verify(hederaOperations)
-                .deleteUnaliasedContract(ADDRESS_6.toBigInteger().longValueExact());
+                .deleteUnaliasedContract(ADDRESS_6.getBytes().toBigInteger().longValueExact());
     }
 
     @Test
@@ -487,5 +494,49 @@ class ProxyWorldUpdaterTest {
     void currentExchangeRateTest() {
         subject.currentExchangeRate();
         verify(systemContractOperations).currentExchangeRate();
+    }
+
+    @Test
+    void setAccountCodeDelegationTest() {
+        subject.setAccountCodeDelegation(accountID, Address.ZERO);
+        verify(subject.enhancement().operations()).setAccountCodeDelegation(accountID, Address.ZERO);
+    }
+
+    @Test
+    void createAccountWithCodeDelegationTest() {
+        final var ecdsaPublicKey = new byte[32];
+        subject.createAccountWithKeyAndCodeDelegation(SOME_EVM_ADDRESS, ecdsaPublicKey, Address.ZERO);
+        verify(evmFrameState).tryCreateAccountWithKeyAndCodeDelegation(SOME_EVM_ADDRESS, ecdsaPublicKey, Address.ZERO);
+    }
+
+    @Test
+    void lazyCreationCostInGasDelegatesToOperations() {
+        final var expectedCost = 12_345L;
+        given(hederaOperations.lazyCreationCostInGas(SOME_EVM_ADDRESS)).willReturn(expectedCost);
+
+        final var result = subject.lazyCreationCostInGas(SOME_EVM_ADDRESS);
+
+        assertEquals(expectedCost, result);
+        verify(hederaOperations).lazyCreationCostInGas(SOME_EVM_ADDRESS);
+    }
+
+    @Test
+    void createNewChildRecordBuilderDelegatesToNativeOperations() {
+        final var mockBuilder =
+                mock(com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class);
+        given(nativeOperations.createNewChildRecordBuilder(
+                        com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class,
+                        com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE))
+                .willReturn(mockBuilder);
+
+        final var result = subject.createNewChildRecordBuilder(
+                com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class,
+                com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE);
+
+        assertSame(mockBuilder, result);
+        verify(nativeOperations)
+                .createNewChildRecordBuilder(
+                        com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class,
+                        com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE);
     }
 }

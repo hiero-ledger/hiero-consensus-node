@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.services.bdd.junit.RepeatableReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
@@ -24,7 +25,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
@@ -49,7 +49,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTIO
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -156,29 +156,36 @@ public class RepeatableIntegrationTests {
                                 0, usageSnapshots.gasThrottleOrThrow().used())));
     }
 
-    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @RepeatableHapiTest({MUST_SKIP_INGEST, NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW})
     final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
         return hapiTest(
+                newKeyNamed("wrongKey"),
                 cryptoCreate("civilian").balance(100 * 100_000_000L),
                 usableTxnIdNamed("txnId").payerId("civilian"),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000L)),
-                uncheckedSubmit(cryptoCreate("nope")
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", 100_000_000L)),
+                // Both copies skip ingest via a non-default node. The classifiable copy (correct
+                // signature) becomes the priority SUCCESS; the unclassifiable copy (wrong signature)
+                // is recorded as a duplicate with a node-due-diligence failure status.
+                cryptoCreate("nope")
                         .txnId("txnId")
                         .payingWith("civilian")
-                        .setNode("4")),
-                uncheckedSubmit(cryptoCreate("sure")
+                        .signedBy("wrongKey")
+                        .setNode("4")
+                        .hasAnyStatusAtAll(),
+                cryptoCreate("sure")
                         .txnId("txnId")
                         .payingWith("civilian")
-                        .setNode("3")),
+                        .setNode("4")
+                        .hasAnyStatusAtAll(),
                 getReceipt("txnId")
                         .andAnyDuplicates()
                         .hasPriorityStatus(SUCCESS)
-                        .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
+                        .hasDuplicateStatuses(INVALID_PAYER_SIGNATURE),
                 getTxnRecord("txnId")
                         .assertingNothingAboutHashes()
                         .andAnyDuplicates()
                         .hasPriority(recordWith().status(SUCCESS))
-                        .hasDuplicates(inOrder(recordWith().status(INVALID_NODE_ACCOUNT))));
+                        .hasDuplicates(inOrder(recordWith().status(INVALID_PAYER_SIGNATURE))));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)

@@ -25,13 +25,13 @@ class DefaultFreezeStatusCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(DefaultFreezeStatusTranslator.DEFAULT_FREEZE_STATUS
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.protoOrdinal(), false))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -40,13 +40,13 @@ class DefaultFreezeStatusCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(DefaultFreezeStatusTranslator.DEFAULT_FREEZE_STATUS
                         .getOutputs()
                         .encode(Tuple.of(INVALID_TOKEN_ID.protoOrdinal(), false))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -55,7 +55,7 @@ class DefaultFreezeStatusCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

@@ -11,16 +11,15 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
-import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
@@ -39,13 +38,11 @@ public interface PcesModule {
      * @param recycleBin the recycle bin for deleting old PCES files
      * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
-     * @param flushIntake a {@link Runnable} that triggers flushing of the intake wires
-     * @param flushTransactionHandling a {@link Runnable} that triggers flushing of the transaction handling wires
-     * @param latestImmutableStateSupplier a supplier of the latest immutable state
+     * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
+     * @param replayProgressSupplier a supplier that returns the current replay progress
+     * @param statusMonitorModule the {@link StatusMonitorModule} for monitoring the status of the platform
+     * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
-     * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
-     * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
-     * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector,
      */
     void initialize(
             @NonNull WiringModel model,
@@ -56,11 +53,9 @@ public interface PcesModule {
             @NonNull RecycleBin recycleBin,
             @NonNull FileSystemManager fileSystemManager,
             long startingRound,
-            @NonNull Runnable flushIntake,
-            @NonNull Runnable flushTransactionHandling,
-            @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
-            @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull Runnable stateHasherFlusher,
+            @NonNull Runnable flushPrimaryPipeline,
+            @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
+            @NonNull StatusMonitorModule statusMonitorModule,
             @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);
 
@@ -99,13 +94,22 @@ public interface PcesModule {
     OutputWire<PlatformEvent> writtenEventsOutputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} component.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the event window
+     * @return the {@link InputWire} for the consensus round
      */
-    @InputWireLabel("event window")
+    @InputWireLabel("consensus round")
     @NonNull
-    InputWire<EventWindow> eventWindowInputWire();
+    InputWire<ConsensusRound> consensusRoundInputWire();
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    InputWire<EventWindow> initialEventWindowInputWire();
 
     /**
      * {@link InputWire} for the minimum birth round to store on disk.

@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-06-12
+last_reviewed: 2026-07-13
 ---
 
 # Restart and PCES
@@ -31,7 +31,7 @@ PCES exists so that consensus can recover its in-memory state after a crash. Eve
 every node in the network crashes simultaneously, every node loses every non-ancient event it has not yet written down.
 Replaying PCES at startup is what rebuilds the hashgraph so consensus can resume. For this to work, PCES must persist
 every validated, deduplicated event in topological order — not only self-events. The writer's input is the event-intake
-module's validated-events output (`PlatformWiring.java:78-81`), so every event that survives intake validation is
+module's validated-events output (`ConsensusLayerWiring.java:84-88`), so every event that survives intake validation is
 written.
 
 The writer is synchronous: it accepts a `PlatformEvent` on its input wire and emits the same event on its output wire
@@ -49,30 +49,31 @@ No downstream component sees an event before the writer has written it. The writ
 consensus, gossip, and the event creator's parent-selection input:
 
 ```text
-// platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:86-96
+// platform-sdk/swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:108-118
 // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
 // reach consensus with events that might be lost due to a crash
-writtenEventOutputWire.solderTo(components.hashgraphModule().eventInputWire());
+writtenEventOutputWire.solderTo(buildingBlocks.hashgraphModule().eventInputWire());
 
 // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
 // where an event is created, gossipped, and then the node crashes before the event is persisted.
 // After restart, a node will not be aware of this event, so it can create a branch
-writtenEventOutputWire.solderTo(components.gossipModule().eventToGossipInputWire(), INJECT);
+writtenEventOutputWire.solderTo(buildingBlocks.gossipModule().eventToGossipInputWire(), INJECT);
 
 // Avoid using events as parents before they are persisted
-writtenEventOutputWire.solderTo(components.eventCreatorModule().orderedEventInputWire());
+writtenEventOutputWire.solderTo(buildingBlocks.eventCreatorModule().orderedEventInputWire());
 ```
 
 The general guarantee applies to every event: consensus never observes an event whose write has not returned. Applied
 specifically to self-events on the gossip path, the same guarantee also serves an anti-branching role. If a node
 gossiped a self-event and crashed before it was written, on restart the node would not know the event existed and could
 build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
-[`../concepts/branching.md`](../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
+[`../../concepts/branching.md`](../../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
 
-The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
-node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any
-of its own self-events that the network still holds. Under normal operation, the inline write keeps every gossipped
-self-event on local disk, so this fallback is not exercised.
+The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk: a restarting
+node gossips without creating events for a window, giving it time to relearn any of its own self-events that the network
+still holds. Under normal operation, the inline write keeps every gossipped self-event on local disk, so this fallback is
+not exercised. For the status mechanics see [`platform-status.md`](platform-status.md); for why the status is retained
+despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md).
 
 ### Durability model
 
@@ -141,6 +142,18 @@ on-disk PCES files rather than gossip.
   read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
   health-monitor mechanism.
 
+## Consensus initialization and the init-judge gate
+
+Replay (above) feeds events back through the consensus algorithm, but many of them already reached consensus in the run
+that produced the signed state being loaded — their transactions are already reflected in that state. Re-emitting those
+rounds would corrupt the resulting state, and even if the application detected and dropped the duplicates, recomputing
+them is wasted work.
+
+To prevent that, consensus emits no rounds during initialization until the snapshot round's judges have been replayed,
+then marks the events they already decided as consensus *without* emitting them — so no round that fed the loaded state
+flows out of the hashgraph a second time (upholding INV-008). The gate lives in the consensus algorithm, not in PCES;
+its mechanics are detailed in [`hashgraph.md`](hashgraph.md#algorithm-in-current-code) under *Init-judge gate*.
+
 ## Offline ISS recovery
 
 A network-wide ISS that prevents progress is resolved offline by replaying PCES on top of a known-good signed state
@@ -150,10 +163,9 @@ recipe any driver must follow, and the record/block-file coordination with the e
 
 ## Cross-references
 
-- **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
+- **Topics:** `hashgraph.md`, `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
   `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
-- **Invariants:** [TBD: INV-NNN once the
-  `invariants.md` catalog populates — candidate invariants from this topic include "self-events are persisted before being gossiped" and "gossip is not started until PCES replay completes"].
+- **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
 - **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].

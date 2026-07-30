@@ -8,19 +8,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
-import static com.hedera.node.app.hapi.fees.pricing.BaseOperationUsage.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.UPDATE_SLOT_MULTIPLIER;
-import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -37,13 +30,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -51,9 +39,6 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -61,16 +46,15 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.AutoRenewConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.swirlds.config.api.Configuration;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.utility.ByteUtils;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_UPDATE}.
@@ -94,8 +78,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoUpdateAccountOrThrow();
-        // HIP-1340 isn't supported yet
-        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
         validateTruePreCheck(op.hasAccountIDToUpdate(), ACCOUNT_ID_DOES_NOT_EXIST);
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
@@ -105,6 +87,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
             validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
+        // If a delegation address is set, it must be of delegation address size
+        validateTruePreCheck(
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                INVALID_CONTRACT_ID);
     }
 
     @Override
@@ -267,6 +253,17 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     - op.hookIdsToDelete().size()
                     + op.hookCreationDetails().size());
         }
+
+        if (op.delegationAddress().length() != 0) {
+            if (ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
+                // Address is 0x00..00 -> clear the delegation
+                builder.delegationAddress(Bytes.EMPTY);
+            } else {
+                // Set the delegation (note: the correct EVM addres length is verified in pureChecks)
+                builder.delegationAddress(op.delegationAddress());
+            }
+        }
+
         return builder;
     }
 
@@ -296,6 +293,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
+        final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
 
         // validate expiry metadata
         final var currentMetadata = new ExpiryMeta(
@@ -334,6 +332,11 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
         // validate if account is not deleted
         validateFalse(updateAccount.deleted(), ACCOUNT_DELETED);
+
+        validateTrue(
+                contractsConfig.codeDelegationsEnabled()
+                        || op.delegationAddress().length() == 0,
+                NOT_SUPPORTED);
     }
 
     /**
@@ -367,149 +370,5 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 op.stakedNodeId(),
                 accountStore,
                 context.networkInfo());
-    }
-
-    /**
-     * This method calculates the fees for the CryptoUpdate transaction.
-     * Currently, it just duplicates all the logic from mono-service
-     *
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the calculated fees
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // Variable bytes plus two additional longs for balance and auto-renew period; plus a boolean for receiver sig
-        // required.
-        final var body = feeContext.body();
-        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
-        return cryptoUpdateFees(
-                body,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT),
-                accountStore,
-                feeContext.configuration());
-    }
-
-    /**
-     * This method calculates the base size of the cryptoUpdate transaction.
-     * This is the duplicated code as in mono-service
-     *
-     * @param txBody the {@link CryptoUpdateTransactionBody}
-     * @param keySize the size of the key
-     * @return the calculated base size
-     */
-    private static long baseSizeOf(final CryptoUpdateTransactionBody txBody, final long keySize) {
-        return BASIC_ENTITY_ID_SIZE
-                + txBody.memoOrElse("").getBytes(StandardCharsets.UTF_8).length
-                + (txBody.hasExpirationTime() ? LONG_SIZE : 0L)
-                + (txBody.hasAutoRenewPeriod() ? LONG_SIZE : 0L)
-                + (txBody.hasProxyAccountID() ? BASIC_ENTITY_ID_SIZE : 0L)
-                + (txBody.hasMaxAutomaticTokenAssociations() ? INT_SIZE : 0L)
-                + keySize;
-    }
-
-    /**
-     * This method calculates the bytes for the CryptoUpdate transaction auto-renew information.
-     * This is the duplicated code as in mono-service
-     *
-     * @param account the {@link Account} to be updated
-     * @return the calculated bytes
-     */
-    private static long cryptoAutoRenewRb(@Nullable final Account account) {
-        final var fixedBytes = CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr();
-        if (account == null) {
-            return fixedBytes;
-        }
-        return fixedBytes
-                + currentNonBaseBytes(account)
-                + (account.numberAssociations() * CRYPTO_ENTITY_SIZES.bytesInTokenAssocRepr());
-    }
-
-    /**
-     * This method calculates the bytes for the CryptoUpdate transaction related to memo and keys.
-     * This is the duplicated code as in mono-service
-     *
-     * @param account the {@link Account} to be updated
-     * @return the calculated bytes
-     */
-    private static int currentNonBaseBytes(final Account account) {
-        // TODO: should this part be a new utility method so we don't repeat it over and over?
-        final var accountMemoSize = (account == null || account.memo() == null)
-                ? 0
-                : account.memo().getBytes(StandardCharsets.UTF_8).length;
-
-        return accountMemoSize
-                + getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
-                + (account.maxAutoAssociations() == 0 ? 0 : INT_SIZE);
-    }
-
-    /**
-     * This method calculates the fees for the CryptoUpdate transaction.
-     * This can also be used for lazy account creation logic in AutoAccountCreator class in future PRs
-     *
-     * @param body the {@link TransactionBody}
-     * @param feeCalculator the {@link FeeCalculator}
-     * @param accountStore the {@link ReadableAccountStore}
-     * @param configuration the {@link Configuration}
-     * @return the calculated fees
-     */
-    private Fees cryptoUpdateFees(
-            final TransactionBody body,
-            final FeeCalculator feeCalculator,
-            final ReadableAccountStore accountStore,
-            final Configuration configuration) {
-        final var op = body.cryptoUpdateAccountOrThrow();
-        // When dispatching transaction body for hollow account we don't have update account set
-        final var account = accountStore.getAccountById(op.accountIDToUpdateOrElse(AccountID.DEFAULT));
-        final var autoRenewconfig = configuration.getConfigData(AutoRenewConfig.class);
-        final var entityConfig = configuration.getConfigData(EntitiesConfig.class);
-        final var unlimitedAutoAssoc = entityConfig.unlimitedAutoAssociationsEnabled();
-        final var explicitAutoAssocSlotLifetime = autoRenewconfig.expireAccounts() ? 0L : THREE_MONTHS_IN_SECONDS;
-
-        final var keySize = op.hasKey() ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(op.keyOrThrow())) : 0L;
-        final var baseSize = baseSizeOf(op, keySize);
-        final var newMemoSize = op.memoOrElse("").getBytes(StandardCharsets.UTF_8).length;
-
-        final var accountMemoSize = (account == null || account.memo() == null)
-                ? 0L
-                : account.memo().getBytes(StandardCharsets.UTF_8).length;
-        final long newVariableBytes = (newMemoSize != 0L ? newMemoSize : accountMemoSize)
-                + (keySize == 0L && account != null
-                        ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
-                        : keySize);
-
-        final long tokenRelBytes =
-                (account == null ? 0 : account.numberAssociations()) * CRYPTO_ENTITY_SIZES.bytesInTokenAssocRepr();
-        final long sharedFixedBytes = CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + tokenRelBytes;
-        final var effectiveNow =
-                body.transactionIDOrThrow().transactionValidStartOrThrow().seconds();
-        final long newLifetime = ESTIMATOR_UTILS.relativeLifetime(
-                effectiveNow, op.expirationTimeOrElse(Timestamp.DEFAULT).seconds());
-        final long oldLifetime =
-                ESTIMATOR_UTILS.relativeLifetime(effectiveNow, (account == null ? 0 : account.expirationSecond()));
-        final long rbsDelta = ESTIMATOR_UTILS.changeInBsUsage(
-                cryptoAutoRenewRb(account), oldLifetime, sharedFixedBytes + newVariableBytes, newLifetime);
-
-        final var oldSlotsUsage = (account == null ? 0 : account.maxAutoAssociations()) * UPDATE_SLOT_MULTIPLIER;
-        final var newSlotsUsage = op.hasMaxAutomaticTokenAssociations() && !unlimitedAutoAssoc
-                ? op.maxAutomaticTokenAssociations().longValue() * UPDATE_SLOT_MULTIPLIER
-                : oldSlotsUsage;
-        // If given an explicit auto-assoc slot lifetime, we use it as a lower bound for both old and new lifetimes
-        final long slotRbsDelta = ESTIMATOR_UTILS.changeInBsUsage(
-                oldSlotsUsage,
-                Math.max(explicitAutoAssocSlotLifetime, oldLifetime),
-                newSlotsUsage,
-                Math.max(explicitAutoAssocSlotLifetime, newLifetime));
-        final var fees = feeCalculator
-                .addBytesPerTransaction(baseSize)
-                .addRamByteSeconds(rbsDelta > 0 ? rbsDelta : 0)
-                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0);
-        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
-            // Using SBS here because this part us not used in other calculations. It is a per hour cost
-            // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
-            fees.addStorageBytesSeconds(
-                    (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * HOUR_TO_SECOND_MULTIPLIER);
-        }
-        return fees.calculate();
     }
 }

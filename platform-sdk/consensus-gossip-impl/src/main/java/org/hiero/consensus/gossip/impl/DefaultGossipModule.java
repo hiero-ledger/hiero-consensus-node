@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl;
 
+import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -18,6 +20,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -33,6 +36,7 @@ import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -47,6 +51,9 @@ public final class DefaultGossipModule implements GossipModule {
 
     @Nullable
     private GossipWiring gossipWiring;
+
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     /**
      * {@inheritDoc}
@@ -65,13 +72,19 @@ public final class DefaultGossipModule implements GossipModule {
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
         }
 
         // Set up wiring (the gossip module is initialized differently. This should be revisited.
         this.gossipWiring = new GossipWiring(configuration, model);
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "Gossip_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
+
+        // Wire components
+        eventWindowExtractor.getOutputWire().solderTo(gossipWiring.getEventWindowInput(), INJECT);
 
         // Create and bind components
         final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
@@ -133,7 +146,16 @@ public final class DefaultGossipModule implements GossipModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").getEventWindowInput();
     }
 
@@ -153,24 +175,6 @@ public final class DefaultGossipModule implements GossipModule {
     @NonNull
     public InputWire<Duration> healthStatusInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").getSystemHealthInput();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<NoInput> startInputWire() {
-        return requireNonNull(gossipWiring, "Not initialized").getStartInput();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<NoInput> stopInputWire() {
-        return requireNonNull(gossipWiring, "Not initialized").getStopInput();
     }
 
     /**
@@ -198,6 +202,15 @@ public final class DefaultGossipModule implements GossipModule {
     @NonNull
     public InputWire<NoInput> resumeInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").resumeInput();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<NoInput> startInputWire() {
+        return requireNonNull(gossipWiring, "Not initialized").getStartInput();
     }
 
     /**

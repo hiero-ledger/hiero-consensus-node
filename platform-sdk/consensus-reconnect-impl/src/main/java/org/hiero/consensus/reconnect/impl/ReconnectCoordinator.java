@@ -10,16 +10,12 @@ import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.system.status.StatusStateMachine;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -27,34 +23,34 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
  */
 public class ReconnectCoordinator {
 
-    private final PlatformComponents components;
-    private final PlatformCoordinator platformCoordinator;
+    private final ConsensusLayerBuildingBlocks buildingBlocks;
 
     /**
      * Constructor
      *
-     * @param components the components to coordinate
-     * @param platformCoordinator the platform coordinator to use for certain operations
+     * @param buildingBlocks the building blocks of the consensus layer
      */
-    public ReconnectCoordinator(
-            @NonNull final PlatformComponents components, @NonNull final PlatformCoordinator platformCoordinator) {
-        this.components = requireNonNull(components);
-        this.platformCoordinator = requireNonNull(platformCoordinator);
+    public ReconnectCoordinator(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        this.buildingBlocks = Objects.requireNonNull(buildingBlocks);
     }
 
     /**
-     * @see StatusStateMachine#submitStatusAction
+     * Submits a status action to the status monitor module.
+     *
+     * @param action the status action to submit
+     * @see StatusMonitorModule#platformStatusActionInputWire()
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        platformCoordinator.submitStatusAction(action);
+        buildingBlocks.statusMonitorModule().platformStatusActionInputWire().put(action);
     }
 
     /**
@@ -69,65 +65,62 @@ public class ReconnectCoordinator {
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        components.platformMonitorWiring().flush();
+        buildingBlocks.statusMonitorModule().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
         // squelch is activated.
-        components.hashgraphModule().startSquelching();
-        components.hashgraphModule().flush();
-        components.eventCreatorModule().startSquelching();
-        components.eventCreatorModule().flush();
+        buildingBlocks.hashgraphModule().startSquelching();
+        buildingBlocks.hashgraphModule().flush();
+        buildingBlocks.eventCreatorModule().startSquelching();
+        buildingBlocks.eventCreatorModule().flush();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
         // be handled.
-        components.transactionHandlerWiring().startSquelching();
-        components.transactionHandlerWiring().flush();
+        buildingBlocks.transactionHandlingModule().startSquelching();
+        buildingBlocks.transactionHandlingModule().flush();
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
-        platformCoordinator.flushIntakePipeline();
-        components.stateHasherWiring().flush();
-        components.stateSignatureCollectorWiring().flush();
-        components.transactionHandlerWiring().flush();
+        buildingBlocks.pipelineFlusher().flushPrimaryPipeline();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
-        components.hashgraphModule().stopSquelching();
-        components.eventCreatorModule().stopSquelching();
-        components.transactionHandlerWiring().stopSquelching();
+        buildingBlocks.hashgraphModule().stopSquelching();
+        buildingBlocks.eventCreatorModule().stopSquelching();
+        buildingBlocks.transactionHandlingModule().stopSquelching();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
-        components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
-        components.gossipModule().clearInputWire().inject(NoInput.getInstance());
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::clear)
-                .inject(NoInput.getInstance());
-        components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
+        buildingBlocks.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
+        buildingBlocks.gossipModule().clearInputWire().inject(NoInput.getInstance());
+        buildingBlocks.stateModule().clearInputWire().inject(NoInput.getInstance());
+        buildingBlocks.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
     }
 
     /**
      * Resume gossiping.
      */
     public void resumeGossip() {
-        components.gossipModule().resumeInputWire().inject(NoInput.getInstance());
+        buildingBlocks.gossipModule().resumeInputWire().inject(NoInput.getInstance());
     }
 
     /**
      * Pause gossiping.
      */
     public void pauseGossip() {
-        components.gossipModule().pauseInputWire().inject(NoInput.getInstance());
+        buildingBlocks.gossipModule().pauseInputWire().inject(NoInput.getInstance());
     }
 
     /**
+     * Sends a notification to the application that the reconnect process has completed.
+     *
+     * @param signedState the signed state that was loaded into the platform
      * @see AppNotifier#sendReconnectCompleteNotification
      */
     public void sendReconnectCompleteNotification(@NonNull final SignedState signedState) {
-        components
+        buildingBlocks
                 .notifierWiring()
                 .getInputWire(AppNotifier::sendReconnectCompleteNotification)
                 .put(new ReconnectCompleteNotification(
@@ -141,22 +134,24 @@ public class ReconnectCoordinator {
      * @param signedState the signed state to load into the platform
      */
     public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
-        platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+        buildingBlocks
+                .issDetectionModule()
+                .overridingStateInputWire()
+                .put(signedState.reserve("reconnect state to issDetector"));
 
-        components
-                .latestImmutableStateNexusWiring()
-                .getInputWire(SignedStateNexus::setState)
+        buildingBlocks
+                .transactionHandlingModule()
+                .latestImmutableStateInputWire()
                 .put(signedState.reserve("set latest immutable to reconnect state"));
-        platformCoordinator.sendStateToHashLogger(signedState);
-        // this will send the state to the signature collector which will send it to be written to disk.
+        // this will log the state and send it to the signature collector which will send it to be written to disk.
         // in the future, we might not send it to the collector because it already has all the signatures
         // if this is the case, we must make sure to send it to the writer directly
-        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+        buildingBlocks.stateModule().sendState(signedState);
 
         final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
-        platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
+        buildingBlocks.hashgraphModule().consensusSnapshotOverrideInputWire().inject(consensusSnapshot);
 
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
@@ -165,35 +160,33 @@ public class ReconnectCoordinator {
 
         final int roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-        platformCoordinator.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+        buildingBlocks
+                .initialEventWindowDispatcher()
+                .getInputWire()
+                .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+        // Peer threads read the shadowgraph outside the gossip scheduler, so it must ingest the new window
+        // before gossip resumes. Ordering already holds today, since pausing gossip drains all sync permits
+        // and the sequential scheduler runs this update ahead of the resume that follows. The flush keeps
+        // that guarantee here instead of relying on the pause/permit machinery.
+        buildingBlocks.gossipModule().flush();
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
-        platformCoordinator.updateRunningHash(runningEventHashOverride);
+        buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateInput().inject(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
-    }
-
-    /**
-     * @see StateSignatureCollector#addReservedState
-     */
-    private void putSignatureCollectorState(@NonNull final ReservedSignedState reserve) {
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::addReservedState)
-                .put(reserve);
     }
 
     /**
      * @see EventIntakeModule#rosterHistoryInputWire()
      */
     private void injectRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        components.eventIntakeModule().rosterHistoryInputWire().inject(rosterHistory);
+        buildingBlocks.eventIntakeModule().rosterHistoryInputWire().inject(rosterHistory);
     }
 
     /**
      * @see PcesModule#discontinuityInputWire()
      */
     private void registerPcesDiscontinuity(final long round) {
-        components.pcesModule().discontinuityInputWire().inject(round);
+        buildingBlocks.pcesModule().discontinuityInputWire().inject(round);
     }
 }

@@ -33,7 +33,7 @@ public record FullResult(
     }
 
     public Bytes output() {
-        return result.getOutput();
+        return result.output();
     }
 
     public boolean isRefundGas() {

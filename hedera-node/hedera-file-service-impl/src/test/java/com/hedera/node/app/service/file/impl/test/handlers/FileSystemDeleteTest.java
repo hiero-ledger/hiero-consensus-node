@@ -23,7 +23,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
@@ -79,9 +78,6 @@ class FileSystemDeleteTest extends FileTestBase {
     protected ReadableStoreFactory mockStoreFactory;
 
     @Mock
-    private FileFeeBuilder usageEstimator;
-
-    @Mock
     private PureChecksContext context;
 
     @Mock
@@ -92,7 +88,7 @@ class FileSystemDeleteTest extends FileTestBase {
     @BeforeEach
     void setUp() {
         mockStore = mock(ReadableFileStoreImpl.class);
-        subject = new FileSystemDeleteHandler(usageEstimator);
+        subject = new FileSystemDeleteHandler();
 
         writableFileState = writableFileStateWithOneKey();
         given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);

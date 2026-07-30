@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Quiescence
-last_reviewed: 2026-06-08
+last_reviewed: 2026-07-13
 ---
 
 # Quiescence
@@ -70,7 +70,7 @@ transaction counters, no TCTs. The only consensus-side state is the
 - [`TipsetEventCreator`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java)`#quiescenceCommand`,
   plus a `breakQuiescenceEventCreated` boolean that lets at most one
   quiescence-breaker event be created per quiescence period.
-- [`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)`#lastQuiescenceCommand`
+- [`DefaultPlatformMonitor`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/DefaultPlatformMonitor.java)`#lastQuiescenceCommand`
   and `#lastQuiescenceCommandTime` — the monitor records the current
   command and the wall-clock instant it last changed, for use by the
   status state machine.
@@ -88,9 +88,9 @@ simply the arrival of a `QUIESCE` command at the boundary:
 
 1. Execution calls
    [`Platform`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/Platform.java)`#quiescenceCommand(QuiescenceCommand)`.
-2. [`PlatformCoordinator`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java)`#quiescenceCommand`
+2. [`SwirldsPlatform`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java)`#quiescenceCommand`
    fans the command out on two wires: to
-   [`PlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/PlatformMonitor.java)
+   [`PlatformMonitor`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/PlatformMonitor.java)
    and to the event-creator module.
 3. [`DefaultEventCreationManager`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java)`#quiescenceCommand`
    forwards it to both the `QuiescenceRule` and the `TipsetEventCreator`.
@@ -153,12 +153,12 @@ that observes the new work and responds by sending `DONT_QUIESCE` (or
 
 A quiescing node holds platform status `ACTIVE`; no dedicated quiescence
 status exists. The mechanism:
-[`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)`#heartbeat`
+[`DefaultPlatformMonitor`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/DefaultPlatformMonitor.java)`#heartbeat`
 stamps each `TimeElapsedAction` with a
-[`TimeElapsedAction.QuiescingStatus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/actions/TimeElapsedAction.java)
+[`TimeElapsedAction.QuiescingStatus`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/actions/TimeElapsedAction.java)
 record (`isQuiescing = lastQuiescenceCommand == QUIESCE`, plus the instant
 the command last changed). In
-[`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`,
+[`ActiveStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`,
 while `isQuiescing` is true the node stays `ACTIVE` regardless of how long
 it has been since one of its own events reached consensus — which would
 otherwise drop it to `CHECKING`.
@@ -185,7 +185,7 @@ The QB is built on a **single self-parent only**, with no other-parent —
 the simplest event that still propagates the waiting transactions.
 
 On exit, platform status returns to normal via the grace period in
-[`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`:
+[`ActiveStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`:
 once `isQuiescing` is false, the node still stays `ACTIVE` until
 `activeStatusDelay` (TUN-020) has elapsed since the stop command — giving a
 freshly created post-quiescence event time to reach consensus — after which
@@ -249,6 +249,8 @@ Topics:
 - [`reconnect.md`](reconnect.md) — a reconnecting node resumes from a
   peer's recent state; re-establishing quiescence detection afterwards is
   Execution's concern, not the consensus layer's.
+- [`platform-status.md`](platform-status.md) — the status state machine; why a
+  quiescing node holds `ACTIVE` rather than getting a dedicated status.
 
 Concepts:
 
@@ -271,7 +273,7 @@ Spec:
 
 Pending catalogs:
 
-- Invariants — see [`../../invariants/`](../../invariants/); no entry tagged to this topic yet.
+- Invariants — INV-005 — every honest event eventually reaches consensus or becomes stale; INV-004 — a stale event is never ordered on any node (together the basis for the balanced-count requirement above). No invariant is tagged to the quiescence topic itself.
 - Decisions — see [`../../decisions/`](../../decisions/); no entry tagged
   to this topic yet. The "detection lives on Execution" and "no dedicated
   quiescence status" choices are decision seeds.

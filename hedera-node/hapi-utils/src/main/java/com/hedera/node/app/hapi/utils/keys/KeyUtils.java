@@ -15,18 +15,25 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.DrbgParameters;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.util.Set;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PKCS8Generator;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
@@ -53,7 +60,10 @@ public final class KeyUtils {
     private static final int ENCRYPTOR_ITERATION_COUNT = 10_000;
     private static final String RESOURCE_PATH_SEGMENT = "src/main/resource";
     private static final int MAX_PEM_BYTES = 64 * 1024;
+    private static final Set<PosixFilePermission> PRIVATE_KEY_PERMISSIONS =
+            PosixFilePermissions.fromString("rw-------");
     public static final String ENCRYPTED_PRIVATE_KEY = "ENCRYPTED PRIVATE KEY";
+    public static final String UNENCRYPTED_PRIVATE_KEY = "PRIVATE KEY";
 
     private KeyUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -96,11 +106,12 @@ public final class KeyUtils {
     }
 
     /**
-     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 encrypted private key.
+     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 private key.
+     * Both encrypted and unencrypted keys are supported.
      * @param in the input stream containing the PEM-encoded private key
-     * @param passphrase the passphrase used to decrypt the private key
+     * @param passphrase the passphrase used to decrypt the private key. Ignored in unencrypted case.
      * @param pemKeyProvider the provider to use for PEM key conversion
-     * @return the decrypted private key
+     * @return the private key (decrypted if relevant)
      * @param <T> the type of the private key, extending {@link PrivateKey}
      */
     public static <T extends PrivateKey> T readKeyFrom(
@@ -120,13 +131,18 @@ public final class KeyUtils {
                 if (pemObject == null) {
                     throw new IllegalArgumentException("No PEM object found");
                 }
-                if (!ENCRYPTED_PRIVATE_KEY.equals(pemObject.getType())) {
-                    throw new IllegalArgumentException("Unexpected PEM type: " + pemObject.getType());
+                final String pemType = pemObject.getType();
+                if (!ENCRYPTED_PRIVATE_KEY.equals(pemType) && !UNENCRYPTED_PRIVATE_KEY.equals(pemType)) {
+                    throw new IllegalArgumentException("Unexpected PEM type: " + pemType);
                 }
                 if (pemReader.readPemObject() != null) {
                     throw new IllegalArgumentException("Multiple PEM objects not allowed");
                 }
 
+                if (UNENCRYPTED_PRIVATE_KEY.equals(pemType)) {
+                    final var info = PrivateKeyInfo.getInstance(pemObject.getContent());
+                    return (T) converter.getPrivateKey(info);
+                }
                 final var encryptedPrivateKeyInfo = new PKCS8EncryptedPrivateKeyInfo(pemObject.getContent());
                 final var info = encryptedPrivateKeyInfo.decryptPrivateKeyInfo(decryptProvider);
                 return (T) converter.getPrivateKey(info);
@@ -138,7 +154,8 @@ public final class KeyUtils {
 
     public static void writeKeyTo(final PrivateKey key, final String pemLoc, final String passphrase) {
         final var pem = new File(pemLoc);
-        try (final var out = new FileOutputStream(pem)) {
+        final var pemPath = pem.toPath();
+        try (final var out = newPrivateKeyOutputStream(pemPath)) {
             final var random = SecureRandom.getInstance("DRBG", DRBG_INSTANTIATION);
             final var encryptor = new JceOpenSSLPKCS8EncryptorBuilder(PKCS8Generator.AES_256_CBC)
                     .setPRF(PKCS8Generator.PRF_HMACSHA384)
@@ -147,13 +164,42 @@ public final class KeyUtils {
                     .setPassword(passphrase.toCharArray())
                     .setProvider(BC_PROVIDER)
                     .build();
-            try (final var pemWriter = new JcaPEMWriter(new OutputStreamWriter(out))) {
+            try (final var pemWriter = new JcaPEMWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
                 pemWriter.writeObject(new JcaPKCS8Generator(key, encryptor).generate());
                 pemWriter.flush();
             }
+            restrictPrivateKeyPermissions(pemPath);
         } catch (final IOException | NoSuchAlgorithmException | OperatorCreationException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    private static OutputStream newPrivateKeyOutputStream(@NonNull final Path pemPath) throws IOException {
+        if (!supportsPosixFilePermissions(pemPath)) {
+            return Files.newOutputStream(
+                    pemPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        }
+        if (Files.notExists(pemPath)) {
+            try {
+                Files.createFile(pemPath, PosixFilePermissions.asFileAttribute(PRIVATE_KEY_PERMISSIONS));
+            } catch (final FileAlreadyExistsException ignore) {
+                // The file appeared after the existence check; repair its permissions below.
+            }
+        }
+        restrictPrivateKeyPermissions(pemPath);
+        return Files.newOutputStream(pemPath, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+    }
+
+    private static void restrictPrivateKeyPermissions(@NonNull final Path pemPath) throws IOException {
+        if (supportsPosixFilePermissions(pemPath)) {
+            Files.setPosixFilePermissions(pemPath, PRIVATE_KEY_PERMISSIONS);
+        }
+    }
+
+    private static boolean supportsPosixFilePermissions(@NonNull final Path path) throws IOException {
+        final var pathToCheck =
+                Files.exists(path) ? path : path.toAbsolutePath().getParent();
+        return pathToCheck != null && Files.getFileStore(pathToCheck).supportsFileAttributeView("posix");
     }
 
     /**
