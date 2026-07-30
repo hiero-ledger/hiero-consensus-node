@@ -73,6 +73,11 @@ APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/applicati
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
+# Back the native WRAPS prover's large allocations with a sparse, memory-mapped file instead of
+# anonymous RAM (avoids OOM-killing a node during the genesis WRAPS ceremony, which on replay
+# surfaces as a SELF_ISS). HAPI_PATH is PVC-backed and every consensus StatefulSet owns a distinct
+# PVC, so this identical in-container path resolves to a unique real-disk file per node.
+WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/wraps-alloc-swap.bin}"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
@@ -138,9 +143,9 @@ RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
 BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-cutover-values.yaml"
 LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
 LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
-BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-parameters.bin"
+BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-bootstrap-roster.json"
 BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
-BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-parameters.bin}"
+BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-bootstrap-roster.json}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 MIRROR_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/mirror-node-block-cutover-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
@@ -224,7 +229,10 @@ inject_wraps_env_into_statefulsets() {
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
+  local -a wraps_env_args=(
+    "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
+    "TSS_LIB_WRAPS_SWAP_FILE=${WRAPS_SWAP_FILE_CONTAINER_PATH}"
+  )
   if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
     wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
   fi
@@ -925,10 +933,10 @@ minio_discover_pod_credentials() {
 }
 
 # Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
-# and slices out the serialized LedgerIdPublicationTransactionBody (Block.items[1] ->
+# and converts the LedgerIdPublicationTransactionBody (Block.items[1] ->
 # BlockItem.signed_transaction[4] -> SignedTransaction.bodyBytes[1] ->
-# TransactionBody.ledger_id_publication[77]) — the form the BN expects at
-# verification.tssParametersFilePath.
+# TransactionBody.ledger_id_publication[77]) into the canonical TssData JSON that the v0.39
+# block-verification plugin reads from app.state.tssBootstrapFilePath.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -936,6 +944,9 @@ write_ledger_id_extractor() {
 # SPDX-License-Identifier: Apache-2.0
 import sys
 import gzip
+import base64
+import json
+import os
 
 
 def read_varint(buf, pos):
@@ -997,9 +1008,41 @@ def extract_from_block(data):
     return None
 
 
+def tss_data_json(pub, block_number):
+    ledger_id = find_field(pub, 1)
+    wraps_key = find_field(pub, 2)
+    contributions = []
+    for fnum, wtype, val in iter_fields(pub):
+        if fnum != 3 or wtype != 2:
+            continue
+        node_id = 0
+        weight = 0
+        history_key = b""
+        for cnum, ctype, cval in iter_fields(val):
+            if cnum == 1 and ctype == 0:
+                node_id = cval
+            elif cnum == 2 and ctype == 0:
+                weight = cval
+            elif cnum == 3 and ctype == 2:
+                history_key = cval
+        contributions.append({
+            "nodeId": str(node_id),
+            "weight": str(weight),
+            "schnorrPublicKey": base64.b64encode(history_key).decode("ascii"),
+        })
+    if not ledger_id or not wraps_key or not contributions:
+        raise ValueError("LedgerIdPublication is missing ledger id, WRAPS key, or node contributions")
+    return {
+        "ledgerId": base64.b64encode(ledger_id).decode("ascii"),
+        "wrapsVerificationKey": base64.b64encode(wraps_key).decode("ascii"),
+        "currentRoster": {"rosterEntries": contributions},
+        "validFromBlock": str(block_number),
+    }
+
+
 def main():
     if len(sys.argv) < 3:
-        sys.stderr.write("usage: extract.py <out.bin> <blockFile.blk[.gz]> [...]\n")
+        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz]> [...]\n")
         sys.exit(2)
     out = sys.argv[1]
     for path in sys.argv[2:]:
@@ -1009,9 +1052,10 @@ def main():
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
             pub = extract_from_block(data)
             if pub is not None:
-                with open(out, "wb") as o:
-                    o.write(pub)
-                print("FOUND ledgerIdPublication in %s -> wrote %d bytes to %s" % (path, len(pub), out))
+                block_number = int(os.path.basename(path).split(".", 1)[0])
+                with open(out, "w", encoding="utf-8") as o:
+                    json.dump(tss_data_json(pub, block_number), o, separators=(",", ":"))
+                print("FOUND ledgerIdPublication in %s -> wrote canonical TssData JSON to %s" % (path, out))
                 return
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("skip %s: %s\n" % (path, e))
@@ -1076,7 +1120,7 @@ seed_block_node_tss_parameters() {
   if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
     echo "seed: no LedgerIdPublication found in block stream (was it published during 0.76?)" >&2; return 1
   fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted tss-parameters.bin is empty" >&2; return 1; }
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted TssData JSON is empty" >&2; return 1; }
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   log "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
@@ -1084,7 +1128,7 @@ seed_block_node_tss_parameters() {
   # Tar-free push (kubectl cp needs tar in the target container): stream the file into the
   # pod's cat via stdin.
   if ! kubectl -n "${SOLO_NAMESPACE}" exec -i "${bn_pod}" -- sh -lc "cat > '${BN_TSS_PARAMS_CONTAINER_PATH}'" < "${BN_TSS_PARAMS_LOCAL}"; then
-    echo "seed: streaming tss-parameters into ${bn_pod} failed" >&2; return 1
+    echo "seed: streaming TssData JSON into ${bn_pod} failed" >&2; return 1
   fi
   kubectl -n "${SOLO_NAMESPACE}" delete pod "${bn_pod}" --wait=true >/dev/null 2>&1 || true
   # Wait on the StatefulSet rollout, NOT `wait pod/<name>`: a `wait --for=condition=ready pod/<name>`
@@ -1100,30 +1144,31 @@ seed_block_node_tss_parameters() {
   if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- sh -lc "test -s '${BN_TSS_PARAMS_CONTAINER_PATH}'" >/dev/null 2>&1; then
     echo "seed: ${BN_TSS_PARAMS_CONTAINER_PATH} missing or empty in ${bn_pod} after roll" >&2; return 1
   fi
-  # Confirmation: the BN logs "Loaded TSS parameters from file" during init. `kubectl logs` can
-  # briefly return a transitioning container right after the roll, so poll generously. An explicit
-  # parse/load failure is fatal; but if we merely never observe the marker (a logs-cutover race)
-  # while the file is present and the pod is Ready, continue with a warning —
+  # Confirmation: the active v0.39 block-verification plugin logs "Successfully updated TSS data"
+  # once it ingests the seeded application-state TssData. `kubectl logs` can briefly return a
+  # transitioning container right after the roll, so poll generously. An explicit load/parse failure
+  # is fatal; but if we merely never observe the marker (a logs-cutover race) while the file is
+  # present and the pod is Ready, continue with a warning —
   # verify_block_node_persists_post_cutover is the real gate on whether the BN verifies the blocks.
   sleep 5
   local deadline=$((SECONDS + 180))
   local bn_logs=""
   while (( SECONDS < deadline )); do
     bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
-    if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
-      log "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
+    if grep -q "Successfully updated TSS data" <<<"${bn_logs}"; then
+      log "Block Node loaded the seeded TSS application state — ready to verify real-TSS blocks"
       return 0
     fi
-    # Scope to the tss-PARAMETERS file: a bare ".*tss" also matches the benign single-BN roster line
-    # "Failed to read/parse block node sources ... TssBootstrapPlugin" (no peers), a false positive.
-    if grep -qiE "failed to (load|parse|read).*tss[ -]?param|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
+    # Match the v0.39 TssData load/update failures specifically (not the benign single-BN roster line
+    # "Failed to read/parse block node sources ... TssBootstrapPlugin", which has no peers).
+    if grep -qiE "Failed to read TssData file|Failed to update TSS data in verification|invalid TssData|TssData.*(error|corrupt)" <<<"${bn_logs}"; then
       echo "seed: BN reported a TSS parameters load failure:" >&2
       grep -iE "tss" <<<"${bn_logs}" | tail -5 >&2
       return 1
     fi
     sleep 3
   done
-  log "WARN seed: did not observe 'Loaded TSS parameters from file' in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
+  log "WARN seed: did not observe a successful TSS application-state update in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
   return 0
 }
 
