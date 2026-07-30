@@ -24,6 +24,13 @@ Run the bundled script and capture the output directory:
 bash "${CLAUDE_SKILL_DIR}/scripts/run.sh"
 ```
 
+> **Re-running is destructive — run once, then ask before re-running.** Each run regenerates every
+> artifact in the output directory. If a report already exists there and you (or the user) are
+> mid-remediation, do **not** re-run to "refresh" it — read the existing artifacts in place. Only
+> re-run the engine when the user explicitly asks for a new run. (The runner copies the prior output
+> to `<out>.bak.<timestamp>` as a backstop, but still treat a re-run as overwriting the working
+> report — including the semantic worklist a remediation session is tracking against.)
+
 It prints the output directory (default `<repo>/build/kb-freshness`). Read these artifacts from it:
 
 - `report.md` — the human drift report (deterministic assertions a curator acts on). Its **Summary**
