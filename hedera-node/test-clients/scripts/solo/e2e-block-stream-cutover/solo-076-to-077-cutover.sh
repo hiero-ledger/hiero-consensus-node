@@ -833,13 +833,38 @@ validate_block_node_repo() {
   fi
 }
 
-# Poll BN serverStatus until nextExpectedBlock > 1 (BN holds >= block 1), proving CN is streaming into it.
+# Read serverStatus.nextExpectedBlock, normalized to the CN's Java view of the field. The uint64_max
+# "accept-any" sentinel is printed by grpcurl/jq unsigned as 18446744073709551615; in the CN (PBJ
+# uint64 -> signed long) that is -1, which production treats as a VALID "no fixed position; stream from
+# the live tip" state (BlockNodeConnectionManager only cools down wantedBlock < -1). A fresh mid-join
+# BN (earliestManagedBlock above the CN tip) reports it until it snaps onto the CN's stream.
+# Emits: ACCEPT_ANY (the sentinel) | <concrete block number> | "" (unreachable / no serverStatus).
+# Args: $1 = local gRPC port (a BN port-forward must already be open).
+read_bn_next_expected() {
+  local local_port="$1" raw v
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
+  local proto_file="block-node/api/node_service.proto"
+  raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
+          -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
+          org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
+  v="$(printf '%s' "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
+  case "${v}" in
+    18446744073709551615) echo "ACCEPT_ANY" ;;
+    ''|*[!0-9]*)          echo "" ;;
+    *)                    echo "${v}" ;;
+  esac
+}
+
+# Poll BN serverStatus until it returns a valid nextExpectedBlock (a concrete block OR the ACCEPT_ANY
+# sentinel), proving the BN is up and engaged with the publisher. A fresh mid-join BN reports
+# ACCEPT_ANY until it snaps onto the CN's stream, so that counts as engaged (mirrors production
+# accepting wantedBlock >= -1).
 verify_block_node_has_blocks() {
   local timeout_secs="${1:-120}"
   local svc="block-node-${BLOCK_NODE_ID}"
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-block-node-status.log" pf_pid=""
-  local grpc_err="${WORK_DIR}/grpcurl-block-node-status.err"
   require_cmd grpcurl
   local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
   # node_service.proto imports services/basic_types.proto; resolve it from this repo's tracked hapi
@@ -863,23 +888,20 @@ verify_block_node_has_blocks() {
     return 1
   fi
 
-  local deadline=$((SECONDS + timeout_secs)) next_expected="" raw=""
-  log "Polling ${svc} serverStatus for nextExpectedBlock > 1 (up to ${timeout_secs}s)"
+  local deadline=$((SECONDS + timeout_secs)) next_expected=""
+  log "Polling ${svc} serverStatus for a valid nextExpectedBlock (concrete or ACCEPT_ANY; up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
-            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
-    next_expected="$(echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
-    if [[ "${next_expected}" =~ ^[0-9]+$ && "${next_expected}" -gt 1 ]]; then
-      log "verify_block_node_has_blocks: nextExpectedBlock=${next_expected} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
+    next_expected="$(read_bn_next_expected "${local_port}")"
+    # ACCEPT_ANY (fresh mid-join sentinel) and any concrete block both mean the BN is up and validly
+    # engaged with the publisher; only an unreachable BN (empty) keeps us polling.
+    if [[ -n "${next_expected}" ]]; then
+      log "verify_block_node_has_blocks: nextExpectedBlock=${next_expected} — BN is up and engaged with the publisher"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 5
   done
-  echo "BN ${svc} did not report nextExpectedBlock > 1 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
-  echo "  --- last grpcurl stderr (serverStatus) ---" >&2
-  cat "${grpc_err}" >&2 2>/dev/null || true
+  echo "BN ${svc} serverStatus returned no nextExpectedBlock (unreachable) within ${timeout_secs}s" >&2
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
   cat "${pf_log}" >&2 2>/dev/null || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -1104,12 +1126,11 @@ seed_block_node_tss_parameters() {
 }
 
 # After the 0.77 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.nextExpectedBlock twice over a window and requires it to advance.
-# nextExpectedBlock is the live publisher position (= lastAvailableBlock + 1), bumped as the BN
-# receives/verifies each block; unlike lastAvailableBlock it does not lag behind the persistence/
-# available-store watermark, which can stay stuck after the cutover re-seed even while the BN is
-# verifying + persisting fine. If the BN were rejecting the real-TSS blocks it would be stuck.
-# Also surfaces any recent 'Verification failed' log lines on failure for diagnosis.
+# Reads serverStatus.nextExpectedBlock over a window and requires it to reach a concrete, climbing
+# value. A fresh mid-join BN reports the ACCEPT_ANY sentinel (uint64_max) until it snaps onto the CN's
+# stream; the ACCEPT_ANY -> concrete transition (or a concrete value climbing) is the proof the BN
+# locked on and is demanding + persisting the post-cutover blocks. If it stays ACCEPT_ANY or never
+# climbs, the BN is not verifying. Also surfaces recent 'Verification failed' log lines for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
   local bn_pod="block-node-${BLOCK_NODE_ID}-0"
@@ -1117,17 +1138,6 @@ verify_block_node_persists_post_cutover() {
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-bn-postcutover.log" pf_pid=""
   require_cmd grpcurl
-  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
-  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
-  local proto_file="block-node/api/node_service.proto"
-
-  read_bn_next_expected() {
-    local raw
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
-            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true
-  }
 
   kill_processes_on_local_port "${local_port}"
   : > "${pf_log}"
@@ -1136,21 +1146,24 @@ verify_block_node_persists_post_cutover() {
   disown "${pf_pid}" 2>/dev/null || true
   wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 || { kill "${pf_pid}" >/dev/null 2>&1 || true; echo "post-cutover: BN port-forward failed" >&2; return 1; }
 
-  local baseline="" current=""
-  baseline="$(read_bn_next_expected)"
-  [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=0
-  log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline}; must climb within ${timeout_secs}s)"
+  local baseline base_concrete="" current=""
+  baseline="$(read_bn_next_expected "${local_port}")"
+  [[ "${baseline}" =~ ^[0-9]+$ ]] && base_concrete="${baseline}"
+  log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline:-unreachable}; must reach a concrete, climbing value within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     sleep 10
-    current="$(read_bn_next_expected)"
-    if [[ "${current}" =~ ^[0-9]+$ && "${current}" -gt "${baseline}" ]]; then
-      log "verify_block_node_persists_post_cutover: nextExpectedBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
+    current="$(read_bn_next_expected "${local_port}")"
+    # Progress = nextExpectedBlock is concrete now AND it either snapped from ACCEPT_ANY (the BN locked
+    # onto the CN's stream and now demands specific blocks) or climbed past a concrete baseline. A
+    # persistent ACCEPT_ANY means the BN has not snapped yet — keep waiting.
+    if [[ "${current}" =~ ^[0-9]+$ ]] && { [[ -z "${base_concrete}" ]] || (( current > base_concrete )); }; then
+      log "verify_block_node_persists_post_cutover: nextExpectedBlock ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
   done
-  echo "post-cutover: BN nextExpectedBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
+  echo "post-cutover: BN nextExpectedBlock did not reach a concrete climbing value (baseline=${baseline}, last=${current:-unreachable}) within ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
   echo "  recent BN verification failures:" >&2
   kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" --since=10m 2>/dev/null | grep -E "Verification failed for block=" | tail -5 >&2 || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -1169,19 +1182,8 @@ wait_for_block_node_caught_up() {
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-bn-catchup.log" pf_pid=""
   require_cmd grpcurl
-  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
-  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
-  local proto_file="block-node/api/node_service.proto"
   local cn_pod="network-${NODE_ALIASES%%,*}-0"
   local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
-
-  read_bn_next_expected() {
-    local raw
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
-            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true
-  }
 
   kill_processes_on_local_port "${local_port}"
   : > "${pf_log}"
@@ -1202,7 +1204,7 @@ wait_for_block_node_caught_up() {
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
-    cur="$(read_bn_next_expected)"
+    cur="$(read_bn_next_expected "${local_port}")"
     cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
       "grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' '${comms_log}' 2>/dev/null | tail -1" 2>/dev/null || true)"
     case "${cn_view}" in
@@ -1212,7 +1214,7 @@ wait_for_block_node_caught_up() {
         return 0
         ;;
     esac
-    if [[ "${cur}" =~ ^[0-9]+$ && "${cur}" != "${prev}" ]]; then
+    if [[ -n "${cur}" && "${cur}" != "${prev}" ]]; then
       log "  BN nextExpectedBlock=${cur} (CN view: ${cn_view:-pending})"
       prev="${cur}"
     fi
