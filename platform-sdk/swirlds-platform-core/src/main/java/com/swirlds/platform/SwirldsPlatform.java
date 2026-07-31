@@ -116,6 +116,7 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting platform {}", selfId);
 
         inputs.recycleBin().start();
+        getMetricsProvider().start();
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 

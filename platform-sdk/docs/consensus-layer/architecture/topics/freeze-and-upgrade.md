@@ -191,9 +191,9 @@ orchestrator class.
 5. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
    when the freeze state has been written. The transition logic lives
    in
-   [`FreezingStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/FreezingStatusLogic.java)
+   [`FreezingStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/FreezingStatusLogic.java)
    and the terminal status in
-   [`FreezeCompleteStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/FreezeCompleteStatusLogic.java).
+   [`FreezeCompleteStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/FreezeCompleteStatusLogic.java).
 6. Gossip continues in `FREEZE_COMPLETE` so that signatures on the
    freeze state can be distributed to laggards; event creation does
    not resume because neither `ACTIVE` nor `CHECKING` is reached again

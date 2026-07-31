@@ -34,26 +34,27 @@ the `EventIntakeModule` interface; the wiring is built by
 Intake exposes its inputs and outputs through `EventIntakeModule`
 ([EventIntakeModule.java:24](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:24)).
 Component soldering happens in
-[`PlatformWiring.wire`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:33).
+[`ConsensusLayerWiring.wire`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:49).
 
 **Inputs**
 
 - `unhashedEventsInputWire()` → `EventHasher::hashEvent`. Two upstream
   sources solder here:
   - Peer events from gossip
-    ([PlatformWiring.java:65-68](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:65)).
+    ([ConsensusLayerWiring.java:74-75](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:74)).
   - PCES replay on startup
-    ([PlatformWiring.java:197-200](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:197)).
+    ([ConsensusLayerWiring.java:120-122](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:120)).
 - `nonValidatedEventsInputWire()` → `InternalEventValidator::validateEvent`,
   bypassing the hasher. Self-events from the event creator solder here
-  ([PlatformWiring.java:129-132](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:129));
+  ([ConsensusLayerWiring.java:94-97](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:94));
   the creator pre-hashes its outputs, so a second hash would be
   wasteful.
 - `eventWindowInputWire()` → broadcast to the deduplicator, signature
-  validator, and orphan buffer, driving the ancient threshold.
+  validator, orphan buffer, branch detector, and branch reporter,
+  driving the ancient threshold.
 - `rosterHistoryInputWire()` → routes only to the signature validator.
-- `clearComponentsInputWire()` → broadcast `clear()` to deduplicator
-  and orphan buffer.
+- `clearComponentsInputWire()` → broadcast `clear()` to the deduplicator,
+  orphan buffer, branch detector, and branch reporter.
 - `flush()` → not a wire but a direct method on `EventIntakeModule`
   ([EventIntakeModule.java:104](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:104)).
   Drains all in-flight events through the internal components; used by
@@ -65,11 +66,8 @@ Component soldering happens in
 - `validatedEventsOutputWire()` is the flattened (`getSplitOutput()`)
   output of the orphan buffer
   ([DefaultEventIntakeModule.java:183](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:183)).
-  It solders to:
-  - The PCES writer
-    ([PlatformWiring.java:78-81](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:78)).
-  - The `BranchDetector`
-    ([PlatformWiring.java:112-115](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:112)).
+  It solders to the PCES writer
+  ([ConsensusLayerWiring.java:84-88](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:84)).
 
 > **Delta vs. orphan-buffer.md / sync-protocol.md:** the older docs
 > imply a single hand-off path "intake → hashgraph". Today the path is
@@ -78,15 +76,12 @@ Component soldering happens in
 > module ([`consensus-pces`](../../../../consensus-pces)) rather than a
 > stage of event intake. The migration of validation responsibilities
 > into the intake module is complete: every event emitted on
-> `validatedEventsOutputWire` is fully validated. The transitional
-> comment at
-> [PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-> is out of date and will be cleaned up.
+> `validatedEventsOutputWire` is fully validated.
 
 ## Validation pipeline
 
 The pipeline is built in
-[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:83)
+[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:86)
 with five components soldered in series (lines 103-131). Schedulers are configured in
 [`EventIntakeWiringConfig`](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/config/EventIntakeWiringConfig.java).
 
@@ -370,19 +365,19 @@ legitimately stop gossip — live in
 The intake module's output is **not** the consensus engine input. The
 PCES writer sits between them, enforcing the durability rule that an
 event must be persisted before it is gossiped or fed into consensus.
-The wiring is in [PlatformWiring.java:78-96](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:78):
+The wiring is in [ConsensusLayerWiring.java:103-123](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:103):
 
 1. `eventIntakeModule().validatedEventsOutputWire()` →
    `pcesModule().eventsToWriteInputWire()`.
 2. `pcesModule().writtenEventsOutputWire()` → `hashgraphModule().eventInputWire()`
-   ([line 88](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:88));
+   ([line 110](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:110));
    the in-source comment reads: "Make sure that an event is persisted
    before being sent to consensus."
 3. `pcesModule().writtenEventsOutputWire()` → `gossipModule().eventToGossipInputWire()`
-   ([line 93](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:93));
+   ([line 115](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:115));
    "Make sure events are persisted before being gossipped."
 4. `pcesModule().writtenEventsOutputWire()` → `eventCreatorModule().orderedEventInputWire()`
-   ([line 96](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:96));
+   ([line 118](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:118));
    "Avoid using events as parents before they are persisted."
 
 The fourth wire feeds the event creator with persisted events so it
@@ -448,10 +443,7 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
 ## Future state (sidebar)
 
 The intake module migration is complete: every event emitted on
-`validatedEventsOutputWire` is fully validated. The transitional
-comment at
-[PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-is out of date and slated for cleanup. The proposal at
+`validatedEventsOutputWire` is fully validated. The proposal at
 `platform-sdk/docs/proposals/consensus-layer/Consensus-Layer.md` is
 orientation only; this topic describes what has shipped, not what is
 proposed.
