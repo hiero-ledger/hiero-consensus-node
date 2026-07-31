@@ -95,6 +95,10 @@ CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
+# Post-cutover, node1 can be parked in the genesis real-TSS WRAPS proof (nominally ACTIVE but not
+# handling txns) for a couple of minutes; the 0.77 check-2/4 nudge waits up to this long for it to
+# resume tx processing (via probe cryptoCreates that also drive the ceremony's rounds) before nudging.
+NUDGE_POST_CUTOVER_READY_DEADLINE_SECS="${NUDGE_POST_CUTOVER_READY_DEADLINE_SECS:-240}"
 
 # --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
 # The reproducer deploys a Block Node before the 0.76 step, seeds it with the network's TSS
@@ -368,7 +372,7 @@ iss_present_in_log() {
 # network — adoption needs rounds, rounds need transactions. ~3-5 txns is
 # enough to push the ceremony through to proof construction.
 nudge_consensus_with_transactions() {
-  local pf_pid="" tx_count="${NUDGE_TX_COUNT}"
+  local pf_pid="" tx_count="${NUDGE_TX_COUNT}" ready_deadline="${1:-0}"
 
   log "Setting up CN gRPC port-forward (svc/haproxy-node1-svc → localhost:${CN_GRPC_LOCAL_PORT})"
   pkill -f "port-forward.*haproxy-node1-svc.*${CN_GRPC_LOCAL_PORT}" >/dev/null 2>&1 || true
@@ -411,6 +415,7 @@ async function main() {
   const operatorAccountId = process.env.OPERATOR_ACCOUNT_ID || "0.0.2";
   const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
   const txCount = Number(process.env.NUDGE_TX_COUNT || "5");
+  const readyDeadlineSecs = Number(process.env.NUDGE_READY_DEADLINE_SECS || "0");
   if (!operatorPrivateKey) {
     throw new Error("OPERATOR_PRIVATE_KEY is required");
   }
@@ -419,6 +424,39 @@ async function main() {
   client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
   client.setMaxAttempts(3);
   client.setRequestTimeout(20000);
+
+  // Readiness gate (post-cutover only, when NUDGE_READY_DEADLINE_SECS > 0): node1 can be parked in
+  // the genesis real-TSS WRAPS proof — reporting ACTIVE but not handling txns — for a couple of
+  // minutes. Probe with single cryptoCreates until one lands a receipt (proof done, handling resumed)
+  // or the deadline; each probe's execute() still creates a consensus event, so it also drives the
+  // rounds the ceremony needs (no stall). Only then run the real nudge below.
+  if (readyDeadlineSecs > 0) {
+    const readyBy = Date.now() + readyDeadlineSecs * 1000;
+    let attempt = 0;
+    for (;;) {
+      attempt++;
+      try {
+        const probe = new AccountCreateTransaction()
+          .setInitialBalance(new Hbar(1))
+          .setKey(PrivateKey.generateED25519().publicKey)
+          .setMaxTransactionFee(new Hbar(5));
+        const resp = await probe.execute(client);
+        const rcpt = await resp.getReceipt(client);
+        if (rcpt.status !== Status.Success) {
+          throw new Error(`probe non-success status ${rcpt.status.toString()}`);
+        }
+        const acct = rcpt.accountId ? rcpt.accountId.toString() : "(no id)";
+        console.log(`  ready-probe: node resumed tx processing on attempt ${attempt} -> ${acct}`);
+        break;
+      } catch (err) {
+        if (Date.now() >= readyBy) {
+          throw new Error(`node did not resume tx processing within ${readyDeadlineSecs}s (still constructing the genesis WRAPS proof?): ${err.message}`);
+        }
+        console.log(`  ready-probe attempt ${attempt}: node busy (${err.message}); retrying...`);
+        await sleep(3000);
+      }
+    }
+  }
 
   for (let i = 1; i <= txCount; i++) {
     const tx = new AccountCreateTransaction()
@@ -453,7 +491,11 @@ EOF
     )
   fi
 
-  log "Submitting ${tx_count} cryptoCreate txns to drive consensus rounds"
+  if (( ready_deadline > 0 )); then
+    log "Post-cutover nudge: waiting up to ${ready_deadline}s for node1 to resume tx processing after the genesis WRAPS proof (probes drive rounds), then submitting ${tx_count} cryptoCreate txns"
+  else
+    log "Submitting ${tx_count} cryptoCreate txns to drive consensus rounds"
+  fi
   local rc=0
   (
     cd "${WORK_DIR}"
@@ -461,6 +503,7 @@ EOF
     OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID}" \
     OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY}" \
     NUDGE_TX_COUNT="${tx_count}" \
+    NUDGE_READY_DEADLINE_SECS="${ready_deadline}" \
       node "${NUDGE_SCRIPT}"
   ) || rc=$?
 
@@ -1560,8 +1603,8 @@ upgrade_to_local_077() {
   wait_for_haproxy_ready 600
   verify_local_build_on_consensus_nodes
 
-  log "--- 0.77 check 2/4: nudge consensus with cryptoCreate txns ---"
-  nudge_consensus_with_transactions
+  log "--- 0.77 check 2/4: nudge consensus with cryptoCreate txns (gated on node1 resuming tx processing after the WRAPS proof) ---"
+  nudge_consensus_with_transactions "${NUDGE_POST_CUTOVER_READY_DEADLINE_SECS}"
 
   log "--- 0.77 check 3/4: verify WRAPS runtime + real (non-mock) proof construction ---"
   verify_wraps_on_consensus_nodes 600
