@@ -7,11 +7,10 @@
 # deploys directly at the published 0.77 release tag and goes straight to the transition we care
 # about.
 #
-#   1. Deploy a CN network directly at the published v0.77.0-rc.3 release tag with
-#      resources/0.77/application-077-to-078.properties, enabling TSS with
-#      tss.forceMockSignatures=true (the
-#      0.77 "dual-write, mock signatures" state). The WRAPS env is injected before the JVMs start
-#      so all nodes initialize the WRAPS library in lockstep at genesis. (Now that a 0.77 tag
+#   1. Deploy a CN network directly at the published v0.77.0-rc.3 release tag. Its defaults enable
+#      the 0.77 "dual-write, mock signatures" state; the application properties only adapt the
+#      WRAPS proving-key path to the Solo environment. The WRAPS env is injected before the JVMs
+#      start so all nodes initialize the WRAPS library in lockstep at genesis. (Now that a 0.77 tag
 #      exists there's no need to deploy an earlier version first and upgrade into 0.77.)
 #   2. Deploy a mirror node + explorer UI on the 0.77 network (importer reads RECORD streams from
 #      MinIO, which the CN writes in 0.77 / streamMode=BOTH).
@@ -58,8 +57,8 @@ DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.77.0-rc.3}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 # The CN downloads + extracts the WRAPS proving-key archive itself at genesis, using the
-# tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true values from the 0.77
-# application.properties (which already point at the public mirror).
+# default tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true values from the
+# 0.77 release (which already point at the public mirror).
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
@@ -214,6 +213,40 @@ configured_wraps_artifacts_container_dir() {
   fi
 }
 
+reapply_application_property_overrides() {
+  local properties_file="$1"
+  local node pod
+  local nodes=()
+  local remote_overrides="/tmp/cutover-application-overrides.properties"
+  local app_properties="${HAPI_PATH}/data/config/application.properties"
+
+  log "Reapplying $(basename "${properties_file}") after Solo-generated property overrides"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    kubectl -n "${SOLO_NAMESPACE}" cp "${properties_file}" \
+      "${pod}:${remote_overrides}" -c root-container
+    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc "
+      set -eu
+      app='${app_properties}'
+      overrides='${remote_overrides}'
+      merged=\"\${app}.cutover-merged\"
+      cp \"\${app}\" \"\${merged}\"
+      while IFS= read -r line || [ -n \"\${line}\" ]; do
+        case \"\${line}\" in
+          ''|'#'*) continue ;;
+        esac
+        key=\${line%%=*}
+        grep -v -F \"\${key}=\" \"\${merged}\" > \"\${merged}.next\" || true
+        mv \"\${merged}.next\" \"\${merged}\"
+        printf '%s\n' \"\${line}\" >> \"\${merged}\"
+      done < \"\${overrides}\"
+      cat \"\${merged}\" > \"\${app}\"
+      rm -f \"\${merged}\" \"\${overrides}\"
+    "
+  done
+}
+
 # Pre-inject the WRAPS artifacts, swap-file, and core-limit variables into every consensus StatefulSet's
 # container spec BEFORE Solo's 0.77 upgrade. Solo's --application-env drops the
 # env file onto disk but the container entrypoint never sources it, so the JVM
@@ -318,6 +351,31 @@ verify_release_version_on_consensus_nodes() {
       echo "  ${pod}: expected version containing '${expected_substr}', found ${pod_version:-unknown}" >&2
       return 1
     fi
+  done
+}
+
+verify_runtime_config_on_consensus_nodes() {
+  local phase="$1"
+  shift
+  local node pod expectation key expected runtime_line actual
+  local nodes=()
+
+  log "Verifying ${phase} runtime configuration on each consensus node"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    for expectation in "$@"; do
+      key="${expectation%%=*}"
+      expected="${expectation#*=}"
+      runtime_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+        "grep -F '${key} = ' ${HAPI_PATH}/output/hgcaa.log | tail -n 1" 2>/dev/null || true)"
+      actual="${runtime_line#*= }"
+      if [[ -z "${runtime_line}" || "${actual}" != "${expected}" ]]; then
+        echo "  ${pod}: expected ${key}=${expected}, found ${actual:-unset}" >&2
+        return 1
+      fi
+    done
+    echo "  ${pod}: ${phase} runtime configuration OK"
   done
 }
 
@@ -1356,6 +1414,7 @@ deploy_077() {
   # env is set here via kubectl. All nodes come up together via the single
   # `consensus node start` below, so the genesis WRAPS ceremony runs in lockstep.
   inject_wraps_env_into_statefulsets
+  reapply_application_property_overrides "${APP_PROPS_077_FILE}"
 
   solo consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" \
@@ -1365,6 +1424,16 @@ deploy_077() {
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   verify_release_version_on_consensus_nodes "0.77"
+  verify_runtime_config_on_consensus_nodes "0.77 baseline" \
+    "nodes.nodeRewardsEnabled=false" \
+    "blockStream.streamMode=BOTH" \
+    "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.enableCutover=false" \
+    "tss.hintsEnabled=true" \
+    "tss.historyEnabled=true" \
+    "tss.wrapsEnabled=true" \
+    "tss.forceMockSignatures=true" \
+    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
 }
 
 # Verify the genesis 0.77 WRAPS ceremony completed: nudge consensus to advance rounds (the ceremony
@@ -1571,6 +1640,16 @@ upgrade_to_local_078() {
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   verify_local_build_on_consensus_nodes
+  verify_runtime_config_on_consensus_nodes "0.78 cutover" \
+    "nodes.nodeRewardsEnabled=false" \
+    "blockStream.streamMode=BLOCKS" \
+    "blockStream.writerMode=GRPC" \
+    "blockStream.enableCutover=true" \
+    "tss.hintsEnabled=true" \
+    "tss.historyEnabled=true" \
+    "tss.wrapsEnabled=true" \
+    "tss.forceMockSignatures=false" \
+    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
 
   log "--- 0.78 check 2/4: nudge consensus with cryptoCreate txns ---"
   nudge_consensus_with_transactions

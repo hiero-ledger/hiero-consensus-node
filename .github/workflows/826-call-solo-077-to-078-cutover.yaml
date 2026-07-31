@@ -12,8 +12,8 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The Solo version to install for this cutover (if not specified, 0.84.0 will be used; Block Node >= v0.39.0 requires Solo >= v0.84.0)."
-        required: false
+        description: "The Solo version to install for this cutover (Block Node >= v0.39.0 requires Solo >= v0.84.0)."
+        required: true
         type: string
       java-version:
         description: "Java JDK Version:"
@@ -85,7 +85,7 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version || '0.84.0' }}
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version

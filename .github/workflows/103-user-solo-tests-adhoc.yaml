@@ -103,6 +103,15 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    if: ${{ inputs.scenario == '077-to-078-cutover' }}
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
@@ -667,6 +676,7 @@ jobs:
     name: "Solo 0.77 -> 0.78 BLOCKS Cutover"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == '077-to-078-cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -701,8 +711,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@0.84.0"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
