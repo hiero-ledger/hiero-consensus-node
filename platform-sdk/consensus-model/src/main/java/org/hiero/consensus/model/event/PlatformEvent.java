@@ -99,7 +99,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
                         unsignedEvent.getTransactionsBytes(),
-                        unsignedEvent.getParents()),
+                        unsignedEvent.getParents().stream()
+                                .map(EventDescriptorWrapper::toPbj)
+                                .toList()),
                 unsignedEvent.getMetadata(),
                 // for a newly created event, the time received is the same as the time created
                 unsignedEvent.getTimeCreated(),
