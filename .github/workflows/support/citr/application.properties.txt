@@ -20,3 +20,5 @@ blockStream.enableStateProofs=true
 
 tss.wrapsProvingKeyPath=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps-archive
 tss.wrapsProvingKeyDownloadUrl=https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz
+
+staking.periodMins=360
