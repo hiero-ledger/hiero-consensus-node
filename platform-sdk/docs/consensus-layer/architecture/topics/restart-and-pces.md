@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-28
 ---
 
 # Restart and PCES
@@ -96,23 +96,27 @@ in-flight keystone is recoverable.
 
 ## Restart sequence
 
-Restart has two phases. State load and replay-bound derivation happen during `SwirldsPlatform` construction, before
-`start()` is called. Replay, then the enabling of gossip and event creation, happens inside `start()`.
+Restart has two phases. State load and replay-bound derivation happen in `PlatformBuilder.build()`, before
+`SwirldsPlatform.start()` is called. Replay, then the enabling of gossip and event creation, happens inside `start()`.
 
-1. **Load the initial signed state.** The latest signed state is loaded from disk during platform construction (
-   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java:150` —
-   `blocks.initialState().get()`).
+1. **Load the initial signed state.** The application supplies the initial state to `PlatformBuilder`, which reads it
+   during `build()` (
+   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java:195` —
+   `initialState.get()`).
 2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (
-   `SwirldsPlatform.java:257`); `pcesReplayLowerBound` is set to the initial ancient threshold of the loaded state (
-   `SwirldsPlatform.java:285`). For a genesis start, both are 0.
-3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the platform coordinator (
-   `SwirldsPlatform.java:353-355`).
-4. **Replay PCES.** `platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound)` (
-   `SwirldsPlatform.java:357`) runs the replay synchronously; control does not return until replay is done. See
+   `initialSignedState.getRound()`) and the replay lower bound to its initial ancient threshold (`ancientThresholdOf(...)`);
+   both are passed to the `SwirldsPlatform` constructor (`PlatformBuilder.java:202-204`). For a genesis start, both are 0 (
+   `PlatformBuilder.java:200`).
+3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the wiring model (
+   `SwirldsPlatform.java:118-120`).
+4. **Replay PCES.** `buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound)` (
+   `SwirldsPlatform.java:122`) runs the replay synchronously; control does not return until replay is done. See
    [Replay](#replay) for details.
-5. **Start gossip; event creation remains off.** Only after replay completes does `platformCoordinator.startGossip()`
-   run (`SwirldsPlatform.java:358`). Neither gossip nor event creation observes a partially-replayed state: gossip
-   because it is started here, and event creation because it is gated on platform status. See `event-creator.md` (TBD) for the gating details.
+5. **Start gossip; event creation remains off.** Only after replay completes does
+   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run (`SwirldsPlatform.java:123`).
+   Neither gossip nor event creation observes a partially-replayed state: gossip because it is started here, and event
+   creation because it is gated on platform status. See [`event-creator.md`](event-creator.md#permission-gates) (the
+   `PlatformStatusRule` gate) for the gating details.
 
 ## Replay
 

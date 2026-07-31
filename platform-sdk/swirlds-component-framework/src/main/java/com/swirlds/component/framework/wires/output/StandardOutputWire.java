@@ -51,7 +51,7 @@ public class StandardOutputWire<OUT> extends ForwardingOutputWire<OUT, OUT> {
             try {
                 destination.accept(data);
             } catch (final Exception e) {
-                getUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e);
+                uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
             }
         }
     }

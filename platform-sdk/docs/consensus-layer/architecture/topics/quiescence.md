@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Quiescence
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-28
 ---
 
 # Quiescence
@@ -158,7 +158,7 @@ stamps each `TimeElapsedAction` with a
 [`TimeElapsedAction.QuiescingStatus`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/actions/TimeElapsedAction.java)
 record (`isQuiescing = lastQuiescenceCommand == QUIESCE`, plus the instant
 the command last changed). In
-[`ActiveStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`,
+[`ActiveStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ActiveStatusLogic.java)`#onTimeElapsed`,
 while `isQuiescing` is true the node stays `ACTIVE` regardless of how long
 it has been since one of its own events reached consensus — which would
 otherwise drop it to `CHECKING`.
@@ -185,7 +185,7 @@ The QB is built on a **single self-parent only**, with no other-parent —
 the simplest event that still propagates the waiting transactions.
 
 On exit, platform status returns to normal via the grace period in
-[`ActiveStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`:
+[`ActiveStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ActiveStatusLogic.java)`#onTimeElapsed`:
 once `isQuiescing` is false, the node still stays `ACTIVE` until
 `activeStatusDelay` (TUN-020) has elapsed since the stop command — giving a
 freshly created post-quiescence event time to reach consensus — after which
