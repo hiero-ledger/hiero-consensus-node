@@ -82,4 +82,14 @@ public interface Event {
      * @return true if the event was read from PCES on disk, false otherwise
      */
     boolean isPcesEvent();
+
+    /**
+     * Wait until all transactions have been prehandled for this event.
+     */
+    void awaitPrehandleCompletion();
+
+    /**
+     * Signal that all transactions have been prehandled for this event.
+     */
+    void signalPrehandleCompletion();
 }

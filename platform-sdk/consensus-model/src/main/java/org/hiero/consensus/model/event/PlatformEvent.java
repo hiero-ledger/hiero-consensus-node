@@ -406,6 +406,7 @@ public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEv
     /**
      * Signal that all transactions have been prehandled for this event.
      */
+    @Override
     public void signalPrehandleCompletion() {
         prehandleCompleted.countDown();
     }
@@ -413,6 +414,7 @@ public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEv
     /**
      * Wait until all transactions have been prehandled for this event.
      */
+    @Override
     public void awaitPrehandleCompletion() {
         abortAndLogIfInterrupted(prehandleCompleted::await, "interrupted while waiting for prehandle completion");
     }

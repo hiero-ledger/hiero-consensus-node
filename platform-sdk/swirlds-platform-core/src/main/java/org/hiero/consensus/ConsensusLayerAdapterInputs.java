@@ -46,5 +46,4 @@ public record ConsensusLayerAdapterInputs(
         // The fields below are for testing only.
         @Nullable WiringModel wiringModel,
         @Nullable SecureRandom secureRandom,
-        @Nullable Instant freezeTime,
         @NonNull Map<String, Object> additionalProperties) {}

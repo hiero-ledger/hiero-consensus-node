@@ -26,6 +26,7 @@ import java.util.function.UnaryOperator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -60,7 +61,7 @@ import org.hiero.consensus.state.utils.SignedStateReserver;
  */
 public class StateModule {
 
-    private final WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
+    private final WireTransformer<Round, EventWindow> eventWindowExtractor;
 
     private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
@@ -110,7 +111,7 @@ public class StateModule {
 
         // Set up wiring
         this.eventWindowExtractor = new WireTransformer<>(
-                model, "State_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
+                model, "State_EventWindowExtractor", "consensus round", Round::getEventWindow);
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 
@@ -296,7 +297,7 @@ public class StateModule {
      */
     @InputWireLabel("consensus round")
     @NonNull
-    public InputWire<ConsensusRound> consensusRoundInputWire() {
+    public InputWire<Round> consensusRoundInputWire() {
         return eventWindowExtractor.getInputWire();
     }
 
@@ -329,17 +330,6 @@ public class StateModule {
     @NonNull
     public OutputWire<StateSignatureTransaction> stateSignaturesOutputWire() {
         return stateSignerWiring.getOutputWire();
-    }
-
-    /**
-     * Get the output wire for the oldest minimum birth round on disk.
-     *
-     * @return the output wire for the oldest minimum birth round on disk.
-     */
-    @NonNull
-    public OutputWire<Long> oldestMinimumBirthRoundOnDiskOutputWire() {
-        return stateSnapshotManagerWiring.getTransformedOutput(
-                StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk);
     }
 
     /**

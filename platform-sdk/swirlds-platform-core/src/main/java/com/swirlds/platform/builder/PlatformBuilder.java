@@ -29,6 +29,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerAdapterFactory;
 import org.hiero.consensus.ConsensusLayerAdapterInputs;
+import org.hiero.consensus.ConsensusLayerAdapterWiring;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
@@ -190,7 +191,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         final ConsensusLayerAdapterFactory factory = new ConsensusLayerAdapterFactory(inputs);
         buildingBlocks = factory.create();
 
-        ConsensusLayerWiring.wire(inputs, buildingBlocks);
+        ConsensusLayerAdapterWiring.wire(inputs, buildingBlocks);
 
         final SignedState initialSignedState = initialState.get();
         final boolean startedFromGenesis = initialSignedState.isGenesisState();

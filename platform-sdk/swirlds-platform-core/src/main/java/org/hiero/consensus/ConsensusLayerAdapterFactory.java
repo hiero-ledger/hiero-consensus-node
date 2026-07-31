@@ -10,6 +10,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePer
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
@@ -20,6 +21,7 @@ import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.adapter.AdapterCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
@@ -27,6 +29,7 @@ import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -72,6 +75,8 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
+import org.hiero.consensus.platformstate.PlatformStateAccessor;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
@@ -148,6 +153,9 @@ public class ConsensusLayerAdapterFactory {
 
     private final long transactionOffsetNanos;
 
+    @Nullable
+    private final StaleEventConsumer staleEventConsumer;
+
     @NonNull
     private final WiringModel wiringModel;
 
@@ -183,6 +191,7 @@ public class ConsensusLayerAdapterFactory {
         swirldName = inputs.swirldName();
         consensusEventStreamName = inputs.consensusEventStreamName();
         transactionOffsetNanos = inputs.transactionOffsetNanos();
+        staleEventConsumer = inputs.staleEventConsumer();
         executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         wiringModel = initializeWiringModel(inputs.wiringModel());
         secureRandom = initializeSecureRandom(inputs.secureRandom());
@@ -224,7 +233,32 @@ public class ConsensusLayerAdapterFactory {
 
         ConsensusLayerStaticSetup.setup(configuration);
 
-        // TODO Create the ConsensusLayer
+        final ExecutionLayerCallbacks executionLayerCallbacks = createExecutionLayerCallbacks(latestImmutableStateNexus,
+                notifierWiring);
+
+        final ConsensusLayer consensusLayer = createConsensusLayer(executionLayerCallbacks);
+
+        return new ConsensusLayerAdapterBuildingBlocks(
+                wiringModel,
+                configuration,
+                consensusLayer,
+                issDetectionModule,
+                transactionHandlingModule,
+                stateModule,
+                eventStreamWiring,
+                runningEventHashOverrideWiring,
+                notifierWiring,
+                notificationEngine,
+                savedStateController,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor);
+    }
+
+    private ConsensusLayer createConsensusLayer(@NonNull final ExecutionLayerCallbacks executionLayerCallbacks) {
+        final ConsensusSnapshot consensusSnapshot = getInitialConsensusSnapshot();
+
+        final Instant freezeTime = getFreezeTime();
+
         final ConsensusLayerInputs consensusLayerInputs = new ConsensusLayerInputs(
                 configuration,
                 metrics,
@@ -245,22 +279,34 @@ public class ConsensusLayerAdapterFactory {
                 additionalProperties
         );
         final ConsensusLayerFactory consensusLayerFactory = new ConsensusLayerFactory(consensusLayerInputs);
-        final ConsensusLayer consensusLayer = consensusLayerFactory.create();
+        return consensusLayerFactory.create();
+    }
 
-        return new ConsensusLayerAdapterBuildingBlocks(
-                wiringModel,
-                configuration,
-                consensusLayer,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateModule,
-                eventStreamWiring,
-                runningEventHashOverrideWiring,
-                notifierWiring,
-                notificationEngine,
-                savedStateController,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor);
+    @Nullable
+    private Instant getFreezeTime() {
+        final VirtualMapState root = initialState.get().getState();
+        final Instant freezeTime = PlatformStateUtils.freezeTimeOf(root);
+        final Instant lastFrozenTime = PlatformStateUtils.lastFrozenTimeOf(root);
+        final Instant initialStateConsensusTime = PlatformStateUtils.consensusTimestampOf(root);
+        if (initialStateConsensusTime != null && PlatformStateUtils.isInFreezePeriod(initialStateConsensusTime,
+                freezeTime, lastFrozenTime)) {
+            return freezeTime;
+        }
+        return null;
+    }
+
+    private ConsensusSnapshot getInitialConsensusSnapshot() {
+        return PlatformStateUtils.consensusSnapshotOf(initialState.get().getState());
+    }
+
+    private ExecutionLayerCallbacks createExecutionLayerCallbacks(
+            @NonNull final SignedStateNexus latestImmutableStateNexus,
+            @NonNull ComponentWiring<AppNotifier, Void> notifierWiring) {
+        return new AdapterCallbacks(consensusStateEventHandler,
+                executionLayer,
+                latestImmutableStateNexus,
+                staleEventConsumer,
+                notifierWiring);
     }
 
     @NonNull

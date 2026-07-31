@@ -2,11 +2,16 @@
 package org.hiero.consensus.state.persistence;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -16,6 +21,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -83,13 +89,13 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Creates a new instance.
      *
-     * @param configuration the configuration
-     * @param metrics the metrics system
-     * @param time the time provider
-     * @param fileSystemManager the file system manager
-     * @param mainClassName the main class name of this node
-     * @param selfId the ID of this node
-     * @param swirldName the name of the swirld
+     * @param configuration         the configuration
+     * @param metrics               the metrics system
+     * @param time                  the time provider
+     * @param fileSystemManager     the file system manager
+     * @param mainClassName         the main class name of this node
+     * @param selfId                the ID of this node
+     * @param swirldName            the name of the swirld
      * @param stateLifecycleManager the state lifecycle manager
      */
     public DefaultStateSnapshotManager(
@@ -118,7 +124,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     @Nullable
     public StateSavingResult saveStateTask(@NonNull final ReservedSignedState reservedSignedState) {
         final long start = time.nanoTime();
-        final StateSavingResult stateSavingResult;
+        final StateSavingResult savedConsensusSnapshot;
 
         // The state is reserved before it is handed to this method, and it is released in the snapshot
         // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory).
@@ -139,12 +145,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             signedState.stateSavedToDisk();
-            final long minBirthRound = deleteOldStates();
-            stateSavingResult = new StateSavingResult(
+            final ConsensusSnapshot oldestConsensusSnapshot = deleteOldStates();
+            savedConsensusSnapshot = new StateSavingResult(
                     signedState.getRound(),
                     signedState.isFreezeState(),
                     signedState.getConsensusTimestamp(),
-                    minBirthRound);
+                    oldestConsensusSnapshot);
         } finally {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
@@ -158,7 +164,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 .getWriteStateToDiskTimeMetric()
                 .update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
-        return stateSavingResult;
+        return savedConsensusSnapshot;
     }
 
     /**
@@ -196,11 +202,10 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * Writes the signed state to the specified directory via {@link SignedStateFileWriter}.
      * <p>
      * <b>Reservation contract:</b> This method passes the reservation to
-     * {@link SignedStateFileWriter#writeSignedStateToDisk}, which takes ownership and releases it.
-     * For synchronous snapshots, the reservation is released after the snapshot is written.
-     * For asynchronous snapshots (periodic snapshots with async enabled), the reservation is
-     * released early to unblock the virtual pipeline flush, and the method blocks until the
-     * flush-triggered snapshot completes or times out.
+     * {@link SignedStateFileWriter#writeSignedStateToDisk}, which takes ownership and releases it. For synchronous
+     * snapshots, the reservation is released after the snapshot is written. For asynchronous snapshots (periodic
+     * snapshots with async enabled), the reservation is released early to unblock the virtual pipeline flush, and the
+     * method blocks until the flush-triggered snapshot completes or times out.
      *
      * @param reservedSignedState the reserved state to write
      * @param directory           the target directory for the state files
@@ -254,7 +259,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         // don't log an error if this is a freeze state. they are expected to lack signatures
         if (reservedState.isFreezeState()) {
             final double signingWeightPercent = (((double) reservedState.getSigningWeight())
-                            / ((double) RosterUtils.computeTotalWeight(reservedState.getRoster())))
+                    / ((double) RosterUtils.computeTotalWeight(reservedState.getRoster())))
                     * 100.0;
 
             logger.info(
@@ -272,19 +277,19 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             final double signingWeight2Percent = (((double) signingWeight2) / ((double) totalWeight2)) * 100.0;
 
             logger.info(STATE_TO_DISK.getMarker(), new InsufficientSignaturesPayload(("""
-                                    State written to disk for round %d did not have enough signatures.
-                                    This log adds debug information for #11422.
-                                    Pre-check weight: %d/%d (%f%%)  Post-check weight: %d/%d (%f%%)
-                                    Pre-check threshold: %s   Post-check threshold: %s""".formatted(
-                            reservedState.getRound(),
-                            signingWeight1,
-                            totalWeight1,
-                            signingWeight1Percent,
-                            signingWeight2,
-                            totalWeight2,
-                            signingWeight2Percent,
-                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
-                            Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
+                    State written to disk for round %d did not have enough signatures.
+                    This log adds debug information for #11422.
+                    Pre-check weight: %d/%d (%f%%)  Post-check weight: %d/%d (%f%%)
+                    Pre-check threshold: %s   Post-check threshold: %s""".formatted(
+                    reservedState.getRound(),
+                    signingWeight1,
+                    totalWeight1,
+                    signingWeight1Percent,
+                    signingWeight2,
+                    totalWeight2,
+                    signingWeight2Percent,
+                    Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
+                    Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
         }
     }
 
@@ -304,7 +309,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      *
      * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
-    private long deleteOldStates() {
+    @Nullable
+    private ConsensusSnapshot deleteOldStates() {
         final List<SavedStateInfo> savedStates = signedStateFilePath.getSavedStateFiles();
 
         // States are returned newest to oldest. So delete from the end of the list to delete the oldest states.
@@ -321,9 +327,21 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         }
 
         if (index < 0) {
-            return EventConstants.GENERATION_UNDEFINED;
+            return null;
         }
-        final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
-        return oldestStateMetadata.minimumBirthRoundNonAncient();
+        final SavedStateInfo oldestStateMetadata = savedStates.get(index);
+        final Path oldestStateDirPath = oldestStateMetadata.stateDirectory();
+        final Path consensusSnapshotFile = oldestStateDirPath.resolve(
+                SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
+        try {
+            return ConsensusSnapshot.JSON.parse(
+                    new ReadableStreamingData(new FileInputStream(consensusSnapshotFile.toFile())));
+        } catch (final IOException | ParseException e) {
+            logger.warn(SIGNED_STATE.getMarker(),
+                    "Unable to read {} file from round {} on disk - PCES for this round will be maintained "
+                            + "until the next oldest state on disk has a readable consensus snapshot file.",
+                    SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME, oldestStateMetadata.metadata().round());
+            return null;
+        }
     }
 }

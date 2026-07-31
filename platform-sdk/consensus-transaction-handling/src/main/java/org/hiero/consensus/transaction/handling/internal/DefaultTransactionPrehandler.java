@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -76,7 +77,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      */
     @Override
     public Queue<ScopedSystemTransaction<StateSignatureTransaction>> prehandleApplicationTransactions(
-            @NonNull final PlatformEvent event) {
+            @NonNull final Event event) {
         final long startTime = time.nanoTime();
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();

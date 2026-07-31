@@ -2,6 +2,7 @@
 package org.hiero.consensus.main.model;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
@@ -67,6 +68,15 @@ public interface Round extends Iterable<ConsensusEvent> {
      */
     @NonNull
     Instant getConsensusTimestamp();
+
+    /**
+     * The consensus snapshot for this round. This data must be persisted in order for the consensus layer to recover
+     * from this point in consensus time.
+     *
+     * @return the consensus snapshot of this round
+     */
+    @NonNull
+    ConsensusSnapshot getConsensusSnapshot();
 
     /**
      * Indicates if this round reached consensus while replaying PCES data from disk. This happens after the node

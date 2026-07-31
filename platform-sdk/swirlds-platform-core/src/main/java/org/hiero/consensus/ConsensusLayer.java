@@ -2,6 +2,8 @@
 package org.hiero.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -48,5 +50,32 @@ public interface ConsensusLayer {
      *
      * @param command the quiescence command
      */
-    void sendQuiescenceCommand(final QuiescenceCommand command);
+    void sendQuiescenceCommand(@NonNull final QuiescenceCommand command);
+
+    /**
+     * Informs the consensus layer that there is a new oldest state we must be able to restart from. The consensus layer
+     * uses this to determine which PCES files on disk are no longer needed and can be safely deleted.
+     *
+     * @param consensusSnapshot the oldest consensus snapshot we must be able to restart from
+     */
+    void oldestRestartableSnapshot(@NonNull final ConsensusSnapshot consensusSnapshot);
+
+    /**
+     * Informs the consensus layer of a status change based on events owned by the execution layer.
+     *
+     * @param status the new status
+     */
+    void onStatusUpdate(@NonNull final StatusUpdate status);
+
+    enum StatusUpdate {
+        /**
+         * The node has completed the freeze.
+         */
+        FREEZE_COMPLETE,
+        /**
+         * The node has encountered a failure, and is unable to continue. The consensus layer is idle.
+         */
+        CATASTROPHIC_FAILURE;
+
+    }
 }

@@ -19,6 +19,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Queue;
 import java.util.function.Consumer;
+import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -132,7 +133,7 @@ public class TransactionHandlingModule {
      */
     @InputWireLabel("preconsensus event")
     @NonNull
-    public InputWire<PlatformEvent> preHandleEventInputWire() {
+    public InputWire<Event> preHandleEventInputWire() {
         return prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
     }
 

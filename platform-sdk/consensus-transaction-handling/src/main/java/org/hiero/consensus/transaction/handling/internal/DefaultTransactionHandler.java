@@ -42,6 +42,7 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.event.CesEvent;
@@ -232,7 +233,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             if (waitForPrehandle) {
                 handlerMetrics.setPhase(WAITING_FOR_PREHANDLE);
-                consensusRound.getConsensusEvents().forEach(PlatformEvent::awaitPrehandleCompletion);
+                consensusRound.getConsensusEvents().forEach(Event::awaitPrehandleCompletion);
             }
 
             handlerMetrics.setPhase(HANDLING_CONSENSUS_ROUND);
