@@ -64,9 +64,9 @@ WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
 # upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
 # multiple nodes proving concurrently the off-heap peak dominates RAM. Capping trades genesis-proof
-# speed for much lower peak memory. Default 3 keeps node_count x cores within the ~15 visible CPUs at
-# 4 nodes (4 x 3 = 12), avoiding oversubscription. Set empty (or 0) to use all cores.
-WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-3}"
+# speed for much lower peak memory. Default 1 matches the HAPI subprocess tests and prevents four
+# concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
+WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-1}"
 
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application-077-to-078.properties}"
 APP_ENV_077_FILE="${APP_ENV_077_FILE:-${SCRIPT_DIR}/resources/0.77/application-077-to-078.env}"
