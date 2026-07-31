@@ -101,6 +101,7 @@ public final class FieldMasker {
         for (final List<Segment> path : paths) {
             applyPath(root, path, 0);
         }
+        pruneEmptyContainers(root);
         return root;
     }
 
@@ -181,6 +182,40 @@ public final class FieldMasker {
             throw new IllegalArgumentException("Invalid ignore-field path: '" + path + "'");
         }
         return segments;
+    }
+
+    /**
+     * Recursively removes entries whose value is an empty JSONObject or empty JSONArray.
+     * Repeats until stable, so nested emptied containers like {"a": {"b": {}}} collapse fully.
+     */
+    private static void pruneEmptyContainers(final Object node) {
+        if (node instanceof JSONObject obj) {
+            // Recurse first so inner containers empty out before we check the outer level.
+            for (final String key : obj.keySet().toArray(String[]::new)) {
+                pruneEmptyContainers(obj.opt(key));
+            }
+            for (final String key : obj.keySet().toArray(String[]::new)) {
+                final Object val = obj.opt(key);
+                if (val instanceof JSONObject inner && inner.isEmpty()) {
+                    obj.remove(key);
+                } else if (val instanceof JSONArray inner && inner.isEmpty()) {
+                    obj.remove(key);
+                }
+            }
+        } else if (node instanceof JSONArray arr) {
+            for (int i = 0; i < arr.length(); i++) {
+                pruneEmptyContainers(arr.opt(i));
+            }
+            // Array elements that became empty objects/arrays after sub-masking:
+            for (int i = arr.length() - 1; i >= 0; i--) {
+                final Object val = arr.opt(i);
+                if (val instanceof JSONObject inner && inner.isEmpty()) {
+                    arr.remove(i);
+                } else if (val instanceof JSONArray inner && inner.isEmpty()) {
+                    arr.remove(i);
+                }
+            }
+        }
     }
 
     /** A single path step: either a named object field or an array wildcard. */

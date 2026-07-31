@@ -83,7 +83,7 @@ public class DiffExporter {
     /**
      * Exports the differences between two states to JSON files.
      */
-    public void export() {
+    public int export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm1 = state1.getRoot();
         final VirtualMap vm2 = state2.getRoot();
@@ -109,11 +109,7 @@ public class DiffExporter {
 
         System.out.printf("Diff time: %d seconds%n", (System.currentTimeMillis() - startTimestamp) / 1000);
 
-        if (state1Entries.isEmpty() && state2Entries.isEmpty()) {
-            System.exit(0);
-        } else {
-            System.exit(1);
-        }
+        return (state1Entries.isEmpty() && state2Entries.isEmpty()) ? 0 : 1;
     }
 
     private void createOutputFile(List<DiffEntry> diffEntries, String fileName) {

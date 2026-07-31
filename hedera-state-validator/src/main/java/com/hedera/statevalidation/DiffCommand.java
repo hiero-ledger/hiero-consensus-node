@@ -6,6 +6,7 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.NonNull;
@@ -18,7 +19,7 @@ import picocli.CommandLine.Parameters;
  * Compares two states and creates files that can be used to diff them.
  */
 @Command(name = "diff", description = "Compares two states and creates a diff.")
-public class DiffCommand implements Runnable {
+public class DiffCommand implements Callable<Integer> {
 
     private static final Logger log = LogManager.getLogger(DiffCommand.class);
     private static final String STATE_1 = "STATE1";
@@ -57,7 +58,7 @@ public class DiffCommand implements Runnable {
     private List<String> ignoreFields;
 
     @Override
-    public void run() {
+    public Integer call() {
         final File outputDirectory = new File(outputDirStr);
         if (!outputDirectory.exists()) {
             throw new RuntimeException(outputDirectory.getAbsolutePath() + " does not exist");
@@ -82,7 +83,7 @@ public class DiffCommand implements Runnable {
 
         final DiffExporter exporter =
                 new DiffExporter(outputDirectory, state1, state2, serviceName, stateKey, ignoreFields);
-        exporter.export();
+        return exporter.export();
     }
 
     private @NonNull String getTmpDir(File parentDir) {
