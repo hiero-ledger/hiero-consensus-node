@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Platform status
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-28
 ---
 
 # Platform status

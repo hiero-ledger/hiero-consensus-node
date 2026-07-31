@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Freeze and upgrade
-last_reviewed: 2026-06-08
+last_reviewed: 2026-07-28
 ---
 
 # Freeze and upgrade

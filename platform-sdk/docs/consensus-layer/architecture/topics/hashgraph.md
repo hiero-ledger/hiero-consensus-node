@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-28
 ---
 
 # Hashgraph

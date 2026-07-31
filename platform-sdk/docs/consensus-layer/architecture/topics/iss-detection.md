@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: ISS detection
-last_reviewed: 2026-05-28
+last_reviewed: 2026-07-28
 ---
 
 # ISS detection
