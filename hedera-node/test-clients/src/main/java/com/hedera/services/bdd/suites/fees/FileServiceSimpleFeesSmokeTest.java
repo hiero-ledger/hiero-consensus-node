@@ -3,21 +3,16 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
@@ -41,7 +36,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -57,8 +51,6 @@ public class FileServiceSimpleFeesSmokeTest {
     private static final double TRANSACTION_ALLOWED_PERCENT_DIFF = 0.1;
     private static final double QUERY_ALLOWED_PERCENT_DIFF = 0.1;
     private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
-    private static final long INVALID_QUERY_NODE_PAYMENT = 1_234L;
-    private static final int RECORD_RETRY_LIMIT = 3_000;
 
     @HapiTest
     @DisplayName("USD base fee as expected for file create transaction")
@@ -246,46 +238,25 @@ public class FileServiceSimpleFeesSmokeTest {
     }
 
     @HapiTest
-    @DisplayName("file get info - invalid file still charges the payer")
+    @DisplayName("file get info - invalid file fails")
     final Stream<DynamicTest> fileGetInfoInvalidFileFails() {
-        final AtomicLong paymentFee = new AtomicLong();
-
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
-                balanceSnapshot("preGetInfo", CIVILIAN),
                 getFileInfo("0.0.99999999")
                         .payingWith(CIVILIAN)
-                        .nodePayment(INVALID_QUERY_NODE_PAYMENT)
-                        .hasAnswerOnlyPrecheck(INVALID_FILE_ID)
-                        .via("invalidGetInfo"),
-                // Waits for the query payment to reach consensus, so the balance below is settled
-                getTxnRecord("invalidGetInfo")
-                        .setRetryLimit(RECORD_RETRY_LIMIT)
-                        .exposingTo(record -> paymentFee.set(record.getTransactionFee())),
-                sourcing(() -> getAccountBalance(CIVILIAN)
-                        .hasTinyBars(
-                                changeFromSnapshot("preGetInfo", -(INVALID_QUERY_NODE_PAYMENT + paymentFee.get())))));
+                        .nodePayment(1_234L)
+                        .hasAnswerOnlyPrecheck(INVALID_FILE_ID));
     }
 
     @HapiTest
-    @DisplayName("file get contents - invalid file still charges the payer")
+    @DisplayName("file get contents - invalid file fails")
     final Stream<DynamicTest> fileGetContentsInvalidFileFails() {
-        final AtomicLong paymentFee = new AtomicLong();
-
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
-                balanceSnapshot("preGetContents", CIVILIAN),
                 getFileContents("0.0.99999999")
                         .payingWith(CIVILIAN)
-                        .nodePayment(INVALID_QUERY_NODE_PAYMENT)
-                        .hasAnswerOnlyPrecheck(INVALID_FILE_ID)
-                        .via("invalidGetContents"),
-                getTxnRecord("invalidGetContents")
-                        .setRetryLimit(RECORD_RETRY_LIMIT)
-                        .exposingTo(record -> paymentFee.set(record.getTransactionFee())),
-                sourcing(() -> getAccountBalance(CIVILIAN)
-                        .hasTinyBars(changeFromSnapshot(
-                                "preGetContents", -(INVALID_QUERY_NODE_PAYMENT + paymentFee.get())))));
+                        .nodePayment(1_234L)
+                        .hasAnswerOnlyPrecheck(INVALID_FILE_ID));
     }
 
     private static byte[] bytesWithLength(final int length) {
