@@ -608,7 +608,7 @@ jobs:
       max-parallel: 1
       fail-fast: true
       matrix:
-        value: ${{fromJSON(needs.longevity-tests-start.outputs.waiterMatrix)}}
+        value: ${{fromJSON(needs.longevity-tests-start.outputs.waiterMatrix || '["1"]')}}
 
     steps:
       - name: Harden Runner
