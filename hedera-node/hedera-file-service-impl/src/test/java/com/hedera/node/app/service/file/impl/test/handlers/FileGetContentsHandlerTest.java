@@ -98,8 +98,6 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
         final var query = createGetFileContentQuery(fileId);
         given(context.query()).willReturn(query);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
-        given(context.createStore(ReadableFileStore.class)).willReturn(readableStore);
 
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
@@ -110,26 +108,6 @@ class FileGetContentsHandlerTest extends FileTestBase {
         when(context.query()).thenReturn(query);
 
         assertThrowsPreCheck(() -> subject.validate(context), INVALID_FILE_ID);
-    }
-
-    @Test
-    void validateFailsIfFileMissingFromState() {
-        final var query = createGetFileContentQuery(fileIdNotExist);
-        when(context.query()).thenReturn(query);
-        when(context.configuration()).thenReturn(DEFAULT_CONFIG);
-        when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
-
-        assertThrowsPreCheck(() -> subject.validate(context), INVALID_FILE_ID);
-    }
-
-    @Test
-    void validatePassesForGenesisSystemFileMissingFromState() {
-        final var query = createGetFileContentQuery(
-                DEFAULT_CONFIG.getConfigData(FilesConfig.class).exchangeRates());
-        when(context.query()).thenReturn(query);
-        when(context.configuration()).thenReturn(DEFAULT_CONFIG);
-
-        assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
     @Test
@@ -189,8 +167,6 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
         final var query = createGetFileContentQuery(fileId);
         when(context.query()).thenReturn(query);
-        when(context.configuration()).thenReturn(DEFAULT_CONFIG);
-        when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
         assertDoesNotThrow(() -> subject.validate(context));
     }

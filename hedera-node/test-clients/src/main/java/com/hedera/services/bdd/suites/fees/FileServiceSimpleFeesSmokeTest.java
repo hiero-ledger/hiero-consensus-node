@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -32,13 +31,11 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -241,35 +238,25 @@ public class FileServiceSimpleFeesSmokeTest {
     }
 
     @HapiTest
-    @DisplayName("file get info - invalid file fails at cost-answer, so no fee is charged")
+    @DisplayName("file get info - invalid file fails")
     final Stream<DynamicTest> fileGetInfoInvalidFileFails() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
-
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
-                getAccountBalance(CIVILIAN).exposingBalanceTo(initialBalance::set),
-                getFileInfo("0.0.99999999").payingWith(CIVILIAN).hasCostAnswerPrecheck(INVALID_FILE_ID),
-                getAccountBalance(CIVILIAN).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }));
+                getFileInfo("0.0.99999999")
+                        .payingWith(CIVILIAN)
+                        .nodePayment(1_234L)
+                        .hasAnswerOnlyPrecheck(INVALID_FILE_ID));
     }
 
     @HapiTest
-    @DisplayName("file get contents - invalid file fails at cost-answer, so no fee is charged")
+    @DisplayName("file get contents - invalid file fails")
     final Stream<DynamicTest> fileGetContentsInvalidFileFails() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
-
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
-                getAccountBalance(CIVILIAN).exposingBalanceTo(initialBalance::set),
-                getFileContents("0.0.99999999").payingWith(CIVILIAN).hasCostAnswerPrecheck(INVALID_FILE_ID),
-                getAccountBalance(CIVILIAN).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }));
+                getFileContents("0.0.99999999")
+                        .payingWith(CIVILIAN)
+                        .nodePayment(1_234L)
+                        .hasAnswerOnlyPrecheck(INVALID_FILE_ID));
     }
 
     private static byte[] bytesWithLength(final int length) {
