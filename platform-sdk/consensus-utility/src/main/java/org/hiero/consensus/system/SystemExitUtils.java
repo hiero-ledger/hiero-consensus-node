@@ -4,6 +4,7 @@ package org.hiero.consensus.system;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.logging.legacy.payload.FatalErrorPayload;
 import com.swirlds.logging.legacy.payload.SystemExitPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,6 +49,7 @@ public final class SystemExitUtils {
             logger.info(STARTUP.getMarker(), new SystemExitPayload(exitCode.name(), exitCode.getExitCode()));
         }
         System.out.println("Exiting System (" + exitCode.name() + ")");
+        ExceptionHandlers.disableUncaughtExceptionReporting();
         System.exit(exitCode.getExitCode());
         if (haltRuntime) {
             Runtime.getRuntime().halt(exitCode.getExitCode());

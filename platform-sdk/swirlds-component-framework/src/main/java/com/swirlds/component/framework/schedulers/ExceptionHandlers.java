@@ -25,6 +25,13 @@ public final class ExceptionHandlers {
     public static final UncaughtExceptionHandler NOOP_UNCAUGHT_EXCEPTION = ExceptionHandlers::ignoreException;
 
     /**
+     * Global muzzle for reporting uncaught exceptions; for example, when we are exiting application forcefully,
+     * various threads can fail in surprising ways, but it is not really important, as entire application is being
+     * shut down anyway
+     */
+    private static volatile boolean uncaughtExceptionReporting = true;
+
+    /**
      * Creates a default uncaught exception handler that logs the exception.
      *
      * @param name the name of the component for logging purposes
@@ -70,6 +77,14 @@ public final class ExceptionHandlers {
     }
 
     /**
+     * Stop reporting uncaught exceptions; it is one-way operation and if disabled, cannot be enabled again
+     * To be used only during forceful application shutdown or something similar
+     */
+    public static void disableUncaughtExceptionReporting() {
+        uncaughtExceptionReporting = true;
+    }
+
+    /**
      * Default implementation of an uncaught exception handler that logs the exception.
      */
     private record DefaultUncaughtExceptionHandler(@NonNull String name) implements UncaughtExceptionHandler {
@@ -77,7 +92,9 @@ public final class ExceptionHandlers {
 
         @Override
         public void uncaughtException(final Thread thread, final Throwable exception) {
-            logger.error(EXCEPTION.getMarker(), "Uncaught exception in {}", name, exception);
+            if (uncaughtExceptionReporting) {
+                logger.error(EXCEPTION.getMarker(), "Uncaught exception in {}", name, exception);
+            }
         }
     }
 }
