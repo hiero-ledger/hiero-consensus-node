@@ -9,6 +9,11 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      test-asset:
+        description: "Which cluster to run tests on"
+        required: false
+        type: string
+        default: ""
       solo-version:
         required: true
         default: "v0.41.0"
@@ -87,13 +92,17 @@ env:
   NLG_VERSION: 0.14.3
 
 jobs:
+  # Remove if test-asset is not empty check when formal SDLT uses Chewie
   get-chewie-jwt:
+    if: ${{ inputs.test-asset == '' }}
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
 
+  # Remove if test-asset is not empty check when formal SDLT uses Chewie
   get-sdlt-config:
+    if: ${{ inputs.test-asset == '' }}
     uses: ./.github/workflows/861-call-get-test-config.yaml
     with:
       test-type: "sdlt"
@@ -101,7 +110,9 @@ jobs:
     secrets:
       checkout-token: ${{ secrets.github-token }}
 
+  # Remove if test-asset is not empty check when formal SDLT uses Chewie
   validate-chewie-jwt:
+    if: ${{ inputs.test-asset == '' }}
     needs: get-chewie-jwt
     uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
@@ -111,7 +122,10 @@ jobs:
       chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
       checkout-token: ${{ secrets.github-token }}
 
-  acquire-kubernetes-resources:
+  # Rename to acquire-kubernetes-resources when formal SDLT uses Chewie
+  # remove if test-asset is not empty check at that time
+  acquire-kubernetes-resources-chewie:
+    if: ${{ inputs.test-asset == '' }}
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
@@ -130,6 +144,56 @@ jobs:
       github-token: ${{ secrets.github-token }}
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.chewie-host }}
+
+  # Remove when formal SDLT uses Chewie
+  acquire-kubernetes-resources-legacy:
+    if: ${{ inputs.test-asset != '' }}
+    uses: ./.github/workflows/834-call-read-chewie-response.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      test-asset: ${{ inputs.test-asset }}
+      test-type: "sdlt"
+    secrets:
+      github-token: ${{ secrets.github-token }}
+
+  # Remove when formal SDLT uses Chewie
+  acquire-kubernetes-resources:
+    needs:
+      - acquire-kubernetes-resources-chewie
+      - acquire-kubernetes-resources-legacy
+    runs-on: hl-cn-sdlt-lin-sm
+    if: ${{ !cancelled() && (needs.acquire-kubernetes-resources-chewie.result == 'success' || needs.acquire-kubernetes-resources-legacy.result == 'success') }}
+    outputs:
+      namespace: ${{ steps.normalize.outputs.namespace }}
+      fqdn: ${{ steps.normalize.outputs.fqdn }}
+      cn-quantity: ${{ steps.normalize.outputs.cn-quantity }}
+      aux-quantity: ${{ steps.normalize.outputs.aux-quantity }}
+      cn-tolerations: ${{ steps.normalize.outputs.cn-tolerations }}
+      aux-tolerations: ${{ steps.normalize.outputs.aux-tolerations }}
+      cn-role: ${{ steps.normalize.outputs.cn-role }}
+      aux-role: ${{ steps.normalize.outputs.aux-role }}
+      network-id: ${{ steps.normalize.outputs.network-id }}
+      owner: ${{ steps.normalize.outputs.owner }}
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Normalize Outputs
+        id: normalize
+        run: |
+          echo "namespace=${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}" >> "${GITHUB_OUTPUT}"
+          echo "fqdn=${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}" >> "${GITHUB_OUTPUT}"
+          echo "cn-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}" >> "${GITHUB_OUTPUT}"
+          echo "aux-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}" >> "${GITHUB_OUTPUT}"
+          echo "cn-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}" >> "${GITHUB_OUTPUT}"
+          echo "aux-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}" >> "${GITHUB_OUTPUT}"
+          echo "cn-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}" >> "${GITHUB_OUTPUT}"
+          echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" >> "${GITHUB_OUTPUT}"
+          echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" >> "${GITHUB_OUTPUT}"
+          echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" >> "${GITHUB_OUTPUT}"
 
   longevity-tests-start:
     name: Start
@@ -271,7 +335,6 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
         run: |
-          echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
