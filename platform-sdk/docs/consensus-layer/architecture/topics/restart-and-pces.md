@@ -115,7 +115,8 @@ Restart has two phases. State load and replay-bound derivation happen in `Platfo
 5. **Start gossip; event creation remains off.** Only after replay completes does
    `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run (`SwirldsPlatform.java:123`).
    Neither gossip nor event creation observes a partially-replayed state: gossip because it is started here, and event
-   creation because it is gated on platform status. See `event-creator.md` (TBD) for the gating details.
+   creation because it is gated on platform status. See [`event-creator.md`](event-creator.md#permission-gates) (the
+   `PlatformStatusRule` gate) for the gating details.
 
 ## Replay
 
