@@ -108,9 +108,9 @@ classDiagram
         +validate()
     }
 
-    class HashChunkValidator {
+    class HashRecordValidator {
         <<interface>>
-        +processHashRecord(VirtualHashChunk)
+        +processHashRecord(VirtualHashRecord)
     }
 
     class LeafBytesValidator {
@@ -123,11 +123,11 @@ classDiagram
         +processBucket(long, ParsedBucket)
     }
 
-    Validator <|-- HashChunkValidator
+    Validator <|-- HashRecordValidator
     Validator <|-- LeafBytesValidator
     Validator <|-- HdhmBucketValidator
 
-    HashChunkValidator <|.. HashChunkIntegrityValidator
+    HashRecordValidator <|.. HashRecordIntegrityValidator
     LeafBytesValidator <|.. LeafBytesIntegrityValidator
     LeafBytesValidator <|.. AccountAndSupplyValidator
     LeafBytesValidator <|.. TokenRelationsIntegrityValidator
@@ -157,7 +157,7 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
 
 - **Segmentation** — Partitions data sources into segments for parallel reading; in-memory hash ranges are partitioned as well.
-- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java), producing batches into a bounded queue.
+- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
 - **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
 - After all data is consumed, `validate()` is called on each pipeline validator.
 
@@ -165,11 +165,11 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Pipeline Data Types
 
-|   Type   |      Source       |      Content       |                                              Dispatched To                                               |
-|----------|-------------------|--------------------|----------------------------------------------------------------------------------------------------------|
-| **P2KV** | Leaf data files   | `VirtualLeafBytes` | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
-| **P2H**  | Hash data files   | `VirtualHashChunk` | [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java) impls   |
-| **K2P**  | HDHM bucket files | `ParsedBucket`     | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+|   Type   |                 Source                 |       Content       |                                              Dispatched To                                               |
+|----------|----------------------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files                        | `VirtualLeafBytes`  | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
+| **K2P**  | HDHM bucket files                      | `ParsedBucket`      | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
 
 ### Thread Safety
 
@@ -180,7 +180,7 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Adding a New Validator
 
-1. Create a class implementing [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
+1. Create a class implementing [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
 2. Add an instance to [ValidatorRegistry.ALL_VALIDATORS](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java).
 3. *(Optional)* Define a new group constant and add it to [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java)'s parameters.
 
@@ -667,13 +667,13 @@ the resulting state and block hashes against the originals.
 - The state round must match the PCES stream origin, or the platform will discard the files.
 - The `--rounds-non-ancient` extension must have been used in `blocks-to-pces` (default 26),
   or the earliest events will be stuck in the orphan buffer and consensus will not advance.
-
 ### Usage
 
 ```shell
 java -jar ./validator-<version>.jar replay-pces \
   --state-dir <path-to-state-round> \
   --pces-dir <path-to-pces-files> \
+  --target-round <round> \
   [--out <output-dir>] \
   [--self-id <id>] \
   [--event-stream-name <name>] \
@@ -708,7 +708,8 @@ java -jar ./validator-<version>.jar replay-pces \
   to name an output subdirectory; does not affect replay correctness. Default = `0.0.3`.
 - `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
   real hinTS. No live TSS network required. Default = `true`.
-
+- `--target-round` (or `-t`) — The round to advance the state to. Must be less than or equal
+  to the last round in the PCES stream. Required.
 ### Notes
 
 - The command sets `event.preconsensus.intake.allowUnsignedPcesEvents=true` automatically.
@@ -724,3 +725,5 @@ java -jar ./validator-<version>.jar replay-pces \
 - The snapshot round in the output equals the round PCES advanced the state to. Compare the
   `hashInfo.txt` from the output state against the original production state at that round to
   verify equivalence.
+- If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not 
+the same as the target round, the replay will fail. 
