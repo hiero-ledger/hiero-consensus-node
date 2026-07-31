@@ -25,6 +25,7 @@ import java.util.Queue;
 import java.util.function.UnaryOperator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -58,6 +59,8 @@ import org.hiero.consensus.state.utils.SignedStateReserver;
  * Module for signed state management.
  */
 public class StateModule {
+
+    private final WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
@@ -106,6 +109,8 @@ public class StateModule {
             @NonNull final SavedStateController savedStateController) {
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "State_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 
@@ -131,6 +136,11 @@ public class StateModule {
                 new ComponentWiring<>(model, StateGarbageCollector.class, wiringConfig.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
+
+        // Wire components
+        eventWindowExtractor
+                .getOutputWire()
+                .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow));
 
         // Eventually mark unhashed state for storage and forward to StateHasher
         savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
@@ -296,12 +306,24 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for setting the latest {@link EventWindow}.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the input wire for the transactions
+     * @return the {@link InputWire} for the consensus round
      */
+    @InputWireLabel("consensus round")
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return eventWindowExtractor.getInputWire();
+    }
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow);
     }
 

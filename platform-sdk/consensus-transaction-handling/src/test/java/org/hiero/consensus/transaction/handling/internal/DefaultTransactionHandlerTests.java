@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -32,7 +33,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -119,8 +120,8 @@ class DefaultTransactionHandlerTests {
                         handlerOutput.stateForPrehandle().get(),
                         "the same signed state should be used for hashing and prehandle outside a freeze round");
 
-                assertEquals(
-                        0, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
+            verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), never())
+                    .put(any());
 
                 assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
                 assertSame(
@@ -190,6 +191,10 @@ class DefaultTransactionHandlerTests {
                         1,
                         handlerOutput.stateForPrehandle().get().getReservationCount(),
                         "the prehandle carrier should have its own reservation");
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
+                        .put(any(FreezePeriodEnteredAction.class));
+                assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
+                assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
 
                 final var freezeState = handlerOutput
                         .stateWithHashComplexity()
@@ -231,11 +236,8 @@ class DefaultTransactionHandlerTests {
                         "the mutable successor should remain mutable");
                 verify(tester.getStateEventHandler()).onFreezeStateCopied(prehandleState.getState());
 
-                assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
-                assertEquals(
-                        FreezePeriodEnteredAction.class,
-                        tester.getSubmittedActions().getFirst().getClass(),
-                        "the freeze action should be the first submitted action");
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
+                                    .put(any(FreezePeriodEnteredAction.class));
                 assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
                 assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
 
@@ -244,7 +246,8 @@ class DefaultTransactionHandlerTests {
                         tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
                 assertNull(postFreezeOutput, "no state should be created after freeze period");
 
-                assertEquals(1, tester.getSubmittedActions().size(), "no new status should have been submitted");
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), atMostOnce())
+                        .put(any());
                 assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
                 assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
                 assertEquals(

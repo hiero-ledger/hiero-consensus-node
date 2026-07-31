@@ -54,8 +54,8 @@ import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 
@@ -95,7 +95,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Enables submitting platform status actions.
      */
-    private final StatusActionSubmitter statusActionSubmitter;
+    private final StatusMonitorModule statusMonitorModule;
 
     private final SemanticVersion softwareVersion;
 
@@ -146,7 +146,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param configuration the configuration data
      * @param metrics the metrics system
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param statusActionSubmitter enables submitting of platform status actions
+     * @param statusMonitorModule enables submitting of platform status actions
      * @param softwareVersion the current version of the software
      */
     public DefaultTransactionHandler(
@@ -154,7 +154,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final NodeId selfId,
@@ -163,7 +163,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.configuration = requireNonNull(configuration);
         this.saveStateAsync = configuration.getConfigData(StateConfig.class).saveStateAsync();
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
-        this.statusActionSubmitter = requireNonNull(statusActionSubmitter);
+        this.statusMonitorModule = requireNonNull(statusMonitorModule);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionCallbacks = requireNonNull(transactionCallbacks);
         this.selfId = requireNonNull(selfId);
@@ -223,7 +223,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
-            statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
+            statusMonitorModule
+                    .platformStatusActionInputWire()
+                    .put(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
                     STARTUP.getMarker(),

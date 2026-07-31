@@ -32,6 +32,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,7 +169,7 @@ public class ProofControllerImpl implements ProofController {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        votes.forEach((nodeId, vote) -> incorporateVote(nodeId, vote, tssConfig));
+        replayPersistedVotes(votes, tssConfig);
         if (!isCompleted(construction, tssConfig)) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
                     ? asInstant(construction.gracePeriodEndTimeOrThrow())
@@ -388,17 +391,20 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
-     * Incorporates the given vote into the in-memory state of this controller; used to determine when a particular
-     * proof has enough votes to be completed.
+     * Incorporates a single live vote into the in-memory state of this controller; used to determine when a
+     * particular proof has enough votes to be completed. This is the path taken by {@link #addProofVote} as votes
+     * arrive in consensus order, so a congruent vote whose referent is not yet known is rejected rather than held.
+     * Rebuilding the tally from persisted votes instead uses {@link #replayPersistedVotes}, which does not assume
+     * consensus order.
      *
      * @param nodeId the ID of the node that cast the vote
      * @param vote the vote to incorporate
      * @param tssConfig the TSS configuration
+     * @return whether the vote could still be incorporated (false once the proof is finished)
      */
     private boolean incorporateVote(
             final long nodeId, @NonNull final HistoryProofVote vote, @NonNull final TssConfig tssConfig) {
-        if (construction.hasTargetProof()
-                && tssConfig.wrapsEnabled() == isWrapsExtensible(construction.targetProofOrThrow())) {
+        if (hasWrapsAdequateTargetProof(tssConfig)) {
             log.info(
                     "Skipping vote from node{} for construction #{} because the proof is already {}",
                     nodeId,
@@ -417,6 +423,77 @@ public class ProofControllerImpl implements ProofController {
             }
         }
         return true;
+    }
+
+    /**
+     * Rebuilds the in-memory vote tally from the votes persisted in state, resolving each congruent vote to the
+     * explicit vote it references independent of the order in which the votes are replayed.
+     *
+     * <p>Votes are returned from state in {@link HashMap} iteration order, which is <b>not</b> the consensus order in
+     * which they were cast. The live {@link #incorporateVote} path assumes consensus order and drops a congruent vote
+     * whose referent has not been seen yet; replaying with it would leave a reconnecting node with less counted weight
+     * than the nodes that never restarted, so a later vote could complete the proof on some nodes but not others and
+     * trigger an ISS. This resolver instead loads every explicit vote first and then follows references, so accepted
+     * chains such as {@code node 0 -> node 1 -> node 2 (explicit)} are rebuilt regardless of replay order.
+     *
+     * @param persistedVotes the votes persisted in state, keyed by the node that cast them
+     * @param tssConfig the TSS configuration
+     */
+    private void replayPersistedVotes(
+            @NonNull final Map<Long, HistoryProofVote> persistedVotes, @NonNull final TssConfig tssConfig) {
+        // Mirror incorporateVote's guard: once the target proof matches the WRAPS setting, no vote is incorporated.
+        if (hasWrapsAdequateTargetProof(tssConfig)) {
+            return;
+        }
+        // Load every explicit vote into the tally, and index the congruent votes by the node they reference so their
+        // dependencies can be resolved without relying on replay order.
+        final Map<Long, List<Long>> congruentVotersByReferent = new TreeMap<>();
+        final Deque<Long> resolvedVoters = new ArrayDeque<>();
+        persistedVotes.forEach((nodeId, vote) -> {
+            if (vote.hasProof()) {
+                votes.put(nodeId, new ExplicitProofVote(vote));
+                resolvedVoters.add(nodeId);
+            } else if (vote.hasCongruentNodeId()) {
+                congruentVotersByReferent
+                        .computeIfAbsent(vote.congruentNodeIdOrThrow(), ignore -> new ArrayList<>())
+                        .add(nodeId);
+            }
+        });
+        // Starting from the explicit voters, resolve each congruent vote whose referent is now in the tally,
+        // enqueueing the newly resolved voter so its own dependents resolve too, until no further votes resolve.
+        while (!resolvedVoters.isEmpty()) {
+            final long referent = resolvedVoters.poll();
+            final var dependents = congruentVotersByReferent.remove(referent);
+            if (dependents != null) {
+                final var resolvedVote = votes.get(referent);
+                dependents.forEach(dependent -> {
+                    votes.put(dependent, resolvedVote);
+                    resolvedVoters.add(dependent);
+                });
+            }
+        }
+        // Any congruent votes still unresolved reference a node that never cast a (transitively) explicit vote.
+        // Accepted votes should never do this, so log the missing-reference or cyclic data instead of dropping it
+        // silently.
+        if (!congruentVotersByReferent.isEmpty()) {
+            log.warn(
+                    "Ignoring persisted congruent proof votes {} for construction #{} with unresolved references "
+                            + "(missing referent or cyclic data)",
+                    congruentVotersByReferent,
+                    construction.constructionId());
+        }
+    }
+
+    /**
+     * Returns whether the current construction already has a target proof whose WRAPS-extensibility matches the given
+     * WRAPS setting. When it does, the network will not re-vote to convert the proof and no further votes should be
+     * incorporated.
+     *
+     * @param tssConfig the TSS configuration
+     */
+    private boolean hasWrapsAdequateTargetProof(@NonNull final TssConfig tssConfig) {
+        return construction.hasTargetProof()
+                && tssConfig.wrapsEnabled() == isWrapsExtensible(construction.targetProofOrThrow());
     }
 
     /**

@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Platform status
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-27
 ---
 
 # Platform status
@@ -26,16 +26,16 @@ feeds it, and who reads its output.
 ## Responsibilities
 
 - Owns: the status state machine
-  ([`StatusStateMachine`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/StatusStateMachine.java))
+  ([`StatusStateMachine`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/StatusStateMachine.java))
   and the per-status transition logic
-  ([`PlatformStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/PlatformStatusLogic.java)
+  ([`PlatformStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/PlatformStatusLogic.java)
   and its ten implementations); the action vocabulary
-  ([`PlatformStatusAction`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/actions/PlatformStatusAction.java)
+  ([`PlatformStatusAction`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/actions/PlatformStatusAction.java)
   and subtypes); translating domain events into actions and fanning the
   resulting status out to consumers
-  ([`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java),
+  ([`DefaultPlatformMonitor`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/DefaultPlatformMonitor.java),
   wired by
-  [`PlatformWiring`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)).
+  [`StatusMonitorModule`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/StatusMonitorModule.java)).
 - Owns: the boundary notification to the application —
   [`PlatformStatusChangeNotification`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/PlatformStatusChangeNotification.java)
   and the direct `ExecutionLayer.newPlatformStatus` feed (see
@@ -89,9 +89,9 @@ recorded as decisions rather than restated here:
 
 ## The state machine
 
-[`StatusStateMachine`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/StatusStateMachine.java)
+[`StatusStateMachine`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/StatusStateMachine.java)
 holds one field of interest: the
-[`PlatformStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/PlatformStatusLogic.java)
+[`PlatformStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/PlatformStatusLogic.java)
 object for the current status. There is one logic implementation per status
 (`StartingUpStatusLogic`, `ObservingStatusLogic`, `ActiveStatusLogic`, …), and
 the current status *is* the type of the current logic object. `submitStatusAction`
@@ -106,31 +106,32 @@ which returns:
 
 Only on a genuine transition does the machine log the
 `Platform spent … in X. Now in Y` line, update its metrics
-([`PlatformStatusMetrics`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/PlatformStatusMetrics.java)),
+([`PlatformStatusMetrics`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/PlatformStatusMetrics.java)),
 and emit the new status. This per-status-object design keeps every status's
 legal actions and successors in one small class instead of one large switch.
 
 ### Actions and their sources
 
 Actions are the machine's only input. Each is produced by the topic that owns
-the underlying event and submitted through the
-[`StatusActionSubmitter`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/StatusActionSubmitter.java)
-functional interface. Some are translated by
-[`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)
+the underlying event; that topic is handed the
+[`StatusMonitorModule`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/StatusMonitorModule.java)
+and puts the action on its `platformStatusActionInputWire()`. Some are instead
+translated by
+[`DefaultPlatformMonitor`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/internal/DefaultPlatformMonitor.java)
 from a richer domain input (a `ConsensusRound`, an `IssNotification`, a
 heartbeat) into the corresponding action.
 
-|              Action               |                                  Produced by (`module/.../File.java`)                                  |                             Meaning                              |
-|-----------------------------------|--------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
-| `StartedReplayingEventsAction`    | `consensus-pces-impl/.../PcesCoordinator.java`                                                         | PCES replay began.                                               |
-| `DoneReplayingEventsAction`       | `consensus-pces-impl/.../PcesCoordinator.java`                                                         | PCES replay finished.                                            |
-| `SelfEventReachedConsensusAction` | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (from a `ConsensusRound`)               | One of this node's own events reached consensus.                 |
-| `FallenBehindAction`              | `consensus-reconnect-impl/.../ReconnectController.java`                                                | The node determined it is behind the network.                    |
-| `ReconnectCompleteAction`         | `consensus-reconnect-impl/.../ReconnectController.java`                                                | A reconnect finished.                                            |
-| `StateWrittenToDiskAction`        | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (from a state-saving result)            | A signed state was written to disk (carries the freeze flag).    |
-| `FreezePeriodEnteredAction`       | `consensus-transaction-handling/.../DefaultTransactionHandler.java`                                    | A round crossed the freeze boundary (carries the freeze round).  |
-| `CatastrophicFailureAction`       | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (from a catastrophic `IssNotification`) | An unrecoverable failure occurred.                               |
-| `TimeElapsedAction`               | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (heartbeat)                             | Wall-clock tick; carries the current instant and quiescing flag. |
+|              Action               |                                          Produced by (`<module>/.../<File>.java`)                                          |                             Meaning                              |
+|-----------------------------------|----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
+| `StartedReplayingEventsAction`    | `consensus-pces-impl/.../PcesCoordinator.java`                                                                             | PCES replay began.                                               |
+| `DoneReplayingEventsAction`       | `consensus-pces-impl/.../PcesCoordinator.java`                                                                             | PCES replay finished.                                            |
+| `SelfEventReachedConsensusAction` | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a `ConsensusRound`)               | One of this node's own events reached consensus.                 |
+| `FallenBehindAction`              | `consensus-reconnect-impl/.../ReconnectController.java`                                                                    | The node determined it is behind the network.                    |
+| `ReconnectCompleteAction`         | `consensus-reconnect-impl/.../ReconnectController.java`                                                                    | A reconnect finished.                                            |
+| `StateWrittenToDiskAction`        | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a state-saving result)            | A signed state was written to disk (carries the freeze flag).    |
+| `FreezePeriodEnteredAction`       | `consensus-transaction-handling/.../DefaultTransactionHandler.java`                                                        | A round crossed the freeze boundary (carries the freeze round).  |
+| `CatastrophicFailureAction`       | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (from a catastrophic `IssNotification`) | An unrecoverable failure occurred.                               |
+| `TimeElapsedAction`               | `consensus-status-monitor/.../status/monitor/internal/DefaultPlatformMonitor.java` (heartbeat)                             | Wall-clock tick; carries the current instant and quiescing flag. |
 
 The heartbeat is periodic — its interval is
 [`platformStatus.statusStateMachineHeartbeatPeriod`](../../tunables.md)
@@ -161,9 +162,9 @@ A full transition diagram is maintained (outside this KB) at
 
 ## Consumers
 
-The state machine's output — a new `PlatformStatus` on each change — is fanned
-out by
-[`PlatformWiring`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)
+The state machine's output — a new `PlatformStatus` on each change, emitted on
+the module's `platformStatusOutputWire()` — is soldered by
+[`ConsensusLayerWiring`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java)`#wirePlatformMonitorOutputs`
 to every component that gates on it:
 
 - **Event creator** — the

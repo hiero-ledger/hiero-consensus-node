@@ -148,7 +148,7 @@ See **Decision** above.
   for the ordinary-crash case.
 - `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41` — the
   `OBSERVING` status definition.
-- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ObservingStatusLogic.java:176-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ObservingStatusLogic.java:176-187`
   — the exit transition driven by `observingStatusDelay`.
 - `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java:23` —
   the `observingStatusDelay` config field (default `10s`).
