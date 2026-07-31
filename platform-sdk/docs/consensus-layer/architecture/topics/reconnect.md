@@ -81,13 +81,13 @@ configured thresholds are exceeded. Each attempt walks five phases.
    [Learner / teacher protocol](#learner--teacher-protocol).
 
 4. **Validation and load.** The default `SignedStateValidator`
-   checks only that the received state carries a signature quorum.
-   No roster compatibility or software version check is performed,
-   and the chain of reasoning is: nodes do not establish connections
-   with peers on a different software version, and the roster can
-   only change at a version-upgrade boundary — so the state a node
-   learns will always carry the same roster it already knew about.
-   Reconnect across an upgrade is not yet supported.
+   checks that the received state is not older than the pre-reconnect
+   one (`throwIfOld`) and that it carries a signature quorum.
+   No software version check is performed — nodes do not establish
+   connections with peers on a different software version, and reconnect
+   across an upgrade is not yet supported. `ReconnectController.loadState`
+   double-checks that the state's roster matches the current one, throwing
+   on a mismatch.
    `ReconnectCoordinator.loadReconnectState` then re-initialises
    every component that depends on an event window (hashgraph,
    event intake, shadowgraph, …) against the new state. See
@@ -98,7 +98,7 @@ configured thresholds are exceeded. Each attempt walks five phases.
    `RECONNECT_COMPLETE`, then to `CHECKING` once the state is
    persisted to disk, and the loop returns to phase 1.
 
-If an attempt fails, the controller backs off and re-enters detection;
+If an attempt fails, the controller backs off and retries the reconnect attempt;
 once the count crosses
 `ReconnectConfig.maximumReconnectFailuresBeforeShutdown` the node
 exits via `SystemExitUtils` with `SystemExitCode.RECONNECT_FAILURE`.
@@ -115,16 +115,17 @@ the state flips to behind.
 The trigger condition is in `FallenBehindMonitor.checkAndNotify()`:
 
 ```java
-isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size()
-        || (peersSize > 0 && reportFallenBehind.size() == peersSize);
+isBehind = fallenBehindWeight > fallenBehindWeightThreshold;
 ```
 
-`fallenBehindThreshold` is a proportion (0.0–1.0) read from
-`FallenBehindConfig.fallenBehindThreshold`; the second clause covers
-the edge case where every peer has reported. See
+`fallenBehindWeight` is the summed consensus weight of the peers
+currently reporting the node behind; `fallenBehindWeightThreshold` is
+`round(totalWeightExceptSelf * fallenBehindThreshold)`, with
+`fallenBehindThreshold` a proportion (0.0–1.0) read from
+`FallenBehindConfig.fallenBehindThreshold`. See
 [`../../tunables.md`](../../tunables.md) for the configured value. The
-monitor also surfaces two metrics under the `internal` category:
-`hasFallenBehind` and `numReportFallenBehind`.
+monitor also surfaces three metrics under the `internal` category:
+`hasFallenBehind`, `numReportFallenBehind`, and `weightReportFallenBehind`.
 
 Detection is only the trigger; before the learner can fetch a new
 state the node has to stop gossiping, stop creating events, and clear its pipeline. `notifySyncProtocolPaused()` /
@@ -171,8 +172,9 @@ connection (see [`gossip.md`](gossip.md) for the protocol-stack view).
   whether to accept one as teacher, and `runProtocol()` runs the
   chosen role on the active connection.
 
-The learner-side `shouldInitiate()` has no gates beyond
-`FallenBehindMonitor` reporting the local node behind by this peer.
+The learner-side `shouldInitiate()` gates on `FallenBehindMonitor`
+reporting the local node behind by this peer, and then on acquiring a
+reconnect provide permit (`acquireProvidePermit`).
 The teacher-side conditions are listed in
 [Lifecycle](#lifecycle) step 2.
 

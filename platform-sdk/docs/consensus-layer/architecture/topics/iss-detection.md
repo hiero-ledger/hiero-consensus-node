@@ -82,7 +82,7 @@ Defined in
 `ConsensusHashFinder.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/ConsensusHashFinder.java).
 Groups peer-reported hashes into weight-summed *partitions* keyed by
 hash value. The consensus hash is the hash of the partition that
-exceeds the `SUPER_MAJORITY` weight threshold; if no partition can
+exceeds the `MAJORITY` weight threshold; if no partition can
 reach that threshold even with the remaining unreported weight, the
 result is catastrophic.
 
@@ -119,10 +119,10 @@ ingested *if* the round is already tracked. Signatures for rounds
 ahead of the current window are buffered in `savedSignatures` until
 the corresponding state arrives. Signatures for rounds behind the
 window are silently dropped. Each peer signature reports the
-submitter's hash; once a partition crosses `SUPER_MAJORITY` the
+submitter's hash; once a partition crosses `MAJORITY` the
 validator's status becomes `VALID` (if it matches the local hash) or
 `SELF_ISS` (if not). When no partition can ever reach
-`SUPER_MAJORITY`, the status becomes `CATASTROPHIC_ISS`.
+`MAJORITY`, the status becomes `CATASTROPHIC_ISS`.
 
 ### Classification
 
@@ -224,7 +224,7 @@ is soldered to:
   application callbacks.
 
 `IssDetector::overridingState` and `IssDetector::signalEndOfPreconsensusReplay`
-are built but unsoldered in `buildUnsolderedWires`; they are invoked
+are built but unsoldered; they are invoked
 directly by reconnect and replay paths rather than via wiring.
 
 ## Cross-references

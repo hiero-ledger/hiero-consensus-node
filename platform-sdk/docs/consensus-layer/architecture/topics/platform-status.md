@@ -95,8 +95,8 @@ holds one field of interest: the
 object for the current status. There is one logic implementation per status
 (`StartingUpStatusLogic`, `ObservingStatusLogic`, `ActiveStatusLogic`, …), and
 the current status *is* the type of the current logic object. `submitStatusAction`
-dispatches the action to the matching `process…Action` method on that object,
-which returns:
+dispatches the action via `PlatformStatusLogic#process`, which switches to the
+matching per-action `on…` hook (e.g. `onTimeElapsed`) on that object, returning:
 
 1. **a new logic object** — the status transitions to the new object's status;
 2. **`this`** — the action is valid but causes no transition;
