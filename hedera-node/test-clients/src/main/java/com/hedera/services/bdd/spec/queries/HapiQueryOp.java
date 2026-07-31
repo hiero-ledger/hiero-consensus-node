@@ -265,10 +265,11 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                 throw new HapiQueryPrecheckStateException(errMsg);
             }
         }
+        // Record the payment even on an expected-failure precheck; the node may still have submitted it
+        txnSubmitted = payment;
         if (expectedCostAnswerPrecheck() != OK || expectedAnswerOnlyPrecheck() != OK) {
             return false;
         }
-        txnSubmitted = payment;
         return true;
     }
 
