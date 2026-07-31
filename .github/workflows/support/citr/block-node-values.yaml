@@ -61,10 +61,10 @@ blockNode:
     sources:
       # note that this is an example of another (source) BN on the same K8 cluster
       # different namespace <serviceName>.<namespace>.svc.cluster.local
-      - address: "%ANOTHER_BN_1%.%SOLO_NAMESPACE%.svc.cluster.local"
+      - address: "%ANOTHER_BN_1%"
         port: 40840
         priority: 1
-      - address: "%ANOTHER_BN_2%.%SOLO_NAMESPACE%.svc.cluster.local"
+      - address: "%ANOTHER_BN_2%"
         port: 40840
         priority: 2
   persistence:
