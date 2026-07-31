@@ -37,17 +37,13 @@ jobs:
       - name: Get Chewie JWT
         id: get-chewie-jwt
         env:
-          HOST: "https://chewie.lat.ope.eng.hashgraph.io"
+          HOST: "${{ secrets.chewie-host }}"
         run: |
           api_path="api/v1/auth/token"
 
           response=$(curl -s -X POST "${HOST}/${api_path}" \
             -H "Content-Type: application/json" \
             -H "Authorization: ${{ secrets.chewie-key }}")
-
-          echo "::group::Chewie JWT Response"
-          echo "${response}"
-          echo "::endgroup::"
 
           chewie_jwt=$(echo "${response}" | jq -r '.token')
           chewie_jwt_b64=$(printf '%s' "${chewie_jwt}" | base64 -w 0)

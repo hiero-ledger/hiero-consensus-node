@@ -50,6 +50,7 @@ build_compute_request() {
      [[ "$RUN_ATTEMPT" == "0" ]] || [[ -z "$OWNER" ]] || \
      [[ -z "$REPOSITORY" ]] || [[ -z "$JOB" ]]; then
     echo "Error: Missing required options"
+    return 1
   fi
 
   if [[ "${CONSENSUS_GROUP_NAME:-}" == "" ]]; then
