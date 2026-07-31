@@ -16,7 +16,7 @@ on:
         type: string
       solo-version:
         required: true
-        default: "v0.41.0"
+        default: "v0.84.0"
         description: "Solo Version:"
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
@@ -468,7 +468,7 @@ jobs:
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout main #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
+          git checkout ${{ inputs.solo-version }} #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
           #echo > resources/templates/application.properties
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
