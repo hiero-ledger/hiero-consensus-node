@@ -1614,7 +1614,7 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
-      - performance-SmartContractLoadTest
+      - performance-HeliSwapLoadTest
     outputs:
       ValidatorStatus: ${{ steps.validator-status.outputs.value }}
 
