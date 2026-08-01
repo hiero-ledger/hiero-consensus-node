@@ -1,33 +1,34 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Isolated reproducer for the 0.76 -> 0.77 (BLOCKS-only cutover, real TSS signatures) upgrade that
+# Isolated reproducer for the 0.77 -> 0.78 (BLOCKS-only cutover, real TSS signatures) upgrade that
 # corresponds to step 11 of solo-e2e-block-stream-cutover.sh. The full cutover script takes 30+
-# minutes and walks the whole 0.73 -> 0.77 chain before reaching the 0.77 cutover; this script
-# deploys directly at the published 0.76 release tag and goes straight to the transition we care
+# minutes and walks the whole 0.73 -> 0.78 chain before reaching the 0.78 cutover; this script
+# deploys directly at the published 0.77 release tag and goes straight to the transition we care
 # about.
 #
-#   1. Deploy a CN network directly at the published v0.76.0-rc.1 release tag with
-#      resources/0.76/application.properties, enabling TSS with tss.forceMockSignatures=true (the
-#      0.76 "dual-write, mock signatures" state). The WRAPS env is injected before the JVMs start
-#      so all nodes initialize the WRAPS library in lockstep at genesis. (Now that a 0.76 tag
-#      exists there's no need to deploy 0.75 first and upgrade into 0.76.)
-#   2. Deploy a mirror node + explorer UI on the 0.76 network (importer reads RECORD streams from
-#      MinIO, which the CN writes in 0.76 / streamMode=BOTH).
+#   1. Deploy a CN network directly at the published v0.77.0-rc.3 release tag. Its defaults enable
+#      the 0.77 "dual-write, mock signatures" state; the application properties only adapt the
+#      WRAPS proving-key path to the Solo environment. The WRAPS env is injected before the JVMs
+#      start so all nodes initialize the WRAPS library in lockstep at genesis. (Now that a 0.77 tag
+#      exists there's no need to deploy an earlier version first and upgrade into 0.77.)
+#   2. Deploy a mirror node + explorer UI on the 0.77 network (importer reads RECORD streams from
+#      MinIO, which the CN writes in 0.77 / streamMode=BOTH).
 #   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks streamed by the CN
 #      through the RSA bootstrap roster.
-#   4. Seed the Block Node with the network's TSS ledger id (published during 0.76) so it can
+#   4. Seed the Block Node with the network's TSS ledger id (published during 0.77) so it can
 #      verify the real-TSS-signed blocks produced after the cutover.
-#   5. Upgrade in place to the local build with resources/0.77/application.properties — BLOCKS-only
+#   5. Upgrade in place to the local build with
+#      resources/0.78/application-077-to-078.properties — BLOCKS-only
 #      (streamMode=BLOCKS, writerMode=GRPC), real TSS signatures (tss.forceMockSignatures=false),
 #      state proofs on. WRAPS env + on-disk artifacts carry forward from step 1 (no re-injection,
-#      matching the main script's run_077_upgrade). The mirror importer is then switched to read the
+#      matching the main script's run_078_upgrade). The mirror importer is then switched to read the
 #      post-cutover blocks from the Block Node.
 #
-# Verifications after the 0.77 cutover:
+# Verifications after the 0.78 cutover:
 #   - local-build version on all consensus nodes
 #   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (lastAvailableBlock
+#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (nextExpectedBlock
 #     advances)
 #   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. The cutover itself comes up
 #     ACTIVE; the SELF_ISS only surfaced when a node restarted (e.g. OOMKilled) and replayed events
@@ -42,41 +43,45 @@ set +m
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 
-SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-cutover-77}"
-SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-cutover-77}"
+SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-cutover-78}"
+SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-cutover-78}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
-# We deploy the network directly at the published 0.76 release tag (genesis at 0.76 with TSS +
-# WRAPS, mock signatures), then upgrade to the local 0.77 build for the focused cutover test.
-# Now that a 0.76 release tag exists, there's no need to deploy 0.75 first and upgrade into 0.76.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.76.0-rc.1}"
+# We deploy the network directly at the published 0.77 release tag (genesis at 0.77 with TSS +
+# WRAPS, mock signatures), then upgrade to the local 0.78 build for the focused cutover test.
+# Now that a 0.77 release tag exists, there's no need to deploy an earlier version first.
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.77.0-rc.3}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 # The CN downloads + extracts the WRAPS proving-key archive itself at genesis, using the
-# tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true values from the 0.76
-# application.properties (which already point at the public mirror).
+# default tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true values from the
+# 0.77 release (which already point at the public mirror).
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
 # upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
 # multiple nodes proving concurrently the off-heap peak dominates RAM. Capping trades genesis-proof
-# speed for much lower peak memory. Default 3 keeps node_count x cores within the ~15 visible CPUs at
-# 4 nodes (4 x 3 = 12), avoiding oversubscription. Set empty (or 0) to use all cores.
-WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-3}"
+# speed for much lower peak memory. Default 1 matches the HAPI subprocess tests and prevents four
+# concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
+WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-1}"
 
-APP_PROPS_076_FILE="${APP_PROPS_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.properties}"
-APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.env}"
-APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
+APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application-077-to-078.properties}"
+APP_ENV_077_FILE="${APP_ENV_077_FILE:-${SCRIPT_DIR}/resources/0.77/application-077-to-078.env}"
+APP_PROPS_078_FILE="${APP_PROPS_078_FILE:-${SCRIPT_DIR}/resources/0.78/application-077-to-078.properties}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
+# Back the native WRAPS prover's large allocations with a sparse, memory-mapped file instead of
+# anonymous RAM. HAPI_PATH is PVC-backed, and every consensus StatefulSet owns a distinct PVC, so
+# this identical in-container path resolves to a unique real-disk file for each node.
+WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/wraps-alloc-swap.bin}"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
-# When true (default), after the 0.77 cutover we delete a CN pod to force an
+# When true (default), after the 0.78 cutover we delete a CN pod to force an
 # event replay and assert it comes back ACTIVE without a SELF_ISS. This is the
 # actual failure mode observed in the full run (an OOMKilled node replayed past
 # the cutover round and hit SELF_ISS). Set false to only test the happy path.
@@ -92,14 +97,14 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
 # --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
-# The reproducer deploys a Block Node before the 0.76 step, seeds it with the network's TSS
-# ledger id before the 0.77 cutover, and asserts the BN verifies + persists the real-TSS-signed
+# The reproducer deploys a Block Node before the 0.77 step, seeds it with the network's TSS
+# ledger id before the 0.78 cutover, and asserts the BN verifies + persists the real-TSS-signed
 # post-cutover blocks.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.39.0}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -118,7 +123,7 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_P
 
 # Mirror node + explorer. The explorer is only a UI over the mirror node's REST API, so this
 # script deploys BOTH (matching the full e2e script). Deployment is best-effort: failures warn but
-# do not abort the core 0.76 -> 0.77 / BN cutover test.
+# do not abort the core 0.77 -> 0.78 / BN cutover test.
 MIRROR_RESTJAVA_MEMORY_REQUEST="${MIRROR_RESTJAVA_MEMORY_REQUEST:-512Mi}"
 MIRROR_RESTJAVA_MEMORY_LIMIT="${MIRROR_RESTJAVA_MEMORY_LIMIT:-1000Mi}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
@@ -131,16 +136,16 @@ SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-076-to-077.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-077-to-078.XXXXXX")"
 NUDGE_SCRIPT="${WORK_DIR}/nudge-consensus.js"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/cn-port-forward.log"
 RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
 BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-cutover-values.yaml"
 LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
 LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
-BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-parameters.bin"
+BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-bootstrap-roster.json"
 BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
-BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/verification/tss-parameters.bin}"
+BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-bootstrap-roster.json}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 MIRROR_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/mirror-node-block-cutover-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
@@ -200,7 +205,7 @@ wait_for_haproxy_ready() {
 
 configured_wraps_artifacts_container_dir() {
   local configured=""
-  configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_076_FILE}" | head -n 1)"
+  configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_077_FILE}" | head -n 1)"
   if [[ -n "${configured}" ]]; then
     printf '%s\n' "${configured}"
   else
@@ -208,8 +213,42 @@ configured_wraps_artifacts_container_dir() {
   fi
 }
 
-# Pre-inject TSS_LIB_WRAPS_ARTIFACTS_PATH into every consensus StatefulSet's
-# container spec BEFORE Solo's 0.76 upgrade. Solo's --application-env drops the
+reapply_application_property_overrides() {
+  local properties_file="$1"
+  local node pod
+  local nodes=()
+  local remote_overrides="/tmp/cutover-application-overrides.properties"
+  local app_properties="${HAPI_PATH}/data/config/application.properties"
+
+  log "Reapplying $(basename "${properties_file}") after Solo-generated property overrides"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    kubectl -n "${SOLO_NAMESPACE}" cp "${properties_file}" \
+      "${pod}:${remote_overrides}" -c root-container
+    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc "
+      set -eu
+      app='${app_properties}'
+      overrides='${remote_overrides}'
+      merged=\"\${app}.cutover-merged\"
+      cp \"\${app}\" \"\${merged}\"
+      while IFS= read -r line || [ -n \"\${line}\" ]; do
+        case \"\${line}\" in
+          ''|'#'*) continue ;;
+        esac
+        key=\${line%%=*}
+        grep -v -F \"\${key}=\" \"\${merged}\" > \"\${merged}.next\" || true
+        mv \"\${merged}.next\" \"\${merged}\"
+        printf '%s\n' \"\${line}\" >> \"\${merged}\"
+      done < \"\${overrides}\"
+      cat \"\${merged}\" > \"\${app}\"
+      rm -f \"\${merged}\" \"\${overrides}\"
+    "
+  done
+}
+
+# Pre-inject the WRAPS artifacts, swap-file, and core-limit variables into every consensus StatefulSet's
+# container spec BEFORE Solo's 0.77 upgrade. Solo's --application-env drops the
 # env file onto disk but the container entrypoint never sources it, so the JVM
 # never sees it. `kubectl set env statefulset/...` is the only path that
 # reliably reaches the JVM's /proc/<pid>/environ AND survives subsequent
@@ -224,7 +263,10 @@ inject_wraps_env_into_statefulsets() {
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
+  local -a wraps_env_args=(
+    "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
+    "TSS_LIB_WRAPS_SWAP_FILE=${WRAPS_SWAP_FILE_CONTAINER_PATH}"
+  )
   if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
     wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
   fi
@@ -290,7 +332,7 @@ verify_local_build_on_consensus_nodes() {
 }
 
 # Verifies each consensus node runs a release whose Implementation-Version contains the expected
-# substring (e.g. "0.76"). Used for the 0.76 step, which upgrades to a published release image
+# substring (e.g. "0.77"). Used for the 0.77 step, which upgrades to a published release image
 # rather than the local build, so the local-build version check does not apply.
 verify_release_version_on_consensus_nodes() {
   local expected_substr="$1"
@@ -309,6 +351,31 @@ verify_release_version_on_consensus_nodes() {
       echo "  ${pod}: expected version containing '${expected_substr}', found ${pod_version:-unknown}" >&2
       return 1
     fi
+  done
+}
+
+verify_runtime_config_on_consensus_nodes() {
+  local phase="$1"
+  shift
+  local node pod expectation key expected runtime_line actual
+  local nodes=()
+
+  log "Verifying ${phase} runtime configuration on each consensus node"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    for expectation in "$@"; do
+      key="${expectation%%=*}"
+      expected="${expectation#*=}"
+      runtime_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+        "grep -F '${key} = ' ${HAPI_PATH}/output/hgcaa.log | tail -n 1" 2>/dev/null || true)"
+      actual="${runtime_line#*= }"
+      if [[ -z "${runtime_line}" || "${actual}" != "${expected}" ]]; then
+        echo "  ${pod}: expected ${key}=${expected}, found ${actual:-unset}" >&2
+        return 1
+      fi
+    done
+    echo "  ${pod}: ${phase} runtime configuration OK"
   done
 }
 
@@ -472,7 +539,7 @@ verify_wraps_on_consensus_nodes() {
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
   expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  log "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  log "Verifying WRAPS runtime on each consensus node (expecting >=${expected_wraps} self-downloaded artifact files at ${wraps_dir} + proof construction, up to ${timeout_secs}s/node; the in-JVM env var is logged as a best-effort diagnostic only)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -486,9 +553,12 @@ verify_wraps_on_consensus_nodes() {
         echo "  ${pod}: WRAPS reported a runtime failure (check ${HAPI_PATH}/output/hgcaa.log)" >&2
         return 1
       fi
+      # found_env is a best-effort diagnostic: the /proc/<pid>/environ probe false-negatives on
+      # nodes that provably have the env set and are building proofs, so gate on the artifacts and
+      # let the authoritative proof-in-log check below decide.
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
+      if [[ "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -496,11 +566,11 @@ verify_wraps_on_consensus_nodes() {
     done
 
     if ! ${ready_for_proof}; then
-      echo "  ${pod}: timed out waiting for WRAPS env+artifacts (env='${found_env:-unset}' wanted '${wraps_dir}'; artifacts=${found_wraps:-0}/${expected_wraps})" >&2
+      echo "  ${pod}: timed out waiting for >=${expected_wraps} WRAPS artifacts in ${wraps_dir} (artifacts=${found_wraps:-0}/${expected_wraps}; env='${found_env:-unset}' [best-effort diagnostic])" >&2
       return 1
     fi
 
-    echo "  ${pod}: env + ${found_wraps} artifacts OK; waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
+    echo "  ${pod}: ${found_wraps} WRAPS artifacts present (env='${found_env:-unset}' [best-effort diagnostic]); waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
     local progress_tick=0
     while (( SECONDS < deadline )); do
       if wraps_failure_present_in_log "${pod}"; then
@@ -565,7 +635,7 @@ report_wraps_download_times() {
 # Delete a CN pod after the cutover to force a fresh JVM start + event replay,
 # then assert it returns to Ready without logging a SELF_ISS / CATASTROPHIC_FAILURE.
 # This reproduces the real failure mode: in the full run, an OOMKilled node
-# replayed events past the 0.77 cutover round and computed a divergent state
+# replayed events past the 0.78 cutover round and computed a divergent state
 # hash (SELF_ISS) right after the WrapsHistoryProver AGGREGATE phase.
 verify_node_replays_without_iss() {
   local node="${RESTART_REPLAY_NODE}"
@@ -658,8 +728,8 @@ run_command_with_timeout() {
 # ======================================================================================
 # Block Node + TSS-ledger-id machinery (ported from solo-e2e-block-stream-cutover.sh).
 # Lets this fast reproducer also exercise: BN verification of mock-sig (RSA WRB) blocks
-# during 0.76, seeding the BN with the network's TSS ledger id, and BN verification +
-# persistence of the real-TSS-signed blocks produced after the 0.77 cutover.
+# during 0.77, seeding the BN with the network's TSS ledger id, and BN verification +
+# persistence of the real-TSS-signed blocks produced after the 0.78 cutover.
 # ======================================================================================
 
 kill_processes_on_local_port() {
@@ -693,7 +763,7 @@ build_default_block_node_priority_mapping() {
 }
 
 # Build the RSA bootstrap roster JSON from each CN's gossip public key (s-public-nodeN.pem).
-# Lets the BN verify the mock-signature (RSA WRB) blocks streamed before the 0.77 cutover.
+# Lets the BN verify the mock-signature (RSA WRB) blocks streamed before the 0.78 cutover.
 generate_rsa_bootstrap_roster_json() {
   require_cmd openssl
   local node node_idx node_id pem hex
@@ -766,15 +836,15 @@ blockNode:
           mkdir -p /archive-pvc/archive-data && \\
           chown 2000:2000 /archive-pvc/archive-data && \\
           chmod 700 /archive-pvc/archive-data && \\
-          chown 2000:2000 /verification-pvc && \\
-          chmod 700 /verification-pvc
+          chown 2000:2000 /application-state-pvc && \\
+          chmod 700 /application-state-pvc
       volumeMounts:
         - name: live-storage
           mountPath: /live-pvc
         - name: archive-storage
           mountPath: /archive-pvc
-        - name: verification-storage
-          mountPath: /verification-pvc
+        - name: application-state-storage
+          mountPath: /application-state-pvc
     - name: seed-rsa-bootstrap-roster
       image: busybox
       command:
@@ -824,13 +894,33 @@ deploy_block_node() {
 }
 
 validate_block_node_repo() {
+  local status_proto="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto/block-node/api/node_service.proto"
   if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
     echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH} (needed for the serverStatus proto)" >&2
     return 1
   fi
+  if [[ ! -f "${status_proto}" ]] || ! grep -q 'next_expected_block' "${status_proto}"; then
+    echo "BLOCK_NODE_REPO_PATH must provide the v0.39+ serverStatus proto with next_expected_block: ${status_proto}" >&2
+    return 1
+  fi
 }
 
-# Poll BN serverStatus until lastAvailableBlock > 0, proving CN is streaming into it.
+# v0.39 uses uint64 max as the nextExpectedBlock sentinel when no publisher stream is currently
+# attached. In that state, lastAvailableBlock + 1 is the equivalent persisted-store position.
+bn_effective_next_expected_from_status() {
+  local raw="$1" next_expected="" last_available=""
+  next_expected="$(echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
+  if [[ "${next_expected}" == "18446744073709551615" ]]; then
+    last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
+    if [[ "${last_available}" =~ ^[0-9]+$ ]]; then
+      echo $((last_available + 1))
+      return
+    fi
+  fi
+  echo "${next_expected}"
+}
+
+# Poll BN serverStatus until nextExpectedBlock > 1 (BN holds >= block 1), proving CN is streaming into it.
 verify_block_node_has_blocks() {
   local timeout_secs="${1:-120}"
   local svc="block-node-${BLOCK_NODE_ID}"
@@ -860,21 +950,21 @@ verify_block_node_has_blocks() {
     return 1
   fi
 
-  local deadline=$((SECONDS + timeout_secs)) last_available="" raw=""
-  log "Polling ${svc} serverStatus for lastAvailableBlock > 0 (up to ${timeout_secs}s)"
+  local deadline=$((SECONDS + timeout_secs)) next_expected="" raw=""
+  log "Polling ${svc} serverStatus for nextExpectedBlock > 1 (up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
-    last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
-    if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" -gt 0 ]]; then
-      log "verify_block_node_has_blocks: lastAvailableBlock=${last_available} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
+    next_expected="$(bn_effective_next_expected_from_status "${raw}")"
+    if [[ "${next_expected}" =~ ^[0-9]+$ && "${next_expected}" -gt 1 ]]; then
+      log "verify_block_node_has_blocks: effective nextExpectedBlock=${next_expected} (reported=$(echo "${raw}" | jq -r '.nextExpectedBlock // "?"'), firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 5
   done
-  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
+  echo "BN ${svc} did not report nextExpectedBlock > 1 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
   echo "  --- last grpcurl stderr (serverStatus) ---" >&2
   cat "${grpc_err}" >&2 2>/dev/null || true
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
@@ -900,10 +990,10 @@ minio_discover_pod_credentials() {
 }
 
 # Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
-# and slices out the serialized LedgerIdPublicationTransactionBody (Block.items[1] ->
+# and converts the LedgerIdPublicationTransactionBody (Block.items[1] ->
 # BlockItem.signed_transaction[4] -> SignedTransaction.bodyBytes[1] ->
-# TransactionBody.ledger_id_publication[77]) — the form the BN expects at
-# verification.tssParametersFilePath.
+# TransactionBody.ledger_id_publication[77]) into the canonical TssData JSON that the v0.39
+# block-verification plugin reads from app.state.tssBootstrapFilePath.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -911,6 +1001,9 @@ write_ledger_id_extractor() {
 # SPDX-License-Identifier: Apache-2.0
 import sys
 import gzip
+import base64
+import json
+import os
 
 
 def read_varint(buf, pos):
@@ -972,9 +1065,41 @@ def extract_from_block(data):
     return None
 
 
+def tss_data_json(pub, block_number):
+    ledger_id = find_field(pub, 1)
+    wraps_key = find_field(pub, 2)
+    contributions = []
+    for fnum, wtype, val in iter_fields(pub):
+        if fnum != 3 or wtype != 2:
+            continue
+        node_id = 0
+        weight = 0
+        history_key = b""
+        for cnum, ctype, cval in iter_fields(val):
+            if cnum == 1 and ctype == 0:
+                node_id = cval
+            elif cnum == 2 and ctype == 0:
+                weight = cval
+            elif cnum == 3 and ctype == 2:
+                history_key = cval
+        contributions.append({
+            "nodeId": str(node_id),
+            "weight": str(weight),
+            "schnorrPublicKey": base64.b64encode(history_key).decode("ascii"),
+        })
+    if not ledger_id or not wraps_key or not contributions:
+        raise ValueError("LedgerIdPublication is missing ledger id, WRAPS key, or node contributions")
+    return {
+        "ledgerId": base64.b64encode(ledger_id).decode("ascii"),
+        "wrapsVerificationKey": base64.b64encode(wraps_key).decode("ascii"),
+        "currentRoster": {"rosterEntries": contributions},
+        "validFromBlock": str(block_number),
+    }
+
+
 def main():
     if len(sys.argv) < 3:
-        sys.stderr.write("usage: extract.py <out.bin> <blockFile.blk[.gz]> [...]\n")
+        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz]> [...]\n")
         sys.exit(2)
     out = sys.argv[1]
     for path in sys.argv[2:]:
@@ -984,9 +1109,10 @@ def main():
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
             pub = extract_from_block(data)
             if pub is not None:
-                with open(out, "wb") as o:
-                    o.write(pub)
-                print("FOUND ledgerIdPublication in %s -> wrote %d bytes to %s" % (path, len(pub), out))
+                block_number = int(os.path.basename(path).split(".", 1)[0])
+                with open(out, "w", encoding="utf-8") as o:
+                    json.dump(tss_data_json(pub, block_number), o, separators=(",", ":"))
+                print("FOUND ledgerIdPublication in %s -> wrote canonical TssData JSON to %s" % (path, out))
                 return
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("skip %s: %s\n" % (path, e))
@@ -1000,9 +1126,9 @@ EOF
 }
 
 # Bootstrap the BN with the network's TSS ledger id so it can verify real-TSS-signed
-# blocks after the 0.77 cutover. The BN only self-learns the ledger id from block 0; this
-# mid-chain BN never sees it, so we extract the LedgerIdPublication (published during 0.76)
-# from a MinIO .blk.gz, drop it into the BN's tssParametersFilePath, and roll the BN.
+# blocks after the 0.78 cutover. The BN only self-learns the ledger id from block 0; this
+# mid-chain BN never sees it, so we extract the LedgerIdPublication (published during 0.77)
+# from a MinIO .blk.gz, convert it to the v0.39 application-state TssData JSON, and roll the BN.
 seed_block_node_tss_parameters() {
   require_cmd python3
   local minio_pod creds_tmp u p in_pod_dir bn_pod
@@ -1049,9 +1175,9 @@ seed_block_node_tss_parameters() {
   write_ledger_id_extractor
   rm -f "${BN_TSS_PARAMS_LOCAL}"
   if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed: no LedgerIdPublication found in block stream (was it published during 0.76?)" >&2; return 1
+    echo "seed: no LedgerIdPublication found in block stream (was it published during 0.77?)" >&2; return 1
   fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted tss-parameters.bin is empty" >&2; return 1; }
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted TssData JSON is empty" >&2; return 1; }
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   log "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
@@ -1059,7 +1185,7 @@ seed_block_node_tss_parameters() {
   # Tar-free push (kubectl cp needs tar in the target container): stream the file into the
   # pod's cat via stdin.
   if ! kubectl -n "${SOLO_NAMESPACE}" exec -i "${bn_pod}" -- sh -lc "cat > '${BN_TSS_PARAMS_CONTAINER_PATH}'" < "${BN_TSS_PARAMS_LOCAL}"; then
-    echo "seed: streaming tss-parameters into ${bn_pod} failed" >&2; return 1
+    echo "seed: streaming TssData JSON into ${bn_pod} failed" >&2; return 1
   fi
   kubectl -n "${SOLO_NAMESPACE}" delete pod "${bn_pod}" --wait=true >/dev/null 2>&1 || true
   # Wait on the StatefulSet rollout, NOT `wait pod/<name>`: a `wait --for=condition=ready pod/<name>`
@@ -1075,7 +1201,8 @@ seed_block_node_tss_parameters() {
   if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- sh -lc "test -s '${BN_TSS_PARAMS_CONTAINER_PATH}'" >/dev/null 2>&1; then
     echo "seed: ${BN_TSS_PARAMS_CONTAINER_PATH} missing or empty in ${bn_pod} after roll" >&2; return 1
   fi
-  # Confirmation: the BN logs "Loaded TSS parameters from file" during init. `kubectl logs` can
+  # Confirmation: the active v0.39 block-verification plugin logs a successful application-state
+  # TSS update during init. `kubectl logs` can
   # briefly return a transitioning container right after the roll, so poll generously. An explicit
   # parse/load failure is fatal; but if we merely never observe the marker (a logs-cutover race)
   # while the file is present and the pod is Ready, continue with a warning —
@@ -1085,26 +1212,28 @@ seed_block_node_tss_parameters() {
   local bn_logs=""
   while (( SECONDS < deadline )); do
     bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
-    if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
-      log "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
+    if grep -q "Successfully updated TSS data" <<<"${bn_logs}"; then
+      log "Block Node loaded seeded TSS application state — ready to verify real-TSS blocks"
       return 0
     fi
-    if grep -qiE "failed to (load|parse|read).*tss|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
+    if grep -qiE "Failed to read TssData file|Failed to update TSS data in verification|invalid TssData|TssData.*(error|corrupt)" <<<"${bn_logs}"; then
       echo "seed: BN reported a TSS parameters load failure:" >&2
       grep -iE "tss" <<<"${bn_logs}" | tail -5 >&2
       return 1
     fi
     sleep 3
   done
-  log "WARN seed: did not observe 'Loaded TSS parameters from file' in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
+  log "WARN seed: did not observe a successful TSS application-state update in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
   return 0
 }
 
-# After the 0.77 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.lastAvailableBlock twice over a window and requires it to advance —
-# if the BN were rejecting the real-TSS blocks (the pre-seed failure mode), it would be
-# stuck and lastAvailableBlock would not move. Also surfaces any recent 'Verification
-# failed' log lines on failure for diagnosis.
+# After the 0.78 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
+# Reads serverStatus.nextExpectedBlock twice over a window and requires it to advance.
+# nextExpectedBlock is the live publisher position (= lastAvailableBlock + 1), bumped as the BN
+# receives/verifies each block; unlike lastAvailableBlock it does not lag behind the persistence/
+# available-store watermark, which can stay stuck after the cutover re-seed even while the BN is
+# verifying + persisting fine. If the BN were rejecting the real-TSS blocks it would be stuck.
+# Also surfaces any recent 'Verification failed' log lines on failure for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
   local bn_pod="block-node-${BLOCK_NODE_ID}-0"
@@ -1116,12 +1245,12 @@ verify_block_node_persists_post_cutover() {
   local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
   local proto_file="block-node/api/node_service.proto"
 
-  read_bn_last_available() {
+  read_bn_next_expected() {
     local raw
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
+    bn_effective_next_expected_from_status "${raw}"
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -1132,20 +1261,20 @@ verify_block_node_persists_post_cutover() {
   wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 || { kill "${pf_pid}" >/dev/null 2>&1 || true; echo "post-cutover: BN port-forward failed" >&2; return 1; }
 
   local baseline="" current=""
-  baseline="$(read_bn_last_available)"
+  baseline="$(read_bn_next_expected)"
   [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=0
-  log "Asserting BN persists post-cutover blocks (baseline lastAvailableBlock=${baseline}; must climb within ${timeout_secs}s)"
+  log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline}; must climb within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     sleep 10
-    current="$(read_bn_last_available)"
+    current="$(read_bn_next_expected)"
     if [[ "${current}" =~ ^[0-9]+$ && "${current}" -gt "${baseline}" ]]; then
-      log "verify_block_node_persists_post_cutover: lastAvailableBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
+      log "verify_block_node_persists_post_cutover: nextExpectedBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
   done
-  echo "post-cutover: BN lastAvailableBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
+  echo "post-cutover: BN nextExpectedBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
   echo "  recent BN verification failures:" >&2
   kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" --since=10m 2>/dev/null | grep -E "Verification failed for block=" | tail -5 >&2 || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -1153,11 +1282,11 @@ verify_block_node_persists_post_cutover() {
 }
 
 # Seeding rolls the BN, which severs the CN->BN publisher stream at the BN's last block. The CN keeps
-# producing on 0.76, but those blocks live only in the CN's in-memory block buffer, which RESETS when
-# the 0.77 upgrade restarts the CN. If the BN hasn't re-ingested up to the live tip before that
+# producing on 0.77, but those blocks live only in the CN's in-memory block buffer, which RESETS when
+# the 0.78 upgrade restarts the CN. If the BN hasn't re-ingested up to the live tip before that
 # restart, the gap blocks are orphaned (the BN's wanted block falls below the CN's reset buffer floor,
 # "block out of range") and the BN stalls forever. So after seeding, wait until the BN is actively
-# advancing again (publisher reconnected + streaming the post-roll blocks) BEFORE the 0.77 cutover.
+# advancing again (publisher reconnected + streaming the post-roll blocks) BEFORE the 0.78 cutover.
 wait_for_block_node_caught_up() {
   local timeout_secs="${1:-300}"
   local svc="block-node-${BLOCK_NODE_ID}"
@@ -1170,12 +1299,12 @@ wait_for_block_node_caught_up() {
   local cn_pod="network-${NODE_ALIASES%%,*}-0"
   local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
 
-  read_bn_last_available() {
+  read_bn_next_expected() {
     local raw
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
+    bn_effective_next_expected_from_status "${raw}"
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -1193,27 +1322,27 @@ wait_for_block_node_caught_up() {
   # CN is idle and the BN is already at the tip — so it's the correct gate (requiring the BN to keep
   # *advancing* false-fails whenever the CN produces nothing for a while). The failure case is the
   # gap: the CN reports "block out of range" (BN fell below the CN's block-buffer floor).
-  log "Waiting for the CN to report the Block Node in-range for streaming after the seed roll (up to ${timeout_secs}s) before the 0.77 cutover"
+  log "Waiting for the CN to report the Block Node in-range for streaming after the seed roll (up to ${timeout_secs}s) before the 0.78 cutover"
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
-    cur="$(read_bn_last_available)"
+    cur="$(read_bn_next_expected)"
     cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
       "grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' '${comms_log}' 2>/dev/null | tail -1" 2>/dev/null || true)"
     case "${cn_view}" in
       *"available for streaming (wantedBlock"*)
-        log "Block Node is caught up — CN reports it in-range for streaming (BN lastAvailableBlock=${cur:-?}); safe to cut over"
+        log "Block Node is caught up — CN reports it in-range for streaming (BN nextExpectedBlock=${cur:-?}); safe to cut over"
         kill "${pf_pid}" >/dev/null 2>&1 || true
         return 0
         ;;
     esac
     if [[ "${cur}" =~ ^[0-9]+$ && "${cur}" != "${prev}" ]]; then
-      log "  BN lastAvailableBlock=${cur} (CN view: ${cn_view:-pending})"
+      log "  BN nextExpectedBlock=${cur} (CN view: ${cn_view:-pending})"
       prev="${cur}"
     fi
     sleep 5
   done
-  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN lastAvailableBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
+  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN nextExpectedBlock=${prev:-?}); the 0.78 cutover may orphan blocks — consider seeding during the freeze" >&2
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
 }
@@ -1255,10 +1384,10 @@ setup_cluster_prereqs() {
     --quiet-mode
 }
 
-# Deploy the network directly at the 0.76 release tag (genesis: TSS + WRAPS enabled, mock
-# signatures). Now that a published 0.76 tag exists we no longer deploy 0.75 first and upgrade
-# into 0.76 — this is the prerequisite state the 0.77 cutover upgrades from.
-deploy_076() {
+# Deploy the network directly at the 0.77 release tag (genesis: TSS + WRAPS enabled, mock
+# signatures). The published 0.77 tag provides the prerequisite state the 0.78 cutover upgrades
+# from.
+deploy_077() {
   log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock signatures)"
 
   solo keys consensus generate \
@@ -1270,7 +1399,7 @@ deploy_076() {
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
-    --application-properties "${APP_PROPS_076_FILE}" \
+    --application-properties "${APP_PROPS_077_FILE}" \
     --log4j2-xml "${LOG4J2_XML_PATH}" \
     --pvcs true \
     --release-tag "${DEPLOY_RELEASE_TAG}"
@@ -1280,11 +1409,12 @@ deploy_076() {
     --node-aliases "${NODE_ALIASES}" \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
-  # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet BEFORE starting the JVMs so every node
-  # boots with the same artifacts path. consensus network deploy does not accept --application-env,
-  # so the env is set here via kubectl. All nodes come up together via the single
+  # Inject the WRAPS artifacts path, PVC-backed swap file, and core limit into each StatefulSet
+  # BEFORE starting the JVMs. consensus network deploy does not accept --application-env, so the
+  # env is set here via kubectl. All nodes come up together via the single
   # `consensus node start` below, so the genesis WRAPS ceremony runs in lockstep.
   inject_wraps_env_into_statefulsets
+  reapply_application_property_overrides "${APP_PROPS_077_FILE}"
 
   solo consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" \
@@ -1293,17 +1423,27 @@ deploy_076() {
 
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  verify_release_version_on_consensus_nodes "0.76"
+  verify_release_version_on_consensus_nodes "0.77"
+  verify_runtime_config_on_consensus_nodes "0.77 baseline" \
+    "nodes.nodeRewardsEnabled=false" \
+    "blockStream.streamMode=BOTH" \
+    "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.enableCutover=false" \
+    "tss.hintsEnabled=true" \
+    "tss.historyEnabled=true" \
+    "tss.wrapsEnabled=true" \
+    "tss.forceMockSignatures=true" \
+    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
 }
 
-# Verify the genesis 0.76 WRAPS ceremony completed: nudge consensus to advance rounds (the ceremony
+# Verify the genesis 0.77 WRAPS ceremony completed: nudge consensus to advance rounds (the ceremony
 # needs them), then confirm WRAPS proof construction on every node. Run after the BN is deployed so
 # the ledger id the BN later seeds from has been published.
-verify_076_wraps_baseline() {
-  log "--- 0.76 check 1/2: nudge consensus with cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
+verify_077_wraps_baseline() {
+  log "--- 0.77 check 1/2: nudge consensus with cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
   nudge_consensus_with_transactions
 
-  log "--- 0.76 check 2/2: verify WRAPS runtime + proof construction on every consensus node ---"
+  log "--- 0.77 check 2/2: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes 600
 
   report_wraps_download_times
@@ -1435,8 +1575,8 @@ deploy_mirror_and_explorer() {
   fi
 }
 
-# Writes the values file that switches the importer to read 0.77 blocks from the Block Node while
-# keeping the record-stream downloader alive for the pre-cutover (0.75/0.76) blocks.
+# Writes the values file that switches the importer to read 0.78 blocks from the Block Node while
+# keeping the record-stream downloader alive for the pre-cutover (0.75/0.77) blocks.
 write_mirror_node_block_cutover_values() {
   # Enable block-stream ingestion and point the importer at the Block Node. block.enabled defaults
   # false in v0.154, so it MUST be set true; the importer then auto-detects the cutover (switches to
@@ -1461,16 +1601,16 @@ EOF
   fi
 }
 
-# After the 0.77 cutover, reconfigure the already-deployed mirror node to also read blocks from the
+# After the 0.78 cutover, reconfigure the already-deployed mirror node to also read blocks from the
 # Block Node (block.enabled=true) while keeping the pre-cutover records from MinIO. The importer
 # auto-detects the cutover and permanently switches to blockstream once it reads a block from the
 # BN. Uses `solo mirror node upgrade` (NOT add) to reuse the existing ingress release; --force
 # bypasses Solo's CN/BN/MN version gates; --mirror-node-version pins a chart that recognizes the
-# block keys. Best-effort: failure warns. NOTE: MN can only ingest the 0.77 blocks if the BN has
+# block keys. Best-effort: failure warns. NOTE: MN can only ingest the 0.78 blocks if the BN has
 # successfully verified + stored them, so the BN-persist check is the real gate.
 update_mirror_node_for_block_cutover() {
   write_mirror_node_block_cutover_values
-  log "Reconfiguring mirror node (${MIRROR_NODE_VERSION}) to read 0.77 blocks from block-node-${BLOCK_NODE_ID} (block.enabled=true, auto-cutover)"
+  log "Reconfiguring mirror node (${MIRROR_NODE_VERSION}) to read 0.78 blocks from block-node-${BLOCK_NODE_ID} (block.enabled=true, auto-cutover)"
   if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
       solo mirror node upgrade \
       --deployment "${SOLO_DEPLOYMENT}" \
@@ -1482,32 +1622,42 @@ update_mirror_node_for_block_cutover() {
   fi
 }
 
-upgrade_to_local_077() {
-  log "=== 0.77 cutover: upgrade to local build with 0.77 properties (BLOCKS-only, real TSS signatures, state proofs) ==="
+upgrade_to_local_078() {
+  log "=== 0.78 cutover: upgrade to local build with 0.78 properties (BLOCKS-only, real TSS signatures, state proofs) ==="
 
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --local-build-path "${LOCAL_BUILD_PATH}"
-    --application-properties "${APP_PROPS_077_FILE}"
+    --application-properties "${APP_PROPS_078_FILE}"
     --quiet-mode
     --force
   )
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
-  log "--- 0.77 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
+  log "--- 0.78 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   verify_local_build_on_consensus_nodes
+  verify_runtime_config_on_consensus_nodes "0.78 cutover" \
+    "nodes.nodeRewardsEnabled=false" \
+    "blockStream.streamMode=BLOCKS" \
+    "blockStream.writerMode=GRPC" \
+    "blockStream.enableCutover=true" \
+    "tss.hintsEnabled=true" \
+    "tss.historyEnabled=true" \
+    "tss.wrapsEnabled=true" \
+    "tss.forceMockSignatures=false" \
+    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
 
-  log "--- 0.77 check 2/4: nudge consensus with cryptoCreate txns ---"
+  log "--- 0.78 check 2/4: nudge consensus with cryptoCreate txns ---"
   nudge_consensus_with_transactions
 
-  log "--- 0.77 check 3/4: verify WRAPS runtime + real (non-mock) proof construction ---"
+  log "--- 0.78 check 3/4: verify WRAPS runtime + real (non-mock) proof construction ---"
   verify_wraps_on_consensus_nodes 600
 
-  log "--- 0.77 check 4/4: restart ${RESTART_REPLAY_NODE} and confirm clean replay (no SELF_ISS) ---"
+  log "--- 0.78 check 4/4: restart ${RESTART_REPLAY_NODE} and confirm clean replay (no SELF_ISS) ---"
   verify_node_replays_without_iss
 }
 
@@ -1529,9 +1679,9 @@ validate_block_node_repo || {
   exit 1
 }
 
-[[ -f "${APP_PROPS_076_FILE}" ]] || { echo "Missing file: ${APP_PROPS_076_FILE}" >&2; exit 1; }
-[[ -f "${APP_ENV_076_FILE}" ]] || { echo "Missing file: ${APP_ENV_076_FILE}" >&2; exit 1; }
 [[ -f "${APP_PROPS_077_FILE}" ]] || { echo "Missing file: ${APP_PROPS_077_FILE}" >&2; exit 1; }
+[[ -f "${APP_ENV_077_FILE}" ]] || { echo "Missing file: ${APP_ENV_077_FILE}" >&2; exit 1; }
+[[ -f "${APP_PROPS_078_FILE}" ]] || { echo "Missing file: ${APP_PROPS_078_FILE}" >&2; exit 1; }
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
@@ -1543,42 +1693,42 @@ validate_local_build_path "${LOCAL_BUILD_PATH}" || {
 create_cluster
 configure_solo
 setup_cluster_prereqs
-deploy_076
+deploy_077
 
-# Deploy mirror node + explorer on the 0.76 network FIRST (before the BN) so the importer is
-# wired to read RECORD streams from MinIO (the CN writes records in 0.76 / streamMode=BOTH). If
+# Deploy mirror node + explorer on the 0.77 network FIRST (before the BN) so the importer is
+# wired to read RECORD streams from MinIO (the CN writes records in 0.77 / streamMode=BOTH). If
 # the BN were deployed first, Solo would auto-wire it as the importer's only block source and the
-# importer would stall trying to fetch block 0 from a mid-chain BN. After the 0.77 cutover the
+# importer would stall trying to fetch block 0 from a mid-chain BN. After the 0.78 cutover the
 # importer is switched to BLOCKS/BN mode (update_mirror_node_for_block_cutover). Best-effort: a
 # failure here must not abort the core cutover test.
-deploy_mirror_and_explorer || log "WARN: mirror/explorer deployment incomplete; continuing with the core 0.76 -> 0.77 cutover test"
+deploy_mirror_and_explorer || log "WARN: mirror/explorer deployment incomplete; continuing with the core 0.77 -> 0.78 cutover test"
 
-# Deploy the BN now (on the 0.76 genesis network) so it verifies the mock-sig (RSA WRB) blocks
-# via the bootstrap roster before the 0.77 cutover.
+# Deploy the BN now (on the 0.77 genesis network) so it verifies the mock-sig (RSA WRB) blocks
+# via the bootstrap roster before the 0.78 cutover.
 log "=== Deploying Block Node ${BLOCK_NODE_ID} (will verify mock-sig blocks, then seeded for real-TSS) ==="
 deploy_block_node
 verify_block_node_has_blocks 180
 
-verify_076_wraps_baseline
+verify_077_wraps_baseline
 
-# The ledger id is published during 0.76 (history/WRAPS construction completes). Seed it
-# into the BN before the 0.77 cutover so the BN can verify the real-TSS-signed blocks.
-log "=== Seeding Block Node with TSS ledger id (pre-0.77-cutover) ==="
+# The ledger id is published during 0.77 (history/WRAPS construction completes). Seed it
+# into the BN before the 0.78 cutover so the BN can verify the real-TSS-signed blocks.
+log "=== Seeding Block Node with TSS ledger id (pre-0.78-cutover) ==="
 seed_block_node_tss_parameters
-# The seed rolled the BN; let it re-catch-up to the live stream on 0.76 before the cutover restart
+# The seed rolled the BN; let it re-catch-up to the live stream on 0.77 before the cutover restart
 # resets the CN block buffer, otherwise the gap blocks are orphaned and the BN stalls.
-wait_for_block_node_caught_up 180 || log "WARN: BN did not re-catch-up after seeding; the 0.77 cutover may orphan blocks (consider seeding during the freeze instead)"
+wait_for_block_node_caught_up 180 || log "WARN: BN did not re-catch-up after seeding; the 0.78 cutover may orphan blocks (consider seeding during the freeze instead)"
 
-upgrade_to_local_077
+upgrade_to_local_078
 
-# 0.77 streams BLOCKS-only via gRPC (no MinIO record files), so switch the importer to read the
+# 0.78 streams BLOCKS-only via gRPC (no MinIO record files), so switch the importer to read the
 # post-cutover blocks from the Block Node while it keeps the pre-cutover records from MinIO.
-log "=== Reconfiguring mirror node to BLOCKS mode for the 0.77 cutover (read post-cutover blocks from BN) ==="
-update_mirror_node_for_block_cutover || log "WARN: mirror block-cutover reconfigure failed; explorer may not show post-0.77 blocks"
+log "=== Reconfiguring mirror node to BLOCKS mode for the 0.78 cutover (read post-cutover blocks from BN) ==="
+update_mirror_node_for_block_cutover || log "WARN: mirror block-cutover reconfigure failed; explorer may not show post-0.78 blocks"
 
-log "--- 0.77 BN check: confirm Block Node verifies + persists the real-TSS post-cutover blocks ---"
+log "--- 0.78 BN check: confirm Block Node verifies + persists the real-TSS post-cutover blocks ---"
 verify_block_node_persists_post_cutover 300
 
-log "PASS: 0.76 (TSS, mock sigs) -> 0.77 (BLOCKS-only cutover, real TSS signatures) upgrade completed and replayed cleanly"
+log "PASS: 0.77 (TSS, mock sigs) -> 0.78 (BLOCKS-only cutover, real TSS signatures) upgrade completed and replayed cleanly"
 log "PASS: Block Node verified the real-TSS-signed post-cutover blocks after TSS ledger-id seeding"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
