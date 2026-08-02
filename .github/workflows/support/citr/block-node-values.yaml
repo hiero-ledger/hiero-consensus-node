@@ -124,7 +124,16 @@ blockNode:
       # storageClass: "your-storage-class"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
-
+    application-state:
+      create: false
+      # name of the volume within the statefulset
+      volumeName: "application-state-storage"
+      mountPath: "/opt/hiero/block-node/application-state"
+      size: 1Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
   health:
     readiness:
       endpoint: "/healthz/readyz"

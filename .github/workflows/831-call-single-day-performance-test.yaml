@@ -575,7 +575,7 @@ jobs:
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
            #create PVC values.yaml from template
-           for pvc_name in archive-storage logging-storage live-storage verification-storage plugins-storage
+           for pvc_name in application-state-storage archive-storage logging-storage live-storage verification-storage plugins-storage
            do
              sed -e "s@%NODE_ID%@${i}@g" -e "s@%PVC_NAME%@${pvc_name}@g" "${{ github.workspace }}"/.github/workflows/support/citr/block-node-pvc.yaml > block-node-pvc_${pvc_name}_${i}.yaml
              echo "kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml"
