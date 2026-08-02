@@ -212,6 +212,12 @@ jobs:
           sudo apt-get install -qq -y net-tools iputils-ping node-typescript coreutils jq xxd openssl
           which kubectl
           ls -l `which kubectl`
+          echo $PATH
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /usr/bin/kubectl
+          sudo chmod a+rx /usr/bin/kubectl
+          which kubectl
+          ls -l `which kubectl`
+
       - name: Create report dir
         shell: bash
         run: |
