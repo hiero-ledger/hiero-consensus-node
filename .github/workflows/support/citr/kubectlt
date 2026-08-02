@@ -6,10 +6,18 @@ timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@" >/tmp/stdou
 result=$?
 if [ $result -ne 137 ]
 then
-  cat /tmp/stdout.$$ > /dev/stdout
-  cat /tmp/stderr.$$ > /dev/stderr
-  rm -f /tmp/stdout.$$ /tmp/stderr.$$
-  exit $result
+  grep 'Internal error occurred' /tmp/stdout.$$
+  if [ $? -eq 0 ]
+  then
+    sleep 1
+    rm -f /tmp/stdout.$$ /tmp/stderr.$$
+    timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@"
+  else
+   cat /tmp/stdout.$$ > /dev/stdout
+   cat /tmp/stderr.$$ > /dev/stderr
+   rm -f /tmp/stdout.$$ /tmp/stderr.$$
+   exit $result
+  fi
 else
   rm -f /tmp/stdout.$$ /tmp/stderr.$$ 
   timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@"
