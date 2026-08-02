@@ -23,6 +23,7 @@ on:
           - AdHoc7
           - AdHoc13
           - AdHoc14
+          - AdHoc16
           - AdHocSD8
           - AdHocSD9
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
