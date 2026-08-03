@@ -100,8 +100,8 @@ to keep it from becoming a false-positive source of its own:
 - **It looks only where the code moved.** It processes only worklist entries whose status is
   `review` or `unknown`; `fresh` topics are skipped.
 
-The worklist that drives it is built by the engine from git history: for each topic it compares the
-last-commit date of the topic's anchored source against the topic's `last_reviewed` date.
+The worklist that drives it is built by the engine from git history: for each topic it flags review
+when any anchored source was committed **on or after** the topic's `last_reviewed` date.
 
 The loop closes by bumping `last_reviewed`: a topic whose semantic pass found every claim supported
 (or whose contradictions were fixed) should be marked reviewed — mechanically, via
@@ -109,6 +109,12 @@ The loop closes by bumping `last_reviewed`: a topic whose semantic pass found ev
 `last_reviewed:` frontmatter line) — or every future run re-worklists the same topics. A reference to
 a renamed or removed symbol counts as a contradiction (even if the behavior survives), so it blocks
 the bump.
+
+The date to record is the topic's **newest anchored-source commit date** — the state this run
+reviewed, shown as `newestAnchoredCommit` in `worklist.json`. A bare `--mark-reviewed <key>` records
+it automatically, derived from the scanned checkout, never the wall clock — so a run against a stale
+`main` cannot mark commits it never reviewed as reviewed. (`--date` is used only as a fallback for a
+topic that anchors no dated source, where there is no freshness signal anyway.)
 
 ## Lanes — how a result is routed
 
@@ -174,7 +180,7 @@ Options (`--help` for the full list):
 | `--write-baseline`             | off                         | Overwrite `--baseline` with the proposed baseline.                                                               |
 | `--fail-on-drift`              | off                         | Exit `2` if any new (not-baselined, not-dismissed) assertion is found — for future CI.                           |
 | `--fix`                        | off                         | Apply the certain auto-fix edits (moved lines and unique path moves) to the KB in place.                         |
-| `--mark-reviewed <key[=date]>` | *(none)*                    | Bump an entry's existing `last_reviewed:` frontmatter date (repeatable); a spec without `=<date>` uses `--date`. |
+| `--mark-reviewed <key[=date]>` | *(none)*                    | Bump an entry's existing `last_reviewed:` frontmatter date (repeatable). A bare spec records the topic's newest anchored-source commit date (`newestAnchoredCommit`), falling back to `--date` only when the topic anchors no dated source. |
 
 Exit codes: `0` success · `1` usage/IO error · `2` new drift with `--fail-on-drift`.
 
@@ -266,9 +272,9 @@ report on purpose.
 
 **`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
-`review` (source changed since last review), `fresh` (up to date), or `unknown` (freshness can't be
-determined — the entry's note names the reason: no anchored sources, git unavailable, or no commit
-dates). Anchored source includes the KB's abbreviated inline citations (`module/.../File.java`),
+`review` (a source was committed on or after `last_reviewed`), `fresh` (every source predates it), or
+`unknown` (freshness can't be determined — the entry's note names the reason: no anchored sources, git
+unavailable, or no commit dates). Anchored source includes the KB's abbreviated inline citations (`module/.../File.java`),
 resolved through the source index — so a topic anchored only in that style is tracked, not dropped to
 `unknown`. A **moved** anchor — a citation whose location is stale but whose basename resolves at
 exactly one other indexed path — is tracked at its *new* location: the topics whose code moved

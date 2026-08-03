@@ -96,7 +96,7 @@ public final class WorklistBuilder {
                 || !Patterns.ISO_DATE.matcher(lastReviewed.strip()).matches()) {
             // No usable freshness marker — always route to review.
             return new WorklistEntry(
-                    key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of(), anchorCount);
+                    key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of(), anchorCount, null);
         }
         if (sourcePaths.isEmpty()) {
             return unknown(key, path, lastReviewed, "no anchored sources", anchorCount);
@@ -107,11 +107,15 @@ public final class WorklistBuilder {
 
         final String reviewedDate = lastReviewed.strip();
         final List<String> changed = new ArrayList<>();
+        String newest = null;
         boolean anyDateKnown = false;
         for (final String src : sourcePaths) {
             final String commitDate = git.lastCommitDate(src);
             if (commitDate != null) {
                 anyDateKnown = true;
+                if (newest == null || commitDate.compareTo(newest) > 0) {
+                    newest = commitDate;
+                }
                 // Inclusive boundary: commit dates are day-granular, so a source last committed on the
                 // last_reviewed day itself counts as changed — a change merged later that same day is
                 // never skipped.
@@ -126,7 +130,7 @@ public final class WorklistBuilder {
         changed.sort(Comparator.naturalOrder());
         final WorklistEntry.Status status =
                 changed.isEmpty() ? WorklistEntry.Status.FRESH : WorklistEntry.Status.REVIEW;
-        return new WorklistEntry(key, path, lastReviewed, status, null, changed, anchorCount);
+        return new WorklistEntry(key, path, lastReviewed, status, null, changed, anchorCount, newest);
     }
 
     /**
@@ -142,7 +146,8 @@ public final class WorklistBuilder {
      */
     private static WorklistEntry unknown(
             final String key, final String path, final String lastReviewed, final String note, final int anchorCount) {
-        return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, note, List.of(), anchorCount);
+        return new WorklistEntry(
+                key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, note, List.of(), anchorCount, null);
     }
 
     /**
