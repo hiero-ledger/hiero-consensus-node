@@ -85,6 +85,41 @@ class DefaultInlinePcesWriterTest {
         PcesWriterTestUtils.verifyStream(tempDir, events, configuration, RECYCLE_BIN, 0);
     }
 
+    @Test
+    void ignoreEventsAfterDestroy() throws Exception {
+        final Random random = RandomUtils.getRandomPrintSeed();
+
+        final StandardGraphGenerator generator =
+                PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
+
+        final List<PlatformEvent> events = new LinkedList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEventWithoutIndex());
+        }
+
+        final PcesFileTracker pcesFiles = new PcesFileTracker();
+
+        final PcesFileManager fileManager = new PcesFileManager(configuration, METRICS, TIME, pcesFiles, tempDir, 0);
+        final CommonPcesWriter commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        final DefaultInlinePcesWriter writer =
+                new DefaultInlinePcesWriter(configuration, METRICS, TIME, commonPcesWriter, selfId);
+
+        writer.beginStreamingNewEvents();
+        for (final PlatformEvent event : events) {
+            writer.writeEvent(event);
+        }
+
+        // this forces files to be closed properly and all the further events to be ignored
+        writer.destroy();
+
+        // these events are NOT supposed to appear in resulting files
+        for (int i = 0; i < 15; i++) {
+            writer.writeEvent(generator.generateEventWithoutIndex());
+        }
+
+        PcesWriterTestUtils.verifyStream(tempDir, events, configuration, RECYCLE_BIN, 0);
+    }
+
     /**
      * Verify that after syncCurrentFile(), data is readable from disk even though the file has not been closed. This
      * simulates the guarantee needed for the shutdown hook and the flush-during-freeze path.

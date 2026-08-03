@@ -132,22 +132,6 @@ public class CommonPcesWriter {
         }
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
-
-        Runtime.getRuntime()
-                .addShutdownHook(new Thread(
-                        () -> {
-                            if (currentMutableFile != null) {
-                                try {
-                                    currentMutableFile.sync();
-                                    currentMutableFile.close();
-                                    logger.info("Shutdown hook: synced and closed current PCES file");
-                                } catch (final IOException e) {
-                                    logger.error(
-                                            EXCEPTION.getMarker(), "Shutdown hook: failed to sync/close PCES file", e);
-                                }
-                            }
-                        },
-                        "pces-shutdown-sync"));
     }
 
     /**
@@ -359,6 +343,18 @@ public class CommonPcesWriter {
                 currentMutableFile.sync();
             } catch (final IOException e) {
                 throw new UncheckedIOException("Failed to sync current PCES file", e);
+            }
+        }
+    }
+
+    public void destroy() {
+        if (currentMutableFile != null) {
+            try {
+                currentMutableFile.sync();
+                currentMutableFile.close();
+                logger.info("PCES destroy: synced and closed current PCES file");
+            } catch (final IOException e) {
+                logger.error(EXCEPTION.getMarker(), "PCES destroy: failed to sync/close PCES file", e);
             }
         }
     }
