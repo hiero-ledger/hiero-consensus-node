@@ -1,23 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.wires.output;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-
-import com.swirlds.component.framework.model.TraceableWiringModel;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.transformers.WireListSplitter;
 import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.SolderType;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.internal.TransformingOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -27,28 +18,7 @@ import java.util.function.Predicate;
  *
  * @param <OUT> the output type of the object
  */
-public abstract class OutputWire<OUT> {
-
-    private final TraceableWiringModel model;
-    private final String name;
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
-
-    /**
-     * Constructor.
-     *
-     * @param model                    the wiring model containing this output wire
-     * @param name                     the name of the output wire
-     * @param uncaughtExceptionHandler handler for uncaught exceptions that occur while processing data on this output
-     *                                 wire
-     */
-    public OutputWire(
-            @NonNull final TraceableWiringModel model,
-            @NonNull final String name,
-            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
-        this.model = Objects.requireNonNull(model);
-        this.name = Objects.requireNonNull(name);
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
-    }
+public interface OutputWire<OUT> {
 
     /**
      * Get the name of this output wire. If this object is a task scheduler, this is the same as the name of the task
@@ -57,30 +27,7 @@ public abstract class OutputWire<OUT> {
      * @return the name
      */
     @NonNull
-    public String getName() {
-        return name;
-    }
-
-    /**
-     * Get the wiring model that contains this output wire.
-     *
-     * @return the wiring model
-     */
-    @NonNull
-    protected TraceableWiringModel getModel() {
-        return model;
-    }
-
-    /**
-     * Get the uncaught exception handler for this output wire. This handler is called when an uncaught exception
-     * occurs while processing data on this output wire.
-     *
-     * @return the uncaught exception handler
-     */
-    @NonNull
-    protected UncaughtExceptionHandler getUncaughtExceptionHandler() {
-        return uncaughtExceptionHandler;
-    }
+    String getName();
 
     /**
      * Specify an input wire where output data should be passed. This forwarding operation respects back pressure.
@@ -96,9 +43,7 @@ public abstract class OutputWire<OUT> {
      *
      * @param inputWire the input wire to forward output data to
      */
-    public void solderTo(@NonNull final InputWire<OUT> inputWire) {
-        solderTo(inputWire, SolderType.PUT);
-    }
+    void solderTo(@NonNull final InputWire<OUT> inputWire);
 
     /**
      * A convenience method that should be used iff the order in which the {@code inputWires} are soldered is important.
@@ -112,12 +57,7 @@ public abstract class OutputWire<OUT> {
      * @throws IllegalArgumentException if the size of {@code inputWires} is less than 2
      * @see #solderTo(InputWire)
      */
-    public void orderedSolderTo(@NonNull final List<InputWire<OUT>> inputWires) {
-        if (inputWires.size() < 2) {
-            throw new IllegalArgumentException("List must contain at least 2 input wires.");
-        }
-        inputWires.forEach(this::solderTo);
-    }
+    void orderedSolderTo(@NonNull final List<InputWire<OUT>> inputWires);
 
     /**
      * Specify an input wire where output data should be passed. This forwarding operation respects back pressure.
@@ -133,20 +73,7 @@ public abstract class OutputWire<OUT> {
      * @param inputWire  the input wire to forward output data to
      * @param solderType the semantics of the soldering operation
      */
-    public void solderTo(@NonNull final InputWire<OUT> inputWire, @NonNull final SolderType solderType) {
-        if (inputWire.getTaskSchedulerType() == NO_OP) {
-            return;
-        }
-
-        model.registerEdge(name, inputWire.getTaskSchedulerName(), inputWire.getName(), solderType);
-
-        switch (solderType) {
-            case PUT -> addForwardingDestination(inputWire::put);
-            case INJECT -> addForwardingDestination(inputWire::inject);
-            case OFFER -> addForwardingDestination(inputWire::offer);
-            default -> throw new IllegalArgumentException("Unknown solder type: " + solderType);
-        }
-    }
+    void solderTo(@NonNull final InputWire<OUT> inputWire, @NonNull final SolderType solderType);
 
     /**
      * Specify a consumer where output data should be forwarded for monitoring purposes. This soldering should not be
@@ -154,9 +81,7 @@ public abstract class OutputWire<OUT> {
      *
      * @param consumer the consumer to forward output data to
      */
-    public void solderForMonitoring(@NonNull final Consumer<OUT> consumer) {
-        addForwardingDestination(consumer);
-    }
+    void solderForMonitoring(@NonNull final Consumer<OUT> consumer);
 
     /**
      * Specify a consumer where output data should be forwarded. This method creates a direct task scheduler under the
@@ -174,20 +99,10 @@ public abstract class OutputWire<OUT> {
      * @param inputWireLabel the label for the input wire going into the consumer
      * @param handler        the consumer to forward output data to
      */
-    public void solderTo(
+    void solderTo(
             @NonNull final String handlerName,
             @NonNull final String inputWireLabel,
-            @NonNull final Consumer<OUT> handler) {
-
-        final TaskScheduler<Void> directScheduler = model.<Void>schedulerBuilder(handlerName)
-                .withType(TaskSchedulerType.DIRECT)
-                .build();
-
-        final BindableInputWire<OUT, Void> directSchedulerInputWire = directScheduler.buildInputWire(inputWireLabel);
-        directSchedulerInputWire.bindConsumer(handler);
-
-        this.solderTo(directSchedulerInputWire);
-    }
+            @NonNull final Consumer<OUT> handler);
 
     /**
      * Build a {@link WireFilter}. The input wire to the filter is automatically soldered to this output wire (i.e. all
@@ -200,19 +115,10 @@ public abstract class OutputWire<OUT> {
      * @return the output wire of the filter
      */
     @NonNull
-    public OutputWire<OUT> buildFilter(
+    OutputWire<OUT> buildFilter(
             @NonNull final String filterName,
             @NonNull final String filterInputName,
-            @NonNull final Predicate<OUT> predicate) {
-
-        Objects.requireNonNull(filterName);
-        Objects.requireNonNull(filterInputName);
-        Objects.requireNonNull(predicate);
-
-        final WireFilter<OUT> filter = new WireFilter<>(model, filterName, filterInputName, predicate);
-        solderTo(filter.getInputWire());
-        return filter.getOutputWire();
-    }
+            @NonNull final Predicate<OUT> predicate);
 
     /**
      * Build a {@link WireListSplitter}. Creating a splitter for wires without a list output type will cause runtime
@@ -220,21 +126,14 @@ public abstract class OutputWire<OUT> {
      * comes out of the wire will be inserted into the splitter). The output wire of the splitter is returned by this
      * method.
      *
-     * @param <ELEMENT> the type of the list elements
+     * @param splitterName      the name of the splitter
+     * @param splitterInputName the label for the input wire going into the splitter
+     * @param <ELEMENT>         the type of the list elements
      * @return output wire of the splitter
      */
-    @SuppressWarnings("unchecked")
     @NonNull
-    public <ELEMENT> OutputWire<ELEMENT> buildSplitter(
-            @NonNull final String splitterName, @NonNull final String splitterInputName) {
-
-        Objects.requireNonNull(splitterName);
-        Objects.requireNonNull(splitterInputName);
-
-        final WireListSplitter<ELEMENT> splitter = new WireListSplitter<>(model, splitterName, splitterInputName);
-        solderTo((InputWire<OUT>) splitter.getInputWire());
-        return splitter.getOutputWire();
-    }
+    <ELEMENT> OutputWire<ELEMENT> buildSplitter(
+            @NonNull final String splitterName, @NonNull final String splitterInputName);
 
     /**
      * Build a {@link WireTransformer}. The input wire to the transformer is automatically soldered to this output wire
@@ -250,20 +149,10 @@ public abstract class OutputWire<OUT> {
      * @return the output wire of the transformer
      */
     @NonNull
-    public <NEW_OUT> OutputWire<NEW_OUT> buildTransformer(
+    <NEW_OUT> OutputWire<NEW_OUT> buildTransformer(
             @NonNull final String transformerName,
             @NonNull final String transformerInputName,
-            @NonNull final Function<OUT, NEW_OUT> transformer) {
-
-        Objects.requireNonNull(transformerName);
-        Objects.requireNonNull(transformerInputName);
-        Objects.requireNonNull(transformer);
-
-        final WireTransformer<OUT, NEW_OUT> wireTransformer =
-                new WireTransformer<>(model, transformerName, transformerInputName, transformer);
-        solderTo(wireTransformer.getInputWire());
-        return wireTransformer.getOutputWire();
-    }
+            @NonNull final Function<OUT, NEW_OUT> transformer);
 
     /**
      * Build a transformation wire with cleanup functionality.
@@ -278,26 +167,6 @@ public abstract class OutputWire<OUT> {
      * @return the output wire of the transformer
      */
     @NonNull
-    public <NEW_OUT> OutputWire<NEW_OUT> buildAdvancedTransformer(
-            @NonNull final AdvancedTransformation<OUT, NEW_OUT> transformer) {
-
-        final TransformingOutputWire<OUT, NEW_OUT> outputWire = new TransformingOutputWire<>(
-                model,
-                transformer.getTransformerName(),
-                getUncaughtExceptionHandler(),
-                transformer::transform,
-                transformer::inputCleanup,
-                transformer::outputCleanup);
-
-        solderTo(transformer.getTransformerName(), transformer.getTransformerInputName(), outputWire::forward);
-
-        return outputWire;
-    }
-
-    /**
-     * Creates a new forwarding destination.
-     *
-     * @param destination the destination to forward data to
-     */
-    protected abstract void addForwardingDestination(@NonNull final Consumer<OUT> destination);
+    <NEW_OUT> OutputWire<NEW_OUT> buildAdvancedTransformer(
+            @NonNull final AdvancedTransformation<OUT, NEW_OUT> transformer);
 }

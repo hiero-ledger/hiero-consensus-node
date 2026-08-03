@@ -71,7 +71,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
@@ -81,7 +80,6 @@ import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -244,12 +242,7 @@ public class ConsensusLayerFactory {
                 eventCreatorModule,
                 stateModule);
         initializePcesModule(
-                pcesModule,
-                pipelineFlusher,
-                latestImmutableStateNexus,
-                statusMonitorModule,
-                issDetectionModule,
-                eventPipelineTracker);
+                pcesModule, pipelineFlusher, statusMonitorModule, issDetectionModule, eventPipelineTracker);
 
         ConsensusLayerStaticSetup.setup(configuration);
 
@@ -437,29 +430,12 @@ public class ConsensusLayerFactory {
         return module;
     }
 
-    @NonNull
-    private Supplier<PcesReplayProgress> createPcesReplayProgressSupplier(
-            @NonNull final SignedStateNexus latestImmutableStateNexus) {
-        return () -> {
-            try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("PCES replay")) {
-                if (reservedState == null || reservedState.isNull()) {
-                    return PcesReplayProgress.EMPTY;
-                }
-                final SignedState signedState = reservedState.get();
-                return new PcesReplayProgress(signedState.getRound(), signedState.getConsensusTimestamp());
-            }
-        };
-    }
-
     private void initializePcesModule(
             @NonNull final PcesModule module,
             @NonNull final PipelineFlusher pipelineFlusher,
-            @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final IssDetectionModule issDetectionModule,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final Supplier<PcesReplayProgress> replayProgressSupplier =
-                createPcesReplayProgressSupplier(latestImmutableStateNexus);
         final Runnable signalEndOfPcesReplay = () ->
                 issDetectionModule.signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
         module.initialize(
@@ -472,7 +448,6 @@ public class ConsensusLayerFactory {
                 fileSystemManager,
                 initialState.get().getRound(),
                 pipelineFlusher::flushPrimaryPipeline,
-                replayProgressSupplier,
                 statusMonitorModule,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
