@@ -91,10 +91,6 @@ class V060HintsSchemaTest {
     void restartDoesNotSetUnfinishedConstructionInContext() {
         given(migrationContext.appConfig()).willReturn(DEFAULT_CONFIG);
         given(migrationContext.isGenesis()).willReturn(false);
-        given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
-                .willReturn(activeConstructionState);
-        given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
 
         subject.restart(migrationContext);
 
