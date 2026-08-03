@@ -79,7 +79,7 @@ about what lives inside each module belongs in the per-topic files.
   root: where Consensus modules are composed into a running platform and
   where the Consensus / Execution boundary is drawn today
   (`ExecutionLayer`, `ConsensusStateEventHandler`, `ReconnectModule`).
-- [`swirlds-component-framework`](../../../swirlds-component-framework)
+- [`consensus-wiring-framework`](../../../consensus-wiring-framework)
   — the wiring framework itself: components, wires, soldering. See
   [`topics/wiring-framework.md`](topics/wiring-framework.md).
 
@@ -108,7 +108,7 @@ topics are not strictly disjoint.
 
 - [`topics/wiring-framework.md`](topics/wiring-framework.md) — how
   components, wires, and soldering in
-  [`swirlds-component-framework`](../../../swirlds-component-framework)
+  [`consensus-wiring-framework`](../../../consensus-wiring-framework)
   compose the Consensus runtime.
 
 **Ingress and output**
@@ -231,7 +231,7 @@ Method-by-method discussion in
 ## Wiring overview
 
 The runtime is composed in
-[`swirlds-component-framework`](../../../swirlds-component-framework)
+[`consensus-wiring-framework`](../../../consensus-wiring-framework)
 style: each module exposes named **components** with input and output
 **wires**; the platform builder **solders** outputs to inputs to form the
 event flow. Backpressure is applied at the wire level — a slow consumer
