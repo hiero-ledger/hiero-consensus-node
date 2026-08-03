@@ -43,8 +43,9 @@ with `java -jar`.
   not clearing a topic until the day after its last change. Anchored-source
   resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations both resolve
   through the `SourceIndex`, and a moved anchor is tracked at its new location), so an abbreviated- or
-  FQN-only topic keeps feeding the freshness signal. Each entry carries `anchoredSourceCount`; a zero
-  count (topic anchors nothing) is surfaced in the coverage lane, not the drift report.
+  FQN-only topic keeps feeding the freshness signal. Each entry carries `anchoredSourceCount` and
+  `newestAnchoredCommit` (the reviewed-state date `--mark-reviewed` records); a zero count (topic
+  anchors nothing) is surfaced in the coverage lane, not the drift report.
 - `engine/` also carries `ScanStats` — what the run scanned and checked (entries, anchors, check
   groups, findings by lane, Tier-2 surfaces), rendered as the report's "Scan coverage" section so
   silence is auditable as checked-and-clean rather than never-scanned.
@@ -59,7 +60,8 @@ with `java -jar`.
   by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames. `ReviewedMarker`
   (`--mark-reviewed <key>[=<date>]`): bumps an entry's *existing* `last_reviewed:` frontmatter line —
   the workflow closure after a semantic pass; it never invents the line, requires an unambiguous key
-  and an ISO date, and is idempotent.
+  and an ISO date; a bare spec derives the topic's newest anchored-source commit date — the reviewed
+  state, never wall-clock; see `README.md` — and is idempotent.
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.
