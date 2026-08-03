@@ -182,8 +182,7 @@ class SignedStateFileReadWriteTest {
         final Path consensusSnapshotFile = directory.resolve(CONSENSUS_SNAPSHOT_FILE_NAME);
 
         throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
-        final String configDir = testDirectory.resolve("data/saved").toString();
-        final Configuration configuration = changeConfigAndConfigHolder(configDir);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         // Async snapshot requires all references to the state being written to disk to be released
         stateLifecycleManager.getLatestImmutableState().release();
@@ -203,11 +202,5 @@ class SignedStateFileReadWriteTest {
         assertTrue(exists(consensusSnapshotFile), "consensus snapshot file should exist");
 
         stateLifecycleManager.getMutableState().release();
-    }
-
-    private Configuration changeConfigAndConfigHolder(String directory) {
-        return new TestConfigBuilder()
-                //                .withValue(PathsConfig_.SAVED_STATE_DIR, directory)
-                .getOrCreateConfig();
     }
 }
