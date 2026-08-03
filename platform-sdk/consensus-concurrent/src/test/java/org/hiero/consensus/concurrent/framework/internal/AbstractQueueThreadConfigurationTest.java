@@ -23,7 +23,6 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.AbstractQueueThreadConfiguration;
-import org.hiero.consensus.concurrent.framework.config.FullNameThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
 import org.hiero.consensus.concurrent.framework.queue.MeasuredBlockingQueue;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -48,7 +47,6 @@ class AbstractQueueThreadConfigurationTest {
 
         protected DummyQueueThreadConfiguration(final ThreadManager threadManager, final String queueName) {
             super(threadManager, queueName);
-            setThreadNameProvider(new FullNameThreadNamingConfiguration());
         }
 
         protected DummyQueueThreadConfiguration(
