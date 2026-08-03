@@ -61,7 +61,7 @@ public final class QuiescenceUtils {
      * @return the number of relevant transactions
      * @throws BadMetadataException if it is not possible to read the metadata from a transaction
      */
-    public static long countRelevantTransactions(@NonNull final Iterator<Transaction> transactions)
+    public static long countRelevantTransactions(@NonNull final Iterator<? extends Transaction> transactions)
             throws BadMetadataException {
         long count = 0;
         while (transactions.hasNext()) {

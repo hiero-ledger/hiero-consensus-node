@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -19,11 +20,12 @@ import java.util.function.Consumer;
 public interface Event {
 
     /**
-     * Returns an iterator over the application events in this transaction.
+     * Returns a List application events in this transaction.
      *
      * @return a transaction iterator
      */
-    Iterator<Transaction> transactionIterator();
+    @NonNull
+    List<? extends Transaction> getTransactions();
 
     /**
      * Returns the time this event was created as claimed by its creator.
@@ -39,18 +41,6 @@ public interface Event {
      */
     @NonNull
     NodeId getCreatorId();
-
-    /**
-     * A convenience method that supplies every transaction in this event to a consumer.
-     *
-     * @param consumer
-     * 		a transaction consumer
-     */
-    default void forEachTransaction(final Consumer<Transaction> consumer) {
-        for (final Iterator<Transaction> transIt = transactionIterator(); transIt.hasNext(); ) {
-            consumer.accept(transIt.next());
-        }
-    }
 
     /**
      * Returns the birth round of this event.

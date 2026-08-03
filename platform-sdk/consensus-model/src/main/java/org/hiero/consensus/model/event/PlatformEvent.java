@@ -381,7 +381,7 @@ public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEv
         }
     }
 
-    public List<TransactionWrapper> getTransactions() {
+    public @org.jspecify.annotations.NonNull List<TransactionWrapper> getTransactions() {
         return metadata.getTransactions();
     }
 

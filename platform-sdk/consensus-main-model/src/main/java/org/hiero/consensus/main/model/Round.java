@@ -6,6 +6,8 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
+import org.hiero.base.crypto.RunningHash;
 
 /**
  * A collection of unique events that reached consensus at the same time. The consensus data for every event in the
@@ -16,17 +18,7 @@ import java.util.Iterator;
  * may be changed at any time, in any way, without notice or prior deprecation. Third parties should NOT implement this
  * interface.
  */
-public interface Round extends Iterable<ConsensusEvent> {
-
-    /**
-     * An iterator for all consensus events in this round. Each invocation returns a new iterator over the same events.
-     * This method is thread safe.
-     *
-     * @return an iterator of consensus events
-     */
-    @Override
-    @NonNull
-    Iterator<ConsensusEvent> iterator();
+public interface Round {
 
     /**
      * Provides the unique round number for this round. Lower numbers reach consensus before higher numbers. This method
@@ -41,14 +33,16 @@ public interface Round extends Iterable<ConsensusEvent> {
      *
      * @return true if this round has no events, else returns false.
      */
-    boolean isEmpty();
+    default boolean isEmpty() {
+        return getEvents().isEmpty();
+    }
 
     /**
-     * Get the number of events in this round.
+     * Get the events in this round, in consensus order.
      *
-     * @return the number of events in the round
+     * @return the events of the round
      */
-    int getEventCount();
+    List<ConsensusEvent> getEvents();
 
     /**
      * Get the roster that was used to compute consensus for this round.
@@ -85,4 +79,14 @@ public interface Round extends Iterable<ConsensusEvent> {
      * @return true if the round reached consensus while replaying data from disk, false otherwise
      */
     boolean isPcesRound();
+
+    /**
+     * The wall clock time at which this round reached consensus. Used for metrics.
+     *
+     * @return the wall clock time this round reached consensus
+     */
+    Instant getReachedConsTimestamp();
+
+    @NonNull
+    RunningHash getLastEventRunningHash();
 }

@@ -64,7 +64,7 @@ public class TxPipelineTracker {
      * iterator might include other self-created transactions that are not relevant to quiescence.
      * @param iter iterator of self-created transactions that landed
      */
-    public void countLanded(@NonNull final Iterator<Transaction> iter) {
+    public void countLanded(@NonNull final Iterator<? extends Transaction> iter) {
         requireNonNull(iter);
         while (iter.hasNext()) {
             final var tx = iter.next();

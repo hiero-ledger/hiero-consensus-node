@@ -21,6 +21,7 @@ import java.util.Queue;
 import java.util.function.Consumer;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
@@ -144,7 +145,7 @@ public class TransactionHandlingModule {
      */
     @InputWireLabel("consensus round")
     @NonNull
-    public InputWire<ConsensusRound> handleConsensusRoundInputWire() {
+    public InputWire<Round> handleConsensusRoundInputWire() {
         return handlerWiring.getInputWire(TransactionHandler::handleConsensusRound);
     }
 

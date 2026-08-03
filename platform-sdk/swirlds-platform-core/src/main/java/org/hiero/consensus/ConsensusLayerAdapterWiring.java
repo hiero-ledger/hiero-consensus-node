@@ -53,10 +53,6 @@ public class ConsensusLayerAdapterWiring {
         Objects.requireNonNull(inputs);
         Objects.requireNonNull(buildingBlocks);
 
-        wireGossipOutputs(buildingBlocks);
-        wireEventIntakeOutputs(buildingBlocks);
-        wireEventCreatorOutputs(buildingBlocks);
-        wirePcesOutputs(buildingBlocks);
         wireHashgraphOutputs(inputs, buildingBlocks);
         wireInitialEventWindowDispatcher(buildingBlocks);
         wireTransactionHandlingOutputs(buildingBlocks);
@@ -90,7 +86,7 @@ public class ConsensusLayerAdapterWiring {
      * Solder the hashgraph (consensus engine) module's outputs to their consumers.
      */
     private static void wireHashgraphOutputs(
-            @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerAdapterInputs inputs, @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
         final HashgraphModule hashgraph = buildingBlocks.hashgraphModule();
 
 
@@ -108,6 +104,7 @@ public class ConsensusLayerAdapterWiring {
         consensusRoundOutputWire.solderTo(buildingBlocks.pcesModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.eventCreatorModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.stateModule().consensusRoundInputWire(), INJECT);
+
 
         consensusRoundOutputWire.solderTo(
                 buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());

@@ -11,12 +11,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.AbstractSerializableHashable;
 import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.Transaction;
@@ -28,7 +30,7 @@ import org.hiero.consensus.model.stream.Timestamped;
  * {@code com.swirlds.platform.event.stream.ConsensusEventStream}.
  */
 public class CesEvent extends AbstractSerializableHashable
-        implements RunningHashable, StreamAligned, Timestamped, org.hiero.consensus.main.model.ConsensusEvent {
+        implements RunningHashable, StreamAligned, Timestamped, ConsensusEvent {
     /** Value used to indicate that it is undefined*/
     public static final long UNDEFINED = -1;
 
@@ -124,8 +126,8 @@ public class CesEvent extends AbstractSerializableHashable
 
     @Override
     @NonNull
-    public Iterator<ConsensusTransaction> consensusTransactionIterator() {
-        return platformEvent.consensusTransactionIterator();
+    public List<ConsensusTransaction> getConsensusTransactions() {
+        return platformEvent.getConsensusTransactions();
     }
 
     @NonNull
@@ -185,6 +187,16 @@ public class CesEvent extends AbstractSerializableHashable
     @Override
     public boolean isPcesEvent() {
         return platformEvent.isPcesEvent();
+    }
+
+    @Override
+    public void awaitPrehandleCompletion() {
+
+    }
+
+    @Override
+    public void signalPrehandleCompletion() {
+
     }
 
     /**

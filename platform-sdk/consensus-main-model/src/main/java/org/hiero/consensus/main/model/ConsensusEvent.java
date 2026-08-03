@@ -4,6 +4,7 @@ package org.hiero.consensus.main.model;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -16,13 +17,13 @@ import org.hiero.base.crypto.Hash;
 public interface ConsensusEvent extends Event {
 
     /**
-     * Returns an iterator over the application events in this transaction, which have all reached consensus. Each
-     * invocation returns a new iterator over the same transactions. This method is thread safe.
+     * Returns the transactions in this event, which have all reached consensus, in consensus order. Each
+     * invocation returns a new immutable list. This method is thread safe.
      *
-     * @return a consensus transaction iterator
+     * @return a list of consensus transactions
      */
     @NonNull
-    Iterator<ConsensusTransaction> consensusTransactionIterator();
+    List<ConsensusTransaction> getTransactions();
 
     /**
      * Returns the hash of this event.

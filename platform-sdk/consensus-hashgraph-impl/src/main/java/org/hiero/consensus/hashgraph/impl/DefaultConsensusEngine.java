@@ -83,7 +83,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 new FutureEventBuffer(metrics, FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
         roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
-        consensusEngineMetrics = new ConsensusEngineMetrics(selfId, metrics);
+        consensusEngineMetrics = new ConsensusEngineMetrics(selfId, metrics, time);
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
@@ -138,7 +138,14 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // check if we have found init judges before adding the event
             final boolean waitingForJudgesBeforeAdd = consensus.waitingForInitJudges();
             // add the event to the consensus algorithm
-            allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
+            final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
+            allConsensusRounds.addAll(consensusRounds);
+
+            for (final ConsensusRound consensusRound : consensusRounds) {
+                consensusEngineMetrics.recordEventsPerRound(consensusRound.getNumEvents());
+                consensusEngineMetrics.recordConsensusTime(consensusRound.getConsensusTimestamp());
+            }
+
             // check if we have found init judges after adding the event
             final boolean waitingForJudgesAfterAdd = consensus.waitingForInitJudges();
 

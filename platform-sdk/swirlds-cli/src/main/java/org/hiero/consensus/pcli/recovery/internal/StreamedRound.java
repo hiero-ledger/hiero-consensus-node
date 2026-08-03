@@ -2,13 +2,16 @@
 package org.hiero.consensus.pcli.recovery.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.event.CesEvent;
 
@@ -17,7 +20,7 @@ import org.hiero.consensus.model.event.CesEvent;
  */
 public class StreamedRound implements Round {
 
-    private final List<CesEvent> events;
+    private final List<Event> events;
     private final long roundNumber;
     private final Instant consensusTimestamp;
     private final Roster consensusRoster;
@@ -27,25 +30,17 @@ public class StreamedRound implements Round {
             @NonNull final List<CesEvent> events,
             final long roundNumber,
             final long transactionOffsetNanos) {
-        this.events = events;
+        this.events = events.stream().map(Event.class::cast).toList();
         this.roundNumber = roundNumber;
         events.stream()
                 .map(CesEvent::getPlatformEvent)
                 .forEach(e -> e.setConsensusTimestampsOnTransactions(transactionOffsetNanos));
-        consensusTimestamp = events.get(events.size() - 1).getPlatformEvent().getConsensusTimestamp();
+        consensusTimestamp = events.getLast().getPlatformEvent().getConsensusTimestamp();
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     @NonNull
-    public Iterator<ConsensusEvent> iterator() {
-        return new TypedIterator<>(events.iterator());
-    }
-
-    public @NonNull List<CesEvent> getEvents() {
+    public List<Event> getEvents() {
         return events;
     }
 
@@ -68,14 +63,6 @@ public class StreamedRound implements Round {
     /**
      * {@inheritDoc}
      */
-    @Override
-    public int getEventCount() {
-        return events.size();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @NonNull
     @Override
     public Roster getConsensusRoster() {
@@ -89,5 +76,21 @@ public class StreamedRound implements Round {
     @Override
     public Instant getConsensusTimestamp() {
         return consensusTimestamp;
+    }
+
+    @Override
+    @NonNull
+    public  ConsensusSnapshot getConsensusSnapshot() {
+        return null;
+    }
+
+    @Override
+    public boolean isPcesRound() {
+        return false;
+    }
+
+    @Override
+    public Instant getReachedConsTimestamp() {
+        return null;
     }
 }

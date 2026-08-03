@@ -16,17 +16,21 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.main.model.ConsensusEvent;
+import org.hiero.consensus.main.model.Event;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /** A consensus round with events and all other relevant data. */
-public class ConsensusRound implements org.hiero.consensus.main.model.Round {
+public class ConsensusRound implements Round {
 
     /**
      * an unmodifiable list of consensus events in this round, in consensus order
      */
     private final List<PlatformEvent> consensusEvents;
+
+    private final List<Event> events;
     /**
      * the same events that are stored in {@link #consensusEvents} but repackaged for the Consensus Event Stream. since
      * the CES is something that will be removed as soon as possible, this additional list allows us to decouple the CES
@@ -82,6 +86,7 @@ public class ConsensusRound implements org.hiero.consensus.main.model.Round {
 
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
         this.consensusEvents = Collections.unmodifiableList(Objects.requireNonNull(consensusEvents));
+        this.events = consensusEvents.stream().map(Event.class::cast).toList();
         this.eventWindow = Objects.requireNonNull(eventWindow);
         this.snapshot = Objects.requireNonNull(snapshot);
         this.pcesRound = pcesRound;
@@ -149,14 +154,6 @@ public class ConsensusRound implements org.hiero.consensus.main.model.Round {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Iterator<ConsensusEvent> iterator() {
-        return new TypedIterator<>(consensusEvents.iterator());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public long getRoundNum() {
         return snapshot.round();
     }
@@ -169,12 +166,9 @@ public class ConsensusRound implements org.hiero.consensus.main.model.Round {
         return consensusEvents.isEmpty();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public int getEventCount() {
-        return consensusEvents.size();
+    public List<Event> getEvents() {
+        return events;
     }
 
     /**
@@ -192,6 +186,12 @@ public class ConsensusRound implements org.hiero.consensus.main.model.Round {
     @Override
     public @NonNull Instant getConsensusTimestamp() {
         return Objects.requireNonNull(fromPbjTimestamp(snapshot.consensusTimestamp()));
+    }
+
+    @Override
+    @NonNull
+    public  ConsensusSnapshot getConsensusSnapshot() {
+        return snapshot;
     }
 
     /**

@@ -42,20 +42,17 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
-import org.hiero.consensus.status.StatusMonitorModule;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 
@@ -124,19 +121,19 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final TransactionMetrics transactionMetrics;
 
     /**
-     * Nanoseconds to add to an event's consensus timestamp before the first user transaction, reserving
-     * space for preceding and system records. Injected at construction time from the application layer.
+     * Nanoseconds to add to an event's consensus timestamp before the first user transaction, reserving space for
+     * preceding and system records. Injected at construction time from the application layer.
      */
     private final long transactionOffsetNanos;
 
     /**
      * Constructor
      *
-     * @param time the time source
-     * @param configuration the configuration data
-     * @param metrics the metrics system
+     * @param time                  the time source
+     * @param configuration         the configuration data
+     * @param metrics               the metrics system
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param softwareVersion the current version of the software
+     * @param softwareVersion       the current version of the software
      */
     public DefaultTransactionHandler(
             @NonNull final Time time,
@@ -188,7 +185,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     @Override
     @Nullable
-    public TransactionHandlerResult handleConsensusRound(@NonNull final ConsensusRound consensusRound) {
+    public TransactionHandlerResult handleConsensusRound(@NonNull final Round consensusRound) {
         // consensus rounds with no events are ignored
         if (consensusRound.isEmpty()) {
             // Future work: the long term goal is for empty rounds to not be ignored here. For now, the way that the
@@ -217,15 +214,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     consensusRound.getConsensusTimestamp());
         }
 
-        handlerMetrics.recordEventsPerRound(consensusRound.getNumEvents());
-        handlerMetrics.recordConsensusTime(consensusRound.getConsensusTimestamp());
-
         try {
             handlerMetrics.setPhase(SETTING_EVENT_CONSENSUS_DATA);
-            for (final PlatformEvent event : consensusRound.getConsensusEvents()) {
-                event.setConsensusTimestampsOnTransactions(transactionOffsetNanos);
-            }
-
             handlerMetrics.setPhase(UPDATING_PLATFORM_STATE);
             // it is important to update the platform state before handling the consensus round, since the platform
             // state is passed into the application handle method, and should contain the data for the current round
@@ -233,7 +223,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             if (waitForPrehandle) {
                 handlerMetrics.setPhase(WAITING_FOR_PREHANDLE);
-                consensusRound.getConsensusEvents().forEach(Event::awaitPrehandleCompletion);
+                for (final Event event : consensusRound.getEvents()) {
+                    event.awaitPrehandleCompletion();
+                }
             }
 
             handlerMetrics.setPhase(HANDLING_CONSENSUS_ROUND);
@@ -260,7 +252,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param round the round to handle
      */
     private Queue<ScopedSystemTransaction<StateSignatureTransaction>> doHandleConsensusRound(
-            final ConsensusRound round) {
+            final Round round) {
         final State state = stateLifecycleManager.getMutableState();
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
@@ -272,13 +264,14 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             final double secondsElapsed = (System.nanoTime() - startTime) * NANOSECONDS_TO_SECONDS;
 
+            final int numTransactions = getNumTransactions(round);
             // Avoid dividing by zero
-            if (round.getNumAppTransactions() == 0) {
+            if (numTransactions == 0) {
                 transactionMetrics.consensusTransHandleTime(secondsElapsed);
             } else {
-                transactionMetrics.consensusTransHandleTime(secondsElapsed / round.getNumAppTransactions());
+                transactionMetrics.consensusTransHandleTime(secondsElapsed / numTransactions);
             }
-            transactionMetrics.consensusTransHandled(round.getNumAppTransactions());
+            transactionMetrics.consensusTransHandled(numTransactions);
             transactionMetrics.consensusToHandleTime(
                     round.getReachedConsTimestamp().until(timeOfHandle, ChronoUnit.NANOS) * NANOSECONDS_TO_SECONDS);
         } catch (final Throwable t) {
@@ -292,18 +285,20 @@ public class DefaultTransactionHandler implements TransactionHandler {
         return scopedSystemTransactions;
     }
 
+    private int getNumTransactions(@NonNull final Round round) {
+        return round.getEvents().stream().mapToInt(e -> e.getTransactions().size()).sum();
+    }
+
     /**
      * Populate the {@link PlatformStateModifier} with all needed data for this round.
      *
      * @param round the consensus round
      */
-    private void updatePlatformState(@NonNull final ConsensusRound round) {
+    private void updatePlatformState(@NonNull final Round round) {
         bulkUpdateOf(stateLifecycleManager.getMutableState(), v -> {
-            v.setRound(round.getRoundNum());
-            v.setConsensusTimestamp(round.getConsensusTimestamp());
             v.setCreationSoftwareVersion(softwareVersion);
             v.setRoundsNonAncient(roundsNonAncient);
-            v.setSnapshot(round.getSnapshot());
+            v.setSnapshot(round.getConsensusSnapshot());
         });
     }
 
@@ -313,24 +308,25 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param round the consensus round
      * @throws InterruptedException if this thread is interrupted
      */
-    private void updateRunningEventHash(@NonNull final ConsensusRound round) throws InterruptedException {
+    private void updateRunningEventHash(@NonNull final Round round) throws InterruptedException {
         final State consensusState = stateLifecycleManager.getMutableState();
 
         if (writeLegacyRunningEventHash) {
-            final CesEvent last = round.getStreamedEvents().getLast();
             if (freezeRoundReceived) {
+                final ConsensusEvent last = round.getEvents().getLast();
                 logger.info(
-                        "Last event in the freezeRound {} has consensus time {} {}",
+                        "Last event in the freezeRound {} has consensus time {} (CR:{} H:{} BR:{})",
                         round.getRoundNum(),
-                        last.getPlatformEvent().getConsensusTimestamp(),
-                        last.getPlatformEvent().getDescriptor());
+                        last.getConsensusTimestamp(),
+                        last.getCreatorId().id(),
+                        last.getHash().toHex(6),
+                        last.getBirthRound());
             }
             // Update the running hash object. If there are no events, the running hash does not change.
             // Future work: this is a redundant check, since empty rounds are currently ignored entirely. The check is
             // here anyway, for when that changes in the future.
             if (!round.isEmpty()) {
-                previousRoundLegacyRunningEventHash =
-                        last.getRunningHash().getFutureHash().getAndRethrow();
+                previousRoundLegacyRunningEventHash = round.getLastEventRunningHash().getFutureHash().getAndRethrow();
             }
 
             setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
@@ -348,7 +344,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     @NonNull
     private TransactionHandlerResult createSignedState(
-            @NonNull final ConsensusRound consensusRound,
+            @NonNull final Round consensusRound,
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions)
             throws InterruptedException {
         if (freezeRoundReceived) {
@@ -362,7 +358,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
                 logger.error(EXCEPTION.getMarker(), """
                                 The freeze round {} is not a boundary round. The freeze state will be saved to disk, \
                                 but the app may not have done some work that it needs to (like finishing a block). The \
-                                app must ensure that the freeze round is always a boundary round.""", consensusRound.getRoundNum());
+                                app must ensure that the freeze round is always a boundary round.""",
+                        consensusRound.getRoundNum());
             }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
             stateLifecycleManager.copyMutableState();

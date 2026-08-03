@@ -70,7 +70,7 @@ public class QuiescenceController {
      *
      * @param transactions the transactions are being pre-handled
      */
-    public void onPreHandle(@NonNull final List<Transaction> transactions) {
+    public void onPreHandle(@NonNull final List<? extends Transaction> transactions) {
         // Should be called at the end of Hedera.onPreHandle() when all transactions have been parsed
         if (isDisabled()) {
             return;
@@ -213,7 +213,7 @@ public class QuiescenceController {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.transactionIterator()));
+            pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.getTransactions().iterator()));
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }

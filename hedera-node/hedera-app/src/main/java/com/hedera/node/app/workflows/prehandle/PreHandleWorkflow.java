@@ -53,7 +53,7 @@ public interface PreHandleWorkflow {
     void preHandle(
             @NonNull ReadableStoreFactory readableStoreFactory,
             @Nullable NodeInfo creatorInfo,
-            @NonNull Stream<Transaction> transactions,
+            @NonNull Stream<? extends Transaction> transactions,
             @NonNull ShortCircuitCallback shortCircuitCallback);
 
     /**

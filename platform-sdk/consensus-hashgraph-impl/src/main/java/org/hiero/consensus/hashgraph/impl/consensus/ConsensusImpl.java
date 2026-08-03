@@ -739,6 +739,11 @@ public class ConsensusImpl implements Consensus {
             }
         }
 
+        // Assign each transaction it's consensus timestamp
+        for (final PlatformEvent event : consensusEvents) {
+            event.setConsensusTimestampsOnTransactions(transactionOffsetNanos);
+        }
+
         final long nonAncientThreshold = rounds.getAncientThreshold();
         final long nonExpiredThreshold = rounds.getExpiredThreshold();
 

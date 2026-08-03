@@ -11,10 +11,13 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_5_3;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongAccumulator;
+import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.Objects;
@@ -32,6 +35,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 public class ConsensusEngineMetrics {
 
     private final NodeId selfId;
+
+    private final Time time;
 
     private static final SpeedometerMetric.Config EVENTS_CREATED_PER_SECOND_CONFIG = new SpeedometerMetric.Config(
                     PLATFORM_CATEGORY, "cEvents_per_sec")
@@ -102,14 +107,34 @@ public class ConsensusEngineMetrics {
             .withFormat(FORMAT_10_3);
     private final RunningAverageMetric avgGossipRoundtrip;
 
+    private static final LongGauge.Config consensusTimeConfig = new LongGauge.Config(INTERNAL_CATEGORY, "consensusTime")
+            .withDescription("The consensus timestamp of the round currently being handled.")
+            .withUnit("milliseconds");
+    private final LongGauge consensusTime;
+
+    private static final LongGauge.Config consensusTimeDeviationConfig = new LongGauge.Config(
+            INTERNAL_CATEGORY, "consensusTimeDeviation")
+            .withDescription("The difference between the consensus time of the round currently being handled and this"
+                    + " node's wall clock time. Positive values mean that this node's clock is behind the consensus"
+                    + "time, negative values mean that it's ahead.")
+            .withUnit("milliseconds");
+    private final LongGauge consensusTimeDeviation;
+
+    private static final LongGauge.Config eventsPerRoundConfig = new LongGauge.Config(
+            INTERNAL_CATEGORY, "eventsPerRound")
+            .withDescription("The number of events per round")
+            .withUnit("count");
+    private final LongGauge eventsPerRound;
+
     /**
      * The constructor of {@code AddedEventMetrics}
      *
      * @param selfId  the {@link NodeId} of this node
      * @param metrics a reference to the metrics-system
      */
-    public ConsensusEngineMetrics(final NodeId selfId, final Metrics metrics) {
+    public ConsensusEngineMetrics(final NodeId selfId, final Metrics metrics, @NonNull final Time time) {
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
+        this.time = Objects.requireNonNull(time, "time must not be null");
         Objects.requireNonNull(metrics, "metrics must not be null");
 
         eventsCreatedPerSecond = metrics.getOrCreate(EVENTS_CREATED_PER_SECOND_CONFIG);
@@ -130,6 +155,10 @@ public class ConsensusEngineMetrics {
         staleEventCount = metrics.getOrCreate(STALE_EVENTS_CONFIG);
         staleTransactionCount = metrics.getOrCreate(STALE_APP_TRANSACTIONS_CONFIG);
         avgGossipRoundtrip = metrics.getOrCreate(AVG_GOSSIP_ROUNDTRIP_CONFIG);
+
+        consensusTime = metrics.getOrCreate(consensusTimeConfig);
+        consensusTimeDeviation = metrics.getOrCreate(consensusTimeDeviationConfig);
+        eventsPerRound = metrics.getOrCreate(eventsPerRoundConfig);
     }
 
     /**
@@ -208,5 +237,24 @@ public class ConsensusEngineMetrics {
 
         staleEventCount.update(1);
         staleTransactionCount.update(event.getTransactionCount());
+    }
+
+    /**
+     * Records the number of events in a round.
+     *
+     * @param eventCount the number of events in the round
+     */
+    public void recordEventsPerRound(final int eventCount) {
+        eventsPerRound.set(eventCount);
+    }
+
+    /**
+     * Records the consensus time.
+     *
+     * @param consensusTime the consensus time of the last transaction in the round that is currently being handled
+     */
+    public void recordConsensusTime(@NonNull final Instant consensusTime) {
+        this.consensusTime.set(consensusTime.toEpochMilli());
+        consensusTimeDeviation.set(consensusTime.toEpochMilli() - time.now().toEpochMilli());
     }
 }

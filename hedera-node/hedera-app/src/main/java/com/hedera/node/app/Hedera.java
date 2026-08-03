@@ -670,8 +670,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (quiescenceEnabled) {
             final var app = requireNonNull(daggerApp);
             // First set a minimal PreHandleResult on every event so the quiescence controller can classify them
-            final var transactions = new ArrayList<Transaction>(1000);
-            event.forEachTransaction(transactions::add);
+            final var transactions = event.getTransactions();
             final int maxBytes = configProvider
                     .getConfiguration()
                     .getConfigData(HederaConfig.class)
@@ -1089,15 +1088,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 stateSignatureTxnCallback.accept(scopedTxn);
             }
         };
-        final var transactions = new ArrayList<Transaction>(1000);
-        event.forEachTransaction(transactions::add);
+        final var transactions = event.getTransactions();
         app.preHandleWorkflow()
                 .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
         if (quiescenceEnabled) {
             app.quiescenceController().onPreHandle(transactions);
             // If this is a self-created event, decrement in-flight counts by the transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                app.txPipelineTracker().countLanded(event.transactionIterator());
+                app.txPipelineTracker().countLanded(transactions.iterator());
             }
         }
     }

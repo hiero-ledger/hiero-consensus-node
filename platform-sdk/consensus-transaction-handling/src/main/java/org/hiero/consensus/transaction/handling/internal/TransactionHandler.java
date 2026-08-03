@@ -4,6 +4,7 @@ package org.hiero.consensus.transaction.handling.internal;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 
@@ -30,5 +31,5 @@ public interface TransactionHandler {
      */
     @InputWireLabel("consensus round")
     @Nullable
-    TransactionHandlerResult handleConsensusRound(@NonNull ConsensusRound consensusRound);
+    TransactionHandlerResult handleConsensusRound(@NonNull Round consensusRound);
 }
