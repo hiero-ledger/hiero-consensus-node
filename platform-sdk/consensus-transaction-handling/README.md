@@ -25,7 +25,7 @@ May depend on:
 - Functional-api module: `consensus-hashgraph`
 - Structural-transitional module: `consensus-state`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Any `consensus-*-impl` module

@@ -8,10 +8,10 @@ module org.hiero.consensus.status.monitor {
     exports org.hiero.consensus.status.monitor;
 
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.node.hapi;
     requires com.swirlds.logging;
     requires org.hiero.base.utility;

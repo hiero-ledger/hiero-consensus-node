@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.WiringConfig;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -83,6 +77,12 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.WiringConfig;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * A factory used to construct the consensus layer.
