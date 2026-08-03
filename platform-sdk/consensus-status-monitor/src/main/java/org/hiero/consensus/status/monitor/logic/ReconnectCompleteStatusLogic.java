@@ -4,11 +4,11 @@ package org.hiero.consensus.status.monitor.logic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
 import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.monitor.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#RECONNECT_COMPLETE} status.

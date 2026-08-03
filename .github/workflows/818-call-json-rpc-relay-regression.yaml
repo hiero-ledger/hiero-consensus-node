@@ -119,6 +119,13 @@ jobs:
 
       # Set up the npm dependencies and cache on the json-rpc-relay repository
       - name: Install NodeJS Dependencies (json-rpc-relay)
+        env:
+          # Pin the Redis binary that redis-memory-server compiles in its postinstall. It otherwise
+          # tracks the rolling "stable" tarball (download.redis.io/redis-stable.tar.gz), which moved to
+          # Redis 8.10.0 on 2026-07-29 and now builds bundled modules needing a toolchain
+          # (pkg-config/libssl-dev/cmake/rust) absent on this runner. 7.4.x is module-free and compiles
+          # with the runner's existing toolchain (the last pre-8 line that worked here).
+          REDISMS_VERSION: "7.4.10"
         run: npm ci
         working-directory: regression-tests/json-rpc-relay
 
