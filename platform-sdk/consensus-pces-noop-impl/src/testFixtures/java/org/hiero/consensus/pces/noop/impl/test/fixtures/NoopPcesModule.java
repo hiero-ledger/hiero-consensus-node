@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -25,7 +24,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 
 /**
@@ -55,7 +53,6 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -65,7 +62,6 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(selfId);
         requireNonNull(recycleBin);
         requireNonNull(flushPrimaryPipeline);
-        requireNonNull(replayProgressSupplier);
         requireNonNull(statusMonitorModule);
         requireNonNull(signalEndOfPcesReplay);
 

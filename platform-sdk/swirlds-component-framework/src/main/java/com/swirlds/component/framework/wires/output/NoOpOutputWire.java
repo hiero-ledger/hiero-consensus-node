@@ -73,7 +73,7 @@ public class NoOpOutputWire<OUT> extends StandardOutputWire<OUT> {
             @NonNull final String filterName,
             @NonNull final String filterInputName,
             @NonNull final Predicate<OUT> predicate) {
-        return new NoOpOutputWire<>(getModel(), filterName);
+        return new NoOpOutputWire<>(model, filterName);
     }
 
     /**
@@ -83,7 +83,7 @@ public class NoOpOutputWire<OUT> extends StandardOutputWire<OUT> {
     @Override
     public <ELEMENT> OutputWire<ELEMENT> buildSplitter(
             @NonNull final String splitterName, @NonNull final String splitterInputName) {
-        return new NoOpOutputWire<>(getModel(), splitterName);
+        return new NoOpOutputWire<>(model, splitterName);
     }
 
     /**
@@ -95,7 +95,7 @@ public class NoOpOutputWire<OUT> extends StandardOutputWire<OUT> {
             @NonNull final String transformerName,
             @NonNull final String transformerInputName,
             @NonNull final Function<OUT, NEW_OUT> transformer) {
-        return new NoOpOutputWire<>(getModel(), transformerName);
+        return new NoOpOutputWire<>(model, transformerName);
     }
 
     /**
@@ -105,6 +105,6 @@ public class NoOpOutputWire<OUT> extends StandardOutputWire<OUT> {
     @Override
     public <NEW_OUT> OutputWire<NEW_OUT> buildAdvancedTransformer(
             @NonNull final AdvancedTransformation<OUT, NEW_OUT> transformer) {
-        return new NoOpOutputWire<>(getModel(), transformer.getTransformerName());
+        return new NoOpOutputWire<>(model, transformer.getTransformerName());
     }
 }
