@@ -60,9 +60,7 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
-import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyGeneratingException;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -193,7 +191,7 @@ public class EnhancedKeyStoreLoader {
      * @param rosterEntries      roster entries of the active roster, used to provide certificates
      * @throws NullPointerException if {@code addressBook} or {@code configuration} is {@code null}.
      */
-    private EnhancedKeyStoreLoader(
+    public EnhancedKeyStoreLoader(
             @NonNull final Path keyStoreDirectory,
             @NonNull final char[] keyStorePassphrase,
             @NonNull final Set<NodeId> nodeIds,
@@ -207,34 +205,6 @@ public class EnhancedKeyStoreLoader {
         this.nodeIds = Collections.unmodifiableSet(Objects.requireNonNull(nodeIds, MSG_NODES_TO_START_NON_NULL));
         this.rosterEntries =
                 Collections.unmodifiableList(Objects.requireNonNull(rosterEntries, MSG_ROSTER_ENTRIES_NON_NULL));
-    }
-
-    /**
-     * Creates a new {@link EnhancedKeyStoreLoader} instance using the provided {@code addressBook} and
-     * {@code configuration}.
-     *
-     * @param configuration the configuration to use for loading the key stores.
-     * @param localNodes    the local nodes that need private keys loaded.
-     * @param rosterEntries roster entries of the active roster, used to provide certificates
-     * @return a new {@link EnhancedKeyStoreLoader} instance.
-     * @throws NullPointerException     if {@code addressBook} or {@code configuration} is {@code null}.
-     * @throws IllegalArgumentException if the value from the configuration element {@code crypto.keystorePassword} is
-     *                                  {@code null} or blank.
-     */
-    @NonNull
-    public static EnhancedKeyStoreLoader using(
-            @NonNull final Configuration configuration,
-            @NonNull final Set<NodeId> localNodes,
-            @NonNull final List<RosterEntry> rosterEntries) {
-        Objects.requireNonNull(configuration, "configuration must not be null");
-        Objects.requireNonNull(localNodes, MSG_NODES_TO_START_NON_NULL);
-
-        final String keyStorePassphrase = CryptoUtils.getConfiguredKeystorePassword(configuration);
-        final Path keyStoreDirectory =
-                configuration.getConfigData(PathsConfig.class).getKeysDirPath();
-
-        return new EnhancedKeyStoreLoader(
-                keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);
     }
 
     /**

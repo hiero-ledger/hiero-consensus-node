@@ -44,7 +44,7 @@ import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.BasicConfig;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBin;

@@ -31,7 +31,7 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -99,13 +99,23 @@ public final class CryptoStatic {
             try (final Stream<Path> list = Files.list(pathsConfig.getKeysDirPath())) {
                 org.hiero.base.utility.CommonUtils.tellUserConsole("Reading crypto keys from the files here:   "
                         + Arrays.toString(list.map(p -> p.getFileName().toString())
-                                .filter(fileName -> fileName.endsWith("pfx") || fileName.endsWith("pem"))
-                                .toArray()));
+                        .filter(fileName -> fileName.endsWith("pfx") || fileName.endsWith("pem"))
+                        .toArray()));
             }
 
             logger.debug(STARTUP.getMarker(), "About to start loading keys");
             logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-            keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode), rosterEntries)
+
+            final String keyStorePassphrase = CryptoUtils.getConfiguredKeystorePassword(configuration);
+            final Path keyStoreDirectory =
+                    configuration.getConfigData(PathsConfig.class).getKeysDirPath();
+            final EnhancedKeyStoreLoader enhancedKeyStoreLoader = new EnhancedKeyStoreLoader(
+                    keyStoreDirectory,
+                    keyStorePassphrase.toCharArray(),
+                    Set.of(localNode),
+                    rosterEntries);
+
+            keysAndCerts = enhancedKeyStoreLoader
                     .migrate()
                     .scan()
                     .generate()
@@ -114,11 +124,11 @@ public final class CryptoStatic {
 
             logger.debug(STARTUP.getMarker(), "Done loading keys");
         } catch (final KeyStoreException
-                | KeyLoadingException
-                | NoSuchAlgorithmException
-                | IOException
-                | KeyGeneratingException
-                | NoSuchProviderException e) {
+                       | KeyLoadingException
+                       | NoSuchAlgorithmException
+                       | IOException
+                       | KeyGeneratingException
+                       | NoSuchProviderException e) {
             logger.error(EXCEPTION.getMarker(), "Exception while loading/generating keys", e);
             if (ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
                     || ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchProviderException.class)) {

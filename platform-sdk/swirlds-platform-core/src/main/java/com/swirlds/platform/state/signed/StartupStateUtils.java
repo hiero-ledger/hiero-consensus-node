@@ -10,7 +10,6 @@ import static org.hiero.consensus.state.signed.ReservedSignedState.createNullRes
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
 import com.swirlds.platform.internal.SignedStateLoadingException;
@@ -234,7 +233,8 @@ public final class StartupStateUtils {
      * @param mainClassName         the name of the app's SwirldMain class
      * @param swirldName            the name of this swirld
      * @param selfId                the node id of this node
-     * @param platformContext       the platform context
+     * @param configuration         the node configuration
+     * @param fileSystemManager     the file system manager of the node
      * @param stateLifecycleManager the state lifecycle manager
      * @return the initial state to be used by this node
      */
@@ -245,10 +245,12 @@ public final class StartupStateUtils {
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         final DeserializedSignedState deserializedState = loadStateFile(
-                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
+                recycleBin, selfId, mainClassName, swirldName, softwareVersion, configuration,
+                fileSystemManager, stateLifecycleManager);
         try (final ReservedSignedState loadedState = deserializedState.reservedSignedState()) {
             if (loadedState.isNotNull()) {
                 logger.info(
@@ -259,7 +261,7 @@ public final class StartupStateUtils {
                 // StateLifecycleManager to create the mutable copy used for startup migrations.
                 final VirtualMapState stateCopy = stateLifecycleManager.copyMutableState();
                 final SignedState signedStateCopy = new SignedState(
-                        platformContext.getConfiguration(),
+                        configuration,
                         CryptoUtils::verifySignature,
                         stateCopy,
                         "StartupStateUtils: copy loaded initial state",
@@ -277,7 +279,7 @@ public final class StartupStateUtils {
         // However, we need to create a copy because the immutable state will be hashed
         final VirtualMapState genesisState = stateLifecycleManager.copyMutableState();
         final SignedState signedState = new SignedState(
-                platformContext.getConfiguration(),
+                configuration,
                 CryptoUtils::verifySignature,
                 genesisState,
                 "genesis state",

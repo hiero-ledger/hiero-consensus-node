@@ -18,7 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;

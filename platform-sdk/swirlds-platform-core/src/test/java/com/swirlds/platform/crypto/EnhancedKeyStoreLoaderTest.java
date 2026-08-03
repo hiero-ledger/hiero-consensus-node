@@ -11,6 +11,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.ConfigurationSetupUtils;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.base.utility.test.fixtures.io.ResourceExtractor;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -106,14 +108,16 @@ class EnhancedKeyStoreLoaderTest {
                 "enhanced-valid",
                 "enhanced-valid-no-agreement-key",
             })
-    void keyStoreLoaderPositiveTest(final String directoryName)
-            throws IOException, KeyLoadingException, KeyStoreException {
+    void keyStoreLoaderPositiveTest(final String directoryName) throws KeyLoadingException, KeyStoreException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
 
         final List<RosterEntry> rosterEntries =
                 requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final char[] keystorePassword = configuration.getConfigData(CryptoConfig.class).keystorePassword().toCharArray();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS, rosterEntries);
+                new EnhancedKeyStoreLoader(keyDirectory, keystorePassword, NODE_IDS, rosterEntries);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -147,12 +151,14 @@ class EnhancedKeyStoreLoaderTest {
     @ParameterizedTest
     @DisplayName("KeyStore Loader Negative Type Test")
     @ValueSource(strings = {"legacy-invalid-case", "hybrid-invalid-case", "enhanced-invalid-case"})
-    void keyStoreLoaderNegativeCase2Test(final String directoryName) throws IOException {
+    void keyStoreLoaderNegativeCase2Test(final String directoryName) {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final List<RosterEntry> rosterEntries =
                 requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final char[] keystorePassword = configuration.getConfigData(CryptoConfig.class).keystorePassword().toCharArray();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS, rosterEntries);
+                new EnhancedKeyStoreLoader(keyDirectory, keystorePassword, NODE_IDS, rosterEntries);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -200,8 +206,10 @@ class EnhancedKeyStoreLoaderTest {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final List<RosterEntry> rosterEntries =
                 requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final char[] keystorePassword = configuration.getConfigData(CryptoConfig.class).keystorePassword().toCharArray();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(configure(keyDirectory), NODE_IDS, rosterEntries);
+                new EnhancedKeyStoreLoader(keyDirectory, keystorePassword, NODE_IDS, rosterEntries);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 

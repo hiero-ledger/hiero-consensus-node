@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;

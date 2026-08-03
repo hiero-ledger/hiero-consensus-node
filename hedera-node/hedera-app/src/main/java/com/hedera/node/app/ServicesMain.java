@@ -75,7 +75,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.NodeId;
@@ -187,7 +187,8 @@ public class ServicesMain {
                 Hedera.APP_NAME,
                 Hedera.SWIRLD_NAME,
                 selfId,
-                platformContext,
+                platformConfig,
+                fileSystemManager,
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();

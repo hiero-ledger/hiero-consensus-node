@@ -47,7 +47,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
@@ -226,19 +226,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     fileSystemManager,
                     selfId);
 
-            final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                    .withTime(timeManager.time())
-                    .withConfiguration(currentConfiguration)
-                    .withFileSystemManager(fileSystemManager)
-                    .withMetrics(metrics)
-                    .withRecycleBin(recycleBin)
-                    .build();
-
             final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                     new VirtualMapStateLifecycleManager(
                             metrics, timeManager.time(), currentConfiguration, fileSystemManager);
 
-            model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
+            model = WiringModelBuilder.create(metrics, timeManager.time())
                     .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
@@ -251,7 +243,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
-                    platformContext,
+                    currentConfiguration,
+                    fileSystemManager,
                     stateLifecycleManager);
 
             if (reservedState.state().get().isGenesisState()) {
@@ -273,19 +266,19 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
-                    new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
+                    new Random(randotron.nextLong()), metrics, timeManager.time());
 
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
 
             final TestPlatformBuilder builder = new TestPlatformBuilder(
                             currentConfiguration,
-                            platformContext.getMetrics(),
-                            platformContext.getTime(),
+                            metrics,
+                            timeManager.time(),
                             rosterHistory,
                             keysAndCerts,
                             selfId,
-                            platformContext.getRecycleBin(),
-                            platformContext.getFileSystemManager(),
+                            recycleBin,
+                            fileSystemManager,
                             executionLayer,
                             otterApp,
                             initialState,

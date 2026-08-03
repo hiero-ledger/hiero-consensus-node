@@ -79,7 +79,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
