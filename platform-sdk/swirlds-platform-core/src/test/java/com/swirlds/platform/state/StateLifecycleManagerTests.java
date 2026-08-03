@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
@@ -56,10 +57,11 @@ class StateLifecycleManagerTests {
         final Roster roster = RosterFactory.randomRoster(Randotron.create(), 4);
         when(platform.getRoster()).thenReturn(roster);
 
-        Path defaultRootLocation = rethrowIO(() -> Files.createTempDirectory("testRootDir"));
+        final Path defaultRootLocation = rethrowIO(() -> Files.createTempDirectory("testRootDir"));
         final FileSystemManager fileSystemManager = new TestFileSystemManager(defaultRootLocation);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                new NoOpMetrics(), Time.getCurrent(), new TestConfigBuilder().getOrCreateConfig(), fileSystemManager);
+                new NoOpMetrics(), Time.getCurrent(), configuration, fileSystemManager);
 
         // copy just to init immutableLastState
         initialState = stateLifecycleManager.copyMutableState();

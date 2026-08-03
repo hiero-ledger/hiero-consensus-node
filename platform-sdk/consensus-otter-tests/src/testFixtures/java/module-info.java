@@ -71,8 +71,6 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
-    requires com.swirlds.common.test.fixtures;
-    requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;
