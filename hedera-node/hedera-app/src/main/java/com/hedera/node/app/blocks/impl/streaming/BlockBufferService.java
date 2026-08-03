@@ -812,7 +812,19 @@ public class BlockBufferService {
         final boolean backpressureEnabled = isBackpressureEnabled();
         final int minAckedBlocksToRetain = bufferConfig().minAckedBlocksToBuffer();
         // Create sorted snapshot of buffered block numbers (oldest first)
-        final SortedSet<Long> orderedBlocks = new TreeSet<>(blockBuffer.keySet());
+        final List<Long> orderedUnackedBlocks = new ArrayList<>();
+        final List<Long> orderedAckedBlocks = new ArrayList<>();
+
+        blockBuffer.keySet().forEach(blockNumber -> {
+            if (blockNumber <= highestBlockAcked) {
+                orderedAckedBlocks.add(blockNumber);
+            } else {
+                orderedUnackedBlocks.add(blockNumber);
+            }
+        });
+
+        Collections.sort(orderedAckedBlocks);
+        Collections.sort(orderedUnackedBlocks);
 
         
     }
