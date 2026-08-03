@@ -19,6 +19,7 @@ source: >
 verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java — `recalculateAndVote` (the per-round metadata-clearing step that preserves the property across roster changes)
 provenance: entry originally added by prior elicitation; revised 2026-06-08 (terminology updated to "voting round")
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # INV-001 — Voting round is monotonic along ancestry — a parent's round never exceeds its child's
