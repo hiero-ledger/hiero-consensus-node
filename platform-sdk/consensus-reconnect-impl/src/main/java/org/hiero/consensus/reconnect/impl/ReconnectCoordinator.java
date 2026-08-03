@@ -6,7 +6,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnap
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
@@ -26,6 +25,7 @@ import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.

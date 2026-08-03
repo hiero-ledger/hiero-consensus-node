@@ -16,8 +16,6 @@ import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToC
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.swirlds.component.framework.model.DeterministicWiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
@@ -60,6 +58,8 @@ import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;

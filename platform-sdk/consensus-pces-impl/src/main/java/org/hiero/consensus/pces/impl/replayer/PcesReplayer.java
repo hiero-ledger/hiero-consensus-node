@@ -9,8 +9,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.swirlds.base.formatting.UnitFormatter;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -27,6 +25,8 @@ import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 
 /**
  * This class encapsulates the logic for replaying preconsensus events at boot up time.

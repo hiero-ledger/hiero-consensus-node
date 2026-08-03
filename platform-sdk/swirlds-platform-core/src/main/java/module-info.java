@@ -47,7 +47,6 @@ module com.swirlds.platform.core {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -70,6 +69,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.consensus.concurrent;

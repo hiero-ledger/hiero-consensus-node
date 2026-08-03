@@ -3,7 +3,6 @@ package com.swirlds.platform.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.ConfigUtils;
@@ -16,6 +15,7 @@ import java.util.Set;
 import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.FallenBehindConfig;
 import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.wiring.framework.WiringConfig;
 import org.junit.jupiter.api.Test;
 
 class PlatformConfigurationExtensionTests {
