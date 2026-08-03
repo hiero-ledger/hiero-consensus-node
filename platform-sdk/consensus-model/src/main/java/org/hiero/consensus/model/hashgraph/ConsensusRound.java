@@ -14,9 +14,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.hiero.base.iterator.TypedIterator;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.main.model.ConsensusEvent;
-import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.event.CesEvent;
@@ -30,7 +29,7 @@ public class ConsensusRound implements Round {
      */
     private final List<PlatformEvent> consensusEvents;
 
-    private final List<Event> events;
+    private final List<ConsensusEvent> events;
     /**
      * the same events that are stored in {@link #consensusEvents} but repackaged for the Consensus Event Stream. since
      * the CES is something that will be removed as soon as possible, this additional list allows us to decouple the CES
@@ -86,7 +85,7 @@ public class ConsensusRound implements Round {
 
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
         this.consensusEvents = Collections.unmodifiableList(Objects.requireNonNull(consensusEvents));
-        this.events = consensusEvents.stream().map(Event.class::cast).toList();
+        this.events = consensusEvents.stream().map(ConsensusEvent.class::cast).toList();
         this.eventWindow = Objects.requireNonNull(eventWindow);
         this.snapshot = Objects.requireNonNull(snapshot);
         this.pcesRound = pcesRound;
@@ -118,7 +117,7 @@ public class ConsensusRound implements Round {
      *
      * @return the list of events in this round
      */
-    public @NonNull List<PlatformEvent> getConsensusEvents() {
+    public @NonNull List<PlatformEvent> getPlatformEvents() {
         return consensusEvents;
     }
 
@@ -167,7 +166,7 @@ public class ConsensusRound implements Round {
     }
 
     @Override
-    public List<Event> getEvents() {
+    public List<ConsensusEvent> getConsensusEvents() {
         return events;
     }
 
@@ -207,6 +206,12 @@ public class ConsensusRound implements Round {
      */
     public @NonNull Instant getReachedConsTimestamp() {
         return reachedConsTimestamp;
+    }
+
+    @NonNull
+    @Override
+    public RunningHash getLastEventRunningHash() {
+        return streamedEvents.getLast().getRunningHash();
     }
 
     @Override

@@ -68,7 +68,7 @@ class EventStreamReportingToolTest {
                 .mapToInt(ConsensusRound::getNumEvents)
                 .sum();
         final List<PlatformEvent> lastRound =
-                Optional.ofNullable(rounds.peekLast()).orElseThrow().getConsensusEvents();
+                Optional.ofNullable(rounds.peekLast()).orElseThrow().getPlatformEvents();
         final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
 
         // write event stream
@@ -110,7 +110,7 @@ class EventStreamReportingToolTest {
                 .filter(r -> {
                     if (r.getRoundNum() >= roundToReportFrom) {
                         timestampRef.compareAndSet(
-                                Instant.MIN, r.getConsensusEvents().get(0).getConsensusTimestamp());
+                                Instant.MIN, r.getPlatformEvents().get(0).getConsensusTimestamp());
                         return true;
                     }
                     return false;
@@ -118,7 +118,7 @@ class EventStreamReportingToolTest {
                 .mapToInt(ConsensusRound::getNumEvents)
                 .sum();
         final List<PlatformEvent> lastRound =
-                Optional.ofNullable(rounds.peekLast()).orElseThrow().getConsensusEvents();
+                Optional.ofNullable(rounds.peekLast()).orElseThrow().getPlatformEvents();
         final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
 
         // write event stream

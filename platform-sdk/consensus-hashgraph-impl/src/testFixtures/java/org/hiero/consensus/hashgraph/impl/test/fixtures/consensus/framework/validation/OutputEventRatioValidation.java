@@ -89,7 +89,7 @@ public class OutputEventRatioValidation implements ConsensusOutputValidation {
         // to be identical.
         final List<PlatformEvent> allEvents1 = output1.getAddedEvents();
         final int numConsensus = output1.getConsensusRounds().stream()
-                .mapToInt(r -> r.getConsensusEvents().size())
+                .mapToInt(r -> r.getPlatformEvents().size())
                 .sum();
 
         if (allEvents1.isEmpty()) {

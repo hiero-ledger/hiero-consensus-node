@@ -155,7 +155,7 @@ class AncientParentsTest {
         final boolean found = Arrays.stream(nodes)
                 .map(TestIntake::getConsensusRounds)
                 .flatMap(List::stream)
-                .map(ConsensusRound::getConsensusEvents)
+                .map(ConsensusRound::getPlatformEvents)
                 .flatMap(List::stream)
                 .map(PlatformEvent::getHash)
                 .anyMatch(eventHash::equals);

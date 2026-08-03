@@ -502,7 +502,7 @@ public class ProtobufConverter {
     public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRound fromPlatform(
             @NonNull final org.hiero.consensus.model.hashgraph.ConsensusRound sourceRound) {
         final List<org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent> events =
-                sourceRound.getConsensusEvents().stream()
+                sourceRound.getPlatformEvents().stream()
                         .map(ProtobufConverter::fromPlatform)
                         .toList();
 

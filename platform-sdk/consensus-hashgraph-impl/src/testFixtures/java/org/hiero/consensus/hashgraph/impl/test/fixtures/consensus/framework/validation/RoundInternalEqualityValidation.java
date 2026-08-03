@@ -37,8 +37,8 @@ public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonV
                 .withFailMessage(String.format(
                         "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
                 .isEqualTo(round2.getSnapshot());
-        final Iterator<PlatformEvent> evIt1 = round1.getConsensusEvents().iterator();
-        final Iterator<PlatformEvent> evIt2 = round2.getConsensusEvents().iterator();
+        final Iterator<PlatformEvent> evIt1 = round1.getPlatformEvents().iterator();
+        final Iterator<PlatformEvent> evIt2 = round2.getPlatformEvents().iterator();
         int eventIndex = 0;
         while (evIt1.hasNext() && evIt2.hasNext()) {
             final PlatformEvent e1 = evIt1.next();

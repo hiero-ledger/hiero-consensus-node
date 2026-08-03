@@ -46,7 +46,6 @@ import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.Round;
-import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
@@ -223,7 +222,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             if (waitForPrehandle) {
                 handlerMetrics.setPhase(WAITING_FOR_PREHANDLE);
-                for (final Event event : consensusRound.getEvents()) {
+                for (final Event event : consensusRound.getConsensusEvents()) {
                     event.awaitPrehandleCompletion();
                 }
             }
@@ -286,7 +285,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     }
 
     private int getNumTransactions(@NonNull final Round round) {
-        return round.getEvents().stream().mapToInt(e -> e.getTransactions().size()).sum();
+        return round.getConsensusEvents().stream().mapToInt(e -> e.getTransactions().size()).sum();
     }
 
     /**
@@ -313,7 +312,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         if (writeLegacyRunningEventHash) {
             if (freezeRoundReceived) {
-                final ConsensusEvent last = round.getEvents().getLast();
+                final ConsensusEvent last = round.getConsensusEvents().getLast();
                 logger.info(
                         "Last event in the freezeRound {} has consensus time {} (CR:{} H:{} BR:{})",
                         round.getRoundNum(),
@@ -387,7 +386,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             return result;
         } else {
             // Only include non-system transactions, because system transactions do not modify the state
-            accumulatedHashComplexity += consensusRound.getNumAppTransactions() - systemTransactions.size();
+            accumulatedHashComplexity += getNumTransactions(consensusRound) - systemTransactions.size();
             return new TransactionHandlerResult(null, systemTransactions);
         }
     }

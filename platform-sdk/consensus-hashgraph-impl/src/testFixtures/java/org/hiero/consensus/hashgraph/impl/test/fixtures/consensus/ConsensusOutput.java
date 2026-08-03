@@ -129,7 +129,7 @@ public class ConsensusOutput implements Clearable {
      */
     public @NonNull Set<Hash> consensusEventHashes() {
         return consensusRounds.stream()
-                .map(ConsensusRound::getConsensusEvents)
+                .map(ConsensusRound::getPlatformEvents)
                 .flatMap(List::stream)
                 .map(PlatformEvent::getHash)
                 .collect(Collectors.toSet());
@@ -142,7 +142,7 @@ public class ConsensusOutput implements Clearable {
      */
     public @NonNull List<PlatformEvent> getConsensusEvents() {
         return consensusRounds.stream()
-                .map(ConsensusRound::getConsensusEvents)
+                .map(ConsensusRound::getPlatformEvents)
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
     }

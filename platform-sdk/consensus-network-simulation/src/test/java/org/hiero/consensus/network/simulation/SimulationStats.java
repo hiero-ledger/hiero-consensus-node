@@ -30,7 +30,7 @@ class SimulationStats {
         engineOutputs.stream()
                 .map(ConsensusEngineOutput::consensusRounds)
                 .flatMap(List::stream)
-                .map(cr -> cr.getConsensusEvents().stream()
+                .map(cr -> cr.getPlatformEvents().stream()
                         .map(ce -> Duration.between(ce.getTimeCreated(), cr.getReachedConsTimestamp()))
                         .toList())
                 .flatMap(List::stream)

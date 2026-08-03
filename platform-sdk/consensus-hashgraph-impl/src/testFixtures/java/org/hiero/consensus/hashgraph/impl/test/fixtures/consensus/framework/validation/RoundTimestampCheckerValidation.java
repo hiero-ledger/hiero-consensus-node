@@ -25,8 +25,8 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
         for (final ConsensusRound round : rounds) {
             for (int i = 1; i < round.getEventCount(); i++) {
 
-                final PlatformEvent previousEvent = round.getConsensusEvents().get(i - 1);
-                final PlatformEvent currentEvent = round.getConsensusEvents().get(i);
+                final PlatformEvent previousEvent = round.getPlatformEvents().get(i - 1);
+                final PlatformEvent currentEvent = round.getPlatformEvents().get(i);
 
                 // Check the consensus timestamp
                 assertThat(currentEvent.getConsensusTimestamp())

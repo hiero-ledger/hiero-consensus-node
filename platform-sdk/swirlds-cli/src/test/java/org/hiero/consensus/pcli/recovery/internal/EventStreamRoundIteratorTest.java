@@ -71,7 +71,7 @@ class EventStreamRoundIteratorTest {
                 final StreamedRound nextRound = iterator.next();
                 assertSame(peekRound, nextRound, "peek returned wrong object");
 
-                nextRound.getEvents().iterator().forEachRemaining(event -> {
+                nextRound.getConsensusEvents().iterator().forEachRemaining(event -> {
                     deserializedEvents.add(event);
                     assertEquals(nextRound.getRoundNum(), event.getRoundReceived(), "event in wrong round");
                 });
@@ -121,7 +121,7 @@ class EventStreamRoundIteratorTest {
                 assertTrue(
                         nextRound.getRoundNum() >= firstRoundToRead, "low rounds should not be returned for this test");
 
-                nextRound.getEvents().iterator().forEachRemaining(event -> {
+                nextRound.getConsensusEvents().iterator().forEachRemaining(event -> {
                     deserializedEvents.add(event);
                     assertEquals(nextRound.getRoundNum(), event.getRoundReceived(), "event in wrong round");
                 });
@@ -165,7 +165,7 @@ class EventStreamRoundIteratorTest {
                     final StreamedRound nextRound = iterator.next();
                     assertSame(peekRound, nextRound, "peek returned wrong object");
 
-                    nextRound.getEvents().iterator().forEachRemaining(event -> {
+                    nextRound.getConsensusEvents().iterator().forEachRemaining(event -> {
                         deserializedEvents.add(event);
                         assertEquals(nextRound.getRoundNum(), event.getRoundReceived(), "event in wrong round");
                     });
@@ -242,7 +242,7 @@ class EventStreamRoundIteratorTest {
                     final StreamedRound nextRound = iterator.next();
                     assertSame(peekRound, nextRound, "peek returned wrong object");
 
-                    nextRound.getEvents().iterator().forEachRemaining(event -> {
+                    nextRound.getConsensusEvents().iterator().forEachRemaining(event -> {
                         deserializedEvents.add(event);
                         assertEquals(nextRound.getRoundNum(), event.getRoundReceived(), "event in wrong round");
                     });
@@ -295,7 +295,7 @@ class EventStreamRoundIteratorTest {
                 final StreamedRound nextRound = iterator.next();
                 assertSame(peekRound, nextRound, "peek returned wrong object");
 
-                nextRound.getEvents().iterator().forEachRemaining(event -> {
+                nextRound.getConsensusEvents().iterator().forEachRemaining(event -> {
                     deserializedEvents.add(event);
                     assertEquals(nextRound.getRoundNum(), (event).getRoundReceived(), "event in wrong round");
                 });

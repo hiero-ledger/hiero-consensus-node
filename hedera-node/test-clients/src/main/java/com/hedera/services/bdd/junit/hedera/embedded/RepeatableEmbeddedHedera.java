@@ -177,7 +177,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     @Override
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
-        hedera.onPreHandle(round.getEvents().getFirst(), state, preHandleStateSignatureCallback);
+        hedera.onPreHandle(round.getConsensusEvents().getFirst(), state, preHandleStateSignatureCallback);
         bulkUpdateOf(state, v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());

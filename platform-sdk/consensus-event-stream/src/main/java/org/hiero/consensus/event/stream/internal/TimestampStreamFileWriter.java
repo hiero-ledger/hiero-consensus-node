@@ -523,15 +523,6 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
     }
 
     /**
-     * Get the value of startWriteAtCompleteWindow.
-     *
-     * @return whether we should write object stream file until the first complete window
-     */
-    public boolean getStartWriteAtCompleteWindow() {
-        return startWriteAtCompleteWindow;
-    }
-
-    /**
      * Set if files should only be written in their entirety (as opposed to allowing files to be partially created
      * if the initial objects are not present). Should be set to be true after reconnect, or at state recovering,
      * and should be set to be false at restart

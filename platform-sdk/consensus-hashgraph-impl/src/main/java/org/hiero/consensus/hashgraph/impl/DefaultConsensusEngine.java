@@ -167,7 +167,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 // If this happens, we need to add all events that just reached consensus to the list of pre-consensus
                 // events. This is to ensure that all consensus events are returned as pre-consensus events.
                 allConsensusRounds.stream()
-                        .map(ConsensusRound::getConsensusEvents)
+                        .map(ConsensusRound::getPlatformEvents)
                         .flatMap(List::stream)
                         .forEach(preConsensusEvents::add);
 

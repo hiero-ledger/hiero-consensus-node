@@ -105,7 +105,7 @@ public class SingleNodeConsensusResultAssert
     public SingleNodeConsensusResultAssert hasBirthRoundSplit(@NonNull final Instant splitTime, final long splitRound) {
         isNotNull();
         for (final ConsensusRound round : actual().consensusRounds()) {
-            for (final PlatformEvent event : round.getConsensusEvents()) {
+            for (final PlatformEvent event : round.getPlatformEvents()) {
                 if (event.getTimeCreated().isAfter(splitTime)) {
                     Assertions.assertThat(event.getBirthRound())
                             .withFailMessage(

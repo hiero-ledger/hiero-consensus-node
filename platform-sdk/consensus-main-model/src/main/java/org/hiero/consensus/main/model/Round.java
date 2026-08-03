@@ -5,7 +5,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.List;
 import org.hiero.base.crypto.RunningHash;
 
@@ -34,7 +33,7 @@ public interface Round {
      * @return true if this round has no events, else returns false.
      */
     default boolean isEmpty() {
-        return getEvents().isEmpty();
+        return getConsensusEvents().isEmpty();
     }
 
     /**
@@ -42,7 +41,7 @@ public interface Round {
      *
      * @return the events of the round
      */
-    List<ConsensusEvent> getEvents();
+    List<ConsensusEvent> getConsensusEvents();
 
     /**
      * Get the roster that was used to compute consensus for this round.

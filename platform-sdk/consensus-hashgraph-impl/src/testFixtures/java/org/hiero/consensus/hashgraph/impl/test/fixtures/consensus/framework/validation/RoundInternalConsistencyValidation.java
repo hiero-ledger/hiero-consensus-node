@@ -28,7 +28,7 @@ public enum RoundInternalConsistencyValidation implements ConsensusRoundConsiste
                             "the last threshold should be equal for the current round %d", round.getRoundNum()))
                     .isEqualTo(minimumJudgeInfo.round());
 
-            for (final PlatformEvent event : round.getConsensusEvents()) {
+            for (final PlatformEvent event : round.getPlatformEvents()) {
                 assertThat(event.getConsensusData()).isNotNull();
             }
         }

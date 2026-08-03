@@ -32,7 +32,7 @@ public final class OutputNoEventsLostValidation implements ConsensusOutputValida
         final Map<Hash, PlatformEvent> stale =
                 output.getStaleEvents().stream().collect(Collectors.toMap(Hashable::getHash, e -> e));
         final Map<Hash, PlatformEvent> cons = output.getConsensusRounds().stream()
-                .flatMap(r -> r.getConsensusEvents().stream())
+                .flatMap(r -> r.getPlatformEvents().stream())
                 .collect(Collectors.toMap(PlatformEvent::getHash, e -> e));
         if (output.getConsensusRounds().isEmpty()) {
             // no consensus reached, nothing to check

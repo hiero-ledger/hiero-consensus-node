@@ -12,10 +12,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Map;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -30,6 +32,7 @@ public record ConsensusLayerInputs(
         @NonNull FileSystemManager fileSystemManager,
         @NonNull ExecutionLayerCallbacks executionLayerCallbacks,
         @Nullable ConsensusSnapshot consensusSnapshot,
+        @Nullable RunningEventHashOverride runningEventHashOverride,
         @NonNull SemanticVersion version,
         long transactionOffsetNanos,
         @NonNull TransactionLimits transactionLimits,

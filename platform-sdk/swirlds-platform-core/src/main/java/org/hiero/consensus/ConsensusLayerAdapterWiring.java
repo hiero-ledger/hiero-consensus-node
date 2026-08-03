@@ -82,39 +82,6 @@ public class ConsensusLayerAdapterWiring {
 
         txnHandling.stateOutputWire().solderTo(state.garbageCollectorRegistrationInputWire());
     }
-    /**
-     * Solder the hashgraph (consensus engine) module's outputs to their consumers.
-     */
-    private static void wireHashgraphOutputs(
-            @NonNull final ConsensusLayerAdapterInputs inputs, @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
-        final HashgraphModule hashgraph = buildingBlocks.hashgraphModule();
-
-
-        final OutputWire<PlatformEvent> preconsensusEventOutputWire = hashgraph.preconsensusEventOutputWire();
-
-        // pre-handle gets pre-consensus events from the consensus engine
-        // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
-        preconsensusEventOutputWire.solderTo(
-                buildingBlocks.transactionHandlingModule().preHandleEventInputWire());
-
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = hashgraph.consensusRoundOutputWire();
-
-        consensusRoundOutputWire.solderTo(buildingBlocks.eventIntakeModule().consensusRoundInputWire(), INJECT);
-        consensusRoundOutputWire.solderTo(buildingBlocks.gossipModule().consensusRoundInputWire(), INJECT);
-        consensusRoundOutputWire.solderTo(buildingBlocks.pcesModule().consensusRoundInputWire(), INJECT);
-        consensusRoundOutputWire.solderTo(buildingBlocks.eventCreatorModule().consensusRoundInputWire(), INJECT);
-        consensusRoundOutputWire.solderTo(buildingBlocks.stateModule().consensusRoundInputWire(), INJECT);
-
-
-        consensusRoundOutputWire.solderTo(
-                buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());
-
-        consensusRoundOutputWire
-                .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
-                .solderTo(buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
-
-        consensusRoundOutputWire.solderTo(buildingBlocks.statusMonitorModule().consensusRoundInputWire());
-    }
 
     /**
      * Solder the state module's outputs to their consumers.
@@ -175,8 +142,6 @@ public class ConsensusLayerAdapterWiring {
                 buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateOutput();
 
         runningHashUpdate.solderTo(buildingBlocks.transactionHandlingModule().hashOverrideInputWire());
-        runningHashUpdate.solderTo(
-                buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
     }
 
     /**
