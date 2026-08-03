@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Wiring framework
-last_reviewed: 2026-06-12
+last_reviewed: 2026-07-28
 ---
 
 # Wiring framework
