@@ -926,6 +926,7 @@ verify_block_node_has_blocks() {
   local svc="block-node-${BLOCK_NODE_ID}"
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-block-node-status.log" pf_pid=""
+  local grpc_err="${WORK_DIR}/grpcurl-block-node-status.err"
   require_cmd grpcurl
   local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
   # node_service.proto imports services/basic_types.proto; resolve it from this repo's tracked hapi
@@ -1292,6 +1293,9 @@ wait_for_block_node_caught_up() {
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-bn-catchup.log" pf_pid=""
   require_cmd grpcurl
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
+  local proto_file="block-node/api/node_service.proto"
   local cn_pod="network-${NODE_ALIASES%%,*}-0"
   local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
 
