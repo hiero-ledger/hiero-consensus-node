@@ -142,13 +142,14 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.35.0
 
       - name: kubectl wrapper
         run: |
-          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
-          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
-          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
           which kubectl
           kubectl version
 
@@ -841,13 +842,14 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.35.0
 
       - name: kubectl wrapper
         run: |
-          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
-          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
-          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
           which kubectl
           kubectl version
 
@@ -996,13 +998,14 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.35.0
 
       - name: kubectl wrapper
         run: |
-          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
-          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
-          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
           which kubectl
           kubectl version
 
@@ -1164,13 +1167,14 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.35.0
 
       - name: kubectl wrapper
         run: |
-          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
-          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
-          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
           which kubectl
           kubectl version
 
