@@ -149,8 +149,8 @@ public final class DiagramCommand extends AbstractCommand {
         final FileSystemManager fileSystemManager =
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,

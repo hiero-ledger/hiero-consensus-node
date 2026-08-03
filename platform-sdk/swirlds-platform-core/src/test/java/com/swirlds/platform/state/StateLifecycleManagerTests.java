@@ -2,6 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,17 +13,22 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.builder.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -49,13 +55,12 @@ class StateLifecycleManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RosterFactory.randomRoster(Randotron.create(), 4);
         when(platform.getRoster()).thenReturn(roster);
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+
+        Path defaultRootLocation = rethrowIO(() -> Files.createTempDirectory("testRootDir"));
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(defaultRootLocation);
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getFileSystemManager());
+                new NoOpMetrics(), Time.getCurrent(), new TestConfigBuilder().getOrCreateConfig(), fileSystemManager);
+
         // copy just to init immutableLastState
         initialState = stateLifecycleManager.copyMutableState();
         TestingAppStateInitializer.initPlatformState(initialState);

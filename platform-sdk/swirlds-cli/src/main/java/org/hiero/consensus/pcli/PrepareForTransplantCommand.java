@@ -67,8 +67,8 @@ public class PrepareForTransplantCommand extends AbstractCommand {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
         System.out.println("Transplanting state from: " + statePath);
-        final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(statePath, configuration,
-                new NoOpMetrics(), Time.getCurrent(), new SimpleRecycleBin());
+        final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(
+                statePath, configuration, new NoOpMetrics(), Time.getCurrent(), new SimpleRecycleBin());
         System.out.printf(
                 "Transplant complete. %d events were discarded due to being from a future round.%n",
                 discardedEventCount);

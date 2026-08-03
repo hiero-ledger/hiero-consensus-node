@@ -8,11 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.function.Function;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
@@ -29,23 +32,25 @@ class OrphanBufferEventGraphSourceTest {
     private static final int NUM_EVENTS = 100;
     private static final long SEED = 12345L;
 
-    private PlatformContext context;
+    private Metrics metrics;
     private List<PlatformEvent> rawEvents;
 
     @BeforeEach
     void setUp() {
-        context = PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
+        Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        metrics = new NoOpMetrics();
 
         final Roster roster = RosterFactory.randomRoster(new Random(SEED), NUM_NODES);
 
         // Generate raw events
-        rawEvents = generateEvents(Randotron.create(), NUM_EVENTS, context, roster, null);
+        rawEvents =
+                generateEvents(Randotron.create(), NUM_EVENTS, configuration, metrics, Time.getCurrent(), roster, null);
     }
 
     @Test
     void orphanBufferSourceReturnsHashedEvents() {
         final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
-        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         assertTrue(orphanBufferSource.hasNext(), "Expected orphanBuffer source to have events");
 
@@ -57,7 +62,7 @@ class OrphanBufferEventGraphSourceTest {
     @Test
     void getAllEventsReturnsAllOrphanBufferEvents() {
         final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
-        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         final List<PlatformEvent> allEvents = new ArrayList<>();
         orphanBufferSource.forEachRemaining(allEvents::add);
@@ -71,7 +76,7 @@ class OrphanBufferEventGraphSourceTest {
     @Test
     void eventsHaveNgenComputed() {
         final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
-        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         final List<PlatformEvent> allEvents = new ArrayList<>();
         orphanBufferSource.forEachRemaining(allEvents::add);
@@ -88,7 +93,7 @@ class OrphanBufferEventGraphSourceTest {
     @Test
     void resetRestartsIterationFromTheBeginning() {
         final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
-        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         // Consume the source fully.
         final List<PlatformEvent> firstPass = new ArrayList<>();
@@ -116,7 +121,7 @@ class OrphanBufferEventGraphSourceTest {
     @Test
     void eventsHaveSequenceNumberComputed() {
         final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
-        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         final List<PlatformEvent> allEvents = new ArrayList<>();
         orphanBufferSource.forEachRemaining(allEvents::add);

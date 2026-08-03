@@ -132,14 +132,10 @@ public final class EventRecoveryWorkflow {
         final SwirldMain hederaApp = HederaUtils.createHederaAppMain(configuration, time);
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(
-                        metrics,
-                        time,
-                        configuration,
-                        fileSystemManager);
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
-                signedStateDir, configuration, stateLifecycleManager);
+        final DeserializedSignedState deserializedSignedState =
+                SignedStateFileReader.readState(signedStateDir, configuration, stateLifecycleManager);
 
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
@@ -196,7 +192,8 @@ public final class EventRecoveryWorkflow {
                     recoveredState.judge().getBirthRound(),
                     recoveredState.state().get().getRound(),
                     resultingStateDirectory);
-            final PcesFileWriterType type = configuration.getConfigData(PcesConfig.class).pcesFileWriterType();
+            final PcesFileWriterType type =
+                    configuration.getConfigData(PcesConfig.class).pcesFileWriterType();
             final PcesMutableFile mutableFile = preconsensusEventFile.getMutableFile(type);
             mutableFile.writeEvent(recoveredState.judge());
             mutableFile.close();
@@ -361,7 +358,10 @@ public final class EventRecoveryWorkflow {
             v.setLegacyRunningEventHash(getHashEventsCons(legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
             v.setSnapshot(generateSyntheticSnapshot(
-                    round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, consensusConfig,
+                    round.getRoundNum(),
+                    lastEvent.getConsensusOrder(),
+                    currentRoundTimestamp,
+                    consensusConfig,
                     lastEvent));
 
             v.setCreationSoftwareVersion(creationSoftwareVersionOf(latestImmutableState));

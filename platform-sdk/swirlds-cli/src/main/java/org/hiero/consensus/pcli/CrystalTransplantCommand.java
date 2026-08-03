@@ -176,8 +176,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         this.metrics = new NoOpMetrics();
         this.recycleBin = new NoOpRecycleBin();
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        this.fileSystemManager =
-                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        this.fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 
@@ -322,8 +321,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
         stateMetadata = SavedStateMetadata.parse(targetStateDir.resolve(SavedStateMetadata.FILE_NAME));
         if (stateMetadata.freezeState() == null || !stateMetadata.freezeState()) {
             requestConfirmation("Truncate PCES files");
-            final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(targetStateDir, configuration,
-                    metrics, time, recycleBin);
+            final int discardedEventCount =
+                    SavedStateUtils.prepareStateForTransplant(targetStateDir, configuration, metrics, time, recycleBin);
             System.out.printf(
                     "PCES file truncation complete. %d events were discarded due to being from a future round.%n",
                     discardedEventCount);
@@ -453,6 +452,5 @@ public class CrystalTransplantCommand extends AbstractCommand {
         return null;
     }
 
-    record StateInformation(Long round, Roster roster, Hash hash, SavedStateInfo fileInfo) {
-    }
+    record StateInformation(Long round, Roster roster, Hash hash, SavedStateInfo fileInfo) {}
 }

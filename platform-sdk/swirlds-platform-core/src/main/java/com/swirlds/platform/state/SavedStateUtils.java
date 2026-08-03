@@ -40,8 +40,12 @@ public final class SavedStateUtils {
      * @throws IOException if an I/O error occurs
      */
     public static int prepareStateForTransplant(
-            @NonNull final Path statePath, @NonNull final Configuration configuration, @NonNull final Metrics metrics,
-            @NonNull final Time time, @NonNull final RecycleBin recycleBin) throws IOException {
+            @NonNull final Path statePath,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final RecycleBin recycleBin)
+            throws IOException {
         final Path pcesFiles =
                 statePath.resolve(configuration.getConfigData(PcesConfig.class).databaseDirectory());
         final Path pcesTmp = statePath.resolve(PCES_TEMPORARY_DIR);
@@ -52,20 +56,15 @@ public final class SavedStateUtils {
         final SavedStateMetadata stateMetadata =
                 SavedStateMetadata.parse(statePath.resolve(SavedStateMetadata.FILE_NAME));
 
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                configuration, recycleBin, pcesTmp, stateMetadata.round(), false);
+        final PcesFileTracker fileTracker =
+                PcesFileReader.readFilesFromDisk(configuration, recycleBin, pcesTmp, stateMetadata.round(), false);
 
         final PcesMultiFileIterator eventIterator =
                 fileTracker.getEventIterator(stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
         final CommonPcesWriter pcesWriter = new CommonPcesWriter(
                 configuration,
                 new PcesFileManager(
-                        configuration,
-                        metrics,
-                        time,
-                        new PcesFileTracker(),
-                        pcesFiles,
-                        stateMetadata.round()));
+                        configuration, metrics, time, new PcesFileTracker(), pcesFiles, stateMetadata.round()));
         pcesWriter.beginStreamingNewEvents();
 
         // Go through the events and write them to the new files, skipping any events that are from a future round

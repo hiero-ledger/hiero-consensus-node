@@ -85,17 +85,15 @@ public class PcesGraphSlicer {
         this.configuration = builder.configuration;
         this.eventCoreModifier = builder.graphEventCoreModifier;
 
-        final PcesEventGraphSource rawSource = new PcesEventGraphSource(
-                builder.existingPcesFilesLocation, configuration, new NoOpRecycleBin());
+        final PcesEventGraphSource rawSource =
+                new PcesEventGraphSource(builder.existingPcesFilesLocation, configuration, new NoOpRecycleBin());
         // Use OrphanBufferEventGraphSource to process events through hasher and orphan buffer
         // This computes ngen and links parents without the overhead of running consensus
-        final OrphanBufferEventGraphSource orphanBufferSource =
-                new OrphanBufferEventGraphSource(rawSource, metrics);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         if (builder.consensusSnapshot != null) {
-            final int roundsNonAncient = configuration
-                    .getConfigData(ConsensusConfig.class)
-                    .roundsNonAncient();
+            final int roundsNonAncient =
+                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
             final EventWindow eventWindow =
                     EventWindowUtils.createEventWindow(builder.consensusSnapshot, roundsNonAncient);
             orphanBufferSource.setEventWindow(eventWindow);
@@ -281,14 +279,9 @@ public class PcesGraphSlicer {
         try {
             Files.createDirectories(pcesOutputLocation);
             pcesWriter = new CommonPcesWriter(
-                   configuration,
+                    configuration,
                     new PcesFileManager(
-                            configuration,
-                            metrics,
-                            Time.getCurrent(),
-                            new PcesFileTracker(),
-                            pcesOutputLocation,
-                            0));
+                            configuration, metrics, Time.getCurrent(), new PcesFileTracker(), pcesOutputLocation, 0));
             pcesWriter.beginStreamingNewEvents();
         } catch (final IOException e) {
             throw new RuntimeException("Failed to initialize PCES writer", e);

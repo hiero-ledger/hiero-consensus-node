@@ -65,11 +65,9 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
         final FileSystemManager fileSystemManager =
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                new NoOpMetrics(),
-                Time.getCurrent(),
-                configuration,
-                fileSystemManager);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        new NoOpMetrics(), Time.getCurrent(), configuration, fileSystemManager);
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
@@ -90,12 +88,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         reservedSignedState.get().getState().getHash(); // calculate hash
         System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
         writeSignedStateFilesToDirectory(
-                configuration,
-                fileSystemManager,
-                NO_NODE_ID,
-                outputDir,
-                reservedSignedState,
-                stateLifecycleManager);
+                configuration, fileSystemManager, NO_NODE_ID, outputDir, reservedSignedState, stateLifecycleManager);
 
         return 0;
     }

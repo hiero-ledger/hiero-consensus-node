@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.common {
-
     /* Exported packages. This list should remain alphabetized. */
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;

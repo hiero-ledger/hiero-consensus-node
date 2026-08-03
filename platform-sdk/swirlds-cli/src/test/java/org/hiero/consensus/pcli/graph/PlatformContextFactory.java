@@ -1,17 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import com.swirlds.platform.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.function.Function;
-
 /**
  * Platform level unit test base class for common setup and teardown.
  */
@@ -36,28 +25,29 @@ public class PlatformContextFactory {
      * @param configModifier          the function to modify the test config builder
      * @return the platform context
      */
-    @NonNull
-    public static PlatformContext createPlatformContext(
-            @Nullable final Function<TestPlatformContextBuilder, TestPlatformContextBuilder> platformContextModifier,
-            @Nullable final Function<TestConfigBuilder, TestConfigBuilder> configModifier) {
-        final TestPlatformContextBuilder platformContextBuilder = TestPlatformContextBuilder.create();
-        final TestConfigBuilder configBuilder = new TestConfigBuilder();
-        if (configModifier != null) {
-            configModifier.apply(configBuilder);
-        }
-
-        final Path tmpDir;
-        try {
-            tmpDir = Files.createTempDirectory("");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        // add configuration to platform builder.
-        platformContextBuilder.withConfiguration(configBuilder.getOrCreateConfig());
-        if (platformContextModifier != null) {
-            // apply any other modifications to the platform builder.
-            platformContextModifier.apply(platformContextBuilder);
-        }
-        return platformContextBuilder.build();
-    }
+    //    @NonNull
+    //    public static PlatformContext createPlatformContext(
+    //            @Nullable final Function<TestPlatformContextBuilder, TestPlatformContextBuilder>
+    // platformContextModifier,
+    //            @Nullable final Function<TestConfigBuilder, TestConfigBuilder> configModifier) {
+    //        final TestPlatformContextBuilder platformContextBuilder = TestPlatformContextBuilder.create();
+    //        final TestConfigBuilder configBuilder = new TestConfigBuilder();
+    //        if (configModifier != null) {
+    //            configModifier.apply(configBuilder);
+    //        }
+    //
+    //        final Path tmpDir;
+    //        try {
+    //            tmpDir = Files.createTempDirectory("");
+    //        } catch (IOException e) {
+    //            throw new UncheckedIOException(e);
+    //        }
+    //        // add configuration to platform builder.
+    //        platformContextBuilder.withConfiguration(configBuilder.getOrCreateConfig());
+    //        if (platformContextModifier != null) {
+    //            // apply any other modifications to the platform builder.
+    //            platformContextModifier.apply(platformContextBuilder);
+    //        }
+    //        return platformContextBuilder.build();
+    //    }
 }

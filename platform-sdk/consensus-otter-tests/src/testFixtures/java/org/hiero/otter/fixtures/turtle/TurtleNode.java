@@ -16,8 +16,6 @@ import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToC
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.swirlds.platform.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.builder.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
@@ -265,8 +263,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
-            this.executionLayer = new OtterExecutionLayer(
-                    new Random(randotron.nextLong()), metrics, timeManager.time());
+            this.executionLayer =
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), metrics, timeManager.time());
 
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
 

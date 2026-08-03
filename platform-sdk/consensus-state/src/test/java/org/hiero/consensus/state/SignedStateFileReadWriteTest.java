@@ -42,7 +42,6 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -208,7 +207,7 @@ class SignedStateFileReadWriteTest {
 
     private Configuration changeConfigAndConfigHolder(String directory) {
         return new TestConfigBuilder()
-                .withValue(PathsConfig_.SAVED_STATE_DIR, directory)
+                //                .withValue(PathsConfig_.SAVED_STATE_DIR, directory)
                 .getOrCreateConfig();
     }
 }

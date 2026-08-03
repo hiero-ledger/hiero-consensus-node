@@ -74,7 +74,7 @@ public final class StartupStateUtils {
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
 
         final List<SavedStateInfo> savedStateFiles = new SignedStateFilePath(
-                fileSystemManager, actualMainClassName, selfId, swirldName)
+                        fileSystemManager, actualMainClassName, selfId, swirldName)
                 .getSavedStateFiles();
         logStatesFound(savedStateFiles);
 
@@ -249,8 +249,14 @@ public final class StartupStateUtils {
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         final DeserializedSignedState deserializedState = loadStateFile(
-                recycleBin, selfId, mainClassName, swirldName, softwareVersion, configuration,
-                fileSystemManager, stateLifecycleManager);
+                recycleBin,
+                selfId,
+                mainClassName,
+                swirldName,
+                softwareVersion,
+                configuration,
+                fileSystemManager,
+                stateLifecycleManager);
         try (final ReservedSignedState loadedState = deserializedState.reservedSignedState()) {
             if (loadedState.isNotNull()) {
                 logger.info(
@@ -279,13 +285,7 @@ public final class StartupStateUtils {
         // However, we need to create a copy because the immutable state will be hashed
         final VirtualMapState genesisState = stateLifecycleManager.copyMutableState();
         final SignedState signedState = new SignedState(
-                configuration,
-                CryptoUtils::verifySignature,
-                genesisState,
-                "genesis state",
-                false,
-                false,
-                false);
+                configuration, CryptoUtils::verifySignature, genesisState, "genesis state", false, false, false);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         return new HashedReservedSignedState(
                 reservedSignedState,

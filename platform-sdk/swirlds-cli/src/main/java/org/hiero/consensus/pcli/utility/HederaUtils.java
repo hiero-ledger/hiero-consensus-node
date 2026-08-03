@@ -39,8 +39,7 @@ public class HederaUtils {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
             Method newHederaMethod =
                     mainClass.getDeclaredMethod("newHedera", Configuration.class, Metrics.class, Time.class);
-            return (SwirldMain) newHederaMethod.invoke(
-                    null, configuration, new NoOpMetrics(), time);
+            return (SwirldMain) newHederaMethod.invoke(null, configuration, new NoOpMetrics(), time);
         } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException
