@@ -4,11 +4,11 @@ package org.hiero.sloth.fixtures.internal;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.UNSET_WEIGHT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.sloth.fixtures.Configurable;
 import org.hiero.sloth.fixtures.Node;
 

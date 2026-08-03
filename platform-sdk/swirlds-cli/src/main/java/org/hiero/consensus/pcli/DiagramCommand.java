@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
@@ -13,18 +12,12 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatus
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
-import com.swirlds.component.framework.model.diagram.ModelGroup;
-import com.swirlds.component.framework.model.diagram.ModelManualLink;
-import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -67,6 +60,13 @@ import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelEdgeSubstitution;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelGroup;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelManualLink;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
 import picocli.CommandLine;
 
 @CommandLine.Command(

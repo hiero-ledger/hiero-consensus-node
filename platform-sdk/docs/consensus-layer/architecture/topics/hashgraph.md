@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-28
 ---
 
 # Hashgraph
@@ -99,7 +99,7 @@ is wired against those.
   `ConsensusEngine.updatePlatformStatus`, which sets `pcesMode = true`
   on `Consensus` when the status is `REPLAYING_EVENTS`
   (`DefaultConsensusEngine.java#updatePlatformStatus`).
-- `consensusSnapshotInputWire(): InputWire<ConsensusSnapshot>` —
+- `consensusSnapshotOverrideInputWire(): InputWire<ConsensusSnapshot>` —
   drives `ConsensusEngine.outOfBandSnapshotUpdate`, which clears the
   linker and the future-event buffer and reloads
   `Consensus.loadSnapshot(snapshot)` at restart and reconnect
