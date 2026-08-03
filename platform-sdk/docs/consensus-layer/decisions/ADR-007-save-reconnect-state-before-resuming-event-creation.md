@@ -15,6 +15,7 @@ deciders:
   - Cody Littley (@cody-littley)
   - Austin Littley (@litt3)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-007 — Save the Reconnect State to Disk Before Resuming Event Creation

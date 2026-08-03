@@ -109,31 +109,35 @@ Behavioral claims tie to the specific code that makes them true. Match that bar
 - **Verify before you write; refresh on touch.** Confirm every class, method,
   path, and commit exists before citing it — never invent line numbers or
   commit hashes. When you change a claim, re-check that its anchors still
-  resolve, then refresh the file's currency marker (see
+  resolve, then have the freshness checker advance its currency marker —
+  never by hand (see
   [When to bump the freshness marker](#when-to-bump-the-freshness-marker)).
   **A stale-but-present anchor is more dangerous than none** — it reads as
   verified. If you cannot verify an anchor, say so rather than guessing.
 
 ## When to bump the freshness marker
 
-`last_reviewed` (a date) is the freshness marker on narrative and
-single-file-catalog docs (`concepts/`, `architecture/**`, `glossary.md`,
-`symptoms.md`, `tunables.md`). It asserts one thing: the file's code-anchored
-claims were checked against current code on that date. Bump it only when that
-is true. ID-catalog entries (`rules/`, `invariants/`, …) carry no date marker —
-their currency is `status`, kept honest under
-[Keep load-bearing frontmatter in sync](#keep-load-bearing-frontmatter-in-sync).
+`last_reviewed` (a date) is the freshness marker carried by **every** entry document — the narrative
+and single-file-catalog docs (`concepts/`, `architecture/**`, `glossary.md`, `symptoms.md`,
+`tunables.md`) and the ID-catalog entries (`decisions/`, `invariants/`, `rules/`, `scenarios/`,
+`heuristics/`). It asserts one thing: the file's code-anchored claims were checked against the code as
+of that commit date. A document that anchors no code (`glossary.md`, `symptoms.md`, an ADR that cites
+no source) still carries the field as a record of its last review, but the freshness checker reports it
+`unknown` — there is nothing to verify its prose against.
 
-- **Bump when** you add, change, or re-confirm a code-anchored claim: you
-  re-anchor to moved code, confirm existing anchors still resolve against
-  current code, or revise what a claim asserts.
-- **Do not bump** for edits that touch no claim and no anchor: typo fixes,
-  formatting, link repair, reordering, wording changes that leave every claim
-  intact.
-- **Never bump without verifying.** Advancing the date is itself a claim —
-  that you re-checked the anchors. If you edit a claim but cannot re-verify it,
-  leave the date and flag the gap in the entry. A falsely-fresh marker is the
-  stale-anchor failure one level up.
+**The date is written only by the KB freshness checker — never by hand.** It is advanced exclusively by
+the checker's `--mark-reviewed`, which derives the reviewed-state date from git: the newest
+anchored-source commit for an anchored doc, or the reviewed checkout's `HEAD` commit for an unanchored
+one. Do not hand-edit the date, and do not let any other tool set it. The only manual touch is creating
+the field once, as `last_reviewed: TBD`, on a new entry; the checker only ever bumps an existing line.
+
+- **Advance it (run `--mark-reviewed`) when** you have re-read the entry's prose against current code:
+  re-anchored to moved code, confirmed existing anchors still resolve, or revised what a claim asserts.
+- **Do not advance it** for edits that touch no claim and no anchor: typo fixes, formatting, link
+  repair, reordering, wording that leaves every claim intact.
+- **Never advance it without re-reviewing.** The date is a claim that you re-checked the entry against
+  code. If you edit a claim but cannot re-verify it, leave the marker and flag the gap. A falsely-fresh
+  marker is the stale-anchor failure one level up.
 
 ## Keep load-bearing frontmatter in sync
 

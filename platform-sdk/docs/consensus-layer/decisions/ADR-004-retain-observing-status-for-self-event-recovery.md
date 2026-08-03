@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-004 — Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
