@@ -73,11 +73,14 @@ public final class WorklistBuilder {
     }
 
     /**
-     * Evaluates one topic's freshness: {@code REVIEW} when the marker is missing/non-date or anchored
-     * source changed since it, {@code FRESH} when nothing changed, {@code UNKNOWN} — with a note naming
-     * the reason — when the topic anchors no sources, git is unavailable, or no commit date could be
-     * determined. The doc-intrinsic no-sources reason is checked before git availability so it reports
-     * the same way in every environment.
+     * Evaluates one topic's freshness: {@code REVIEW} when the marker is missing/non-date or an anchored
+     * source was last committed on or after it, {@code FRESH} when every anchored source predates it,
+     * {@code UNKNOWN} — with a note naming the reason — when the topic anchors no sources, git is
+     * unavailable, or no commit date could be determined. The comparison is inclusive because commit
+     * dates are day-granular: a source touched on the {@code last_reviewed} day itself counts as changed,
+     * so a change merged later that same day is never skipped (at the cost of not clearing a topic until
+     * the day after its last change). The doc-intrinsic no-sources reason is checked before git
+     * availability so it reports the same way in every environment.
      *
      * @param doc the KB document to evaluate.
      * @return the topic's worklist entry.
@@ -109,7 +112,10 @@ public final class WorklistBuilder {
             final String commitDate = git.lastCommitDate(src);
             if (commitDate != null) {
                 anyDateKnown = true;
-                if (commitDate.compareTo(reviewedDate) > 0) {
+                // Inclusive boundary: commit dates are day-granular, so a source last committed on the
+                // last_reviewed day itself counts as changed — a change merged later that same day is
+                // never skipped.
+                if (commitDate.compareTo(reviewedDate) >= 0) {
                     changed.add(src);
                 }
             }

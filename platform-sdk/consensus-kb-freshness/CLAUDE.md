@@ -37,7 +37,10 @@ with `java -jar`.
   coverage check, scoped to `consensus-*` modules plus modules the catalog already documents),
   baseline TSV + join. The engine subsumes a Tier-0 source-path GONE finding when a `CONFIG_PREFIX`
   finding already asserts the same citation as a class move (one root cause, one finding).
-- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`). Anchored-source
+- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`): a topic is flagged
+  for review when any anchored source was committed **on or after** `last_reviewed`. The boundary is
+  inclusive because commit dates are day-granular — a same-day merge is never skipped, at the cost of
+  not clearing a topic until the day after its last change. Anchored-source
   resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations both resolve
   through the `SourceIndex`, and a moved anchor is tracked at its new location), so an abbreviated- or
   FQN-only topic keeps feeding the freshness signal. Each entry carries `anchoredSourceCount`; a zero
