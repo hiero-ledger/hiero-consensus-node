@@ -59,7 +59,10 @@ public final class ConsensusLayerStaticSetup {
         }
         staticSetupCompleted = true;
 
-        performHealthChecks(DEFAULT_SETTINGS_PATH, configuration);
+        final OSHealthCheckConfig osHealthCheckConfig = configuration.getConfigData(OSHealthCheckConfig.class);
+        if (osHealthCheckConfig.performOSHealthChecks()) {
+            performHealthChecks(DEFAULT_SETTINGS_PATH, osHealthCheckConfig);
+        }
         writeSettingsUsed(configuration);
 
         // Initialize JVMPauseDetectorThread, if enabled via settings
@@ -70,15 +73,15 @@ public final class ConsensusLayerStaticSetup {
      * Perform health all health checks
      *
      * @param settingsPath  the path to the settings.txt file
-     * @param configuration the configuration
+     * @param osHealthCheckConfig the osHealthCheckConfig
      */
     private static void performHealthChecks(
-            @NonNull final Path settingsPath, @NonNull final Configuration configuration) {
-        requireNonNull(configuration);
+            @NonNull final Path settingsPath, @NonNull final OSHealthCheckConfig osHealthCheckConfig) {
+        requireNonNull(osHealthCheckConfig);
         final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(settingsPath);
 
         OSHealthChecker.performOSHealthChecks(
-                configuration.getConfigData(OSHealthCheckConfig.class),
+                osHealthCheckConfig,
                 List.of(
                         OSClockSpeedSourceChecker::performClockSourceSpeedCheck,
                         OSEntropyChecker::performEntropyChecks,

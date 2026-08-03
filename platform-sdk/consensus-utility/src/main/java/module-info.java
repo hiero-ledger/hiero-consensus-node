@@ -16,16 +16,12 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.orphan;
     exports org.hiero.consensus.round;
     exports org.hiero.consensus.scratchpad;
-    exports org.hiero.consensus.status.actions;
-    exports org.hiero.consensus.status.logic;
-    exports org.hiero.consensus.status;
     exports org.hiero.consensus.system;
     exports org.hiero.consensus.transaction;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
