@@ -9,7 +9,7 @@ then
   grep -E 'Internal error occurred|context deadline exceeded' /tmp/stdout.$$ /tmp/stderr.$$ >/dev/null
   if [ $? -eq 0 ]
   then
-    sleep 1
+    sleep 30
     rm -f /tmp/stdout.$$ /tmp/stderr.$$
     timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@"
   else
