@@ -81,7 +81,7 @@ jobs:
 
       - name: Compile Application Code
         id: compile-source
-        run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
+        run: ${GRADLE_EXEC} assemble
 
       - name: Spotless Check
         id: spotless-check
