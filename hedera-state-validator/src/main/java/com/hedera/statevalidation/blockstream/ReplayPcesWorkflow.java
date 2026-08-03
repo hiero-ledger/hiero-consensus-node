@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -219,7 +220,7 @@ public final class ReplayPcesWorkflow {
             // NOTE: deliberately NOT calling blocks.platformCoordinator().startGossip()
 
             // --- Capture the resulting state and dump it to disk (ADR-003 steps 3-4) ---
-            final long resultRound = dumpResultingState(blocks, outDir);
+            final long resultRound = dumpResultingState(blocks, platformConfig, outDir);
             log.info("PCES replay complete. Resulting state round: {}, written under {}", resultRound, outDir);
             return resultRound;
         } finally {
@@ -243,7 +244,10 @@ public final class ReplayPcesWorkflow {
      *
      * @return the round of the dumped state
      */
-    private static long dumpResultingState(@NonNull final PlatformBuildingBlocks blocks, @NonNull final Path outDir) {
+    private static long dumpResultingState(
+            @NonNull final PlatformBuildingBlocks blocks,
+            @NonNull Configuration platformConfig,
+            @NonNull final Path outDir) {
         try (final ReservedSignedState reserved =
                 blocks.latestImmutableStateNexus().getState("replay-pces result")) {
             if (reserved == null) {
@@ -259,7 +263,16 @@ public final class ReplayPcesWorkflow {
             blocks.platformCoordinator().dumpStateToDisk(request);
             request.waitForFinished().run();
 
-            return signedState.getRound();
+            final long round = signedState.getRound();
+
+            // Copy the snapshot from the platform's internal saved-state location to the caller's outDir.
+            try {
+                copySnapshotToOutDir(platformConfig, round, outDir);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            return round;
         }
     }
 
@@ -284,6 +297,22 @@ public final class ReplayPcesWorkflow {
         final Path sourceDir = locatePcesFiles(pcesDir);
 
         log.info("Staging PCES files from {} into {}", sourceDir, databaseDirectory);
+
+        // Ensure a clean database directory — leftover .pces files from a prior run would
+        // be picked up by PcesFileTracker and corrupt the replay.
+        if (Files.isDirectory(databaseDirectory)) {
+            try (final Stream<Path> stale = Files.list(databaseDirectory)) {
+                stale.filter(p -> p.getFileName().toString().endsWith(".pces")).forEach(p -> {
+                    try {
+                        Files.delete(p);
+                    } catch (final IOException e) {
+                        throw new RuntimeException("Failed to remove stale PCES file " + p, e);
+                    }
+                });
+            }
+        } else {
+            Files.createDirectories(databaseDirectory);
+        }
 
         try (final Stream<Path> files = Files.list(sourceDir)) {
             files.filter(p -> p.getFileName().toString().endsWith(".pces")).forEach(p -> {
@@ -322,6 +351,63 @@ public final class ReplayPcesWorkflow {
     private static boolean containsPcesFiles(@NonNull final Path dir) throws IOException {
         try (final Stream<Path> files = Files.list(dir)) {
             return files.anyMatch(p -> p.getFileName().toString().endsWith(".pces"));
+        }
+    }
+
+    /**
+     * Copies the state snapshot written by the platform to the caller-specified output directory.
+     * The platform writes to {@code <savedStateDir>/<appName>/<swirldName>/<selfId>/<round>/}.
+     * We locate that directory and copy its contents into {@code <outDir>/<round>/}.
+     */
+    private static void copySnapshotToOutDir(
+            @NonNull final Configuration platformConfig, final long round, @NonNull final Path outDir)
+            throws IOException {
+        // Resolve the platform's saved-state directory for this round. The convention is:
+        //   savedStateDir / appName / swirldName / selfId / round
+        // where savedStateDir defaults to "./data/saved", appName = ServicesMain class name, swirldName = "123".
+        // Rather than reconstruct the convention, scan for the round directory.
+        final Path savedStateDir =
+                platformConfig.getConfigData(PathsConfig.class).savedStateDir();
+        final Path roundDir = findRoundDirectory(savedStateDir, round);
+        if (roundDir == null) {
+            log.warn(
+                    "Could not find saved state directory for round {} under {}; outDir copy skipped.",
+                    round,
+                    savedStateDir);
+            return;
+        }
+
+        final Path destination = outDir.resolve(Long.toString(round));
+        log.info("Copying replay state from {} to {}", roundDir, destination);
+        Files.createDirectories(destination);
+        try (final Stream<Path> files = Files.walk(roundDir)) {
+            files.forEach(source -> {
+                final Path target = destination.resolve(roundDir.relativize(source));
+                try {
+                    if (Files.isDirectory(source)) {
+                        Files.createDirectories(target);
+                    } else {
+                        Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (final IOException e) {
+                    throw new java.io.UncheckedIOException("Failed to copy " + source + " -> " + target, e);
+                }
+            });
+        }
+        log.info("Replay state for round {} copied to {}", round, destination);
+    }
+
+    /**
+     * Searches for a directory named {@code <round>} under the saved-state root (recursively).
+     * Returns the first match, or null if not found.
+     */
+    private static Path findRoundDirectory(final Path root, final long round) throws IOException {
+        final String roundName = Long.toString(round);
+        try (final Stream<Path> dirs = Files.walk(root)) {
+            return dirs.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().equals(roundName))
+                    .findFirst()
+                    .orElse(null);
         }
     }
 }

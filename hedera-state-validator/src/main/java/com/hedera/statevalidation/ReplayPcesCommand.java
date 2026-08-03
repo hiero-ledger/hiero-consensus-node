@@ -44,20 +44,11 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     private static final Logger log = LogManager.getLogger(ReplayPcesCommand.class);
 
-    private Path stateDir;
     private Path pcesDir;
     private Path outDir = Path.of("./replay-out");
     private long selfIdValue = 0;
     private String consensusEventStreamName = "0.0.3";
     private boolean forceMockSignatures = true;
-
-    @Option(
-            names = {"-s", "--state-dir"},
-            required = true,
-            description = "Directory containing the saved state snapshot to load.")
-    private void setStateDir(final Path stateDir) {
-        this.stateDir = stateDir;
-    }
 
     @Option(
             names = {"-p", "--pces-dir"},
@@ -97,6 +88,8 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        parent.resolveAndGetStateDir();
+        final Path stateDir = parent.getStateDir().toPath();
         // --- Replay-only flags, set before the platform configuration is built so the config picks them up ---
         // buildPlatformConfig() includes SystemPropertiesConfigSource, so these system properties take effect.
         //  - allowUnsignedPcesEvents: blocks-to-pces produces unsigned reconstructed events; without this the intake
