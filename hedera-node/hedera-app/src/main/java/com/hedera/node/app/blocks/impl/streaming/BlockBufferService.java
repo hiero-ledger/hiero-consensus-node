@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -801,6 +803,18 @@ public class BlockBufferService {
                 bytesPruned,
                 newEarliestBlock,
                 newLatestBlock);
+    }
+
+    private void pruneBuffer0() {
+        final long highestBlockAcked = highestAckedBlockNumber.get();
+        final int maxBlocksAllowed = maxBufferedBlocks();
+        final long maxBytesAllowed = maxBufferedBytes();
+        final boolean backpressureEnabled = isBackpressureEnabled();
+        final int minAckedBlocksToRetain = bufferConfig().minAckedBlocksToBuffer();
+        // Create sorted snapshot of buffered block numbers (oldest first)
+        final SortedSet<Long> orderedBlocks = new TreeSet<>(blockBuffer.keySet());
+
+        
     }
 
     private record BufferSaturationState(boolean isSaturated, double unackedBlockCountSaturationPercent, double unackedBlockBytesSaturationPercent) {
