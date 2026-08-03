@@ -184,7 +184,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
 
     public QueueThreadObjectStreamConfiguration<T> setThreadNamingConfiguration(
             final ThreadNamingConfiguration threadNamingConfiguration) {
-        queueThreadConfiguration.setThreadNamingConfiguration(threadNamingConfiguration);
+        queueThreadConfiguration.setThreadNameProvider(threadNamingConfiguration);
         return this;
     }
 }

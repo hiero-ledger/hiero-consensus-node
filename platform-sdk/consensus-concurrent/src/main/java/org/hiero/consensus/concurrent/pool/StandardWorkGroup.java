@@ -90,9 +90,8 @@ public class StandardWorkGroup implements AutoCloseable {
 
         final ThreadConfiguration configuration = new ThreadConfiguration(threadManager)
                 .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
-                .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
-                        .setComponent("work group " + groupName)
-                        .setThreadName(DEFAULT_TASK_NAME));
+                .setThreadNameProvider(
+                        CompositeThreadNamingConfiguration.create("work group " + groupName, DEFAULT_TASK_NAME));
 
         this.executorService = Executors.newCachedThreadPool(configuration.buildFactory());
     }

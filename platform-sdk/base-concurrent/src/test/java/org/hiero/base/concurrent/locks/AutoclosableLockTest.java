@@ -25,7 +25,6 @@ import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -132,7 +131,7 @@ class AutoclosableLockTest {
                         }
                     }
                 })
-                .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration().setThreadName("thread0"));
+                .setSingleThreadName("thread0");
 
         final Thread thread0 = tc0.build(true);
         threadGotLock0.set(true);
@@ -151,7 +150,7 @@ class AutoclosableLockTest {
                         }
                     }
                 })
-                .setThreadNamingConfiguration(new CompositeThreadNamingConfiguration().setThreadName("thread1"));
+                .setSingleThreadName("thread1");
         final Thread thread1 = tc1.build(true);
 
         // Wait a little while to make sure that the other thread isn't able to get the lock

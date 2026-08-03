@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
@@ -48,7 +49,7 @@ public class ConnectionServer implements InterruptableRunnable {
         this.newConnectionHandler = newConnectionHandler;
         this.socketFactory = socketFactory;
         this.incomingConnPool = Executors.newCachedThreadPool(new ThreadConfiguration(threadManager)
-                .withCompositeNaming(tc -> tc.setThreadName("sync_server"))
+                .setThreadNameProvider(CompositeThreadNamingConfiguration.create(null, "sync_server"))
                 .buildFactory());
     }
 

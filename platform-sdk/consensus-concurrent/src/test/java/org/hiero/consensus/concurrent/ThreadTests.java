@@ -253,7 +253,7 @@ class ThreadTests {
     @DisplayName("Single Use Per Config Test")
     void singleUsePerConfigTest() {
 
-        // build() should cause future calls to build(), buildSeed(), and buildFactory() to fail.
+        // build() should cause future calls to build() and buildFactory() to fail.
         final ThreadConfiguration configuration0 =
                 new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
 
@@ -262,11 +262,9 @@ class ThreadTests {
         assertThrows(MutabilityException.class, configuration0::build, "configuration has already been used");
         assertThrows(MutabilityException.class, configuration0::buildFactory, "configuration has already been used");
 
-
-        // buildFactory() should cause future calls to build(), buildSeed(), and buildFactory() to fail.
-        final ThreadConfiguration configuration2 = new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {})
-                .withCompositeNaming(tc -> {});
+        // buildFactory() should cause future calls to build() and buildFactory() to fail.
+        final ThreadConfiguration configuration2 =
+                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
 
         configuration2.buildFactory();
 

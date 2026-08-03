@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
@@ -36,7 +37,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     /* Asynchronous hasher */
     private final ExecutorService hasher =
             Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                    .withCompositeNaming(tc -> tc.setComponent("benchmark").setThreadName("hasher"))
+                    .setThreadNameProvider(CompositeThreadNamingConfiguration.createNumbered("benchmark", "hasher"))
                     .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during hashing", ex))
                     .buildFactory());
 

@@ -12,6 +12,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.model.node.NodeId;
@@ -51,7 +52,8 @@ public class DefaultReconnectModule implements ReconnectModule {
                 new DefaultSignedStateValidator());
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .withCompositeNaming(tc -> tc.setComponent("platform-core").setThreadName("reconnectController"))
+                .setThreadNameProvider(
+                        CompositeThreadNamingConfiguration.create("platform-core", "reconnectController"))
                 .setRunnable(reconnectController)
                 .build(true);
 

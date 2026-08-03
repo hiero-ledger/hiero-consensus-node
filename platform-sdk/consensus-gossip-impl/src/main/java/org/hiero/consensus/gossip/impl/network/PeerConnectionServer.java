@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHandler;
@@ -59,7 +60,7 @@ public class PeerConnectionServer implements InterruptableRunnable {
                 TimeUnit.SECONDS,
                 new SynchronousQueue<Runnable>(),
                 new ThreadConfiguration(threadManager)
-                        .withCompositeNaming(tc -> tc.setThreadName("peer_sync_server"))
+                        .setThreadNameProvider(CompositeThreadNamingConfiguration.create(null, "peer_sync_server"))
                         .buildFactory(),
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }

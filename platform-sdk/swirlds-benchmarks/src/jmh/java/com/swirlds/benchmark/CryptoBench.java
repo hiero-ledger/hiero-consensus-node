@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -199,7 +200,8 @@ public class CryptoBench extends VirtualMapEditBench {
                 TimeUnit.SECONDS,
                 queue,
                 new ThreadConfiguration(getStaticThreadManager())
-                        .withCompositeNaming(tc -> tc.setComponent("benchmark").setThreadName("prefetch"))
+                        .setThreadNameProvider(
+                                CompositeThreadNamingConfiguration.createNumbered("benchmark", "prefetch"))
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
 

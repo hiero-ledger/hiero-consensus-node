@@ -12,7 +12,6 @@ import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.queue.AbstractBlockingQueue;
 
 /**

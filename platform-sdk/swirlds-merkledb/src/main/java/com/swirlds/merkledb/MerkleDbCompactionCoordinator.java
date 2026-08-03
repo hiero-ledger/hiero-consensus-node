@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.IORunnable;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -90,8 +91,8 @@ class MerkleDbCompactionCoordinator {
                     new LinkedBlockingQueue<>(),
                     new ThreadConfiguration(getStaticThreadManager())
                             .setThreadGroup(new ThreadGroup("Compaction"))
-                            .withCompositeNaming(
-                                    tc -> tc.setComponent(MERKLEDB_COMPONENT).setThreadName("Compacting"))
+                            .setThreadNameProvider(
+                                    CompositeThreadNamingConfiguration.createNumbered(MERKLEDB_COMPONENT, "Compacting"))
                             .setExceptionHandler((_, ex) ->
                                     logger.error(EXCEPTION.getMarker(), "Uncaught exception during merging", ex))
                             .buildFactory());

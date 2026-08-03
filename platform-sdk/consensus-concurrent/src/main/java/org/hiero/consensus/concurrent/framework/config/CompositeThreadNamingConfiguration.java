@@ -20,7 +20,7 @@ public class CompositeThreadNamingConfiguration extends AbstractThreadNamingConf
      */
     protected String threadName;
 
-    public CompositeThreadNamingConfiguration() {}
+    protected CompositeThreadNamingConfiguration() {}
 
     /**
      * Set the name of the component that new threads will be associated with.
@@ -28,7 +28,6 @@ public class CompositeThreadNamingConfiguration extends AbstractThreadNamingConf
      * @return this object
      */
     public CompositeThreadNamingConfiguration setComponent(final String component) {
-
         this.component = component;
         return this;
     }
@@ -39,9 +38,19 @@ public class CompositeThreadNamingConfiguration extends AbstractThreadNamingConf
      * @return this object
      */
     public CompositeThreadNamingConfiguration setThreadName(final String threadName) {
-
         this.threadName = threadName;
         return this;
+    }
+
+    public static CompositeThreadNamingConfiguration create(final String component, final String threadName) {
+        return new CompositeThreadNamingConfiguration().setComponent(component).setThreadName(threadName);
+    }
+
+    public static CompositeThreadNamingConfiguration createNumbered(final String component, final String threadName) {
+        final CompositeThreadNamingConfiguration ctnc =
+                new CompositeThreadNamingConfiguration().setComponent(component).setThreadName(threadName);
+        ctnc.useThreadNumbers = true;
+        return ctnc;
     }
 
     /**

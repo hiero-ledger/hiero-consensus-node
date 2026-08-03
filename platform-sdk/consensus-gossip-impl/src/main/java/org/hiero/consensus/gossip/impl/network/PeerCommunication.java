@@ -125,7 +125,7 @@ public class PeerCommunication implements ConnectionTracker {
                         threadManager)
                 .setWork(connectionServer)
                 .setPriority(gossipConfig.connectionServerThreadPriority())
-                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
+                .setThreadNameProvider(new NodeThreadNamingConfiguration()
                         .setNodeId(selfId)
                         .setComponent(PLATFORM_THREAD_POOL_NAME)
                         .setThreadName("connectionServer"));
@@ -272,7 +272,7 @@ public class PeerCommunication implements ConnectionTracker {
                                     .map(protocol -> protocol.createPeerInstance(otherId))
                                     .toList()),
                             time));
-            stc.setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
+            stc.setThreadNameProvider(new NodeThreadNamingConfiguration()
                     .setOtherNodeId(otherId)
                     .setNodeId(selfId)
                     .setComponent(PLATFORM_THREAD_POOL_NAME)

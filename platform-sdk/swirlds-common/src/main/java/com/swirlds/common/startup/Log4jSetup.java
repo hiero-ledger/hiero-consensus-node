@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.impl.Log4jContextFactory;
 import org.apache.logging.log4j.core.util.DefaultShutdownCallbackRegistry;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -68,8 +69,8 @@ public final class Log4jSetup {
                 ((DefaultShutdownCallbackRegistry) contextFactory.getShutdownCallbackRegistry()).stop();
                 Runtime.getRuntime()
                         .addShutdownHook(new ThreadConfiguration(getStaticThreadManager())
-                                .withCompositeNaming(
-                                        tc -> tc.setComponent("browser").setThreadName("shutdown-hook"))
+                                .setThreadNameProvider(
+                                        CompositeThreadNamingConfiguration.create("browser", "shutdown-hook"))
                                 .setRunnable(() -> {
                                     logger.info(STARTUP.getMarker(), "JVM is shutting down.");
                                     LogManager.shutdown();

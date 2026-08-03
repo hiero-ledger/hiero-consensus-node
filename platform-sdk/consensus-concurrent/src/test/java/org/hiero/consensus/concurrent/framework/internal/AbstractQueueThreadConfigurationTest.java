@@ -48,7 +48,7 @@ class AbstractQueueThreadConfigurationTest {
 
         protected DummyQueueThreadConfiguration(final ThreadManager threadManager, final String queueName) {
             super(threadManager, queueName);
-            setThreadNamingConfiguration(new FullNameThreadNamingConfiguration());
+            setThreadNameProvider(new FullNameThreadNamingConfiguration());
         }
 
         protected DummyQueueThreadConfiguration(
@@ -98,7 +98,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .withFullNameConfiguration(THREAD_NAME);
+                .setSingleThreadName(THREAD_NAME);
 
         // then
         assertThat(configuration.getMaxBufferSize()).isEqualTo(MAX_BUFFER_SIZE);
@@ -119,7 +119,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .withFullNameConfiguration(THREAD_NAME);
+                .setSingleThreadName(THREAD_NAME);
 
         // when
         final DummyQueueThreadConfiguration<String> copied = new DummyQueueThreadConfiguration<>(configuration);
@@ -145,7 +145,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .withFullNameConfiguration(THREAD_NAME);
+                .setSingleThreadName(THREAD_NAME);
 
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
@@ -170,7 +170,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .withFullNameConfiguration(THREAD_NAME);
+                .setSingleThreadName(THREAD_NAME);
         final QueueThread<String> queueThread = configuration.buildQueueThread(true);
 
         // then
@@ -195,7 +195,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
                 .setQueue(queue)
-                .withFullNameConfiguration(THREAD_NAME);
+                .setSingleThreadName(THREAD_NAME);
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then
@@ -230,7 +230,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
                 .setQueue(queue)
-                .withFullNameConfiguration(THREAD_NAME);
+                .setSingleThreadName(THREAD_NAME);
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then

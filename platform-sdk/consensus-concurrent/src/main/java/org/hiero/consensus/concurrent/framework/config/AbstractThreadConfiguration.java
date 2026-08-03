@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent.framework.config;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.framework.config.ThreadConfiguration.captureThreadConfiguration;
 
 import com.swirlds.base.state.Mutable;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,13 +10,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.base.Copyable;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
@@ -70,7 +68,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      */
     private boolean immutable;
 
-    protected ThreadNamingConfiguration threadNamingConfiguration = UndefinedThreadNamingConfiguration.instance();
+    protected Supplier<String> threadNameProvider = UndefinedThreadNamingConfiguration.instance();
 
     /**
      * Build a new thread configuration with default values.
@@ -87,7 +85,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     @SuppressWarnings("CopyConstructorMissesField")
     protected AbstractThreadConfiguration(final AbstractThreadConfiguration<C> that) {
         this.threadManager = that.threadManager;
-        this.threadNamingConfiguration = that.threadNamingConfiguration;
+        this.threadNameProvider = that.threadNameProvider;
         this.threadGroup = that.threadGroup;
         this.daemon = that.daemon;
         this.priority = that.priority;
@@ -124,16 +122,16 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     }
 
     @SuppressWarnings("unchecked")
-    public C withFullNameConfiguration(final String fullThreadName) {
+    public C setSingleThreadName(final String threadName) {
         throwIfImmutable();
-        this.threadNamingConfiguration = new FullNameThreadNamingConfiguration(fullThreadName);
+        this.threadNameProvider = () -> threadName;
         return (C) this;
     }
 
     @SuppressWarnings("unchecked")
-    public C setThreadNamingConfiguration(final ThreadNamingConfiguration threadNamingConfiguration) {
+    public C setThreadNameProvider(final Supplier<String> threadNameProvider) {
         throwIfImmutable();
-        this.threadNamingConfiguration = threadNamingConfiguration;
+        this.threadNameProvider = threadNameProvider;
         return (C) this;
     }
 
@@ -143,7 +141,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * @param thread the thread to copy configuration from
      */
     protected void copyThreadConfiguration(final Thread thread) {
-        withFullNameConfiguration(thread.getName());
+        setSingleThreadName(thread.getName());
         setDaemon(thread.isDaemon());
         setPriority(thread.getPriority());
         setExceptionHandler(thread.getUncaughtExceptionHandler());
@@ -178,44 +176,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     }
 
     /**
-     * <p>
-     * Build a "seed" that can be planted in a thread. When the runnable is executed, it takes over the calling thread
-     * and configures that thread the way it would configure a newly created thread via
-     * {@link ThreadConfiguration#build()}. When work is finished, the calling thread is restored back to its original
-     * configuration.
-     * </p>
-     *
-     * <p>
-     * Note that this seed will be unable to change the thread group or daemon status of the calling thread, regardless
-     * the values set in this configuration.
-     * </p>
-     *
-     * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other threads,
-     * factories, or seeds.
-     * </p>
-     *
-     * @return a seed that can be used to inject this thread configuration onto an existing thread.
-     */
-    protected ThreadSeed buildThreadSeed() {
-        requireNonNull(getRunnable(), "runnable must not be null");
-
-        final ContextSnapshot snapshot = captureContextSnapshot();
-
-        return () -> {
-            final ThreadConfiguration originalConfiguration = captureThreadConfiguration(threadManager);
-
-            try {
-                configureThread(Thread.currentThread());
-                wrapRunnableWithSnapshot(Objects.requireNonNull(getRunnable(), "runnable must not be null"), snapshot)
-                        .run();
-            } finally {
-                originalConfiguration.configureThread(Thread.currentThread());
-            }
-        };
-    }
-
-    /**
      * Get the default thread group that will be used if there is no user provided thread group
      */
     private static ThreadGroup defaultThreadGroup() {
@@ -225,10 +185,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         } else {
             return securityManager.getThreadGroup();
         }
-    }
-
-    private String buildThreadName() {
-        return threadNamingConfiguration.generateNextThreadName();
     }
 
     /**
@@ -245,7 +201,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * @param thread the thread to configure
      */
     protected void configureThread(final Thread thread) {
-        thread.setName(buildThreadName());
+        thread.setName(threadNameProvider.get());
         if (!thread.isAlive()) {
             // Daemon status can only be configured before a thread starts.
             thread.setDaemon(isDaemon());

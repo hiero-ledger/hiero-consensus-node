@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent.framework.config;
 
-import java.util.function.Consumer;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
@@ -106,13 +105,5 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
     @Override
     public StoppableThreadConfiguration<T> setFinalCycleWork(final InterruptableRunnable finalCycleWork) {
         return super.setFinalCycleWork(finalCycleWork);
-    }
-
-    public StoppableThreadConfiguration<T> withCompositeNaming(
-            final Consumer<CompositeThreadNamingConfiguration> consumer) {
-        final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
-        consumer.accept(ctnc);
-        setThreadNamingConfiguration(ctnc);
-        return this;
     }
 }

@@ -39,6 +39,11 @@ public class NodeThreadNamingConfiguration extends CompositeThreadNamingConfigur
         return this;
     }
 
+    public NodeThreadNamingConfiguration enableFactory() {
+        this.useThreadNumbers = true;
+        return this;
+    }
+
     /**
      * Set the node ID of the other node (if created threads will be dealing with a task related to a specific node).
      * Ignored if null.

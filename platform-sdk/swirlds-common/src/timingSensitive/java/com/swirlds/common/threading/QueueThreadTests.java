@@ -2,7 +2,6 @@
 package com.swirlds.common.threading;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
@@ -39,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
@@ -47,7 +45,6 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
@@ -109,7 +106,7 @@ class QueueThreadTests {
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
                 .setCapacity(capacity)
                 .setHandler((item) -> {})
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .build();
 
         // Should be able to fill to capacity
@@ -151,7 +148,7 @@ class QueueThreadTests {
         };
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setExceptionHandler(exceptionHandler)
                 .setCapacity(10)
                 .setHandler(handler)
@@ -192,7 +189,7 @@ class QueueThreadTests {
         };
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setExceptionHandler(exceptionHandler)
                 .setCapacity(1000)
                 .setHandler(handler)
@@ -241,7 +238,7 @@ class QueueThreadTests {
             MILLISECONDS.sleep(10_000);
         };
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .setMaxBufferSize(1)
                 .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
@@ -282,7 +279,7 @@ class QueueThreadTests {
         };
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setMaxBufferSize(10)
                 .setCapacity(1000)
                 .setHandler(handler)
@@ -328,7 +325,7 @@ class QueueThreadTests {
 
         final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(
                         getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setUnlimitedCapacity()
                 .setHandler((i) -> {})
                 .build();
@@ -354,7 +351,7 @@ class QueueThreadTests {
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
                 .build();
@@ -389,7 +386,7 @@ class QueueThreadTests {
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .build();
 
@@ -423,7 +420,7 @@ class QueueThreadTests {
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
                 .build();
@@ -459,7 +456,7 @@ class QueueThreadTests {
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .build();
 
@@ -491,7 +488,7 @@ class QueueThreadTests {
         final Queue<Integer> handledInts = new LinkedList<>();
 
         final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setQueue(queue)
                 .setHandler(handledInts::add)
                 .build();
@@ -506,14 +503,13 @@ class QueueThreadTests {
         assertEquals(100, handledInts.size());
     }
 
-
     @Test
     @DisplayName("Configuration Mutability Test")
     void configurationMutabilityTest() {
         // Build should make the configuration immutable
         final QueueThreadConfiguration<Integer> configuration = new QueueThreadConfiguration<Integer>(
                         getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler((final Integer element) -> {});
 
         assertTrue(configuration.isMutable(), "configuration should be mutable");
@@ -538,7 +534,7 @@ class QueueThreadTests {
         // build() should cause future calls to build() to fail, and start() should cause buildSeed() to fail.
         final QueueThreadConfiguration<Integer> configuration0 = new QueueThreadConfiguration<Integer>(
                         getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler((final Integer i) -> {
                     MILLISECONDS.sleep(1);
                 });
@@ -548,7 +544,6 @@ class QueueThreadTests {
         assertThrows(MutabilityException.class, configuration0::build, "configuration has already been used");
 
         queueThread0.start();
-
     }
 
     @Test
@@ -558,7 +553,7 @@ class QueueThreadTests {
 
         final QueueThreadConfiguration<Integer> configuration = new QueueThreadConfiguration<Integer>(
                         getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
+                .setSingleThreadName(THREAD_NAME)
                 .setCapacity(1234)
                 .setMaxBufferSize(1234)
                 .setHandler(handler)
@@ -588,7 +583,7 @@ class QueueThreadTests {
     void waitUntilNotBusyTest() throws InterruptedException {
 
         final QueueThread<Runnable> queue = new QueueThreadConfiguration<Runnable>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName("test"))
+                .setSingleThreadName("test")
                 .setHandler(Runnable::run)
                 .build(true);
 
@@ -651,7 +646,7 @@ class QueueThreadTests {
         };
 
         final QueueThread<Runnable> queue = new QueueThreadConfiguration<Runnable>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName("test"))
+                .setSingleThreadName("test")
                 .setIdleCallback(idleCallback)
                 .setHandler(Runnable::run)
                 .setWaitForWorkDuration(Duration.ofMillis(1))
@@ -722,7 +717,7 @@ class QueueThreadTests {
         final int bufferSize = 100;
 
         final QueueThread<Integer> queue = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName("test"))
+                .setSingleThreadName("test")
                 .setBatchHandledCallback(count::getAndIncrement)
                 .setHandler(x -> {})
                 .setCapacity(UNLIMITED_CAPACITY)

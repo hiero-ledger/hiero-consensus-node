@@ -2,6 +2,7 @@
 package org.hiero.consensus.concurrent.framework.config;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * Basic implementation of ThreadNamingConfiguration, providing thread numbering and immutability support
@@ -35,4 +36,9 @@ public abstract class AbstractThreadNamingConfiguration implements ThreadNamingC
      * {@inheritDoc}
      */
     public abstract String generateNextThreadName();
+
+    public Supplier<String> supplier() {
+        enableThreadNumbering();
+        return this;
+    }
 }

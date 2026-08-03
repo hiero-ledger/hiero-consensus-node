@@ -22,7 +22,6 @@ import org.hiero.base.StackTrace;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.utility.DurationUtils;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 
 /**
@@ -149,7 +148,6 @@ class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStopp
 
         configuration.setRunnable(this::run);
     }
-
 
     /**
      * Mark this stoppable thread as injected.

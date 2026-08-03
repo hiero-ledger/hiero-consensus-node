@@ -2,8 +2,6 @@
 package org.hiero.consensus.concurrent.framework.config;
 
 import java.util.concurrent.ThreadFactory;
-import java.util.function.Consumer;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
@@ -109,7 +107,6 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
      * </p>
      */
     public ThreadFactory buildFactory() {
-        threadNamingConfiguration.enableThreadNumbering();
 
         final ContextSnapshot snapshot = captureContextSnapshot();
 
@@ -139,12 +136,5 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
     @Override
     public ThreadConfiguration setRunnable(final Runnable runnable) {
         return super.setRunnable(runnable);
-    }
-
-    public ThreadConfiguration withCompositeNaming(final Consumer<CompositeThreadNamingConfiguration> consumer) {
-        final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
-        consumer.accept(ctnc);
-        setThreadNamingConfiguration(ctnc);
-        return this;
     }
 }

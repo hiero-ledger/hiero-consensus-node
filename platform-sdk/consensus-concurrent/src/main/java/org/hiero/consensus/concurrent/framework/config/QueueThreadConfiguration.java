@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent.framework.config;
 
-import java.util.function.Consumer;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -87,13 +86,5 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
     @Override
     public InterruptableConsumer<T> getHandler() {
         return super.getHandler();
-    }
-
-    public QueueThreadConfiguration<T> withCompositeNaming(
-            final Consumer<CompositeThreadNamingConfiguration> consumer) {
-        final CompositeThreadNamingConfiguration ctnc = new CompositeThreadNamingConfiguration();
-        consumer.accept(ctnc);
-        setThreadNamingConfiguration(ctnc);
-        return this;
     }
 }

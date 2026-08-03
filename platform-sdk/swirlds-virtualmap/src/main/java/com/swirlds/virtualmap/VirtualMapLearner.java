@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -413,7 +414,7 @@ public final class VirtualMapLearner {
         });
 
         new ThreadConfiguration(getStaticThreadManager())
-                .withCompositeNaming(tc -> tc.setComponent("virtualmap").setThreadName("leaf-deleter"))
+                .setThreadNameProvider(CompositeThreadNamingConfiguration.create("virtualmap", "leaf-deleter"))
                 .setRunnable(leafDeletionTask)
                 .setExceptionHandler((_, exception) ->
                         logger.error(EXCEPTION.getMarker(), "Failed to delete old leaves during reconnect", exception))

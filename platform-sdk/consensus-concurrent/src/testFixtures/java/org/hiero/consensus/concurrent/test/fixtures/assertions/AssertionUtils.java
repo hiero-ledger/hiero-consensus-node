@@ -42,9 +42,8 @@ public class AssertionUtils {
                     error.set(true);
                     exception.printStackTrace();
                 });
-        tc.setThreadNamingConfiguration(new CompositeThreadNamingConfiguration()
-                .setComponent("assertion-utils")
-                .setThreadName("assert-prompt-completion"));
+        tc.setThreadNameProvider(
+                CompositeThreadNamingConfiguration.create("assertion-utils", "assert-prompt-completion"));
 
         tc.build(true);
 
@@ -70,7 +69,8 @@ public class AssertionUtils {
         final AtomicReference<T> value = new AtomicReference<>();
 
         new ThreadConfiguration(getStaticThreadManager())
-                .withCompositeNaming(tc -> tc.setComponent("assertion-utils").setThreadName("assert-prompt-completion"))
+                .setThreadNameProvider(
+                        CompositeThreadNamingConfiguration.create("assertion-utils", "assert-prompt-completion"))
                 .setInterruptableRunnable(() -> {
                     value.set(operation.get());
                     latch.countDown();
