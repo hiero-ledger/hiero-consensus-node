@@ -22,6 +22,7 @@ status: holds
 confidence: high
 provenance: extraction-2026-06-09
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # RUL-003 — Every node contributing to consensus is independently restartable

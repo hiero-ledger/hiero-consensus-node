@@ -17,6 +17,7 @@ status: holds
 confidence: high
 provenance: elicitation-2026-06-23
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # RUL-005 — Events below the latest decided round's judges are excluded from witness calculation

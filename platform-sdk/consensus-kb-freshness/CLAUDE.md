@@ -37,15 +37,17 @@ with `java -jar`.
   coverage check, scoped to `consensus-*` modules plus modules the catalog already documents),
   baseline TSV + join. The engine subsumes a Tier-0 source-path GONE finding when a `CONFIG_PREFIX`
   finding already asserts the same citation as a class move (one root cause, one finding).
-- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`): a topic is flagged
-  for review when any anchored source was committed **on or after** `last_reviewed`. The boundary is
-  inclusive because commit dates are day-granular — a same-day merge is never skipped, at the cost of
-  not clearing a topic until the day after its last change. Anchored-source
-  resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations both resolve
-  through the `SourceIndex`, and a moved anchor is tracked at its new location), so an abbreviated- or
-  FQN-only topic keeps feeding the freshness signal. Each entry carries `anchoredSourceCount` and
-  `newestAnchoredCommit` (the reviewed-state date `--mark-reviewed` records); a zero count (topic
-  anchors nothing) is surfaced in the coverage lane, not the drift report.
+- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`), built for **every**
+  scanned document: it is flagged for review when any anchored source was committed **on or after**
+  `last_reviewed`. The boundary is inclusive because commit dates are day-granular — a same-day merge is
+  never skipped, at the cost of not clearing a document until the day after its last change. A document
+  that anchors no code is `unknown` regardless of its marker (the no-sources check runs first).
+  Anchored-source resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations
+  both resolve through the `SourceIndex`, and a moved anchor is tracked at its new location), so an
+  abbreviated- or FQN-only document keeps feeding the freshness signal. Each entry carries
+  `anchoredSourceCount` and `newestAnchoredCommit` (the reviewed-state date `--mark-reviewed` records);
+  a zero count (anchors nothing) reads as `unknown`, and — for topics only — is surfaced in the coverage
+  lane.
 - `engine/` also carries `ScanStats` — what the run scanned and checked (entries, anchors, check
   groups, findings by lane, Tier-2 surfaces), rendered as the report's "Scan coverage" section so
   silence is auditable as checked-and-clean rather than never-scanned.
@@ -60,8 +62,9 @@ with `java -jar`.
   by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames. `ReviewedMarker`
   (`--mark-reviewed <key>[=<date>]`): bumps an entry's *existing* `last_reviewed:` frontmatter line —
   the workflow closure after a semantic pass; it never invents the line, requires an unambiguous key
-  and an ISO date; a bare spec derives the topic's newest anchored-source commit date — the reviewed
-  state, never wall-clock; see `README.md` — and is idempotent.
+  and an ISO date; a bare spec derives the reviewed-state date from git — the document's newest
+  anchored-source commit, or the checkout's `HEAD` commit for an unanchored doc — never wall-clock; see
+  `README.md` — and is idempotent.
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.

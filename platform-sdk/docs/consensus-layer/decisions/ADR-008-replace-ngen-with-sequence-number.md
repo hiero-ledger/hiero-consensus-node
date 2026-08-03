@@ -19,6 +19,7 @@ deciders:
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Michael Heinrichs (@netopyr)
 provenance: hiero-consensus-node#24618
+last_reviewed: TBD
 ---
 
 # ADR-008 — Replace nGen with a monotonic event sequence number and remove nGen
