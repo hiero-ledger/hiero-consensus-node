@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-06-26
+last_reviewed: 2026-07-28
 ---
 
 # Restart and PCES
@@ -31,7 +31,7 @@ PCES exists so that consensus can recover its in-memory state after a crash. Eve
 every node in the network crashes simultaneously, every node loses every non-ancient event it has not yet written down.
 Replaying PCES at startup is what rebuilds the hashgraph so consensus can resume. For this to work, PCES must persist
 every validated, deduplicated event in topological order — not only self-events. The writer's input is the event-intake
-module's validated-events output (`PlatformWiring.java:78-81`), so every event that survives intake validation is
+module's validated-events output (`ConsensusLayerWiring.java:84-88`), so every event that survives intake validation is
 written.
 
 The writer is synchronous: it accepts a `PlatformEvent` on its input wire and emits the same event on its output wire
@@ -49,18 +49,18 @@ No downstream component sees an event before the writer has written it. The writ
 consensus, gossip, and the event creator's parent-selection input:
 
 ```text
-// platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:86-96
+// platform-sdk/swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java:108-118
 // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
 // reach consensus with events that might be lost due to a crash
-writtenEventOutputWire.solderTo(components.hashgraphModule().eventInputWire());
+writtenEventOutputWire.solderTo(buildingBlocks.hashgraphModule().eventInputWire());
 
 // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
 // where an event is created, gossipped, and then the node crashes before the event is persisted.
 // After restart, a node will not be aware of this event, so it can create a branch
-writtenEventOutputWire.solderTo(components.gossipModule().eventToGossipInputWire(), INJECT);
+writtenEventOutputWire.solderTo(buildingBlocks.gossipModule().eventToGossipInputWire(), INJECT);
 
 // Avoid using events as parents before they are persisted
-writtenEventOutputWire.solderTo(components.eventCreatorModule().orderedEventInputWire());
+writtenEventOutputWire.solderTo(buildingBlocks.eventCreatorModule().orderedEventInputWire());
 ```
 
 The general guarantee applies to every event: consensus never observes an event whose write has not returned. Applied
@@ -69,10 +69,11 @@ gossiped a self-event and crashed before it was written, on restart the node wou
 build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
 [`../../concepts/branching.md`](../../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
 
-The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
-node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any
-of its own self-events that the network still holds. Under normal operation, the inline write keeps every gossipped
-self-event on local disk, so this fallback is not exercised.
+The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk: a restarting
+node gossips without creating events for a window, giving it time to relearn any of its own self-events that the network
+still holds. Under normal operation, the inline write keeps every gossipped self-event on local disk, so this fallback is
+not exercised. For the status mechanics see [`platform-status.md`](platform-status.md); for why the status is retained
+despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md).
 
 ### Durability model
 
@@ -95,23 +96,27 @@ in-flight keystone is recoverable.
 
 ## Restart sequence
 
-Restart has two phases. State load and replay-bound derivation happen during `SwirldsPlatform` construction, before
-`start()` is called. Replay, then the enabling of gossip and event creation, happens inside `start()`.
+Restart has two phases. State load and replay-bound derivation happen in `PlatformBuilder.build()`, before
+`SwirldsPlatform.start()` is called. Replay, then the enabling of gossip and event creation, happens inside `start()`.
 
-1. **Load the initial signed state.** The latest signed state is loaded from disk during platform construction (
-   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java:150` —
-   `blocks.initialState().get()`).
+1. **Load the initial signed state.** The application supplies the initial state to `PlatformBuilder`, which reads it
+   during `build()` (
+   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java:195` —
+   `initialState.get()`).
 2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (
-   `SwirldsPlatform.java:257`); `pcesReplayLowerBound` is set to the initial ancient threshold of the loaded state (
-   `SwirldsPlatform.java:285`). For a genesis start, both are 0.
-3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the platform coordinator (
-   `SwirldsPlatform.java:353-355`).
-4. **Replay PCES.** `platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound)` (
-   `SwirldsPlatform.java:357`) runs the replay synchronously; control does not return until replay is done. See
+   `initialSignedState.getRound()`) and the replay lower bound to its initial ancient threshold (`ancientThresholdOf(...)`);
+   both are passed to the `SwirldsPlatform` constructor (`PlatformBuilder.java:202-204`). For a genesis start, both are 0 (
+   `PlatformBuilder.java:200`).
+3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the wiring model (
+   `SwirldsPlatform.java:118-120`).
+4. **Replay PCES.** `buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound)` (
+   `SwirldsPlatform.java:122`) runs the replay synchronously; control does not return until replay is done. See
    [Replay](#replay) for details.
-5. **Start gossip; event creation remains off.** Only after replay completes does `platformCoordinator.startGossip()`
-   run (`SwirldsPlatform.java:358`). Neither gossip nor event creation observes a partially-replayed state: gossip
-   because it is started here, and event creation because it is gated on platform status. See `event-creator.md` (TBD) for the gating details.
+5. **Start gossip; event creation remains off.** Only after replay completes does
+   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run (`SwirldsPlatform.java:123`).
+   Neither gossip nor event creation observes a partially-replayed state: gossip because it is started here, and event
+   creation because it is gated on platform status. See [`event-creator.md`](event-creator.md#permission-gates) (the
+   `PlatformStatusRule` gate) for the gating details.
 
 ## Replay
 

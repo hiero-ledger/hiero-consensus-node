@@ -80,7 +80,7 @@ public class TransformingOutputWire<IN, OUT> extends ForwardingOutputWire<IN, OU
                 }
                 destination.accept(transformed);
             } catch (final Exception e) {
-                getUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e);
+                uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
             }
         }
         inputCleanup.accept(data);
@@ -91,7 +91,7 @@ public class TransformingOutputWire<IN, OUT> extends ForwardingOutputWire<IN, OU
      */
     @Override
     public void solderTo(@NonNull final InputWire<OUT> inputWire, @NonNull final SolderType solderType) {
-        getModel().registerEdge(getName(), inputWire.getTaskSchedulerName(), inputWire.getName(), solderType);
+        model.registerEdge(getName(), inputWire.getTaskSchedulerName(), inputWire.getName(), solderType);
 
         switch (solderType) {
             case PUT -> addForwardingDestination(inputWire::put);

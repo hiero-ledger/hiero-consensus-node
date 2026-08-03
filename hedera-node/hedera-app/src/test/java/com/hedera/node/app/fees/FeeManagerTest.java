@@ -2,12 +2,14 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -86,7 +88,8 @@ class FeeManagerTest {
                 .extras(
                         makeExtraDef(Extra.KEYS, 1),
                         makeExtraDef(Extra.STATE_BYTES, 1),
-                        makeExtraDef(Extra.SIGNATURES, 1))
+                        makeExtraDef(Extra.SIGNATURES, 1),
+                        makeExtraDef(Extra.GAS, 852))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(100)
@@ -100,6 +103,41 @@ class FeeManagerTest {
         final var result = subject.updateSimpleFees(bytes);
 
         assertEquals(SUCCESS, result);
+    }
+
+    @Test
+    void getGasPriceInTinyCentsUsesSimpleFeesWhenGasExtraPresent() {
+        final var simpleSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.GAS, 100_000L))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 0)))
+                .build();
+        subject.updateSimpleFees(org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(simpleSchedule));
+
+        assertEquals(100_000L, subject.getGasPriceInTinyCents(Instant.now()));
+    }
+
+    @Test
+    void updateSimpleFeesRejectsScheduleWithoutGasExtra() {
+        final var simpleSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.KEYS, 1_000L))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 0)))
+                .build();
+
+        final var result =
+                subject.updateSimpleFees(org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(simpleSchedule));
+
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, result);
+    }
+
+    @Test
+    void getGasPriceInTinyCentsThrowsWhenSimpleFeesNotLoaded() {
+        assertThrows(IllegalStateException.class, () -> subject.getGasPriceInTinyCents(Instant.ofEpochSecond(1L)));
     }
 
     private static @NonNull FeeComponents feeComponents() {

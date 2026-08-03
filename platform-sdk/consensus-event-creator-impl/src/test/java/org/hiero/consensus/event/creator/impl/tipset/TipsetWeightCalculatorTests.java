@@ -3,8 +3,7 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
-import static org.hiero.consensus.model.event.EventConstants.FIRST_SEQUENCE_NUMBER;
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,12 +26,13 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
@@ -52,14 +52,14 @@ class TipsetWeightCalculatorTests {
      *
      * @param random the random instance to use
      * @param creator the creator of the event
-     * @param seqNum the sequence number of the event
+     * @param nGen    the non-deterministic generation of the event
      * @return the event
      */
     private static PlatformEvent newEvent(
-            @NonNull final Random random, @NonNull final NodeId creator, final long seqNum) {
+            @NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumberOverride(seqNum)
+                .setNGen(nGen)
                 .setBirthRound(ROUND_FIRST)
                 .build();
     }
@@ -70,17 +70,17 @@ class TipsetWeightCalculatorTests {
      * The generation given to the events will be max(selfparent#generation, otherParents#generation) + 1.
      *
      * @param random the random instance to use
-     * @param seqNum the sequence number of the event
+     * @param nGen    the non-deterministic generation of the event
      * @param selfParent the self parent
      * @param otherParents all the other parents for the new event
      * @return the event
      */
     private static PlatformEvent newEvent(
             @NonNull final Random random,
-            final long seqNum,
+            final long nGen,
             @NonNull final PlatformEvent selfParent,
             @NonNull final List<PlatformEvent> otherParents) {
-        return newEvent(random, seqNum, selfParent, otherParents, ROUND_FIRST);
+        return newEvent(random, nGen, selfParent, otherParents, ROUND_FIRST);
     }
 
     /**
@@ -88,7 +88,7 @@ class TipsetWeightCalculatorTests {
      * The generation given to the events will be max(selfparent#generation, otherParents#generation) + 1.
      *
      * @param random the random instance to use
-     * @param seqNum the sequence number of the event
+     * @param nGen    the non-deterministic generation of the event
      * @param selfParent the self-parent
      * @param otherParents all the other parents for the new event
      * @param birthRound the birthRound to assign to the event
@@ -96,13 +96,13 @@ class TipsetWeightCalculatorTests {
      */
     private static PlatformEvent newEvent(
             @NonNull final Random random,
-            final long seqNum,
+            final long nGen,
             @NonNull final PlatformEvent selfParent,
             @NonNull final List<PlatformEvent> otherParents,
             final long birthRound) {
         return new TestingEventBuilder(random)
                 .setCreatorId(selfParent.getCreatorId())
-                .setSequenceNumberOverride(seqNum)
+                .setNGen(nGen)
                 .setSelfParent(selfParent)
                 .setOtherParents(otherParents)
                 .setBirthRound(birthRound)
@@ -127,8 +127,7 @@ class TipsetWeightCalculatorTests {
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
 
         final Map<NodeId, Long> weightMap = new HashMap<>();
         long totalWeight = 0;
@@ -156,11 +155,11 @@ class TipsetWeightCalculatorTests {
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
             final NodeId creator = NodeId.of(
                     roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
-            final long seqNum;
+            final long nGen;
             if (latestEvents.containsKey(creator)) {
-                seqNum = latestEvents.get(creator).getSequenceNumber() + 1;
+                nGen = latestEvents.get(creator).getNGen() + 1;
             } else {
-                seqNum = FIRST_SEQUENCE_NUMBER;
+                nGen = FIRST_GENERATION;
             }
 
             // Select some nodes we'd like to be our parents.
@@ -190,7 +189,7 @@ class TipsetWeightCalculatorTests {
             }
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(creator)
-                    .setSequenceNumberOverride(seqNum)
+                    .setNGen(nGen)
                     .setSelfParent(selfParent)
                     .setOtherParents(otherParents)
                     .build();
@@ -273,10 +272,7 @@ class TipsetWeightCalculatorTests {
     @DisplayName("Selfish Node Test")
     public void selfishNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -488,10 +484,7 @@ class TipsetWeightCalculatorTests {
     public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
         // In this test, we simulate from the perspective of node A.
         // All nodes have 1 weight except for D, which has 0 weight.
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -586,10 +579,7 @@ class TipsetWeightCalculatorTests {
     public void ancientParentTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
         final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
@@ -606,10 +596,10 @@ class TipsetWeightCalculatorTests {
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);
 
         // Create generation 0 / birth round 1 events
-        final PlatformEvent a0 = newEvent(random, nodeA, SEQUENCE_NUMBER_UNDEFINED);
-        final PlatformEvent b0 = newEvent(random, nodeB, SEQUENCE_NUMBER_UNDEFINED);
-        final PlatformEvent c0 = newEvent(random, nodeC, SEQUENCE_NUMBER_UNDEFINED);
-        final PlatformEvent d0 = newEvent(random, nodeD, SEQUENCE_NUMBER_UNDEFINED);
+        final PlatformEvent a0 = newEvent(random, nodeA, NonDeterministicGeneration.GENERATION_UNDEFINED);
+        final PlatformEvent b0 = newEvent(random, nodeB, NonDeterministicGeneration.GENERATION_UNDEFINED);
+        final PlatformEvent c0 = newEvent(random, nodeC, NonDeterministicGeneration.GENERATION_UNDEFINED);
+        final PlatformEvent d0 = newEvent(random, nodeD, NonDeterministicGeneration.GENERATION_UNDEFINED);
 
         tipsetTracker.addSelfEvent(a0.getDescriptor(), a0.getAllParents());
         tipsetTracker.addPeerEvent(b0);
@@ -618,9 +608,12 @@ class TipsetWeightCalculatorTests {
 
         final long newEventBirthRound = 2L;
         // Create some events (birth round 2). Node A does not create an event yet.
-        final PlatformEvent b1 = newEvent(random, FIRST_SEQUENCE_NUMBER, b0, List.of(a0, c0, d0), newEventBirthRound);
-        final PlatformEvent c1 = newEvent(random, FIRST_SEQUENCE_NUMBER, c0, List.of(a0, b0, d0), newEventBirthRound);
-        final PlatformEvent d1 = newEvent(random, FIRST_SEQUENCE_NUMBER, d0, List.of(a0, b0, c0), newEventBirthRound);
+        final PlatformEvent b1 = newEvent(
+                random, NonDeterministicGeneration.FIRST_GENERATION, b0, List.of(a0, c0, d0), newEventBirthRound);
+        final PlatformEvent c1 = newEvent(
+                random, NonDeterministicGeneration.FIRST_GENERATION, c0, List.of(a0, b0, d0), newEventBirthRound);
+        final PlatformEvent d1 = newEvent(
+                random, NonDeterministicGeneration.FIRST_GENERATION, d0, List.of(a0, b0, c0), newEventBirthRound);
         tipsetTracker.addPeerEvent(b1);
         tipsetTracker.addPeerEvent(c1);
         tipsetTracker.addPeerEvent(d1);
@@ -641,8 +634,8 @@ class TipsetWeightCalculatorTests {
         // Including generation 0 / birth round 1 events (which are ancient now) as parents shouldn't cause us to throw.
         // (Angry log messages are ok).
         assertDoesNotThrow(() -> {
-            final PlatformEvent a1 =
-                    newEvent(random, FIRST_SEQUENCE_NUMBER, a0, List.of(b0, c0, d0), newEventBirthRound);
+            final PlatformEvent a1 = newEvent(
+                    random, NonDeterministicGeneration.FIRST_GENERATION, a0, List.of(b0, c0, d0), newEventBirthRound);
 
             tipsetWeightCalculator.getTheoreticalAdvancementWeight(a1.getAllParents());
             tipsetTracker.addSelfEvent(a1.getDescriptor(), a1.getAllParents());

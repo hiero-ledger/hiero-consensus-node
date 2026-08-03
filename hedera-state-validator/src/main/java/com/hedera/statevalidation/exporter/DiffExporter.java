@@ -13,7 +13,6 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -119,7 +118,7 @@ public class DiffExporter {
             boolean isFirstPass,
             @NonNull final List<DiffEntry> state1Entries,
             @NonNull final List<DiffEntry> state2Entries) {
-        final VirtualMapMetadata metadata = vmSource.getMetadata();
+        final VirtualMap.Metadata metadata = vmSource.getMetadata();
         final long firstLeafPath = metadata.getFirstLeafPath();
         final long lastLeafPath = metadata.getLastLeafPath();
 

@@ -136,6 +136,33 @@ public class ComponentWiringTests {
     }
 
     /**
+     * A handler whose return type does not match the component's declared output type must be rejected at
+     * wiring-configuration time rather than silently discarding its return value at runtime.
+     */
+    @Test
+    void testWireReturnTypeMismatch() {
+        final WiringModel wiringModel = WiringModelBuilder.create(METRICS, TIME).build();
+
+        final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
+
+        // StringToInteger.stringToInteger() returns Double, but this component's output type is declared as Integer.
+        // Because the return type does not match the declared output type, Java's overload resolution silently selects
+        // the consumer overload of getInputWire(), which would discard the return value at runtime. The framework
+        // should reject this at wiring-configuration time rather than fail with a silent functional error (#13894).
+        final ComponentWiring<StringToInteger, Integer> stringToIntegerWiring =
+                new ComponentWiring<>(wiringModel, StringToInteger.class, schedulerConfiguration);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> stringToIntegerWiring.getInputWire(StringToInteger::stringToInteger));
+    }
+
+    public interface StringToInteger {
+        @SuppressWarnings("UnusedReturnValue")
+        Double stringToInteger(String string);
+    }
+
+    /**
      * The framework should not permit methods that aren't on the component to be wired.
      */
     @Test

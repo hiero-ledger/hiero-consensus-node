@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_REPEATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
@@ -204,7 +205,8 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             // process fungible tokens
             final var senderAccountAmount = asAccountAmount(
                     senderId,
-                    -accountPendingAirdrop.pendingAirdropValueOrThrow().amount());
+                    safeNegate(
+                            accountPendingAirdrop.pendingAirdropValueOrThrow().amount()));
             final var receiverAccountAmount = asAccountAmount(
                     receiverId,
                     accountPendingAirdrop.pendingAirdropValueOrThrow().amount());
@@ -233,13 +235,30 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
                 final var updatedTransfer = transfers
                         .get(i)
                         .copyBuilder()
-                        .amount(transfers.get(i).amount() + newTransfer.amount())
+                        .amount(safeAdd(transfers.get(i).amount(), newTransfer.amount()))
                         .build();
                 transfers.set(i, updatedTransfer);
                 return;
             }
         }
         transfers.add(newTransfer);
+    }
+
+    // Fail the claim when the sum is out of range instead of wrapping a receiver credit into a debit.
+    private static long safeAdd(final long a, final long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(INVALID_TRANSACTION_BODY);
+        }
+    }
+
+    private static long safeNegate(final long value) {
+        try {
+            return Math.negateExact(value);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(INVALID_TRANSACTION_BODY);
+        }
     }
 
     private void associateForFree(

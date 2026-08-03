@@ -2,7 +2,6 @@
 package org.hiero.consensus.event.intake.impl.branching;
 
 import static org.hiero.consensus.event.intake.impl.branching.BranchDetectorTests.generateSimpleSequenceOfEvents;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -11,9 +10,8 @@ import java.util.List;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +26,7 @@ class BranchReporterTests {
 
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
@@ -72,7 +70,7 @@ class BranchReporterTests {
     void doesNotThrowLargeAncientWindow() {
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
@@ -104,19 +102,5 @@ class BranchReporterTests {
         reporter.updateEventWindow(EventWindowBuilder.builder()
                 .setAncientThreshold(ancientThreshold)
                 .build());
-    }
-
-    @Test
-    void eventWindowMustBeSetTest() {
-        final Randotron randotron = Randotron.create();
-
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
-
-        final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
-
-        final PlatformEvent event = new TestingEventBuilder(randotron)
-                .setCreatorId(NodeId.of(roster.rosterEntries().get(0).nodeId()))
-                .build();
-        assertThrows(IllegalStateException.class, () -> reporter.reportBranch(event));
     }
 }

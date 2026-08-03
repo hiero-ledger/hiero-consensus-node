@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.pcli {
+    exports org.hiero.consensus.pcli.graph;
     exports org.hiero.consensus.pcli.utility;
     exports org.hiero.consensus.pcli;
 
@@ -25,6 +26,7 @@ module org.hiero.consensus.pcli {
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
@@ -41,8 +43,8 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
-    requires org.hiero.consensus.state.management;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.status.monitor;
     requires org.hiero.consensus.transaction.handling;
     requires org.hiero.consensus.utility;
     requires info.picocli;

@@ -10,11 +10,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
+import com.swirlds.state.test.fixtures.merkle.TestStateUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
@@ -33,7 +32,7 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -94,10 +93,8 @@ final class ReconnectTest {
                 IntStream.range(0, numNodes).mapToObj(NodeId::of).toList();
         final Random random = RandomUtils.getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(numNodes)
-                .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
-                .build();
+        final Roster roster = RosterFactory.randomRoster(
+                random, numNodes, (l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes));
 
         final VirtualMapState stateCopy;
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =

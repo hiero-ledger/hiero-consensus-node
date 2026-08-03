@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-fetch-depth: "1"
@@ -45,9 +45,9 @@ jobs:
         run: ./gradlew assemble
 
       - name: Setup Snyk
+        uses: step-security/snyk-actions/setup@3ccbd440152e3235d4b9d631c16badbc85807eca # v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: npm install -g snyk
 
       - name: Disable Gradle Isolated Projects
         run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties

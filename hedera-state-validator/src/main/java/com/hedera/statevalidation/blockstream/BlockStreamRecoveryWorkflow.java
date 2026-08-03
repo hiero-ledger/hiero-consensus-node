@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.state.management.SignedStateFileWriter;
+import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
@@ -225,7 +225,7 @@ public class BlockStreamRecoveryWorkflow {
                             .formatted(targetRound, currentRound.get()));
         }
 
-        // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
+        // To make sure that VirtualMap.Metadata is persisted after all changes from the block stream were applied
         stateLifecycleManager.copyMutableState();
         state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
