@@ -182,6 +182,12 @@ jobs:
         with:
           version: v1.33.0
 
+      - name: kubectl wrapper
+        run: |
+          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
@@ -1117,6 +1123,12 @@ jobs:
         with:
           version: v1.33.0
 
+      - name: kubectl wrapper
+        run: |
+          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
@@ -1304,6 +1316,12 @@ jobs:
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.33.0
+
+      - name: kubectl wrapper
+        run: |
+          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
 
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
@@ -1638,6 +1656,12 @@ jobs:
         with:
           version: v1.33.0
 
+      - name: kubectl wrapper
+        run: |
+          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
@@ -1828,6 +1852,12 @@ jobs:
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.33.0
+
+      - name: kubectl wrapper
+        run: |
+          sudo mv /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
+          sudo chmod a+rx /home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl
 
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
