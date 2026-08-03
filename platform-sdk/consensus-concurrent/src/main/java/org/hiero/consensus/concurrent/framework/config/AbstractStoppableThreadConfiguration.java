@@ -106,20 +106,6 @@ public abstract class AbstractStoppableThreadConfiguration<
     }
 
     /**
-     * Build a seed for a stoppable thread.
-     *
-     * @param stoppableThread the stoppable thread to build a seed from
-     * @return an injectable seed
-     */
-    ThreadSeed buildStoppableThreadSeed(final StoppableThreadImpl<T> stoppableThread) {
-        stoppableThread.setInjected();
-        return () -> {
-            stoppableThread.markAsStarted(Thread.currentThread());
-            buildThreadSeed().inject();
-        };
-    }
-
-    /**
      * Get the method that will be run after the thread is stopped. Ignored if {@link #stopBehavior} is
      * {@link org.hiero.consensus.concurrent.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
      */

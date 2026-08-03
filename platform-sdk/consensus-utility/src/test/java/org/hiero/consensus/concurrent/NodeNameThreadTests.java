@@ -162,33 +162,6 @@ class NodeNameThreadTests {
 
         assertTrue(configuration1.isMutable(), "configuration should be mutable");
 
-        configuration1.buildSeed();
-        assertTrue(configuration1.isImmutable(), "configuration should be immutable");
-
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.setThreadNamingConfiguration(new FullNameThreadNamingConfiguration("Abc")),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.setThreadGroup(null),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class, () -> configuration1.setDaemon(false), "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.setPriority(Thread.MAX_PRIORITY),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.setContextClassLoader(null),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class,
-                () -> configuration1.setExceptionHandler(null),
-                "configuration should be immutable");
-        assertThrows(
-                MutabilityException.class, () -> configuration1.setRunnable(null), "configuration should be immutable");
 
         // Build factory should make the configuration immutable
         final ThreadConfiguration configuration2 = new ThreadConfiguration(getStaticThreadManager())

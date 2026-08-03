@@ -150,22 +150,6 @@ class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStopp
         configuration.setRunnable(this::run);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public synchronized ThreadSeed buildSeed() {
-        if (injected) {
-            throw new IllegalStateException("this StoppableThread has already built a seed");
-        }
-        if (thread.get() != null) {
-            throw new IllegalStateException("can not build seed after thread is started");
-        }
-
-        injected = true;
-
-        return configuration.buildStoppableThreadSeed(this);
-    }
 
     /**
      * Mark this stoppable thread as injected.

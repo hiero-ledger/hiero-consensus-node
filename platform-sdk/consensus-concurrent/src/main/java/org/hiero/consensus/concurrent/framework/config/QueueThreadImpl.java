@@ -91,34 +91,6 @@ class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements QueueThread
     }
 
     /**
-     * <p>
-     * Build a "seed" that can be planted in a thread. When the runnable is executed, it takes over the calling thread
-     * and configures that thread the way it would configure a newly created thread. When work is finished, the calling
-     * thread is restored back to its original configuration.
-     * </p>
-     *
-     * <p>
-     * Note that this seed will be unable to change the thread group of the calling thread, regardless of the thread
-     * group that is configured.
-     * </p>
-     *
-     * <p>
-     * This method should not be used if the queue thread has already been started.
-     * </p>
-     *
-     * @return a seed that can be used to inject this thread configuration onto an existing thread.
-     */
-    @SuppressWarnings("unchecked")
-    public ThreadSeed buildSeed() {
-        if (((StoppableThreadImpl<?>) stoppableThread).hasBeenStartedOrInjected()) {
-            throw new IllegalStateException(
-                    "can not build seed for thread if it has already built a seed or if it has already been started");
-        }
-
-        return configuration.buildStoppableThreadSeed((StoppableThreadImpl<InterruptableRunnable>) stoppableThread);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override

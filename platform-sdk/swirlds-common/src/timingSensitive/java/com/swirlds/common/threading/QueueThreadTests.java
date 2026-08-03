@@ -506,71 +506,6 @@ class QueueThreadTests {
         assertEquals(100, handledInts.size());
     }
 
-    @Test
-    @DisplayName("Seed Test")
-    void seedTest() throws InterruptedException {
-        final AtomicLong count = new AtomicLong();
-        final AtomicBoolean enableLongSleep = new AtomicBoolean();
-        final CountDownLatch longSleepStarted = new CountDownLatch(1);
-
-        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(
-                        getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName("queue-thread"))
-                .setUnlimitedCapacity()
-                .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
-                .setHandler((final Integer next) -> {
-                    count.set(next);
-                    // Disable long sleep for subsequent calls
-                    if (enableLongSleep.getAndSet(false)) {
-                        longSleepStarted.countDown();
-                        SECONDS.sleep(999999999);
-                    }
-                })
-                .build();
-
-        final ThreadSeed seed = queueThread.buildSeed();
-
-        final AtomicBoolean seedHasYieldedControl = new AtomicBoolean();
-        final CountDownLatch exitLatch = new CountDownLatch(1);
-
-        // This thread will have the seed injected into it.
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .withCompositeNaming(tc -> tc.setThreadName("inject-into-this-thread"))
-                .setInterruptableRunnable(() -> {
-                    // The seed will take over this thread for a while
-
-                    seed.inject();
-
-                    seedHasYieldedControl.set(true);
-                    exitLatch.await();
-                })
-                .build(true);
-
-        assertEventuallyTrue(
-                () -> thread.getName().equals("<queue-thread>"),
-                Duration.ofSeconds(1),
-                "queue thread should eventually take over");
-
-        for (int i = 0; i < 1001; i++) {
-            queueThread.add(i);
-        }
-
-        assertEventuallyTrue(
-                () -> count.get() >= 1_000, Duration.ofSeconds(1), "count should have increased more by now");
-
-        enableLongSleep.set(true);
-        for (int i = 1001; i < 2001; i++) {
-            queueThread.add(i);
-        }
-        longSleepStarted.await();
-
-        queueThread.stop();
-
-        assertEventuallyTrue(seedHasYieldedControl::get, Duration.ofSeconds(1), "seed should have yielded");
-        assertEquals("<inject-into-this-thread>", thread.getName(), "original settings should have been restored");
-
-        exitLatch.countDown();
-    }
 
     @Test
     @DisplayName("Configuration Mutability Test")
@@ -614,23 +549,6 @@ class QueueThreadTests {
 
         queueThread0.start();
 
-        assertThrows(IllegalStateException.class, queueThread0::buildSeed, "configuration has already been used");
-
-        queueThread0.stop();
-
-        // buildSeed() should cause future calls to buildSeed() and start() to fail.
-        final QueueThreadConfiguration<Integer> configuration1 = new QueueThreadConfiguration<Integer>(
-                        getStaticThreadManager(), QUEUE_NAME)
-                .withCompositeNaming(tc -> tc.setThreadName(THREAD_NAME))
-                .setHandler((final Integer i) -> {
-                    MILLISECONDS.sleep(1);
-                });
-
-        final QueueThread<?> queueThread1 = configuration1.build();
-        queueThread1.buildSeed();
-
-        assertThrows(IllegalStateException.class, queueThread1::buildSeed, "configuration has already been used");
-        assertThrows(IllegalStateException.class, queueThread1::start, "configuration has already been used");
     }
 
     @Test

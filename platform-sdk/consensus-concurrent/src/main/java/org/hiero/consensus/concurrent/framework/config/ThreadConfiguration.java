@@ -126,30 +126,6 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
     }
 
     /**
-     * <p>
-     * Build a "seed" that can be planted in a thread. When the runnable is executed, it takes over the calling thread
-     * and configures that thread the way it would configure a newly created thread via {@link #build()}. When work is
-     * finished, the calling thread is restored back to its original configuration.
-     * </p>
-     *
-     * <p>
-     * Note that this seed will be unable to change the thread group or daemon status of the calling thread, regardless
-     * the values set in this configuration.
-     * </p>
-     *
-     * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other threads,
-     * factories, or seeds.
-     * </p>
-     *
-     * @return a seed that can be used to inject this thread configuration onto an existing thread.
-     */
-    public ThreadSeed buildSeed() {
-        becomeImmutable();
-        return buildThreadSeed();
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
