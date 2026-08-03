@@ -179,7 +179,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             String str = "";
             try {
                 str += "\nSELECTED EVENT ===============================================";
-                str += "\n                            ID  " + eventInfo.getEventID();
+                str += "\n                       eventID  " + eventInfo.getEventID();
                 str += "\n               hashgraphInfoID  "
                         + eventInfo.getHashgraph().getHashgraphInfoID();
                 str += "\n                   timeCreated  " + eventInfo.getTimeCreated();
@@ -202,6 +202,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n                   isConsensus  " + eventInfo.isConsensus();
                 str += "\n                consensusOrder  " + eventInfo.getConsensusOrder();
                 str += "\n            consensusTimestamp  " + eventInfo.getConsensusTimestamp();
+                str += "\n                 maxJudgeRound  " + eventInfo.getMaxJudgeRound();
                 str += "\nLATEST ROUND INFO ("
                         + h.getLatestRoundInfo().pendingRound()
                         + ") ====================================";
