@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
@@ -102,11 +103,11 @@ class EventSignatureValidatorTests {
         rosterHistory = buildRosterHistory(
                 PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
-        validatorWithTrueVerifier =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        validatorWithTrueVerifier = new DefaultEventSignatureValidator(
+                metrics, time, trueVerifier, rosterHistory, intakeEventCounter, false);
 
-        validatorWithFalseVerifier =
-                new DefaultEventSignatureValidator(metrics, time, falseVerifier, rosterHistory, intakeEventCounter);
+        validatorWithFalseVerifier = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, false);
     }
 
     public RosterHistory buildRosterHistory(
@@ -134,8 +135,8 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("An event with a lower round than the available in roster history should not validate")
     void rosterNotFoundForRound() {
-        final EventSignatureValidator signatureValidator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        final EventSignatureValidator signatureValidator = new DefaultEventSignatureValidator(
+                metrics, time, trueVerifier, rosterHistory, intakeEventCounter, false);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
@@ -168,7 +169,7 @@ class EventSignatureValidatorTests {
         RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
         EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter, false);
 
         final NodeId nodeId = NodeId.of(88);
 
@@ -257,8 +258,8 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Ancient events are discarded")
     void ancientEvent() {
-        final EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, trueVerifier, rosterHistory, intakeEventCounter, false);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
@@ -295,5 +296,134 @@ class EventSignatureValidatorTests {
                 .build();
         assertNotNull(validatorWithFalseVerifier.validateSignature(runtime), "Runtime events should be trusted");
         assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    // -------------------------------------------------------------------------
+    // allowUnsignedPcesEvents tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Unsigned STORAGE event is accepted when allowUnsignedPcesEvents is true")
+    void unsignedStorageEventAcceptedWhenFlagEnabled() {
+        // Create a validator with allowUnsignedPcesEvents = true and a false verifier,
+        // so that any real signature check would fail.
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, true);
+
+        final PlatformEvent unsignedStorageEvent =
+                buildUnsignedStorageEvent(CURRENT_ROSTER_NODE_ID, CURRENT_ROSTER_ROUND);
+
+        assertNotNull(
+                validator.validateSignature(unsignedStorageEvent),
+                "Unsigned STORAGE event should pass when allowUnsignedPcesEvents is true");
+        assertEquals(0, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Signed STORAGE event is still validated when allowUnsignedPcesEvents is true")
+    void signedStorageEventStillValidatedWhenFlagEnabled() {
+        // Even with the flag enabled, a STORAGE event that carries a non-empty (but invalid)
+        // signature must still be rejected — the bypass is only for empty-signature events.
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, true);
+
+        // TestingEventBuilder produces a non-empty signature by default.
+        final PlatformEvent signedStorageEvent = new TestingEventBuilder(random)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setOrigin(EventOrigin.STORAGE)
+                .build();
+
+        assertNull(
+                validator.validateSignature(signedStorageEvent),
+                "Signed STORAGE event with an invalid signature should still be rejected");
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Unsigned STORAGE event is rejected when allowUnsignedPcesEvents is false")
+    void unsignedStorageEventRejectedWhenFlagDisabled() {
+        // Default behaviour: unsigned STORAGE events are dropped.
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, false);
+
+        final PlatformEvent unsignedStorageEvent =
+                buildUnsignedStorageEvent(CURRENT_ROSTER_NODE_ID, CURRENT_ROSTER_ROUND);
+
+        assertNull(
+                validator.validateSignature(unsignedStorageEvent),
+                "Unsigned STORAGE event should be rejected when allowUnsignedPcesEvents is false");
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Unsigned GOSSIP event is rejected even when allowUnsignedPcesEvents is true")
+    void unsignedGossipEventAlwaysRejected() {
+        // The bypass is STORAGE-origin only. Unsigned GOSSIP events must always fail,
+        // regardless of the flag, to prevent spoofed gossip from bypassing validation.
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, true);
+
+        // Build a GOSSIP-origin event with Bytes.EMPTY signature directly.
+        final PlatformEvent template = new TestingEventBuilder(random)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .build();
+        final GossipEvent unsignedGossipEventProto = GossipEvent.newBuilder()
+                .eventCore(template.getGossipEvent().eventCore())
+                .signature(Bytes.EMPTY)
+                .parents(template.getGossipEvent().parents())
+                .transactions(template.getGossipEvent().transactions())
+                .build();
+        final PlatformEvent unsignedGossipEvent = new PlatformEvent(unsignedGossipEventProto, EventOrigin.GOSSIP);
+        unsignedGossipEvent.setHash(template.getHash());
+
+        assertNull(
+                validator.validateSignature(unsignedGossipEvent),
+                "Unsigned GOSSIP event must be rejected regardless of the allowUnsignedPcesEvents flag");
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Ancient unsigned STORAGE event is still dropped before the bypass is checked")
+    void ancientUnsignedStorageEventDropped() {
+        // The ancient check runs before any signature logic — even the unsigned bypass.
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, true);
+
+        final PlatformEvent unsignedStorageEvent =
+                buildUnsignedStorageEvent(CURRENT_ROSTER_NODE_ID, CURRENT_ROSTER_ROUND);
+
+        validator.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(100).build());
+
+        assertNull(
+                validator.validateSignature(unsignedStorageEvent),
+                "Ancient events must be dropped before the unsigned bypass is consulted");
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    // -------------------------------------------------------------------------
+    // Helper: construct a STORAGE-origin event with an empty (unsigned) signature.
+    //
+    // GossipEvent is an immutable protobuf record — PlatformEvent has no setSignature.
+    // We follow the same approach used by BlockStreamEventBuilder: build the GossipEvent
+    // directly with Bytes.EMPTY as the signature, preserving the original EventCore,
+    // parents, and transactions.
+    // -------------------------------------------------------------------------
+    private PlatformEvent buildUnsignedStorageEvent(final NodeId creatorId, final long birthRound) {
+        final PlatformEvent template = new TestingEventBuilder(random)
+                .setCreatorId(creatorId)
+                .setBirthRound(birthRound)
+                .build();
+        final GossipEvent unsignedGossipEvent = GossipEvent.newBuilder()
+                .eventCore(template.getGossipEvent().eventCore())
+                .signature(Bytes.EMPTY)
+                .parents(template.getGossipEvent().parents())
+                .transactions(template.getGossipEvent().transactions())
+                .build();
+        final PlatformEvent unsignedEvent = new PlatformEvent(unsignedGossipEvent, EventOrigin.STORAGE);
+        unsignedEvent.setHash(template.getHash());
+        return unsignedEvent;
     }
 }
