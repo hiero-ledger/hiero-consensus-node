@@ -16,6 +16,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.io.RecycleBin;
@@ -118,6 +120,55 @@ class DefaultInlinePcesWriterTest {
         }
 
         PcesWriterTestUtils.verifyStream(tempDir, events, configuration, RECYCLE_BIN, 0);
+    }
+
+    @Test
+    void concurrentDestroyFinishesInTime() throws Exception {
+        final Random random = RandomUtils.getRandomPrintSeed();
+
+        final StandardGraphGenerator generator =
+                PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
+
+        final List<PlatformEvent> events = new LinkedList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEventWithoutIndex());
+        }
+
+        final PcesFileTracker pcesFiles = new PcesFileTracker();
+
+        final PcesFileManager fileManager = new PcesFileManager(configuration, METRICS, TIME, pcesFiles, tempDir, 0);
+        final CommonPcesWriter commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        final DefaultInlinePcesWriter writer =
+                new DefaultInlinePcesWriter(configuration, METRICS, TIME, commonPcesWriter, selfId);
+
+        writer.beginStreamingNewEvents();
+        for (final PlatformEvent event : events) {
+            writer.writeEvent(event);
+        }
+
+        final CountDownLatch destructionFinished = new CountDownLatch(1);
+
+        // this forces files to be closed properly and all the further events to be ignored
+        new Thread(() -> {
+                    try {
+                        // small wait to let events below to start being processed
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    writer.destroy();
+                    destructionFinished.countDown();
+                })
+                .start();
+
+        // these events might appear in resulting files, as destroy is async - but we don't care
+        // we just check if destruction is able to finish in bound time
+        for (int i = 0; i < 1000; i++) {
+            writer.writeEvent(generator.generateEventWithoutIndex());
+            Thread.sleep(1);
+        }
+
+        assertTrue(destructionFinished.await(5, TimeUnit.SECONDS), "Destroy method not finished fast enough");
     }
 
     /**

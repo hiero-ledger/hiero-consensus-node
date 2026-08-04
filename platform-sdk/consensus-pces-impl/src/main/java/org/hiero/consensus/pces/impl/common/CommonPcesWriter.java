@@ -353,6 +353,7 @@ public class CommonPcesWriter {
                 currentMutableFile.sync();
                 currentMutableFile.close();
                 logger.info("PCES destroy: synced and closed current PCES file");
+                currentMutableFile = null;
             } catch (final IOException e) {
                 logger.error(EXCEPTION.getMarker(), "PCES destroy: failed to sync/close PCES file", e);
             }
