@@ -75,19 +75,23 @@ with `java -jar`.
   package/path-move `present`) asserts into the report. When in doubt → `unverifiable` (quiet log).
   A package/path move that resolves at exactly one new location still asserts, but also carries
   `resolvedPath` (in `findings.json`) and a ready path-rewrite diff in `auto-fix.md`.
-- **Never assert on line numbers.** A moved line for a *named* symbol → an `auto-fix` proposal, never
-  an assert. Bare `File.java:NN` links carry no line (the KB uses them for members too). A stale-hint
-  note on a path rewrite is header text only — never a finding, never a blocked edit.
+- **Never assert on line numbers; migrate them to symbols.** A `File.java:NN` whose line NN is exactly a
+  declaration auto-migrates to `File.java#symbol` — a `SOURCE_SYMBOL` anchor checking the
+  method/field/enum-constant/type exists (which *does* assert on a rename or removal). A `:NN` inside a
+  body or past end-of-file is left untouched (a follow-up pass will suggest a git-tracked line). A moved
+  *method-link* line → an `auto-fix` proposal, never an assert. A stale-hint note on a path rewrite is
+  header text only — never a finding, never a blocked edit.
 - **Package/FQN absence asserts only inside indexed namespaces.** A prose package or fully-qualified
   type whose two-segment namespace (`com.swirlds`, `org.hiero`, …) contains no indexed package is
   external — quiet log, never an assert. Package existence is prefix-based (a parent of an indexed
   package exists); package extraction requires a reverse-domain root and ≥ 3 segments so dotted
   non-packages (config prefixes, JPMS-ish values with other roots) are never extracted. Do not weaken
   these guards.
-- **`--fix` applies only the certain fixes** (moved lines, unique path moves, on-line `Module:` label,
-  and — for a config record located by its `@ConfigData` prefix — the renamed class in headings/link
-  text) — the exact `auto-fix.md` diffs, guarded by a full-line before-match so it is idempotent. It
-  must never apply fuzzy `suggestions.md` renames (topics-slug, near-name): those need a human decision.
+- **`--fix` applies only the certain fixes** (moved lines, declaration-line→`#symbol` migrations, unique
+  path moves, on-line `Module:` label, and — for a config record located by its `@ConfigData` prefix —
+  the renamed class in headings/link text) — the exact `auto-fix.md` diffs, guarded by a full-line
+  before-match so it is idempotent (two refs on one line take a second run to converge). It must never
+  apply fuzzy `suggestions.md` renames (topics-slug, near-name): those need a human decision.
 - **Tunables checks assert only on literal facts.** A documented key missing from its resolved
   `@ConfigData` record asserts; a documented default differing from a plain-literal `defaultValue`
   asserts. A *type* difference is quiet-log only (the catalog documents semantic types, e.g. `Path`

@@ -70,8 +70,10 @@ Two principles drive the split:
 
 - **Depth vs. safety.** Deeper checks catch more drift but are easier to get wrong, so each is
   constrained to what the source states unambiguously. Line numbers, for instance, are *never*
-  asserted on: a named symbol that resolves but whose cited line moved yields an *auto-fix
-  suggestion*, not a finding, because a shifted line is a navigation nit, not drift. Overloads,
+  asserted on: a `File.java:NN` reference whose line is a declaration is auto-migrated to the durable
+  `File.java#symbol` form — the volatile line becomes a named method/field/enum/type that the symbol
+  check tracks (a rename or removal then asserts), and a moved method-link line yields an *auto-fix
+  suggestion* — never a drift finding, because a shifted line is a navigation nit, not drift. Overloads,
   inheritance, and generics-as-written are compared at Tier 2 only where the source is unambiguous;
   anything looser is left to Tier 3.
 - **Escalation.** Each tier assumes the ones beneath it hold — there is no point comparing a method

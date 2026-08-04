@@ -63,6 +63,12 @@ public final class AnchorExtractor {
     private static final Pattern BARE_SOURCE_FILE =
             Pattern.compile("^(?:\\.{2,3}/?)?([A-Za-z0-9_$]+\\." + SOURCE_EXT + ")" + LINE_SUFFIX + "$");
 
+    /** Matches a {@code File.java#symbol} span, capturing the path portion and the symbol name. */
+    private static final Pattern SOURCE_SYMBOL_SPAN = Pattern.compile("^(.+\\.java)#([A-Za-z_$][A-Za-z0-9_$]*)$");
+
+    /** Matches a trailing {@code :NN}/{@code :NN-MM} line hint, capturing its start line. */
+    private static final Pattern TRAILING_LINE = Pattern.compile(":(\\d+)(?:-\\d+)?$");
+
     /**
      * Matches a fully-qualified type cited in a code span: lowercase package segments, then an
      * uppercase-initial type name (optionally followed by nested-type segments). The whole span must
@@ -391,8 +397,10 @@ public final class AnchorExtractor {
      * {@link AnchorKind#SOURCE_PATH} (existence + move check), a bare {@code File.java} basename becomes a
      * {@link AnchorKind#SOURCE_BASENAME} (existence only), a fully-qualified type becomes a
      * {@link AnchorKind#CLASS} (package + name existence, with move detection), and a reverse-domain
-     * package becomes a {@link AnchorKind#PACKAGE_REF} (package-tree existence). Any {@code :NN}/{@code
-     * :NN-MM} suffix is dropped — line numbers are never asserted on. Non-source spans are ignored.
+     * package becomes a {@link AnchorKind#PACKAGE_REF} (package-tree existence). A {@code #symbol} suffix
+     * becomes a {@link AnchorKind#SOURCE_SYMBOL} (the durable symbol check); a {@code :NN}/{@code :NN-MM}
+     * suffix is carried as a line hint that drives a {@code :NN}→{@code #symbol} migration when NN is a
+     * declaration. Non-source spans are ignored.
      *
      * @param content  the code-span content (without surrounding backticks).
      * @param fileLine the 1-based line of the span in the document.
@@ -400,23 +408,29 @@ public final class AnchorExtractor {
      */
     private void extractCodeSpan(final String content, final int fileLine, final List<Anchor> out) {
         final String span = content.strip();
+        final Matcher symbolSpan = SOURCE_SYMBOL_SPAN.matcher(span);
+        if (symbolSpan.matches()) {
+            emitSourceSymbol(symbolSpan.group(1), symbolSpan.group(2), fileLine, span, out);
+            return;
+        }
+        final int citedLine = citedLineOf(span);
         final Matcher full = FULL_SOURCE_PATH.matcher(span);
         if (full.matches()) {
             final String path = full.group(1);
             out.add(new Anchor(
-                    AnchorKind.SOURCE_PATH, path, RepoPaths.moduleOf(path), null, fileLine, Anchor.NO_LINE, span));
+                    AnchorKind.SOURCE_PATH, path, RepoPaths.moduleOf(path), null, fileLine, citedLine, span));
             return;
         }
         final Matcher moduleRel = MODULE_RELATIVE_SOURCE_PATH.matcher(span);
         if (moduleRel.matches()) {
             final String path = "platform-sdk/" + moduleRel.group(1);
             out.add(new Anchor(
-                    AnchorKind.SOURCE_PATH, path, RepoPaths.moduleOf(path), null, fileLine, Anchor.NO_LINE, span));
+                    AnchorKind.SOURCE_PATH, path, RepoPaths.moduleOf(path), null, fileLine, citedLine, span));
             return;
         }
         final Matcher bare = BARE_SOURCE_FILE.matcher(span);
         if (bare.matches()) {
-            out.add(new Anchor(AnchorKind.SOURCE_BASENAME, bare.group(1), null, null, fileLine, Anchor.NO_LINE, span));
+            out.add(new Anchor(AnchorKind.SOURCE_BASENAME, bare.group(1), null, null, fileLine, citedLine, span));
             return;
         }
         final Matcher fqn = FQN_TYPE.matcher(span);
@@ -428,6 +442,50 @@ public final class AnchorExtractor {
         if (PACKAGE_REF.matcher(span).matches()) {
             out.add(new Anchor(AnchorKind.PACKAGE_REF, span, null, null, fileLine, Anchor.NO_LINE, span));
         }
+    }
+
+    /**
+     * Emits a {@link AnchorKind#SOURCE_SYMBOL} anchor (the durable symbol check) plus a file-existence
+     * anchor for a {@code File.java#symbol} citation, in any of the full-path, module-relative,
+     * abbreviated, or bare-basename path forms.
+     *
+     * @param pathPart the path portion before the {@code #}.
+     * @param symbol   the cited symbol name.
+     * @param fileLine the 1-based line of the span in the document.
+     * @param span     the verbatim span (kept as the anchor's raw text).
+     * @param out      the list to append discovered anchors to.
+     */
+    private void emitSourceSymbol(
+            final String pathPart, final String symbol, final int fileLine, final String span, final List<Anchor> out) {
+        final String basename = pathPart.substring(pathPart.lastIndexOf('/') + 1);
+        final String className = basename.substring(0, basename.length() - ".java".length());
+        String repoRel = null;
+        String module = null;
+        if (pathPart.startsWith("platform-sdk/")) {
+            repoRel = pathPart;
+        } else if (MODULE_RELATIVE_SOURCE_PATH.matcher(pathPart).matches()) {
+            repoRel = "platform-sdk/" + pathPart;
+        } else if (pathPart.contains("/.../")) {
+            module = pathPart.substring(0, pathPart.indexOf('/'));
+        }
+        if (repoRel != null) {
+            module = RepoPaths.moduleOf(repoRel);
+            out.add(new Anchor(AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, span));
+        } else {
+            out.add(new Anchor(AnchorKind.SOURCE_BASENAME, basename, null, null, fileLine, Anchor.NO_LINE, span));
+        }
+        out.add(new Anchor(AnchorKind.SOURCE_SYMBOL, symbol, module, className, fileLine, Anchor.NO_LINE, span));
+    }
+
+    /**
+     * The start line of a trailing {@code :NN}/{@code :NN-MM} hint on a span, or {@link Anchor#NO_LINE}.
+     *
+     * @param span the code-span content.
+     * @return the cited start line, or {@link Anchor#NO_LINE} when no line hint is present.
+     */
+    private static int citedLineOf(final String span) {
+        final Matcher m = TRAILING_LINE.matcher(span);
+        return m.find() ? Integer.parseInt(m.group(1)) : Anchor.NO_LINE;
     }
 
     /**
