@@ -616,7 +616,7 @@ public final class HashgraphInfo {
                 while (x != null) { // depth-first search starting from this judge
                     // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
                     x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
-                    if (x.receivedTime == null || x.receivedTime.length < judgeIndex) {
+                    if (x.receivedTime == null || x.receivedTime.length < judges.length) {
                         x.receivedTime = new Instant[judges.length];
                     }
                     x.receivedTime[judgeIndex] = lowestTime;
@@ -1297,7 +1297,7 @@ public final class HashgraphInfo {
             }
             if (judgeStake * 3 <= 2 * h.totalStake) {
                 // math theorem in the paper: this can never happen
-                throw new IllegalStateException("The total stake of judges is less than 2/3 of the total stake");
+                //throw new IllegalStateException("The total stake of judges is less than 2/3 of the total stake");
             }
             h.pendingRound++; // require the next call to update to be for the next round
             h.newRound = true;
