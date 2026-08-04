@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public class AssertionUtils {
@@ -42,8 +42,7 @@ public class AssertionUtils {
                     error.set(true);
                     exception.printStackTrace();
                 });
-        tc.setThreadNameProvider(
-                CompositeThreadNamingConfiguration.create("assertion-utils", "assert-prompt-completion"));
+        tc.setSingleThreadName(CompositeThreadNameProvider.create("assertion-utils", "assert-prompt-completion"));
 
         tc.build(true);
 
@@ -69,8 +68,7 @@ public class AssertionUtils {
         final AtomicReference<T> value = new AtomicReference<>();
 
         new ThreadConfiguration(getStaticThreadManager())
-                .setThreadNameProvider(
-                        CompositeThreadNamingConfiguration.create("assertion-utils", "assert-prompt-completion"))
+                .setSingleThreadName(CompositeThreadNameProvider.create("assertion-utils", "assert-prompt-completion"))
                 .setInterruptableRunnable(() -> {
                     value.set(operation.get());
                     latch.countDown();

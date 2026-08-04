@@ -27,7 +27,7 @@ import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningFactory;
 import org.hiero.base.crypto.SigningSchema;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -152,7 +152,7 @@ public class KeysAndCertsGenerator {
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
                 Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                        .setThreadNameProvider(CompositeThreadNamingConfiguration.create("crypto", "crypto-generate"))
+                        .setThreadNameProvider(CompositeThreadNameProvider.createNumbered("crypto", "crypto-generate"))
                         .setDaemon(false)
                         .buildFactory())) {
             for (final NodeId nodeId : nodeIds) {

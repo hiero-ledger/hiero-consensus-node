@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -152,7 +152,7 @@ public class VirtualPipeline {
 
         executorService = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
                 .setThreadNameProvider(
-                        CompositeThreadNamingConfiguration.createNumbered(PIPELINE_COMPONENT, PIPELINE_THREAD_NAME))
+                        CompositeThreadNameProvider.createNumbered(PIPELINE_COMPONENT, PIPELINE_THREAD_NAME))
                 .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
                 .buildFactory());
 

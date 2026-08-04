@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.function.Consumer;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.notification.Notification;
@@ -63,7 +63,7 @@ public class Dispatcher<L extends Listener> {
         }
 
         dispatchThread = new ThreadConfiguration(threadManager)
-                .setThreadNameProvider(CompositeThreadNamingConfiguration.create(
+                .setSingleThreadName(CompositeThreadNameProvider.create(
                         COMPONENT_NAME, String.format("notify %s", listenerClassName)))
                 .setRunnable(this::worker)
                 .build();

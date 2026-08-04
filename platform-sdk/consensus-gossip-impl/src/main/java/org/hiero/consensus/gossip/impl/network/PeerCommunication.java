@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
-import org.hiero.consensus.concurrent.NodeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.NodeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
@@ -125,10 +125,11 @@ public class PeerCommunication implements ConnectionTracker {
                         threadManager)
                 .setWork(connectionServer)
                 .setPriority(gossipConfig.connectionServerThreadPriority())
-                .setThreadNameProvider(new NodeThreadNamingConfiguration()
+                .setThreadNameProvider(new NodeThreadNameProvider()
                         .setNodeId(selfId)
                         .setComponent(PLATFORM_THREAD_POOL_NAME)
-                        .setThreadName("connectionServer"));
+                        .setThreadName("connectionServer")
+                        .supplier());
         this.connectionServerThread = stc.build();
 
         registerDedicatedThreads(buildProtocolThreads(topology.getNeighbors()));
@@ -272,11 +273,12 @@ public class PeerCommunication implements ConnectionTracker {
                                     .map(protocol -> protocol.createPeerInstance(otherId))
                                     .toList()),
                             time));
-            stc.setThreadNameProvider(new NodeThreadNamingConfiguration()
+            stc.setThreadNameProvider(new NodeThreadNameProvider()
                     .setOtherNodeId(otherId)
                     .setNodeId(selfId)
                     .setComponent(PLATFORM_THREAD_POOL_NAME)
-                    .setThreadName("SyncProtocolWith" + otherId));
+                    .setThreadName("SyncProtocolWith" + otherId)
+                    .supplier());
 
             syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(otherId, stc.build()));
         }

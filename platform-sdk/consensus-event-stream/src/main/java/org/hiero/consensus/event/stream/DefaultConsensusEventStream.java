@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
-import org.hiero.consensus.concurrent.NodeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.NodeThreadNameProvider;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
@@ -130,10 +130,11 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
 
             writeQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(
                             getStaticThreadManager(), "write-queue")
-                    .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
+                    .setThreadName(new NodeThreadNameProvider()
                             .setNodeId(selfId)
                             .setComponent("event-stream")
-                            .setThreadName("write-queue"))
+                            .setThreadName("write-queue")
+                            .generateNextThreadName())
                     .setCapacity(eventStreamQueueCapacity)
                     .setForwardTo(streamFileWriter)
                     .build();
@@ -157,10 +158,11 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
         // runningHashCalculator
         final HashCalculatorForStream<CesEvent> hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
         hashQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager(), "hash-queue")
-                .setThreadNamingConfiguration(new NodeThreadNamingConfiguration()
+                .setThreadName(new NodeThreadNameProvider()
                         .setNodeId(selfId)
                         .setComponent("event-stream")
-                        .setThreadName("hash-queue"))
+                        .setThreadName("hash-queue")
+                        .generateNextThreadName())
                 .setCapacity(eventStreamQueueCapacity)
                 .setForwardTo(hashCalculator)
                 .build();

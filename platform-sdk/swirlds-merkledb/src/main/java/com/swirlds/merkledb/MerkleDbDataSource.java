@@ -55,7 +55,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.IORunnable;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
@@ -265,8 +265,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
         // create thread pool storing virtual node hashes
         storeHashesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setThreadNameProvider(
-                        CompositeThreadNamingConfiguration.createNumbered(MERKLEDB_COMPONENT, "Store hashes"))
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store hashes"))
                 .setThreadGroup(threadGroup)
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing hashes", tableName, ex))
@@ -274,8 +273,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // create thread pool storing virtual leaf nodes
         storeLeavesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
                 .setThreadGroup(threadGroup)
-                .setThreadNameProvider(
-                        CompositeThreadNamingConfiguration.createNumbered(MERKLEDB_COMPONENT, "Store leaves"))
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaves"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaves", tableName, ex))
                 .buildFactory());
@@ -283,15 +281,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         storeLeafKeysExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
                 .setThreadGroup(threadGroup)
                 .setThreadNameProvider(
-                        CompositeThreadNamingConfiguration.createNumbered(MERKLEDB_COMPONENT, "Store leaf keys"))
+                        CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaf keys"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaf keys", tableName, ex))
                 .buildFactory());
         // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
                 .setThreadGroup(threadGroup)
-                .setThreadNameProvider(
-                        CompositeThreadNamingConfiguration.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
                 .setExceptionHandler(
                         (t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", ex))
                 .buildFactory());

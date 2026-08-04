@@ -68,7 +68,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      */
     private boolean immutable;
 
-    protected Supplier<String> threadNameProvider = UndefinedThreadNamingConfiguration.instance();
+    protected Supplier<String> threadNameProvider = UndefinedThreadNameProvider.instance();
 
     /**
      * Build a new thread configuration with default values.

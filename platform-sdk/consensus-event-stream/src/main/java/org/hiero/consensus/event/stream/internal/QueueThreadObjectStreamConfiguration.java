@@ -3,7 +3,6 @@ package org.hiero.consensus.event.stream.internal;
 
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
-import org.hiero.consensus.concurrent.framework.config.ThreadNamingConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
 
@@ -182,9 +181,8 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
         return queueThreadConfiguration;
     }
 
-    public QueueThreadObjectStreamConfiguration<T> setThreadNamingConfiguration(
-            final ThreadNamingConfiguration threadNamingConfiguration) {
-        queueThreadConfiguration.setThreadNameProvider(threadNamingConfiguration);
+    public QueueThreadObjectStreamConfiguration<T> setThreadName(String name) {
+        queueThreadConfiguration.setSingleThreadName(name);
         return this;
     }
 }

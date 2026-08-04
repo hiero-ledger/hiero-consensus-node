@@ -29,7 +29,7 @@ import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.config.RecycleBinConfig;
@@ -95,7 +95,7 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
         this.cleanupThread = new StoppableThreadConfiguration<>(threadManager)
                 .setMinimumPeriod(minimumPeriod)
                 .setWork(this::cleanup)
-                .setThreadNameProvider(CompositeThreadNamingConfiguration.create("platform", "recycle-bin-cleanup"))
+                .setSingleThreadName(CompositeThreadNameProvider.create("platform", "recycle-bin-cleanup"))
                 .build();
     }
 

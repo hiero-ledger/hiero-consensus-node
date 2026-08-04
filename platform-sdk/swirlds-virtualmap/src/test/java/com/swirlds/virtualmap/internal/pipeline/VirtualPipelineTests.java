@@ -39,7 +39,7 @@ import java.util.stream.IntStream;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -74,7 +74,7 @@ class VirtualPipelineTests {
         final CountDownLatch latch = new CountDownLatch(1);
 
         final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadNameProvider(CompositeThreadNamingConfiguration.create("test", "interrupt-on-timeout"))
+                .setSingleThreadName(CompositeThreadNameProvider.create("test", "interrupt-on-timeout"))
                 .setRunnable(() -> {
                     try {
                         runnable.run();

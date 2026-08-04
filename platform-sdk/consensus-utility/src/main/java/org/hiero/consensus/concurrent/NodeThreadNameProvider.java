@@ -5,14 +5,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Thread naming scheme made out of component: name from_node to other_node + optional thread number.
  * Please see {@link #generateNextThreadName()} for the details.
  */
-public class NodeThreadNamingConfiguration extends CompositeThreadNamingConfiguration {
+public class NodeThreadNameProvider extends CompositeThreadNameProvider {
 
     /**
      * The ID of the node that is running the thread.
@@ -24,23 +24,37 @@ public class NodeThreadNamingConfiguration extends CompositeThreadNamingConfigur
      */
     private NodeId otherNodeId;
 
-    public NodeThreadNamingConfiguration() {}
+    public NodeThreadNameProvider() {}
+
+    /**
+     * Set the name of the component that new threads will be associated with.
+     *
+     * @return this object
+     */
+    public NodeThreadNameProvider setComponent(final String component) {
+        this.component = component;
+        return this;
+    }
+
+    /**
+     * Set the name for created threads.
+     *
+     * @return this object
+     */
+    public NodeThreadNameProvider setThreadName(final String threadName) {
+        this.threadName = threadName;
+        return this;
+    }
 
     /**
      * Set the node ID.
      *
      * @return this object
      */
-    @SuppressWarnings("unchecked")
-    public NodeThreadNamingConfiguration setNodeId(@NonNull final NodeId nodeId) {
+    public NodeThreadNameProvider setNodeId(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
 
         this.nodeId = nodeId;
-        return this;
-    }
-
-    public NodeThreadNamingConfiguration enableFactory() {
-        this.useThreadNumbers = true;
         return this;
     }
 
@@ -50,7 +64,7 @@ public class NodeThreadNamingConfiguration extends CompositeThreadNamingConfigur
      *
      * @return this object
      */
-    public NodeThreadNamingConfiguration setOtherNodeId(@NonNull final NodeId otherNodeId) {
+    public NodeThreadNameProvider setOtherNodeId(@NonNull final NodeId otherNodeId) {
         Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
 
         this.otherNodeId = otherNodeId;
@@ -79,7 +93,6 @@ public class NodeThreadNamingConfiguration extends CompositeThreadNamingConfigur
      * If the fully formatted thread name has been set, then use that thread name instead of the standard format.
      * </p>
      */
-    @Override
     public String generateNextThreadName() {
         // The parts are joined together with a space in-between each.
         final List<String> parts = new LinkedList<>();

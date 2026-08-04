@@ -11,8 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.state.MutabilityException;
 import java.util.concurrent.ThreadFactory;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
-import org.hiero.consensus.concurrent.framework.config.FullNameThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
@@ -34,11 +33,11 @@ class NodeNameThreadTests {
                 Thread.currentThread().getContextClassLoader().getParent();
 
         final ThreadConfiguration tc = new ThreadConfiguration(getStaticThreadManager());
-        tc.setThreadNameProvider(new NodeThreadNamingConfiguration()
-                        .enableFactory()
+        tc.setThreadNameProvider(new NodeThreadNameProvider()
                         .setNodeId(NodeId.of(1234L))
                         .setComponent("pool1")
-                        .setThreadName("thread1"))
+                        .setThreadName("thread1")
+                        .supplier())
                 .setDaemon(false)
                 .setExceptionHandler(exceptionHandler)
                 .setThreadGroup(group)
@@ -70,43 +69,45 @@ class NodeNameThreadTests {
 
         final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(CompositeThreadNamingConfiguration.create("foo", null))
+                .setSingleThreadName(CompositeThreadNameProvider.create("foo", null))
                 .build();
         assertEquals("<foo: unnamed>", thread1.getName(), "unexpected thread name");
 
         final Thread thread2 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(CompositeThreadNamingConfiguration.create("foo", "bar"))
+                .setSingleThreadName(CompositeThreadNameProvider.create("foo", "bar"))
                 .build();
         assertEquals("<foo: bar>", thread2.getName(), "unexpected thread name");
 
         final Thread thread3 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(new NodeThreadNamingConfiguration()
+                .setSingleThreadName(new NodeThreadNameProvider()
                         .setNodeId(NodeId.of(1234L))
                         .setComponent("foo")
-                        .setThreadName("bar"))
+                        .setThreadName("bar")
+                        .generateNextThreadName())
                 .build();
         assertEquals("<foo: bar 1234>", thread3.getName(), "unexpected thread name");
 
         final Thread thread4 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(new NodeThreadNamingConfiguration()
+                .setSingleThreadName(new NodeThreadNameProvider()
                         .setNodeId(NodeId.of(1234L))
                         .setOtherNodeId(NodeId.of(4321L))
                         .setComponent("foo")
-                        .setThreadName("bar"))
+                        .setThreadName("bar")
+                        .generateNextThreadName())
                 .build();
         assertEquals("<foo: bar 1234 to 4321>", thread4.getName(), "unexpected thread name");
 
         final ThreadFactory factory = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(new NodeThreadNamingConfiguration()
-                        .enableFactory()
+                .setThreadNameProvider(new NodeThreadNameProvider()
                         .setNodeId(NodeId.of(1234L))
                         .setOtherNodeId(NodeId.of(4321L))
                         .setComponent("foo")
-                        .setThreadName("bar"))
+                        .setThreadName("bar")
+                        .supplier())
                 .buildFactory();
 
         assertEquals("<foo: bar 1234 to 4321 #0>", factory.newThread(null).getName(), "unexpected thread name");
@@ -123,7 +124,7 @@ class NodeNameThreadTests {
         // Build should make the configuration immutable
         final ThreadConfiguration configuration0 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(new NodeThreadNamingConfiguration());
+                .setSingleThreadName("Test");
 
         assertTrue(configuration0.isMutable(), "configuration should be mutable");
 
@@ -132,7 +133,7 @@ class NodeNameThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration0.setThreadNameProvider(new FullNameThreadNamingConfiguration("Abc")),
+                () -> configuration0.setSingleThreadName("Abc"),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -158,14 +159,14 @@ class NodeNameThreadTests {
         // Build seed should make the configuration immutable
         final ThreadConfiguration configuration1 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(new NodeThreadNamingConfiguration());
+                .setThreadNameProvider(new NodeThreadNameProvider().supplier());
 
         assertTrue(configuration1.isMutable(), "configuration should be mutable");
 
         // Build factory should make the configuration immutable
         final ThreadConfiguration configuration2 = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {})
-                .setThreadNameProvider(new NodeThreadNamingConfiguration());
+                .setThreadNameProvider(new NodeThreadNameProvider().supplier());
 
         assertTrue(configuration2.isMutable(), "configuration should be mutable");
 
@@ -174,7 +175,7 @@ class NodeNameThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration2.setThreadNameProvider(new FullNameThreadNamingConfiguration("Abc")),
+                () -> configuration2.setSingleThreadName("Abc"),
                 "configuration should be immutable");
 
         assertThrows(
@@ -212,10 +213,11 @@ class NodeNameThreadTests {
         final Runnable runnable = () -> {};
 
         final ThreadConfiguration configuration = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadNameProvider(new NodeThreadNamingConfiguration()
+                .setThreadNameProvider(new NodeThreadNameProvider()
                         .setNodeId(NodeId.of(1234L))
                         .setComponent("component")
-                        .setThreadName("name"))
+                        .setThreadName("name")
+                        .supplier())
                 .setThreadGroup(group)
                 .setDaemon(false)
                 .setPriority(Thread.MAX_PRIORITY)

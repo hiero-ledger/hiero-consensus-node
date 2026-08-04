@@ -39,7 +39,7 @@ import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNamingConfiguration;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -311,7 +311,7 @@ public final class VirtualNodeCache implements FastCopyable {
                     new ThreadConfiguration(getStaticThreadManager())
                             .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
                             .setThreadNameProvider(
-                                    CompositeThreadNamingConfiguration.createNumbered("virtual-map", "cache-cleaner"))
+                                    CompositeThreadNameProvider.createNumbered("virtual-map", "cache-cleaner"))
                             .setExceptionHandler((t, ex) -> logger.error(
                                     EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
                             .buildFactory());
