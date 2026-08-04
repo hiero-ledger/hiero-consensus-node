@@ -1,5 +1,5 @@
 #/usr/bin/sh -f
-KBCTL=/home/runner/_work/_tool/kubectl/1.33.0/x64/kubectl.orig
+KBCTL=$(which kubectl.orig)
 
 
 timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@" >/tmp/stdout.$$ 2>/tmp/stderr.$$
@@ -19,6 +19,6 @@ then
    exit $result
   fi
 else
-  rm -f /tmp/stdout.$$ /tmp/stderr.$$ 
+  rm -f /tmp/stdout.$$ /tmp/stderr.$$
   timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@"
 fi
