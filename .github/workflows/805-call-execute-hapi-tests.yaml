@@ -38,7 +38,7 @@ on:
         required: false
         default: "false"
       enable-hapi-tests-token-and-time-consuming:
-        description: "HAPI Testing (Token & Time Consuming) Enabled"
+        description: "HAPI Testing (Token, Time Consuming & Node Staking) Enabled"
         type: string
         required: false
         default: "false"
@@ -155,6 +155,7 @@ jobs:
             echo "❌ $t FAILED — expand group above for details"
           }
           run_subtask hapiTestMisc
+          run_subtask hapiTestGenesisSubProcess
           run_subtask hapiTestMiscEmbedded
           run_subtask hapiTestMiscRepeatable
           exit $status
@@ -337,8 +338,8 @@ jobs:
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
 
-  hapi-tests-token-and-time-consuming:
-    name: "HAPI Tests (Token & Time Consuming)"
+  hapi-tests-token-time-consuming-and-node-staking:
+    name: "HAPI Tests (Token, Time Consuming & Node Staking)"
     if: ${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -360,8 +361,8 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Token & Time Consuming)
-        id: gradle-hapi-token-and-time-consuming
+      - name: HAPI Testing (Token, Time Consuming & Node Staking)
+        id: gradle-hapi-token-time-consuming-and-node-staking
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -382,40 +383,41 @@ jobs:
           run_subtask hapiTestToken
           run_subtask hapiTestTokenSerial
           run_subtask hapiTestTimeConsuming
-          run_subtask hapiTestTimeConsumingSerial
+          run_subtask hapiTestNodeStaking
+          run_subtask hapiTestNodeStakingSerial
           exit $status
 
-      - name: Publish HAPI Test (Token & Time Consuming) Reports
+      - name: Publish HAPI Test (Token, Time Consuming & Node Staking) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
-          check_name: "Node: HAPI Test (Token & Time Consuming) Results"
+          check_name: "Node: HAPI Test (Token, Time Consuming & Node Staking) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Token & Time Consuming) Report Artifacts
+      - name: Upload HAPI Test (Token, Time Consuming & Node Staking) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Token & Time Consuming) Reports
+          name: HAPI Test (Token, Time Consuming & Node Staking) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Upload HAPI Test (Token & Time Consuming) Network Logs
+      - name: Upload HAPI Test (Token, Time Consuming & Node Staking) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-token-time-consuming-and-node-staking.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Token & Time Consuming) Network Logs
+          name: HAPI Test (Token, Time Consuming & Node Staking) Network Logs
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Token & Time Consuming) Failure Artifacts
+      - name: Upload HAPI Test (Token, Time Consuming & Node Staking) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' }}
+        if: ${{ !cancelled() && steps.gradle-hapi-token-time-consuming-and-node-staking.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Token & Time Consuming) Failure Artifacts
+          name: HAPI Test (Token, Time Consuming & Node Staking) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -430,10 +432,10 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "skipped" ]]; then
+          if [[ "${{ steps.gradle-hapi-token-time-consuming-and-node-staking.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-token-time-consuming-and-node-staking.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
+          elif [[ "${{ steps.gradle-hapi-token-time-consuming-and-node-staking.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -1202,7 +1204,7 @@ jobs:
     needs:
       - hapi-tests-misc
       - hapi-tests-misc-records-crypto-and-serial
-      - hapi-tests-token-and-time-consuming
+      - hapi-tests-token-time-consuming-and-node-staking
       - hapi-tests-simple-fees-and-nd-reconnect
       - hapi-tests-atomic-batch
       - hapi-tests-smart-contracts-and-iss
@@ -1228,7 +1230,7 @@ jobs:
           INPUT_JOB_STATUSES: >-
             ${{ needs.hapi-tests-misc.result }}
             ${{ needs.hapi-tests-misc-records-crypto-and-serial.result }}
-            ${{ needs.hapi-tests-token-and-time-consuming.result }}
+            ${{ needs.hapi-tests-token-time-consuming-and-node-staking.result }}
             ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result }}
             ${{ needs.hapi-tests-atomic-batch.result }}
             ${{ needs.hapi-tests-smart-contracts-and-iss.result }}
@@ -1240,7 +1242,7 @@ jobs:
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-token-time-consuming-and-node-staking.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}
@@ -1252,7 +1254,7 @@ jobs:
           INPUT_JOB_NAMES: >-
             hapi-tests-misc
             hapi-tests-misc-records-crypto-and-serial
-            hapi-tests-token-and-time-consuming
+            hapi-tests-token-time-consuming-and-node-staking
             hapi-tests-simple-fees-and-nd-reconnect
             hapi-tests-atomic-batch
             hapi-tests-smart-contracts-and-iss

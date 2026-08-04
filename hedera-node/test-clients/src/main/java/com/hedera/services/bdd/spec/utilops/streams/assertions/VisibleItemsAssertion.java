@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,6 +29,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private static final Logger log = LogManager.getLogger(VisibleItemsAssertion.class);
 
     private final HapiSpec spec;
+    private final HapiSpecRegistry registry;
     private final Set<String> allIds;
     private final VisibleItemsValidator validator;
     private final Map<String, VisibleItems> items = new ConcurrentHashMap<>();
@@ -112,6 +114,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
             @NonNull final SkipSynthItems skipSynthItems,
             @NonNull final String... specTxnIds) {
         this.spec = requireNonNull(spec);
+        this.registry = requireNonNull(spec.registry());
         this.validator = validator;
         this.skipSynthItems = requireNonNull(skipSynthItems);
         allIds = Set.copyOf(List.of(specTxnIds));
@@ -227,7 +230,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         final var observedId = item.getRecord().getTransactionID();
         boolean allResolvable = true;
         for (final var id : allIds) {
-            final var maybeTxnId = spec.registry().getMaybeTxnId(id);
+            final var maybeTxnId = registry.getMaybeTxnId(id);
             if (maybeTxnId.isEmpty()) {
                 allResolvable = false;
                 continue;
