@@ -75,8 +75,6 @@ public class FractionalFeeAllDebitsExemptTest {
                         // FeeB: collectorB collects; all collectors on this token are exempt
                         .withCustom(fractionalFee(1L, 10L, 0L, OptionalLong.empty(), COLLECTOR_B, true))
                         .signedBy(GENESIS, "keyA", "keyB"),
-                //                tokenAssociate(COLLECTOR_A, TOKEN),
-                //                tokenAssociate(COLLECTOR_B, TOKEN),
                 tokenAssociate(RECEIVER, TOKEN),
                 // Fund collectorA via treasury (treasury is skipped by the assessment loop entirely)
                 cryptoTransfer(moving(500L, TOKEN).between(TREASURY, COLLECTOR_A))
@@ -92,6 +90,5 @@ public class FractionalFeeAllDebitsExemptTest {
                         .payingWith(COLLECTOR_A)
                         .signedBy(GENESIS, "keyA")
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS));
-        //                        .hasKnownStatus(ResponseCodeEnum.FAIL_INVALID));
     }
 }
