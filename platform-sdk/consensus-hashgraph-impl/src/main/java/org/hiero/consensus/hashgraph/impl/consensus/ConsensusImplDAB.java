@@ -51,6 +51,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.roster.RosterLookup;
 import org.hiero.consensus.round.RoundCalculationUtils;
 
@@ -142,8 +143,6 @@ public class ConsensusImplDAB implements Consensus {
     private final RosterLookup rosterLookup;
     /** metrics related to consensus */
     private final ConsensusMetrics consensusMetrics;
-    /** used for searching the hashgraph */
-    private final AncestorSearch search = new AncestorSearch();
     /**
      * recently added events. this list is used for recalculating metadata once a new round is decided. as soon as
      * events reach consensus or become stale, they are discarded from this list.
@@ -242,24 +241,26 @@ public class ConsensusImplDAB implements Consensus {
         recentEvents.clear();
         memosEventMap.clear();
         hashgraphInfo = new HashgraphInfo();
-        roundInfoPrev = null;
+        roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
 
-        final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
-                .map(judge -> new Hash(judge.judgeHash()))
-                .collect(toSet());
+        if (!GenesisSnapshotFactory.newGenesisSnapshot().equals(snapshot)) {
+            final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
+                    .map(judge -> new Hash(judge.judgeHash()))
+                    .collect(toSet());
 
-        initJudges = new InitJudges(snapshot.round(), judgeHashes);
+            initJudges = new InitJudges(snapshot.round(), judgeHashes);
 
-        final List<MinimumJudgeInfo> minimumJudgeInfos = snapshot.minimumJudgeInfoList();
-        minimumJudgeStorage.reset(minimumJudgeInfos.getFirst().round());
-        for (final MinimumJudgeInfo minimumJudgeInfo : minimumJudgeInfos) {
-            minimumJudgeStorage.add(minimumJudgeInfo.round(), minimumJudgeInfo);
+            final List<MinimumJudgeInfo> minimumJudgeInfos = snapshot.minimumJudgeInfoList();
+            minimumJudgeStorage.reset(minimumJudgeInfos.getFirst().round());
+            for (final MinimumJudgeInfo minimumJudgeInfo : minimumJudgeInfos) {
+                minimumJudgeStorage.add(minimumJudgeInfo.round(), minimumJudgeInfo);
+            }
+
+            roundInfo = createNewRosterInfo(snapshot.round() + 1);
+
+            numConsensus = snapshot.nextConsensusNumber();
+            lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
         }
-
-        roundInfo = createNewRosterInfo(snapshot.round() + 1);
-
-        numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     private RoundInfo createNewRosterInfo(final long pendingRound) {
@@ -347,6 +348,7 @@ public class ConsensusImplDAB implements Consensus {
                         .mapToLong(EventImpl::getBirthRound)
                         .min()
                         .orElseThrow();
+
                 roundInfoPrev = new RoundInfoPrev(
                         roundInfo.pendingRound(),
                         false,
@@ -356,6 +358,7 @@ public class ConsensusImplDAB implements Consensus {
                         numConsensus - 1,
                         minJudgeBirthRound);
 
+                initJudges = null;
                 results = updateRecentEvents();
             } else {
                 // this is the most common case, we are not looking for init judges
@@ -642,8 +645,6 @@ public class ConsensusImplDAB implements Consensus {
         if (initJudges.initJudgesMissing()) {
             return false;
         }
-
-        initJudges = null;
 
         return true;
     }
