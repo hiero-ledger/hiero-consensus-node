@@ -25,7 +25,7 @@ public class ConsensusTestArgs {
         return Stream.of(
                 //                new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
                 //                new ConsensusTestParams(2, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
-                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC, 0L));
+                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC, 7683533400291170357L));
         //                new ConsensusTestParams(9, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
         //                new ConsensusTestParams(50, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC),
         //                new ConsensusTestParams(50, RANDOM, RANDOM_WEIGHT_DESC));
