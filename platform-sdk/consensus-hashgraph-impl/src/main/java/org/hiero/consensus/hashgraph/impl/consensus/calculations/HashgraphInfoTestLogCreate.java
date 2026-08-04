@@ -47,11 +47,11 @@ public class HashgraphInfoTestLogCreate {
             "consensus",
             "calculations");
 
-    /** RoundInfo is a CSV row starting with this number */
-    private final static int ROUND_INFO_TYPE = 0;
-
     /** RoundInfoPrev is a CSV row starting with this number */
-    private final static int ROUND_INFO_PREV_TYPE = 1;
+    private final static int ROUND_INFO_PREV_TYPE = 0;
+
+    /** RoundInfo is a CSV row starting with this number */
+    private final static int ROUND_INFO_TYPE = 1;
 
     /** EventInfo is a CSV row starting with this number */
     private final static int EVENT_SIGNED_TYPE = 2;
@@ -85,6 +85,10 @@ public class HashgraphInfoTestLogCreate {
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEvents = new LinkedList<EventInfo>();
             UpdateResults updateResults;
+
+            RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
+            printRoundInfoPrev(out, roundInfoPrev);
+
             RoundInfo roundInfo = new RoundInfo(
                     1, //long pendingRound
                     new long[]{100,200,300,400}, //long[] nodes
@@ -97,8 +101,6 @@ public class HashgraphInfoTestLogCreate {
                     2); // int numRoundsAddressBook
             printRoundInfo(out, roundInfo);
 
-            RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
-            printRoundInfoPrev(out, roundInfoPrev);
 
             EventInfo eventInfo = new EventInfo(
                     hashgraphInfo,  // HashgraphInfo hashgraphInfo
@@ -226,6 +228,20 @@ public class HashgraphInfoTestLogCreate {
         }
     }
 
+    /** return one line of the CSV file describing the RoundInfoPrev fields */
+    private static void printRoundInfoPrev(PrintWriter out, RoundInfoPrev roundInfoPrev) {
+        StringBuilder line = new StringBuilder();
+        line.append(ROUND_INFO_PREV_TYPE);
+        line.append(",").append(roundInfoPrev.pendingRound());
+        line.append(",").append(roundInfoPrev.prevJudgeCon1() ? 1 : 0);
+        appendEvents(line,roundInfoPrev.prevJudges());
+        line.append(",").append(roundInfoPrev.prevJudgesCopied() ? 1 : 0);
+        line.append(",").append(roundInfoPrev.prevMinNonAncientRound());
+        line.append(",").append(roundInfoPrev.prevNumCons());
+        line.append(",").append(roundInfoPrev.prevMinJudgeBirthRound());
+        out.println(line);
+    }
+
     /** return one line of the CSV file describing the RoundInfo fields */
     private static void printRoundInfo(PrintWriter out, RoundInfo roundInfo) {
         StringBuilder line = new StringBuilder();
@@ -239,20 +255,6 @@ public class HashgraphInfoTestLogCreate {
         line.append(",").append(roundInfo.coinInterval());
         line.append(",").append(roundInfo.targetNumRoundsNonAncient());
         line.append(",").append(roundInfo.numRoundsAddressBook());
-        out.println(line);
-    }
-
-    /** return one line of the CSV file describing the RoundInfoPrev fields */
-    private static void printRoundInfoPrev(PrintWriter out, RoundInfoPrev roundInfoPrev) {
-        StringBuilder line = new StringBuilder();
-        line.append(ROUND_INFO_PREV_TYPE);
-        line.append(",").append(roundInfoPrev.pendingRound());
-        line.append(",").append(roundInfoPrev.prevJudgeCon1() ? 1 : 0);
-        appendEvents(line,roundInfoPrev.prevJudges());
-        line.append(",").append(roundInfoPrev.prevJudgesCopied() ? 1 : 0);
-        line.append(",").append(roundInfoPrev.prevMinNonAncientRound());
-        line.append(",").append(roundInfoPrev.prevNumCons());
-        line.append(",").append(roundInfoPrev.prevMinJudgeBirthRound());
         out.println(line);
     }
 
