@@ -56,8 +56,10 @@ with `java -jar`.
   grouping findings that share one code move. `AutoFix` is the shared planner (structured `Edit`s) that
   both `AutoFixRenderer` (Markdown) and `apply/AutoFixApplier` (writes) consume, so the proposal a curator
   reads is exactly the edit `--fix` applies. `SuggestionsRenderer` emits the non-asserting "did you mean"
-  hints for GONE targets (scoring in `findings/NearNameMatcher`), kept out of `findings.json` so that
-  artifact stays reproducible. See `README.md` for the full suggestion and rollup semantics.
+  hints for GONE targets (scoring in `findings/NearNameMatcher`) plus a line-reference section naming the
+  enclosing symbol for each body-line/past-EOF `File.java:NN` that `--fix` cannot migrate (built by the
+  engine as `LineSuggestion`s), kept out of `findings.json` so that artifact stays reproducible. See
+  `README.md` for the full suggestion and rollup semantics.
 - `apply/` — `AutoFixApplier` (`--fix`): writes the certain auto-fix `Edit`s to the KB in place, guarded
   by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames. `ReviewedMarker`
   (`--mark-reviewed <key>[=<date>]`): bumps an entry's *existing* `last_reviewed:` frontmatter line —
@@ -75,12 +77,14 @@ with `java -jar`.
   package/path-move `present`) asserts into the report. When in doubt → `unverifiable` (quiet log).
   A package/path move that resolves at exactly one new location still asserts, but also carries
   `resolvedPath` (in `findings.json`) and a ready path-rewrite diff in `auto-fix.md`.
-- **Never assert on line numbers; migrate them to symbols.** A `File.java:NN` whose line NN is exactly a
-  declaration auto-migrates to `File.java#symbol` — a `SOURCE_SYMBOL` anchor checking the
-  method/field/enum-constant/type exists (which *does* assert on a rename or removal). A `:NN` inside a
-  body or past end-of-file is left untouched (a follow-up pass will suggest a git-tracked line). A moved
-  *method-link* line → an `auto-fix` proposal, never an assert. A stale-hint note on a path rewrite is
-  header text only — never a finding, never a blocked edit.
+- **Never assert on line numbers; migrate them to symbols.** A `File.java:NN` — code span or markdown
+  link alike — whose line NN is exactly a declaration auto-migrates to `File.java#symbol`, a
+  `SOURCE_SYMBOL` anchor checking the method/field/enum-constant/type exists (which *does* assert on a
+  rename or removal; a constructor is reported as its enclosing type, the only citable `#symbol`). A
+  `:NN` inside a body or past end-of-file cannot become one symbol, so it is left untouched but surfaced
+  in `suggestions.md` naming its enclosing declaration to cite instead — deterministic, parsed from the
+  current checkout (no git line-tracking). A moved *method-link* line → an `auto-fix` proposal, never an
+  assert. A stale-hint note on a path rewrite is header text only — never a finding, never a blocked edit.
 - **Package/FQN absence asserts only inside indexed namespaces.** A prose package or fully-qualified
   type whose two-segment namespace (`com.swirlds`, `org.hiero`, …) contains no indexed package is
   external — quiet log, never an assert. Package existence is prefix-based (a parent of an indexed

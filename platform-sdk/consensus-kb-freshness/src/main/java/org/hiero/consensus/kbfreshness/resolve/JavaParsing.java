@@ -233,7 +233,7 @@ public final class JavaParsing {
             }
             for (final MethodSig m : t.methods()) {
                 if (m.line() == line) {
-                    return m.name();
+                    return citableSymbol(m, e.getKey());
                 }
             }
             for (final MemberDecl mem : t.members()) {
@@ -243,6 +243,54 @@ public final class JavaParsing {
             }
         }
         return null;
+    }
+
+    /**
+     * The name of the declaration that encloses {@code line} — the nearest method, type, or
+     * field/enum-constant/record component whose declaration starts at or before {@code line} — or
+     * {@code null} when no declaration precedes it. Approximate (start lines only, no end positions): the
+     * intended enclosing symbol of a body line, for the "cite {@code File.java#symbol} instead" hint.
+     *
+     * @param parsed the parsed source file.
+     * @param line   the 1-based line.
+     * @return the enclosing declaration's simple name, or {@code null}.
+     */
+    public static String enclosingSymbolAtLine(final ParsedFile parsed, final int line) {
+        String best = null;
+        int bestLine = 0;
+        for (final Map.Entry<String, TypeInfo> e : parsed.types().entrySet()) {
+            final TypeInfo t = e.getValue();
+            if (t.declLine() > bestLine && t.declLine() <= line) {
+                best = e.getKey();
+                bestLine = t.declLine();
+            }
+            for (final MethodSig m : t.methods()) {
+                if (m.line() > bestLine && m.line() <= line) {
+                    best = citableSymbol(m, e.getKey());
+                    bestLine = m.line();
+                }
+            }
+            for (final MemberDecl mem : t.members()) {
+                if (mem.line() > bestLine && mem.line() <= line) {
+                    best = mem.name();
+                    bestLine = mem.line();
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The citable name of a method at a line: its own name, except a constructor ({@code <init>}), which is
+     * reported as its enclosing type — the type name is a real {@code #symbol} anchor, whereas {@code <init>}
+     * is not extractable and would resolve to nothing.
+     *
+     * @param method   the method whose line matched.
+     * @param typeName the simple name of the type declaring it.
+     * @return the method name, or the type name for a constructor.
+     */
+    private static String citableSymbol(final MethodSig method, final String typeName) {
+        return method.name().equals("<init>") ? typeName : method.name();
     }
 
     /**
