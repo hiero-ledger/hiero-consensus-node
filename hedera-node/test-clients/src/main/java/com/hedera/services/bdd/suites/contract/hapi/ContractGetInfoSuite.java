@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -28,6 +29,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -89,6 +91,8 @@ public class ContractGetInfoSuite {
     public Stream<DynamicTest> userPaysTheGasUsed() {
         final var batchOperator = "batchOperator";
         final var payer = "payer";
+        final var firstCallGasUsed = new AtomicLong();
+        final var secondCallGasUsed = new AtomicLong();
 
         return hapiTest(
                 uploadInitCode("Multipurpose"),
@@ -101,12 +105,14 @@ public class ContractGetInfoSuite {
                                         .payingWith(payer)
                                         .signingWith(payer)
                                         .batchKey(batchOperator)
+                                        .via("firstInnerTxn")
                                         .hasKnownStatus(REVERTED_SUCCESS),
                                 contractCall("Multipurpose", "believeIn", 2L)
                                         .gas(32_000L)
                                         .payingWith(payer)
                                         .signingWith(payer)
                                         .batchKey(batchOperator)
+                                        .via("secondInnerTxn")
                                         .hasKnownStatus(REVERTED_SUCCESS),
                                 contractCall("Multipurpose", "believeIn", 3L)
                                         .gas(24_000L)
@@ -116,9 +122,19 @@ public class ContractGetInfoSuite {
                                         .hasKnownStatus(INSUFFICIENT_GAS))
                         .payingWith(batchOperator)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord("firstInnerTxn")
+                        .exposingTo(rcd ->
+                                firstCallGasUsed.set(rcd.getContractCallResult().getGasUsed())),
+                getTxnRecord("secondInnerTxn")
+                        .exposingTo(rcd -> secondCallGasUsed.set(
+                                rcd.getContractCallResult().getGasUsed())),
                 getAccountBalance(payer).hasTinyBars(spec -> actual -> {
+                    // The unused-gas refunds of the two reverted-but-successful calls survive the rollback
+                    // replay, so the payer owes their gas used; the INSUFFICIENT_GAS call consumed its full
+                    // 24_000 limit
                     final long expected = ONE_HUNDRED_HBARS
-                            - ((2 * 32_000L + 24_000L) * spec.ratesProvider().currentTinybarGasPrice());
+                            - ((firstCallGasUsed.get() + secondCallGasUsed.get() + 24_000L)
+                                    * spec.ratesProvider().currentTinybarGasPrice());
                     try {
                         assertEquals(expected, actual, "Balance did not reflect gas used");
                     } catch (Throwable t) {
