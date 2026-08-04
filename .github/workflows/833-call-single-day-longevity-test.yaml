@@ -184,16 +184,16 @@ jobs:
       - name: Normalize Outputs
         id: normalize
         run: |
-          echo "namespace=${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}" >> "${GITHUB_OUTPUT}"
-          echo "fqdn=${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}" >> "${GITHUB_OUTPUT}"
-          echo "cn-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}" >> "${GITHUB_OUTPUT}"
-          echo "aux-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}" >> "${GITHUB_OUTPUT}"
-          echo "cn-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}" >> "${GITHUB_OUTPUT}"
-          echo "aux-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}" >> "${GITHUB_OUTPUT}"
-          echo "cn-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}" >> "${GITHUB_OUTPUT}"
-          echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" >> "${GITHUB_OUTPUT}"
-          echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" >> "${GITHUB_OUTPUT}"
-          echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" >> "${GITHUB_OUTPUT}"
+          echo "namespace=${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "fqdn=${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" | tee -a "${GITHUB_OUTPUT}"
 
   longevity-tests-start:
     name: Start
@@ -231,7 +231,7 @@ jobs:
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
           echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
-      - name: Install KubeCtl
+      - name: Install KubeCtlz
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.33.0
