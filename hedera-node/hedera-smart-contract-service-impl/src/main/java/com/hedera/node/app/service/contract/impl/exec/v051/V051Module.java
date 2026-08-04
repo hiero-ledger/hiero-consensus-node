@@ -49,6 +49,7 @@ import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EvmSpecVersion;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -220,16 +221,19 @@ public interface V051Module {
     @Provides
     @IntoSet
     @ServicesV051
-    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
-        return new CustomCreateOperation(gasCalculator);
+    static Operation provideCreateOperation(
+            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
+        return new CustomCreateOperation(gasCalculator, codeFactory);
     }
 
     @Provides
     @IntoSet
     @ServicesV051
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator, @ServicesV051 @NonNull final FeatureFlags featureFlags) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags);
+            @NonNull final GasCalculator gasCalculator,
+            @ServicesV051 @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
     }
 
     @Provides

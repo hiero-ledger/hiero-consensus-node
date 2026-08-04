@@ -37,7 +37,7 @@ class SyntheticIdsTest {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
+                        ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(TestHelpers.A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
