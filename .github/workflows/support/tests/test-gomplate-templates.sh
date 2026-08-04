@@ -62,6 +62,7 @@ for template in "${TEMPLATES_DIR}"/*.tpl; do
 
   if ! env "${full_env[@]}" gomplate -f "${template}" -o /dev/null 2>/dev/null; then
     echo "FAIL: ${name} — did not render with all required vars set"
+#    env "${full_env[@]}" gomplate -f "${template}"
     template_failed=1
   fi
 
