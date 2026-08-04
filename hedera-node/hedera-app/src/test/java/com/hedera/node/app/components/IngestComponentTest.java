@@ -65,7 +65,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;

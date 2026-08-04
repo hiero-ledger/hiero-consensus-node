@@ -13,7 +13,7 @@ open module com.swirlds.common.test.fixtures {
     requires transitive org.hiero.consensus.utility;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.fakes;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
 }

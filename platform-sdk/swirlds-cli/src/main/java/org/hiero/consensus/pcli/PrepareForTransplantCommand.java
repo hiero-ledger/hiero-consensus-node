@@ -11,8 +11,8 @@ import java.nio.file.Path;
 import java.util.Scanner;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.io.SimpleRecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import picocli.CommandLine;
 
 @CommandLine.Command(

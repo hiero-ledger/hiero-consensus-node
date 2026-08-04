@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.common {
-
     /* Exported packages. This list should remain alphabetized. */
     exports com.swirlds.common.context;
     exports com.swirlds.common.notification;
@@ -20,7 +19,7 @@ module com.swirlds.common {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.logging;
-    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.fakes;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;
