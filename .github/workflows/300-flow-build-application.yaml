@@ -254,6 +254,7 @@ jobs:
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
+          REF_NAME: ${{ github.ref_name }}
           MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
           DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
           FAILED_TESTS: ${{ needs.mats-tests.outputs.failed-tests }}

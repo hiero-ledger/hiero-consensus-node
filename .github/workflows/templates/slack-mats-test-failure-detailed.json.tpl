@@ -18,7 +18,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*MATS test failure on `main`. See status below.*"
+            "text": {{ printf "*MATS test failure on `<%s/%s/tree/%s|%s>`. See status below.* " $serverUrl $repository (getenv "REF_NAME" | required "REF_NAME must be set") (getenv "REF_NAME") | data.ToJSON }}
           },
           "fields": [
             {
