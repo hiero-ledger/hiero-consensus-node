@@ -12,8 +12,10 @@ Line references whose line is a declaration migrate to `#symbol`:
 - a type: `WithMethod.java:5`
 - an enum constant: `PaletteFixture.java:6`
 - a field: `FieldFixture.java:6`
+- a link: [WithMethod.java:6](../../../module-a/src/main/java/com/x/WithMethod.java:6)
 
-A line inside a body (not a declaration) does not migrate: `WithMethod.java:7`.
+A line inside a body (line 7) does not migrate — it is suggested: `WithMethod.java:7`.
+A line past the file's end is suggested too: `WithMethod.java:99`.
 
 Already-symbol references are checked directly: `WithMethod.java#foo` resolves,
 but `WithMethod.java#nope` names no declared symbol.

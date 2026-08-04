@@ -591,7 +591,8 @@ public final class AnchorExtractor {
         if (lower.endsWith(".md")) {
             extractDocLink(repoRel, fragment, url, fileLine, out);
         } else if (lower.endsWith(".java") || lower.endsWith(".proto") || lower.endsWith(".kt")) {
-            extractSourceLink(linkText, pathPart, repoRel, lower, url, fileLine, citedLine, statedModule, out);
+            extractSourceLink(
+                    linkText, pathPart, repoRel, lower, url, fileLine, citedLine, fragment, statedModule, out);
         } else if (isDirectoryLink(pathPart)) {
             extractDirLink(repoRel, url, fileLine, out);
         }
@@ -628,6 +629,8 @@ public final class AnchorExtractor {
      * @param url          the raw link URL (kept as the anchor's raw text).
      * @param fileLine     the 1-based line of the link's URL in the document.
      * @param citedLine    the {@code :NN} line hint, or {@link Anchor#NO_LINE}.
+     * @param symbol       the {@code #symbol} fragment on a {@code .java} URL (a named member), or
+     *                     {@code null}.
      * @param statedModule the prose {@code Module:} label on the link's line, or {@code null}.
      * @param out          the list to append discovered anchors to.
      */
@@ -639,16 +642,29 @@ public final class AnchorExtractor {
             final String url,
             final int fileLine,
             final int citedLine,
+            final String symbol,
             final String statedModule,
             final List<Anchor> out) {
         final String module = RepoPaths.moduleOf(repoRel);
-        // File-existence check carries no line: a bare `File.java:NN` link is ambiguous (the KB
-        // uses it for members too), so line-move detection is done only for named-method links.
-        out.add(new Anchor(AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, url, statedModule));
+        final String method = lower.endsWith(".java") ? methodFromLinkText(linkText) : null;
+        // The line is carried to drive a `:NN`→`#symbol` migration (declaration line) or an
+        // enclosing-symbol suggestion (body line) — but a method-named link carries it on its METHOD_REF
+        // (line-corrected) instead, so the file anchor drops it there to avoid chaining two fixes.
+        final int fileCitedLine = method != null ? Anchor.NO_LINE : citedLine;
+        out.add(new Anchor(AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, fileCitedLine, url, statedModule));
         if (!lower.endsWith(".java")) {
             return;
         }
-        final String method = methodFromLinkText(linkText);
+        if (symbol != null && !symbol.isEmpty()) {
+            out.add(new Anchor(
+                    AnchorKind.SOURCE_SYMBOL,
+                    symbol,
+                    module,
+                    RepoPaths.classNameOfPath(pathPart),
+                    fileLine,
+                    Anchor.NO_LINE,
+                    url));
+        }
         if (method != null && citedLine != Anchor.NO_LINE) {
             out.add(new Anchor(
                     AnchorKind.METHOD_REF,

@@ -81,6 +81,28 @@ class EngineFixtureTest {
     }
 
     @Test
+    void markdownLinkDeclRefMigratesTextAndUrlToSymbol() {
+        // `[WithMethod.java:6](.../WithMethod.java:6)` — both the URL and the `File.java`-shaped link text
+        // migrate to `#foo`.
+        assertThat(AutoFixRenderer.render(result)).contains("[WithMethod.java#foo](");
+    }
+
+    @Test
+    void bodyLineRefSuggestsItsEnclosingSymbol() {
+        // Line 7 of WithMethod.java is inside foo() (declared at 6): suggested, not migrated.
+        assertThat(SuggestionsRenderer.render(result, new Git(repo)))
+                .contains("Line references to anchor to a symbol")
+                .contains("`WithMethod.java:7` is inside `foo` — cite `WithMethod.java#foo`");
+    }
+
+    @Test
+    void pastEndOfFileRefIsSuggestedAsGone() {
+        assertThat(SuggestionsRenderer.render(result, new Git(repo)))
+                .contains("`WithMethod.java:99`")
+                .contains("exceeds `WithMethod.java`");
+    }
+
+    @Test
     void classInDifferentModuleIsPackageMoveNotAbsent() {
         final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.contains("module-a") && t.endsWith("MovedClass.java"));
         assertThat(f.outcome()).isNotEqualTo(Outcome.ABSENT);
@@ -296,10 +318,11 @@ class EngineFixtureTest {
         // (CONFIG_PREFIX), the FQN citation of MovedClass, and RelocatedClass. Moved lines: foo, run.
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("| Auto-fix — moved lines | 2 |");
-        // Symbol migrations: WithMethod.java, PaletteFixture.java, FieldFixture.java (concepts/symbol-refs).
-        assertThat(report).contains("| Auto-fix — `:NN`→`#symbol` migrations | 3 |");
+        // Symbol migrations: the WithMethod.java code span + the WithMethod.java link, PaletteFixture.java,
+        // FieldFixture.java (concepts/symbol-refs).
+        assertThat(report).contains("| Auto-fix — `:NN`→`#symbol` migrations | 4 |");
         assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 5 |");
-        assertThat(report).contains("| Fixable now with `--fix` | 10 |");
+        assertThat(report).contains("| Fixable now with `--fix` | 11 |");
     }
 
     @Test

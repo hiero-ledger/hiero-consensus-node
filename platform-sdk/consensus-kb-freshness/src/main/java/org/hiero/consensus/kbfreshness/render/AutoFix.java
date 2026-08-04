@@ -128,19 +128,66 @@ public final class AutoFix {
             if (symbol == null) {
                 continue;
             }
-            final String migrated = TRAILING_LINE_HINT.matcher(o.rawText()).replaceFirst("#" + symbol);
-            final String header = "KB line " + o.docLine() + ": update `" + o.rawText() + "` → `" + migrated + "`";
+            final String raw = o.rawText();
+            final String migratedRaw = TRAILING_LINE_HINT.matcher(raw).replaceFirst("#" + symbol);
+            final String header = "KB line " + o.docLine() + ": update `" + raw + "` → `" + migratedRaw + "`";
             final String before = docLine(doc, o.docLine());
             Edit edit = null;
-            if (before != null && !migrated.equals(o.rawText())) {
-                final String after = before.replace(o.rawText(), migrated);
-                if (!after.equals(before)) {
+            if (before != null) {
+                final String after = rewriteCitation(before, raw, migratedRaw, symbol);
+                if (after != null && !after.equals(before)) {
                     edit = new Edit(f.entryPath(), o.docLine(), before, after);
                 }
             }
             changes.add(new Change(header, edit));
         }
         return changes;
+    }
+
+    /**
+     * Rewrites a cited source reference on a KB line to its migrated form. A code span's raw text is the
+     * citation itself, replaced directly. A markdown link {@code [text](raw)} migrates both parts: the URL,
+     * and the link text's trailing {@code :NN} — kept as {@code #symbol} for a {@code File.java}-shaped text
+     * or dropped for a bare method-name text.
+     *
+     * @param before      the KB line's current text.
+     * @param raw         the occurrence's raw citation (a code span, or a link URL).
+     * @param migratedRaw {@code raw} with its {@code :NN} rewritten to {@code #symbol}.
+     * @param symbol      the symbol the reference migrates to.
+     * @return the rewritten line, or {@code null} when the citation is not found.
+     */
+    private static String rewriteCitation(
+            final String before, final String raw, final String migratedRaw, final String symbol) {
+        final String linkTail = "](" + raw + ")";
+        final int linkIdx = before.indexOf(linkTail);
+        if (linkIdx < 0) {
+            return before.contains(raw) ? before.replace(raw, migratedRaw) : null;
+        }
+        final int textOpen = before.lastIndexOf('[', linkIdx);
+        if (textOpen < 0) {
+            return before.replace(raw, migratedRaw);
+        }
+        final String migratedText = migrateLinkText(before.substring(textOpen + 1, linkIdx), symbol);
+        return before.substring(0, textOpen) + "[" + migratedText + "](" + migratedRaw + ")"
+                + before.substring(linkIdx + linkTail.length());
+    }
+
+    /**
+     * Migrates a markdown link's display text: a {@code File.java}-shaped text has its trailing {@code :NN}
+     * replaced by {@code #symbol}; a bare method-name text just drops the {@code :NN}; text without a line
+     * hint is unchanged.
+     *
+     * @param text   the link's display text.
+     * @param symbol the symbol the reference migrates to.
+     * @return the migrated text.
+     */
+    private static String migrateLinkText(final String text, final String symbol) {
+        final Matcher m = TRAILING_LINE_HINT.matcher(text);
+        if (!m.find()) {
+            return text;
+        }
+        final String head = text.substring(0, m.start());
+        return head.endsWith(".java") ? head + "#" + symbol : head;
     }
 
     /**
