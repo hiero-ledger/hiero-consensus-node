@@ -1187,6 +1187,9 @@ seed_block_node_tss_parameters() {
   if ! kubectl -n "${SOLO_NAMESPACE}" exec -i "${bn_pod}" -- sh -lc "cat > '${BN_TSS_PARAMS_CONTAINER_PATH}'" < "${BN_TSS_PARAMS_LOCAL}"; then
     echo "seed: streaming TssData JSON into ${bn_pod} failed" >&2; return 1
   fi
+  # Mark the roll instant (UTC, CN-log timestamp format): wait_for_block_node_caught_up must only
+  # trust comms-log lines written after this, or a stale pre-roll line passes its gate vacuously.
+  BN_SEED_ROLL_UTC="$(date -u '+%Y-%m-%d %H:%M:%S')"
   kubectl -n "${SOLO_NAMESPACE}" delete pod "${bn_pod}" --wait=true >/dev/null 2>&1 || true
   # Wait on the StatefulSet rollout, NOT `wait pod/<name>`: a `wait --for=condition=ready pod/<name>`
   # can match the OLD pod (still Ready during graceful termination) and return before the new pod
@@ -1322,13 +1325,18 @@ wait_for_block_node_caught_up() {
   # CN is idle and the BN is already at the tip — so it's the correct gate (requiring the BN to keep
   # *advancing* false-fails whenever the CN produces nothing for a while). The failure case is the
   # gap: the CN reports "block out of range" (BN fell below the CN's block-buffer floor).
+  # Only comms-log lines stamped at/after BN_SEED_ROLL_UTC count: the CN takes up to ~15s (next send
+  # attempt + cool-down) to even notice the roll severed the stream, so the pre-roll tail still ends
+  # with a stale "available for streaming" line that would pass this gate before any reconnection
+  # (that stale match let the 2026-08-01 run cut over into the orphaned-blocks stall).
   log "Waiting for the CN to report the Block Node in-range for streaming after the seed roll (up to ${timeout_secs}s) before the 0.78 cutover"
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     cur="$(read_bn_next_expected)"
     cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
-      "grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' '${comms_log}' 2>/dev/null | tail -1" 2>/dev/null || true)"
+      "awk -v ts='${BN_SEED_ROLL_UTC:-}' 'ts == \"\" || \$0 >= ts' '${comms_log}' 2>/dev/null \
+        | grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' | tail -1" 2>/dev/null || true)"
     case "${cn_view}" in
       *"available for streaming (wantedBlock"*)
         log "Block Node is caught up — CN reports it in-range for streaming (BN nextExpectedBlock=${cur:-?}); safe to cut over"
