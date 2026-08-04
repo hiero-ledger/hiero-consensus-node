@@ -93,9 +93,8 @@ public class WrapsProvingKeyVerification {
     }
 
     /**
-     * Ensures the WRAPS proving key is set up: persists the hash to state,
-     * verifies the on-disk file, and kicks off a download if the file is
-     * missing or corrupt.
+     * Ensures the WRAPS proving key is set up: verifies the on-disk file, and kicks off a download
+     * if the file is missing or corrupt.
      *
      * @param config the configuration
      * @param downloader the downloader to invoke if the file is missing or corrupt
@@ -114,12 +113,15 @@ public class WrapsProvingKeyVerification {
         if (bootstrapHash.isBlank()) {
             throw new IllegalArgumentException("WRAPS proving key hash is required");
         }
-
         final var expectedHash = Bytes.fromHex(bootstrapHash);
         log.info("WRAPS proving key hash from config: {}", expectedHash);
 
-        final var provingKeyPath = Paths.get(tssConfig.wrapsProvingKeyPath());
         final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
+        if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
+            log.error("{} environment variable is not set; cannot verify WRAPS proving key", WRAPS_ARTIFACTS_ENV_VAR);
+            return;
+        }
+        final var provingKeyPath = Paths.get(tssConfig.wrapsProvingKeyPath());
         validateArtifactsPathConsistency(provingKeyPath, envArtifactsPath);
 
         // If the extracted artifacts are already in place with a hash file matching config, there is
@@ -143,7 +145,7 @@ public class WrapsProvingKeyVerification {
      * the hash file ({@value #WRAPS_HASH_FILE_NAME}) exists, its contents match the expected
      * archive hash from config, and all {@link #REQUIRED_ARTIFACT_FILES} are present.
      *
-     * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
+     * @param envArtifactsPath the artifacts directory path, or null/blank if unset
      * @param expectedHashHex the expected archive hash (bare hex) from {@code tss.wrapsProvingKeyHash}
      * @return true if the artifacts are already present and match; false if a download is needed
      */
