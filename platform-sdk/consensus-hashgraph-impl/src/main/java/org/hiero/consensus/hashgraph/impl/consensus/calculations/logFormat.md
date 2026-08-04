@@ -11,7 +11,7 @@ The first number in each line tells its type:
 - 3 = `EventInfo` (memoized parameters recalculated when the event updates)
 - 4 = `UpdateResults` (the consensus events and other information returned when `update()` reaches consensus)
 
-If any field is an array, it is represented by its length followed by all elements in order. For stake, the elements are nonnegative `int64` numbers. For an `EventInfo[]`, each element is the `eventID` of that `EventInfo`. The `eventID` for a `null` is -1. Every `boolean` is `0` for `false` and `1` for `true`. For an `Instant`, there are two `int64` numbers: the seconds since the start of the epoch, then the number of nanoseconds since the start of the second. Both are -1 if it is null (hasn't been assigned yet). The following gives all the fields for each type, in order:
+If any field is an array, it is represented by its length followed by all elements in order. For stake, the elements are nonnegative `int64` numbers. For an `EventInfo[]`, each element is the `eventID` of that `EventInfo`. The `eventID` for a `null` is -1. Every `boolean` is `0` for `false` and `1` for `true`. For an `Instant`, there are two `int64` numbers: the seconds since the start of the epoch, then the number of nanoseconds since the start of the second. Both are -1 if it is `null` (hasn't been assigned yet). The following gives all the fields for each type, in order:
 
 ```
   RoundInfoPrev (type 0)
