@@ -69,7 +69,7 @@ public class ConsensusLayerWiring {
     /**
      * Solder the gossip module's outputs to their consumers.
      */
-    private static void wireGossipOutputs(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+    private static void wireGossipOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final GossipModule gossip = buildingBlocks.gossipModule();
 
         gossip.receivedEventOutputWire()
@@ -81,7 +81,7 @@ public class ConsensusLayerWiring {
     /**
      * Solder the event intake module's outputs to their consumers.
      */
-    private static void wireEventIntakeOutputs(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+    private static void wireEventIntakeOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         buildingBlocks
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
@@ -91,7 +91,7 @@ public class ConsensusLayerWiring {
     /**
      * Solder the event creator module's outputs to their consumers.
      */
-    private static void wireEventCreatorOutputs(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+    private static void wireEventCreatorOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         buildingBlocks
                 .eventCreatorModule()
                 .createdEventOutputWire()
@@ -101,7 +101,7 @@ public class ConsensusLayerWiring {
     /**
      * Solder the PCES module's outputs to their consumers.
      */
-    private static void wirePcesOutputs(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+    private static void wirePcesOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final PcesModule pcesModule = buildingBlocks.pcesModule();
 
         final OutputWire<PlatformEvent> writtenEventOutputWire = pcesModule.writtenEventsOutputWire();
@@ -127,19 +127,18 @@ public class ConsensusLayerWiring {
      * Solder the hashgraph (consensus engine) module's outputs to their consumers.
      */
     private static void wireHashgraphOutputs(
-            @NonNull final ConsensusLayerAdapterInputs inputs,
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final HashgraphModule hashgraph = buildingBlocks.hashgraphModule();
 
         final OutputWire<PlatformEvent> staleEvent = hashgraph.staleEventOutputWire();
-        staleEvent.solderTo("staleEventCallback", "stale events", inputs.staleEventConsumer()::processStaleEvent);
+        staleEvent.solderTo("staleEventCallback", "stale events", inputs.executionLayerCallbacks()::onStaleEvent);
 
         final OutputWire<PlatformEvent> preconsensusEventOutputWire = hashgraph.preconsensusEventOutputWire();
 
         // pre-handle gets pre-consensus events from the consensus engine
         // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
-        preconsensusEventOutputWire.solderTo(
-                buildingBlocks.transactionHandlingModule().preHandleEventInputWire());
+        preconsensusEventOutputWire.solderTo("preHandleCallback", "pre-consensus events", inputs.executionLayerCallbacks()::onPreHandle);
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = hashgraph.consensusRoundOutputWire();
 
@@ -147,10 +146,7 @@ public class ConsensusLayerWiring {
         consensusRoundOutputWire.solderTo(buildingBlocks.gossipModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.pcesModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.eventCreatorModule().consensusRoundInputWire(), INJECT);
-        consensusRoundOutputWire.solderTo(buildingBlocks.stateModule().consensusRoundInputWire(), INJECT);
-
-        consensusRoundOutputWire.solderTo(
-                buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());
+        consensusRoundOutputWire.solderTo("consensusRound", "consensusRound", inputs.executionLayerCallbacks()::onRound);
 
         consensusRoundOutputWire
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
@@ -163,7 +159,7 @@ public class ConsensusLayerWiring {
      * Solder the EventWindow output to all components that need it.
      */
     private static void wireInitialEventWindowDispatcher(
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 buildingBlocks.initialEventWindowDispatcher().getOutputWire();
 
@@ -178,7 +174,7 @@ public class ConsensusLayerWiring {
      * Solder the transaction handling module's outputs to their consumers.
      */
     private static void wireTransactionHandlingOutputs(
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final TransactionHandlingModule txnHandling = buildingBlocks.transactionHandlingModule();
         final StateModule state = buildingBlocks.stateModule();
 
@@ -198,8 +194,8 @@ public class ConsensusLayerWiring {
      * Solder the state module's outputs to their consumers.
      */
     private static void wireStateOutputs(
-            @NonNull final ConsensusLayerAdapterInputs inputs,
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final StateModule state = buildingBlocks.stateModule();
 
         final OutputWire<ReservedSignedState> hashedStateOutputWire = state.hashedStateOutputWire();
@@ -234,7 +230,7 @@ public class ConsensusLayerWiring {
     /**
      * Solder the ISS detection module's outputs to their consumers.
      */
-    private static void wireIssDetectionOutputs(@NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+    private static void wireIssDetectionOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<IssNotification> issNotification =
                 buildingBlocks.issDetectionModule().issNotificationOutputWire();
 
@@ -246,7 +242,7 @@ public class ConsensusLayerWiring {
      * Solder the running event hash override outputs to their consumers.
      */
     private static void wireRunningHashOverrideOutputs(
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<RunningEventHashOverride> runningHashUpdate =
                 buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateOutput();
 
@@ -259,8 +255,8 @@ public class ConsensusLayerWiring {
      * Solder the platform monitor's status output to all components that need it.
      */
     private static void wirePlatformMonitorOutputs(
-            @NonNull final ConsensusLayerAdapterInputs inputs,
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<PlatformStatus> platformStatus =
                 buildingBlocks.statusMonitorModule().platformStatusOutputWire();
 
@@ -277,8 +273,8 @@ public class ConsensusLayerWiring {
      * Solder framework infrastructure wires (the health monitor and the heartbeat) to their consumers.
      */
     private static void wireInfrastructure(
-            @NonNull final ConsensusLayerAdapterInputs inputs,
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<Duration> healthMonitor = buildingBlocks.wiringModel().getHealthMonitorWire();
         healthMonitor.solderTo(buildingBlocks.eventCreatorModule().healthStatusInputWire());
         healthMonitor.solderTo(buildingBlocks.gossipModule().healthStatusInputWire());

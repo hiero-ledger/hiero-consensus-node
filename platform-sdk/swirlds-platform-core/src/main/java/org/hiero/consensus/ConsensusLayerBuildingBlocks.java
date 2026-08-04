@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
+import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
@@ -9,6 +10,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.freeze.FreezePeriodChecker;
@@ -28,6 +30,7 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull GossipModule gossipModule,
         @NonNull WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher,
         @NonNull StatusMonitorModule statusMonitorModule,
+        @NonNull ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
         @NonNull IntakeEventCounter intakeEventCounter,

@@ -228,8 +228,6 @@ public class ConsensusLayerAdapterFactory {
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         final StateModule stateModule = createStateModule(latestCompleteStateNexus, savedStateController);
 
-        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = createConsensusEventStreamWiring();
-
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
                 RunningEventHashOverrideWiring.create(wiringModel);
 
@@ -343,34 +341,6 @@ public class ConsensusLayerAdapterFactory {
         notifierWiring.getInputWire(AppNotifier::sendReconnectCompleteNotification);
         notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         return notifierWiring;
-    }
-
-    /**
-     * Build the consensus event stream
-     *
-     * @return the consensus event stream
-     */
-    @NonNull
-    private ComponentWiring<ConsensusEventStream, Void> createConsensusEventStreamWiring() {
-        final EventStreamWiringConfig eventStreamWiringConfig =
-                configuration.getConfigData(EventStreamWiringConfig.class);
-        final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring = new ComponentWiring<>(
-                wiringModel, ConsensusEventStream.class, eventStreamWiringConfig.consensusEventStream());
-        final Predicate<CesEvent> isLastEventInFreezePeriod = (final CesEvent event) -> {
-            final Instant consensusTimestamp = event.getConsensusTimestamp();
-            final VirtualMapState mutableState = stateLifecycleManager.getMutableState();
-            return event.isLastInRoundReceived() && isInFreezePeriod(consensusTimestamp, mutableState);
-        };
-        final ConsensusEventStream consensusEventStream = new DefaultConsensusEventStream(
-                time,
-                configuration,
-                metrics,
-                selfId,
-                (byte[] data) -> new PlatformSigner(keysAndCerts).sign(data),
-                consensusEventStreamName,
-                isLastEventInFreezePeriod);
-        consensusEventStreamWiring.bind(consensusEventStream);
-        return consensusEventStreamWiring;
     }
 
     @NonNull

@@ -4,24 +4,29 @@ package org.hiero.consensus;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.WiringConfig;
+import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
@@ -29,11 +34,15 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
+import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -43,6 +52,7 @@ import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -116,6 +126,9 @@ public class ConsensusLayerFactory {
     @NonNull
     private final Map<String, Object> additionalProperties;
 
+    @NonNull
+    private final String consensusEventStreamName;
+
     /**
      * Creates a new factory with the inputs provided by the execution layer.
      *
@@ -139,6 +152,7 @@ public class ConsensusLayerFactory {
         wiringModel = initializeWiringModel(inputs.wiringModel());
         secureRandom = initializeSecureRandom(inputs.secureRandom());
         additionalProperties = inputs.additionalProperties();
+        consensusEventStreamName= inputs.consensusEventStreamName();
     }
 
     /**
@@ -165,6 +179,9 @@ public class ConsensusLayerFactory {
         final StatusMonitorModule statusMonitorModule = createStatusMonitorModule(freezePeriodChecker);
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
+        final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring = createConsensusEventStreamWiring(
+                consensusEventStreamName, freezePeriodChecker);
+
         final WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher = new WireTransformer<>(
                 wiringModel, "InitialEventWindowDispatcher", "event window", UnaryOperator.identity());
 
@@ -183,18 +200,48 @@ public class ConsensusLayerFactory {
                 gossipModule,
                 initialEventWindowDispatcher,
                 statusMonitorModule,
+                consensusEventStreamWiring,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 intakeEventCounter,
                 freezePeriodChecker);
 
-        final ConsensusLayerImpl consensusLayer = new ConsensusLayerImpl(configuration, consensusSnapshot, eventIntakeModule, eventCreatorModule, gossipModule, pcesModule, hashgraphModule, statusMonitorModule, freezePeriodChecker);
+        final ConsensusLayerImpl consensusLayer = new ConsensusLayerImpl(configuration, consensusSnapshot,
+                eventIntakeModule, eventCreatorModule, gossipModule, pcesModule, hashgraphModule, statusMonitorModule,
+                freezePeriodChecker);
 
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         initialize(buildingBlocks);
     }
 
+    /**
+     * Build the consensus event stream
+     *
+     * @return the consensus event stream
+     */
+    @NonNull
+    private ComponentWiring<ConsensusEventStream, Void> createConsensusEventStreamWiring(
+            @NonNull final String consensusEventStreamName, @NonNull final FreezePeriodChecker freezePeriodChecker) {
+        final EventStreamWiringConfig eventStreamWiringConfig =
+                configuration.getConfigData(EventStreamWiringConfig.class);
+        final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring = new ComponentWiring<>(
+                wiringModel, ConsensusEventStream.class, eventStreamWiringConfig.consensusEventStream());
+        final Predicate<CesEvent> isLastEventInFreezePeriod = (final CesEvent event) -> {
+            final Instant consensusTimestamp = event.getConsensusTimestamp();
+            return event.isLastInRoundReceived() && freezePeriodChecker.isInFreezePeriod(consensusTimestamp);
+        };
+        final ConsensusEventStream consensusEventStream = new DefaultConsensusEventStream(
+                time,
+                configuration,
+                metrics,
+                selfId,
+                (byte[] data) -> new PlatformSigner(keysAndCerts).sign(data),
+                consensusEventStreamName,
+                isLastEventInFreezePeriod);
+        consensusEventStreamWiring.bind(consensusEventStream);
+        return consensusEventStreamWiring;
+    }
 
     private void initialize(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         if (consensusSnapshot != null) {

@@ -33,6 +33,7 @@ public record ConsensusLayerInputs(
         @NonNull ExecutionLayerCallbacks executionLayerCallbacks,
         @Nullable ConsensusSnapshot consensusSnapshot,
         @Nullable RunningEventHashOverride runningEventHashOverride,
+        @NonNull String consensusEventStreamName,
         @NonNull SemanticVersion version,
         long transactionOffsetNanos,
         @NonNull TransactionLimits transactionLimits,
