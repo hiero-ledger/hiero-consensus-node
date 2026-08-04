@@ -1290,8 +1290,14 @@ public final class HashgraphInfo {
                 judge.isPrevJudge = true;
             }
             minJudgeBirthRound = Long.MAX_VALUE;
+            long judgeStake = 0;
             for (EventInfo judge : h.judges) {
                 minJudgeBirthRound = Math.min(minJudgeBirthRound, judge.birthRound);
+                judgeStake += r.stake[judge.creator];
+            }
+            if (judgeStake * 3 <= 2 * h.totalStake) {
+                // math theorem in the paper: this can never happen
+                throw new IllegalStateException("The total stake of judges is less than 2/3 of the total stake");
             }
             h.pendingRound++; // require the next call to update to be for the next round
             h.newRound = true;
