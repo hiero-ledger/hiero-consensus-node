@@ -11,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -45,6 +46,81 @@ public class LatestCompleteStateNexusTests {
             try (final ReservedSignedState nexusState = nexus.getState("check for null")) {
                 assertNull(nexusState, "Nexus should no longer have a state");
             }
+        }
+    }
+
+    /**
+     * Verifies that an async freeze state is never retained, releases the previous state, and prevents a later state
+     * from being retained.
+     */
+    @Test
+    void asyncFreezeStateIsTerminalTest() {
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics());
+        final SignedState previousState =
+                new RandomSignedStateGenerator().setRound(455).build();
+        final SignedState freezeState = new RandomSignedStateGenerator()
+                .setRound(456)
+                .setFreezeState(true)
+                .build();
+        final SignedState lateState =
+                new RandomSignedStateGenerator().setRound(457).build();
+
+        try (final ReservedSignedState previousTestReservation = previousState.reserve("test");
+                final ReservedSignedState freezeTestReservation = freezeState.reserve("test");
+                final ReservedSignedState lateTestReservation = lateState.reserve("test")) {
+            final ReservedSignedState previousNexusReservation = previousState.reserve("previous nexus state");
+            nexus.setState(previousNexusReservation);
+
+            final ReservedSignedState freezeObserverReservation = freezeState.reserve("freeze observer state");
+            nexus.observeStateForAsyncFreeze(freezeObserverReservation);
+
+            assertTrue(previousNexusReservation.isClosed(), "The previous nexus state should be released");
+            assertTrue(freezeObserverReservation.isClosed(), "The observer reservation should be released");
+
+            final ReservedSignedState freezeNexusReservation = freezeState.reserve("complete freeze nexus state");
+            nexus.setStateIfNewer(freezeNexusReservation);
+
+            assertTrue(freezeNexusReservation.isClosed(), "The freeze state should not be retained");
+            assertEquals(1, previousState.getReservationCount(), "Only the previous test reservation should remain");
+            assertEquals(1, freezeState.getReservationCount(), "Only the freeze test reservation should remain");
+
+            final ReservedSignedState lateNexusReservation = lateState.reserve("late nexus state");
+            nexus.setStateIfNewer(lateNexusReservation);
+
+            assertTrue(lateNexusReservation.isClosed(), "A state arriving after the freeze state should be released");
+            assertEquals(1, lateState.getReservationCount(), "Only the late test reservation should remain");
+            try (final ReservedSignedState nexusState = nexus.getState("check for null")) {
+                assertNull(nexusState, "Nexus should remain empty after the freeze state");
+            }
+        }
+    }
+
+    /**
+     * Verifies that disabling async snapshots preserves the existing nexus behavior.
+     */
+    @Test
+    void synchronousFreezeStateCanBeRetainedTest() {
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(StateConfig_.SAVE_STATE_ASYNC, false)
+                .getOrCreateConfig();
+        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics());
+        final SignedState freezeState = new RandomSignedStateGenerator()
+                .setRound(456)
+                .setFreezeState(true)
+                .build();
+
+        try (final ReservedSignedState testReservation = freezeState.reserve("test")) {
+            nexus.updatePlatformStatus(PlatformStatus.FREEZING);
+            final ReservedSignedState nexusReservation = freezeState.reserve("nexus state");
+            nexus.setStateIfNewer(nexusReservation);
+
+            assertFalse(nexusReservation.isClosed(), "A synchronous freeze state may be retained");
+            try (final ReservedSignedState nexusState = nexus.getState("check retained state")) {
+                assertNotNull(nexusState, "The synchronous freeze state should be retained");
+            }
+            nexus.clear();
+            assertTrue(nexusReservation.isClosed(), "Clearing the nexus should release the synchronous freeze state");
         }
     }
 

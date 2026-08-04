@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 
@@ -14,6 +15,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 
 /**
@@ -28,6 +31,8 @@ import org.hiero.base.file.FileSystemManager;
  * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
  */
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
+
+    private static final Logger logger = LogManager.getLogger(MerkleDbDataSourceBuilder.class);
 
     public static final String FOLDER_SUFFIX = "merkledb-";
 
@@ -114,6 +119,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         if (initialCapacity <= 0) {
             throw new IllegalArgumentException("Initial map capacity not set");
         }
+        final long start = System.currentTimeMillis();
         try {
             Path dataSourceDir = null;
             if (defaultDbFolderName != null) {
@@ -135,6 +141,11 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     offlineUse);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
+        } finally {
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ New MerkleDbDataSource is created, took {} ms",
+                    System.currentTimeMillis() - start);
         }
     }
 
@@ -158,12 +169,15 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
             throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
+        final long start = System.currentTimeMillis();
         final String label = merkleDbDataSource.getTableName();
         if (snapshotDir == null) {
             snapshotDir = newTempDataSourceDir(label);
         }
         final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
         snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
+        logger.info(
+                STARTUP.getMarker(), "++++++++ Snapshot data source, took {} ms", System.currentTimeMillis() - start);
         return snapshotDir;
     }
 
@@ -180,6 +194,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             @NonNull final Path snapshotDir,
             final boolean compactionEnabled,
             final boolean offlineUse) {
+        final long start = System.currentTimeMillis();
         try {
             Path dataSourceDir = null;
             if (defaultDbFolderName != null) {
@@ -201,6 +216,11 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
+        } finally {
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ MerkleDbDataSource is restored, took {} ms",
+                    System.currentTimeMillis() - start);
         }
     }
 }

@@ -471,6 +471,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
+        final long fullRehashStart = System.currentTimeMillis();
         final CompletableFuture<Hash> fullRehashFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),
                         cache::preloadHashChunk,
@@ -514,6 +515,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final long millisSpent = System.currentTimeMillis() - start;
             logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
             setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ Full leaf rehash is finished, took {} ms",
+                    System.currentTimeMillis() - fullRehashStart);
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
             throw new RuntimeException(message, e.getCause() != null ? e.getCause() : e);
@@ -1393,6 +1398,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @throws IOException for IO errors
      */
     public void createSnapshot(@NonNull final Path outputDirectory) throws IOException {
+        final long start = System.currentTimeMillis();
+        final long detachStart = start;
         final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
         final Path snapshotPath = pipeline.pausePipelineAndExecute("detach", () -> {
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
@@ -1401,6 +1408,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // done below
             return dataSourceSnapshot();
         });
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ VM snapshot, cache+DS snapshot, took {} ms",
+                System.currentTimeMillis() - detachStart);
 
         // build(), flush() and snapshot() below are called outside pausePipelineAndExecute() to
         // unpause the lifecycle thread as quickly as possible. If the lifecycle thread is paused
@@ -1412,7 +1423,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // to store data files
             dataSourceCopy = dataSourceBuilder.build(LABEL, snapshotPath, false, true);
             // Then flush the cache snapshot to the data source copy
+            final long cacheFlushStart = System.currentTimeMillis();
             flush(cacheSnapshot.getValue(), dataSourceCopy);
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ VM snapshot, cache flush, took {} ms",
+                    System.currentTimeMillis() - cacheFlushStart);
             // And finally snapshot the copy to the target dir
             dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
         } finally {
@@ -1422,6 +1438,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             if (dataSourceCopy != null) {
                 dataSourceCopy.close();
             }
+            logger.info(STARTUP.getMarker(), "++++++++ VM snapshot, took {} ms", System.currentTimeMillis() - start);
         }
     }
 

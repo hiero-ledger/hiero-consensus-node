@@ -31,6 +31,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
+import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
@@ -56,13 +57,23 @@ public class TransactionHandlerTester implements AutoCloseable {
      */
     @SuppressWarnings("unchecked")
     public TransactionHandlerTester() {
+        this(true);
+    }
 
+    /**
+     * Constructs a new transaction handler tester.
+     *
+     * @param saveStateAsync whether eligible snapshots are saved asynchronously
+     */
+    public TransactionHandlerTester(final boolean saveStateAsync) {
         freezeTime = Instant.now();
         consensusTimestamp = freezeTime.minusMillis(1);
 
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(StateConfig_.SAVE_STATE_ASYNC, saveStateAsync)
+                .getOrCreateConfig();
         final FileSystemManager fileSystemManager = new FileSystemManager();
         platformState = new PlatformStateValueAccumulator();
         final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();

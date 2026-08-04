@@ -143,6 +143,8 @@ These are the interfaces the execution layer implements (or supplies). The conse
     detection.
   - `onSealConsensusRound(Round, State)` → `boolean` — called after the consensus layer has made all its
     changes to the state for the round; returns whether sealing completes a block.
+  - `onFreezeStateCopied(State)` — called after the consensus layer creates the immutable copy used for
+    application reads while the real freeze state is released for an asynchronous snapshot.
   - `onStateInitialized(State, Platform, InitTrigger, SemanticVersion previousVersion)` — called when the
     consensus layer initializes the network state. `InitTrigger` distinguishes `GENESIS` / `RESTART` /
     `RECONNECT` / `EVENT_STREAM_RECOVERY`.
@@ -165,10 +167,10 @@ These are the interfaces the execution layer implements (or supplies). The conse
   - `getLatestImmutableState()` → `S` — `DefaultTransactionHandler` / `StartupStateUtils` grab that immutable
     copy to hash / sign / save.
   - `createSnapshotAsync(S, Path)` → `Future<Void>` — `SignedStateFileWriter` writes a hashed state to disk
-    without blocking the `VirtualMap` flush pipeline; used for `PERIODIC_SNAPSHOT` states when
-    `saveStateAsync` is enabled.
-  - `createSnapshot(S, Path)` — the synchronous fallback `SignedStateFileWriter` uses for other states
-    (e.g. freeze states) or when `saveStateAsync` is off.
+    without blocking the `VirtualMap` flush pipeline; used for `PERIODIC_SNAPSHOT` and `FREEZE_STATE`
+    states when `saveStateAsync` is enabled.
+  - `createSnapshot(S, Path)` — the synchronous fallback `SignedStateFileWriter` uses for other save
+    reasons or when `saveStateAsync` is off.
   - `loadSnapshot(Path)` → `Hash` — startup (`SignedStateFileReader`): replaces the eager genesis with a
     saved state when one exists on disk.
   - `createStateFrom(D)` → `S` — reconnect (`ReconnectStateLearner`): wraps the Merkle tree received from the

@@ -6,6 +6,7 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
@@ -228,6 +229,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @NonNull final List<Schema<SemanticVersion>> schemasAlreadyInState,
             @NonNull final Configuration nodeConfiguration,
             @NonNull final State state) {
+        final long stateDefinitionsStart = System.currentTimeMillis();
         // Create the new states (based on the schema) which, thanks to the above, does not
         // expand the set of states that the migration code will see
         schema.statesToCreate(nodeConfiguration).stream()
@@ -253,6 +255,12 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
         remainingStates.removeAll(statesToRemove);
         logger.info("  Removing states {} from service {}", statesToRemove, serviceName);
         final var newStates = new FilteredWritableStates(writableStates, remainingStates);
-        return new RedefinedWritableStates(writableStates, newStates);
+        final var redefinedWritableStates = new RedefinedWritableStates(writableStates, newStates);
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ State definitions for service {} are applied, took {} ms",
+                serviceName,
+                System.currentTimeMillis() - stateDefinitionsStart);
+        return redefinedWritableStates;
     }
 }

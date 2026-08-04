@@ -5,8 +5,10 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllData
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,8 +21,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -28,6 +32,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterAll;
@@ -97,57 +102,70 @@ class DefaultTransactionHandlerTests {
 
             final TransactionHandlerResult handlerOutput =
                     tester.getTransactionHandler().handleConsensusRound(consensusRound);
-            assertNotEquals(null, handlerOutput, "new state should have been created");
-            assertEquals(
-                    1,
-                    handlerOutput
-                            .stateWithHashComplexity()
-                            .reservedSignedState()
-                            .get()
-                            .getReservationCount(),
-                    "state should be returned with a reservation");
+            try {
+                assertNotEquals(null, handlerOutput, "new state should have been created");
+                assertEquals(
+                        2,
+                        handlerOutput
+                                .stateWithHashComplexity()
+                                .reservedSignedState()
+                                .get()
+                                .getReservationCount(),
+                        "state should be returned with separate hashing and prehandle reservations");
+                assertSame(
+                        handlerOutput
+                                .stateWithHashComplexity()
+                                .reservedSignedState()
+                                .get(),
+                        handlerOutput.stateForPrehandle().get(),
+                        "the same signed state should be used for hashing and prehandle outside a freeze round");
 
             verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), never())
                     .put(any());
 
-            assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
-            assertSame(
-                    consensusRound,
-                    tester.getHandledRounds().getFirst(),
-                    "the round handled should be the one we provided");
-            boolean eventWithNoTransactions = false;
-            for (final ConsensusEvent consensusEvent : tester.getHandledRounds().getFirst()) {
-                if (!consensusEvent.consensusTransactionIterator().hasNext()) {
-                    eventWithNoTransactions = true;
-                    break;
+                assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
+                assertSame(
+                        consensusRound,
+                        tester.getHandledRounds().getFirst(),
+                        "the round handled should be the one we provided");
+                boolean eventWithNoTransactions = false;
+                for (final ConsensusEvent consensusEvent :
+                        tester.getHandledRounds().getFirst()) {
+                    if (!consensusEvent.consensusTransactionIterator().hasNext()) {
+                        eventWithNoTransactions = true;
+                        break;
+                    }
                 }
-            }
-            assertTrue(
-                    eventWithNoTransactions,
-                    "at least one event with no transactions should have been provided to the app");
-            assertNull(tester.getPlatformState().getLastFrozenTime(), "no freeze time should have been set");
+                assertTrue(
+                        eventWithNoTransactions,
+                        "at least one event with no transactions should have been provided to the app");
+                assertNull(tester.getPlatformState().getLastFrozenTime(), "no freeze time should have been set");
 
-            // Assert that the legacy running hash was updated with the expected value
-            assertEquals(
-                    tester.getLegacyRunningHash(),
-                    consensusRound
-                            .getStreamedEvents()
-                            .getLast()
-                            .getRunningHash()
-                            .getFutureHash()
-                            .getAndRethrow(),
-                    "the running hash should be updated");
-            assertEquals(
-                    pcesRound,
-                    handlerOutput
-                            .stateWithHashComplexity()
-                            .reservedSignedState()
-                            .get()
-                            .isPcesRound(),
-                    "the state should match the PCES boolean");
-            verify(tester.getStateEventHandler())
-                    .onSealConsensusRound(
-                            consensusRound, tester.getStateLifecycleManager().getLatestImmutableState());
+                // Assert that the legacy running hash was updated with the expected value
+                assertEquals(
+                        tester.getLegacyRunningHash(),
+                        consensusRound
+                                .getStreamedEvents()
+                                .getLast()
+                                .getRunningHash()
+                                .getFutureHash()
+                                .getAndRethrow(),
+                        "the running hash should be updated");
+                assertEquals(
+                        pcesRound,
+                        handlerOutput
+                                .stateWithHashComplexity()
+                                .reservedSignedState()
+                                .get()
+                                .isPcesRound(),
+                        "the state should match the PCES boolean");
+                verify(tester.getStateEventHandler())
+                        .onSealConsensusRound(
+                                consensusRound,
+                                tester.getStateLifecycleManager().getLatestImmutableState());
+            } finally {
+                releaseHandlerOutput(handlerOutput);
+            }
         }
     }
 
@@ -159,39 +177,140 @@ class DefaultTransactionHandlerTests {
             final ConsensusRound consensusRound = newConsensusRound(false);
             final TransactionHandlerResult handlerOutput =
                     tester.getTransactionHandler().handleConsensusRound(consensusRound);
-            assertNotNull(handlerOutput, "new state should have been created");
-            assertEquals(
-                    1,
-                    handlerOutput
-                            .stateWithHashComplexity()
-                            .reservedSignedState()
-                            .get()
-                            .getReservationCount(),
-                    "state should be returned with a reservation");
-            verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
-                    .put(any(FreezePeriodEnteredAction.class));
-            assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
-            assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
+            try {
+                assertNotNull(handlerOutput, "new state should have been created");
+                assertEquals(
+                        1,
+                        handlerOutput
+                                .stateWithHashComplexity()
+                                .reservedSignedState()
+                                .get()
+                                .getReservationCount(),
+                        "the real freeze state should only have the hashing pipeline reservation");
+                assertEquals(
+                        1,
+                        handlerOutput.stateForPrehandle().get().getReservationCount(),
+                        "the prehandle carrier should have its own reservation");
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
+                        .put(any(FreezePeriodEnteredAction.class));
+                assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
+                assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
 
-            final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
-            final TransactionHandlerResult postFreezeOutput =
-                    tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
-            assertNull(postFreezeOutput, "no state should be created after freeze period");
+                final var freezeState = handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get();
+                final var prehandleState = handlerOutput.stateForPrehandle().get();
+                assertNotSame(
+                        freezeState, prehandleState, "prehandle should use a distinct signed state during freeze");
+                assertNotSame(
+                        freezeState.getState(),
+                        prehandleState.getState(),
+                        "prehandle should use a fast copy instead of the real freeze state");
+                assertTrue(freezeState.isFreezeState(), "the state sent for hashing should be the real freeze state");
+                assertFalse(
+                        prehandleState.isFreezeState(),
+                        "the prehandle-only carrier should not be identified as the real freeze state");
+                assertFalse(
+                        prehandleState.isStateToSave(), "the prehandle-only carrier should not be marked for saving");
+                assertEquals(
+                        freezeState.getRound(),
+                        prehandleState.getRound(),
+                        "the copied state should have the same round");
+                assertEquals(
+                        freezeState.getConsensusTimestamp(),
+                        prehandleState.getConsensusTimestamp(),
+                        "the copied state should have the same consensus timestamp");
+                assertTrue(freezeState.getState().isImmutable(), "the real freeze state should be immutable");
+                assertTrue(prehandleState.getState().isImmutable(), "the prehandle state should be immutable");
+                assertSame(
+                        prehandleState.getState(),
+                        tester.getStateLifecycleManager().getLatestImmutableState(),
+                        "the lifecycle manager should retain the prehandle copy");
+                assertNotSame(
+                        prehandleState.getState(),
+                        tester.getStateLifecycleManager().getMutableState(),
+                        "the lifecycle manager should retain a separate mutable successor");
+                assertFalse(
+                        tester.getStateLifecycleManager().getMutableState().isImmutable(),
+                        "the mutable successor should remain mutable");
+                verify(tester.getStateEventHandler()).onFreezeStateCopied(prehandleState.getState());
 
-            verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), atMostOnce())
-                    .put(any());
-            assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
-            assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
-            assertEquals(
-                    tester.getLegacyRunningHash(),
-                    consensusRound
-                            .getStreamedEvents()
-                            .getLast()
-                            .getRunningHash()
-                            .getFutureHash()
-                            .getAndRethrow(),
-                    "the running hash should from the freeze round");
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
+                                    .put(any(FreezePeriodEnteredAction.class));
+                assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
+                assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
+
+                final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
+                final TransactionHandlerResult postFreezeOutput =
+                        tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
+                assertNull(postFreezeOutput, "no state should be created after freeze period");
+
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), atMostOnce())
+                        .put(any());
+                assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
+                assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
+                assertEquals(
+                        tester.getLegacyRunningHash(),
+                        consensusRound
+                                .getStreamedEvents()
+                                .getLast()
+                                .getRunningHash()
+                                .getFutureHash()
+                                .getAndRethrow(),
+                        "the running hash should from the freeze round");
+            } finally {
+                releaseHandlerOutput(handlerOutput);
+            }
         }
+    }
+
+    @Test
+    @DisplayName("Synchronous freeze uses the real freeze state for prehandle")
+    void synchronousFreezeDoesNotCreatePrehandleCopy() throws InterruptedException {
+        try (final TransactionHandlerTester tester = new TransactionHandlerTester(false)) {
+            tester.enableFreezePeriod();
+            final TransactionHandlerResult handlerOutput =
+                    tester.getTransactionHandler().handleConsensusRound(newConsensusRound(false));
+            try {
+                assertNotNull(handlerOutput, "new state should have been created");
+                final var freezeState = handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get();
+                assertSame(
+                        freezeState,
+                        handlerOutput.stateForPrehandle().get(),
+                        "synchronous saving should keep using the real freeze state for prehandle");
+                assertSame(
+                        freezeState.getState(),
+                        tester.getStateLifecycleManager().getLatestImmutableState(),
+                        "synchronous saving should not make a second immutable copy");
+                assertEquals(
+                        2,
+                        freezeState.getReservationCount(),
+                        "the real freeze state should have hashing and prehandle reservations");
+                verify(tester.getStateEventHandler(), never()).onFreezeStateCopied(any());
+            } finally {
+                releaseHandlerOutput(handlerOutput);
+            }
+        }
+    }
+
+    private static void releaseHandlerOutput(@Nullable final TransactionHandlerResult handlerOutput) {
+        if (handlerOutput == null || handlerOutput.stateWithHashComplexity() == null) {
+            return;
+        }
+
+        final var stateToHash = handlerOutput.stateWithHashComplexity().reservedSignedState();
+        final var garbageCollector = new DefaultStateGarbageCollector(new NoOpMetrics());
+        garbageCollector.registerState(stateToHash.get().reserve("test state garbage collector"));
+
+        if (handlerOutput.stateForPrehandle() != null) {
+            handlerOutput.stateForPrehandle().close();
+        }
+        stateToHash.close();
+        garbageCollector.heartbeat();
     }
 
     private static @NonNull ConsensusSnapshot getSnapshotWithTimestamp(final @NonNull Instant consensusTimestamp) {
