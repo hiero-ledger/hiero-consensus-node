@@ -616,6 +616,9 @@ public final class HashgraphInfo {
                 while (x != null) { // depth-first search starting from this judge
                     // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
                     x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
+                    if (x.receivedTime == null || x.receivedTime.length < judgeIndex) {
+                        x.receivedTime = new Instant[judges.length];
+                    }
                     x.receivedTime[judgeIndex] = lowestTime;
                     x.searchParent = -1; // descend through the first parent first (index 0)
                     if (x.searchCount == targetCount) {
