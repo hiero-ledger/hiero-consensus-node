@@ -193,17 +193,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         ConsensusLayerAdapterWiring.wire(inputs, buildingBlocks);
 
-        final SignedState initialSignedState = initialState.get();
-        final boolean startedFromGenesis = initialSignedState.isGenesisState();
-
-        final SwirldsPlatform platform;
-        if (startedFromGenesis) {
-            platform = new SwirldsPlatform(inputs, buildingBlocks, 0, 0);
-        } else {
-            final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
-            platform =
-                    new SwirldsPlatform(inputs, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
-        }
+        final SwirldsPlatform platform = new SwirldsPlatform(inputs, buildingBlocks);
 
         InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks);
 

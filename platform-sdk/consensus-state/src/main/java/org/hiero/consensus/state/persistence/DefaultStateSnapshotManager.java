@@ -6,12 +6,11 @@ import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -21,7 +20,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -32,13 +30,11 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.saved.SavedStateInfo;
-import org.hiero.consensus.state.saved.SavedStateMetadata;
 import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -330,18 +326,15 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             return null;
         }
         final SavedStateInfo oldestStateMetadata = savedStates.get(index);
-        final Path oldestStateDirPath = oldestStateMetadata.stateDirectory();
-        final Path consensusSnapshotFile = oldestStateDirPath.resolve(
-                SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
         try {
-            return ConsensusSnapshot.JSON.parse(
-                    new ReadableStreamingData(new FileInputStream(consensusSnapshotFile.toFile())));
+            return SignedStateFileUtils.getConsensusSnapshot(oldestStateMetadata.stateDirectory());
         } catch (final IOException | ParseException e) {
             logger.warn(SIGNED_STATE.getMarker(),
                     "Unable to read {} file from round {} on disk - PCES for this round will be maintained "
                             + "until the next oldest state on disk has a readable consensus snapshot file.",
-                    SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME, oldestStateMetadata.metadata().round());
+                    CONSENSUS_SNAPSHOT_FILE_NAME, savedStates.get(index).metadata().round());
             return null;
         }
     }
+
 }

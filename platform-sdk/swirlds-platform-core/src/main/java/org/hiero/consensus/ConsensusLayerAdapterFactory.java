@@ -5,9 +5,11 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static java.util.Objects.requireNonNullElse;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -49,6 +51,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
@@ -72,6 +76,7 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
@@ -234,7 +239,7 @@ public class ConsensusLayerAdapterFactory {
         ConsensusLayerStaticSetup.setup(configuration);
 
         final ExecutionLayerCallbacks executionLayerCallbacks = createExecutionLayerCallbacks(latestImmutableStateNexus,
-                notifierWiring);
+                notifierWiring, stateModule, transactionHandlingModule);
 
         final ConsensusLayer consensusLayer = createConsensusLayer(executionLayerCallbacks);
 
@@ -257,6 +262,11 @@ public class ConsensusLayerAdapterFactory {
     private ConsensusLayer createConsensusLayer(@NonNull final ExecutionLayerCallbacks executionLayerCallbacks) {
         final ConsensusSnapshot consensusSnapshot = getInitialConsensusSnapshot();
 
+        final Hash legacyRunningEventHash =
+                requireNonNullElse(legacyRunningEventHashOf(initialState.get().getState()), Cryptography.NULL_HASH);
+        final RunningEventHashOverride runningEventHashOverride =
+                new RunningEventHashOverride(legacyRunningEventHash, false);
+
         final Instant freezeTime = getFreezeTime();
 
         final ConsensusLayerInputs consensusLayerInputs = new ConsensusLayerInputs(
@@ -270,6 +280,7 @@ public class ConsensusLayerAdapterFactory {
                 fileSystemManager,
                 executionLayerCallbacks,
                 consensusSnapshot,
+                runningEventHashOverride,
                 version,
                 transactionOffsetNanos,
                 executionLayer.getTransactionLimits(),
@@ -301,12 +312,17 @@ public class ConsensusLayerAdapterFactory {
 
     private ExecutionLayerCallbacks createExecutionLayerCallbacks(
             @NonNull final SignedStateNexus latestImmutableStateNexus,
-            @NonNull ComponentWiring<AppNotifier, Void> notifierWiring) {
-        return new AdapterCallbacks(consensusStateEventHandler,
+            @NonNull final ComponentWiring<AppNotifier, Void> notifierWiring,
+            @NonNull final StateModule stateModule,
+            @NonNull final TransactionHandlingModule transactionHandlingModule) {
+        return new AdapterCallbacks(
+                consensusStateEventHandler,
                 executionLayer,
                 latestImmutableStateNexus,
                 staleEventConsumer,
-                notifierWiring);
+                notifierWiring,
+                stateModule,
+                transactionHandlingModule);
     }
 
     @NonNull
@@ -314,11 +330,6 @@ public class ConsensusLayerAdapterFactory {
         final double fallenBehindThreshold =
                 configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
         return new FallenBehindMonitor(rosterHistory.getCurrentRoster(), selfId, fallenBehindThreshold);
-    }
-
-    @NonNull
-    private StatusMonitorModule createStatusMonitorModule() {
-        return new StatusMonitorModule(wiringModel, configuration, metrics, time, selfId);
     }
 
     @NonNull
@@ -482,95 +493,6 @@ public class ConsensusLayerAdapterFactory {
             }
         };
     }
-
-    private void initializePcesModule(
-            @NonNull final PcesModule module,
-            @NonNull final PipelineFlusher pipelineFlusher,
-            @NonNull final SignedStateNexus latestImmutableStateNexus,
-            @NonNull final StatusMonitorModule statusMonitorModule,
-            @NonNull final IssDetectionModule issDetectionModule,
-            @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final Supplier<PcesReplayProgress> replayProgressSupplier =
-                createPcesReplayProgressSupplier(latestImmutableStateNexus);
-        final Runnable signalEndOfPcesReplay = () ->
-                issDetectionModule.signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
-        module.initialize(
-                wiringModel,
-                configuration,
-                metrics,
-                time,
-                selfId,
-                recycleBin,
-                fileSystemManager,
-                initialState.get().getRound(),
-                pipelineFlusher::flushPrimaryPipeline,
-                replayProgressSupplier,
-                statusMonitorModule,
-                signalEndOfPcesReplay,
-                eventPipelineTracker);
-    }
-
-    @Nullable
-    private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
-        final boolean eventPipelineMetricsEnabled =
-                configuration.getConfigData(PlatformMetricsConfig.class).eventPipelineMetricsEnabled();
-        final EventPipelineTracker eventPipelineTracker =
-                eventPipelineMetricsEnabled ? new EventPipelineTracker(metrics) : null;
-
-        // Register the event creation stage (self-only, step 1) and wire monitoring
-        // before intake initialization so step numbers are sequentially.
-        if (eventPipelineTracker != null) {
-            eventPipelineTracker.registerMetric("eventCreation", EventOrigin.RUNTIME);
-            eventCreatorModule
-                    .createdEventOutputWire()
-                    .solderForMonitoring(event -> eventPipelineTracker.recordEvent("eventCreation", event));
-        }
-        return eventPipelineTracker;
-    }
-
-    @NonNull
-    private IntakeEventCounter createIntakeEventCounter() {
-        if (configuration.getConfigData(SyncConfig.class).waitForEventsInIntake()) {
-            return new DefaultIntakeEventCounter(rosterHistory.getCurrentRoster());
-        } else {
-            return new NoOpIntakeEventCounter();
-        }
-    }
-
-    @NonNull
-    private EventIntakeModule createEventIntakeModule(
-            @NonNull final IntakeEventCounter intakeEventCounter,
-            @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final EventIntakeModule module = createModule(EventIntakeModule.class, configuration);
-        module.initialize(
-                wiringModel,
-                configuration,
-                metrics,
-                time,
-                rosterHistory,
-                intakeEventCounter,
-                executionLayer.getTransactionLimits(),
-                eventPipelineTracker);
-        return module;
-    }
-
-    @NonNull
-    private EventCreatorModule createEventCreatorModule() {
-        final EventCreatorModule module = createModule(EventCreatorModule.class, configuration);
-        module.initialize(
-                wiringModel,
-                configuration,
-                metrics,
-                time,
-                secureRandom,
-                keysAndCerts,
-                rosterHistory.getCurrentRoster(),
-                selfId,
-                executionLayer,
-                executionLayer);
-        return module;
-    }
-
     @NonNull
     private SecureRandom initializeSecureRandom(@Nullable final SecureRandom secureRandomOverride) {
         if (secureRandomOverride != null) {

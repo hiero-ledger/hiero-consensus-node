@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
+import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -12,9 +13,11 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
+import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -23,6 +26,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,9 +36,11 @@ import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -88,10 +94,15 @@ public class InitialStateLoader {
                 inputs.fileSystemManager(), actualMainClassName, inputs.selfId(), inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
-            // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
-            final long minimumBirthRoundNonAncientForOldestState =
-                    savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            buildingBlocks.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
+            try {
+                final ConsensusSnapshot consensusSnapshot = SignedStateFileUtils.getConsensusSnapshot(savedStates.getLast().stateDirectory());
+                buildingBlocks.consensusLayer().oldestRestartableSnapshot(consensusSnapshot);
+            } catch (final IOException | ParseException e) {
+                logger.warn(STARTUP.getMarker(),
+                        "Unable to read {} file from round {} on disk - PCES for this round will be maintained "
+                                + "until the next oldest state on disk has a readable consensus snapshot file.",
+                        CONSENSUS_SNAPSHOT_FILE_NAME, savedStates.getLast().metadata().round());
+            }
         }
 
         final boolean startedFromGenesis = signedState.isGenesisState();
@@ -101,22 +112,6 @@ public class InitialStateLoader {
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
 
-            final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(signedState.getState()));
-            buildingBlocks
-                    .hashgraphModule()
-                    .consensusSnapshotOverrideInputWire()
-                    .inject(consensusSnapshot);
-
-            // We only load non-ancient events during start up, so the initial expired threshold will be
-            // equal to the ancient threshold when the system first starts. Over time as we get more events,
-            // the expired threshold will continue to expand until it reaches its full size.
-            final int roundsNonAncient =
-                    inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
-            buildingBlocks
-                    .initialEventWindowDispatcher()
-                    .getInputWire()
-                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks.gossipModule().flush();
             buildingBlocks
                     .issDetectionModule()
                     .overridingStateInputWire()

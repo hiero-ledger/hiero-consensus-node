@@ -23,6 +23,4 @@ public interface ExecutionLayerCallbacks {
     void onPlatformStatusChange(final PlatformStatus status);
 
     void onSealConsensusRound(final Round consensusRound);
-
-    void onUnhealthySignal(final Duration unhealthyDuration);
 }

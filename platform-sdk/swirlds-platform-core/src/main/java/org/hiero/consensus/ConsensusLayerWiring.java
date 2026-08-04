@@ -47,8 +47,8 @@ public class ConsensusLayerWiring {
      * @param buildingBlocks the building blocks of the consensus layer
      */
     public static void wire(
-            @NonNull final ConsensusLayerAdapterInputs inputs,
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         Objects.requireNonNull(inputs);
         Objects.requireNonNull(buildingBlocks);
 

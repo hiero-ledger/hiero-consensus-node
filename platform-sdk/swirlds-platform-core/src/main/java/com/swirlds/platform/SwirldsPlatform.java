@@ -48,17 +48,6 @@ public class SwirldsPlatform implements Platform {
     private final KeysAndCerts keysAndCerts;
 
     /**
-     * If a state was loaded from disk, this is the minimum generation non-ancient for that round. If starting from a
-     * genesis state, this is 0.
-     */
-    private final long initialAncientThreshold;
-
-    /**
-     * The latest round to have reached consensus in the initial state
-     */
-    private final long startingRound;
-
-    /**
      * For passing notifications between the platform and the application.
      */
     private final NotificationEngine notificationEngine;
@@ -72,9 +61,7 @@ public class SwirldsPlatform implements Platform {
      */
     public SwirldsPlatform(
             @NonNull final ConsensusLayerAdapterInputs inputs,
-            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
-            final long initialAncientThreshold,
-            final long startingRound) {
+            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
         this.inputs = requireNonNull(inputs);
         this.buildingBlocks = requireNonNull(buildingBlocks);
         this.platformContext = PlatformContext.create(
@@ -83,8 +70,6 @@ public class SwirldsPlatform implements Platform {
                 inputs.metrics(),
                 inputs.fileSystemManager(),
                 inputs.recycleBin());
-        this.initialAncientThreshold = initialAncientThreshold;
-        this.startingRound = startingRound;
 
         selfId = inputs.selfId();
 
@@ -119,8 +104,7 @@ public class SwirldsPlatform implements Platform {
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 
-        buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
-        buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance());
+        buildingBlocks.consensusLayer().start();
     }
 
     @Override
@@ -163,8 +147,7 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        buildingBlocks.statusMonitorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
-        buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
+        buildingBlocks.consensusLayer().sendQuiescenceCommand(quiescenceCommand);
     }
 
     /**

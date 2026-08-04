@@ -13,18 +13,10 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.ConsensusLayer.StatusUpdate;
-import org.hiero.consensus.event.stream.ConsensusEventStream;
-import org.hiero.consensus.gossip.GossipModule;
-import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -53,13 +45,10 @@ public class ConsensusLayerAdapterWiring {
         Objects.requireNonNull(inputs);
         Objects.requireNonNull(buildingBlocks);
 
-        wireHashgraphOutputs(inputs, buildingBlocks);
-        wireInitialEventWindowDispatcher(buildingBlocks);
         wireTransactionHandlingOutputs(buildingBlocks);
         wireStateOutputs(inputs, buildingBlocks);
         wireIssDetectionOutputs(buildingBlocks);
         wireRunningHashOverrideOutputs(buildingBlocks);
-        wirePlatformMonitorOutputs(inputs, buildingBlocks);
         wireInfrastructure(inputs, buildingBlocks);
     }
 
@@ -151,8 +140,7 @@ public class ConsensusLayerAdapterWiring {
             @NonNull final ConsensusLayerAdapterInputs inputs,
             @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks) {
         final OutputWire<Duration> healthMonitor = buildingBlocks.wiringModel().getHealthMonitorWire();
-        healthMonitor.solderTo(buildingBlocks.eventCreatorModule().healthStatusInputWire());
-        healthMonitor.solderTo(buildingBlocks.gossipModule().healthStatusInputWire());
+
         healthMonitor.solderTo(
                 "executionHealthInput", "healthyDuration", inputs.executionLayer()::reportUnhealthyDuration);
     }

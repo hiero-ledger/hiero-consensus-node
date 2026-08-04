@@ -39,6 +39,7 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -48,6 +49,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -171,7 +173,7 @@ public class ConsensusLayerFactory {
 
         ConsensusLayerStaticSetup.setup(configuration);
 
-        return new ConsensusLayerBuildingBlocks(
+        final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 wiringModel,
                 configuration,
                 eventCreatorModule,
@@ -185,7 +187,35 @@ public class ConsensusLayerFactory {
                 fallenBehindMonitor,
                 intakeEventCounter,
                 freezePeriodChecker);
+
+        final ConsensusLayerImpl consensusLayer = new ConsensusLayerImpl(configuration, consensusSnapshot, eventIntakeModule, eventCreatorModule, gossipModule, pcesModule, hashgraphModule, statusMonitorModule, freezePeriodChecker);
+
+        ConsensusLayerWiring.wire(inputs, buildingBlocks);
+
+        initialize(buildingBlocks);
     }
+
+
+    private void initialize(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        if (consensusSnapshot != null) {
+            buildingBlocks
+                    .hashgraphModule()
+                    .consensusSnapshotOverrideInputWire()
+                    .inject(consensusSnapshot);
+
+            // We only load non-ancient events during start up, so the initial expired threshold will be
+            // equal to the ancient threshold when the system first starts. Over time as we get more events,
+            // the expired threshold will continue to expand until it reaches its full size.
+            final int roundsNonAncient =
+                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+            buildingBlocks
+                    .initialEventWindowDispatcher()
+                    .getInputWire()
+                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+            buildingBlocks.gossipModule().flush();
+        }
+    }
+
 
     @NonNull
     private FallenBehindMonitor createFallenBehindMonitor() {
