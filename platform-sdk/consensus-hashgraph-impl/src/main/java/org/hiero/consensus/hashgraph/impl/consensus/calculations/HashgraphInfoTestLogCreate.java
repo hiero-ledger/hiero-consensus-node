@@ -7,6 +7,7 @@ import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.R
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo.UpdateResults;
 
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileSystemNotFoundException;
@@ -19,8 +20,8 @@ import java.util.List;
 import java.util.Random;
 
 /** Class to output a log file for checking the consensus calculations in {@link HashgraphInfo HashgraphInfo}.
- * The filename should be set in OUTPUT_FILE_NAME.
- * It will be written in the log directory, which is in the same directory as this source file.
+ * The filename should be set in OUTPUT_FILE_NAME. It will be written in the same directory as this source
+ * file (if this file is at location DESCENT).
  *
  * The output CSV file is in the format described by logFormat.md, which is also in this directory.
  */
@@ -44,8 +45,7 @@ public class HashgraphInfoTestLogCreate {
             "hashgraph",
             "impl",
             "consensus",
-            "calculations",
-            "log");
+            "calculations");
 
     /** RoundInfo is a CSV row starting with this number */
     private final static int ROUND_INFO_TYPE = 0;
@@ -121,6 +121,17 @@ public class HashgraphInfoTestLogCreate {
         } catch (Exception e) {
             //final IOException
             System.out.println("ERROR: while writing " + outputFile + " - " + e);
+            for (StackTraceElement line : e.getStackTrace()) {
+                System.out.println(line.toString());
+            }
+
+
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            e.printStackTrace(pw); // Redirects the stack trace stream
+
+            String fullStackTrace = sw.toString();
+            System.out.println(fullStackTrace);
             return;
         }
 
@@ -184,52 +195,126 @@ public class HashgraphInfoTestLogCreate {
         return directory.resolve(OUTPUT_FILE_NAME);
     }
 
+    /** return the eventID of an event, or -1 if null */
+    private static long eventID(EventInfo event) {
+        return event == null ? -1 : event.getEventID();
+    }
+
+    /** append to the CSV line an array of events (length then each eventID) with comma before but not after */
+    private static void appendEvents(StringBuilder line, EventInfo[] events) {
+        line.append(",").append(events.length);
+        for (EventInfo event : events) {
+            if (event != null) {
+                line.append(",").append(eventID(event));
+            }
+        }
+    }
+
+    /** append to the CSV line an array of longs (length then each long) with comma before but not after */
+    private static void appendLongs(StringBuilder line, long[] longs) {
+        line.append(",").append(longs.length);
+        for (Long n : longs) {
+            line.append(",").append(n);
+        }
+    }
+
+    /** append to the CSV line an array of booleans (length then each as 0=false 1=true) with comma before not after */
+    private static void appendBooleans(StringBuilder line, boolean[] booleans) {
+        line.append(",").append(booleans.length);
+        for (boolean b : booleans) {
+            line.append(",").append(b ? 1 : 0);
+        }
+    }
+
     /** return one line of the CSV file describing the RoundInfo fields */
     private static void printRoundInfo(PrintWriter out, RoundInfo roundInfo) {
         StringBuilder line = new StringBuilder();
-        line.append(ROUND_INFO_TYPE).append(",")
-                .append(roundInfo.pendingRound());
+        line.append(ROUND_INFO_TYPE);
+        line.append(",").append(roundInfo.pendingRound());
+        appendLongs(line, roundInfo.nodes());
+        appendLongs(line, roundInfo.stake());
+        line.append(",").append(roundInfo.seeNum());
+        line.append(",").append(roundInfo.seeDen());
+        line.append(",").append(roundInfo.judgeCon1() ? 1 : 0);
+        line.append(",").append(roundInfo.coinInterval());
+        line.append(",").append(roundInfo.targetNumRoundsNonAncient());
+        line.append(",").append(roundInfo.numRoundsAddressBook());
         out.println(line);
     }
 
     /** return one line of the CSV file describing the RoundInfoPrev fields */
     private static void printRoundInfoPrev(PrintWriter out, RoundInfoPrev roundInfoPrev) {
         StringBuilder line = new StringBuilder();
-        line.append(ROUND_INFO_PREV_TYPE).append(",")
-                .append(roundInfoPrev.pendingRound());
+        line.append(ROUND_INFO_PREV_TYPE);
+        line.append(",").append(roundInfoPrev.pendingRound());
+        line.append(",").append(roundInfoPrev.prevJudgeCon1() ? 1 : 0);
+        appendEvents(line,roundInfoPrev.prevJudges());
+        line.append(",").append(roundInfoPrev.prevJudgesCopied() ? 1 : 0);
+        line.append(",").append(roundInfoPrev.prevMinNonAncientRound());
+        line.append(",").append(roundInfoPrev.prevNumCons());
+        line.append(",").append(roundInfoPrev.prevMinJudgeBirthRound());
         out.println(line);
     }
 
     /** return one line of the CSV file describing the EventInfo fields in the signed events, before updating */
     private static void printEventSigned(PrintWriter out, EventInfo eventInfo) {
         StringBuilder line = new StringBuilder();
-        line.append(EVENT_SIGNED_TYPE).append(",")
-                .append(eventInfo.getEventID()).append(",");
+        line.append(EVENT_SIGNED_TYPE);
+        line.append(",").append(eventID(eventInfo));
+        // payload skipped because it doesn't affect consensus and has no simple way to put in a CSV
+        line.append(",").append(eventInfo.getTimeCreated().getEpochSecond());
+        line.append(",").append(eventInfo.getTimeCreated().getNano());
+        line.append(",").append(eventInfo.getCreator());
+        line.append(",").append(eventInfo.getBirthRound());
+        line.append(",").append(eventInfo.getCoin());
         appendEvents(line,eventInfo.getParentsSigned());
+        // parentBirthRounds, parentCreators, signature skipped because they don't affect consensus
         out.println(line);
     }
 
-    /** return one line of the CSV file describing the given EventInfo with calculated memoized fields */
+    /**
+     * Return one line of the CSV file describing the given EventInfo with calculated memoized fields.
+     * This must be called immediately after eventInfo.update(...) because some fields are read from the hashgraph.
+     */
     private static void printEventInfo(PrintWriter out, EventInfo eventInfo) {
         StringBuilder line = new StringBuilder();
-        line.append(EVENT_INFO_TYPE).append(",")
-                .append(eventInfo.getEventID());
+        HashgraphInfo h = eventInfo.getHashgraph();;
+        line.append(EVENT_INFO_TYPE);
+        line.append(",").append(eventID(eventInfo));
+        line.append(",").append(eventID(eventInfo.getSelfParent()));
+        line.append(",").append(eventInfo.getMaxJudgeRound());
+        appendEvents(line, h.getParents().toArray(EventInfo[]::new));
+        line.append(",").append(h.getTotalStake());
+        line.append(",").append(h.getMinNonAncientRound());
+        line.append(",").append(h.getVoteD());
+        appendBooleans(line, eventInfo.getAncestorJudge());
+        line.append(",").append(eventInfo.getGen());
+        appendEvents(line, eventInfo.getLastSee());
+        appendEvents(line, eventInfo.getStronglySeeP());
+        line.append(",").append(eventInfo.getVotingRound());
+        line.append(",").append(eventID(eventInfo.getFirstSelfWitnessS()));
+        line.append(",").append(eventID(eventInfo.getFirstWitnessS()));
+        appendEvents(line, eventInfo.getStronglySeeS1());
+        appendEvents(line, eventInfo.getVoteE());
+        appendBooleans(line, eventInfo.getVoteB());
+        line.append(",").append(eventInfo.isConsensus() ? 1 : 0);
+        line.append(",").append(eventInfo.getConsensusOrder());
+        Instant t = eventInfo.getConsensusTimestamp();
+        line.append(",").append(t==null ? -1 : t.getEpochSecond());
+        line.append(",").append(t==null ? -1 : t.getNano());
         out.println(line);
     }
 
     /** return one line of the CSV file describing the given EventInfo with calculated memoized fields */
     private static void printUpdateResults(PrintWriter out, UpdateResults updateResults) {
         StringBuilder line = new StringBuilder();
-        line.append(UPDATE_RESULTS_TYPE).append(",");
+        line.append(UPDATE_RESULTS_TYPE);
         appendEvents(line,updateResults.consensusEvents());
+        line.append(",").append(updateResults.roundTimestamp().getEpochSecond());
+        line.append(",").append(updateResults.roundTimestamp().getNano());
+        line.append(",").append(updateResults.voteD());
+        line.append(",").append(updateResults.usedCoin() ? 1 : 0);
+        // skip roundInfoPrev because it is a line of its own
         out.println(line);
-    }
-
-    /** append to the CSV line an array of events (length then each eventID) with no comma before or after */
-    private static void appendEvents(StringBuilder line, EventInfo[] events) {
-        line.append(events.length);
-        for (EventInfo event : events) {
-            line.append(",").append(event.getEventID());
-        }
     }
 }
