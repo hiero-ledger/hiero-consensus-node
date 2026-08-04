@@ -1,4 +1,5 @@
 # Format of a log test .CSV file
+
 The file shows the results of running the hashgraph consensus algorithm on a set of hashgraphs, including showing the results of all the internal memoized variables after each update of each event.
 
 The file consists of multiple lines, each of which is a sequence of 'int64' numbers (Java 'long'), separated by commas. Each line ends with a number (not a comma), followed by a newline. The last line ends with a newline and is followed by an empty line.
@@ -41,7 +42,7 @@ If any field is an array, it is represented by its length followed by all elemen
     int64 birthRound
     int32 coin // this is a uniform random int32, not limited to [0,numNodes]
     EventInfo[] parentsSigned
-    
+
   EventInfo (type 3)
     int64 eventID
     EventInfo selfParent
@@ -63,16 +64,16 @@ If any field is an array, it is represented by its length followed by all elemen
     boolean isConsensus
     long consensusOrder
     Instant consensusTimestamp
-	
+
   UpdateResults (type 4)
     EventInfo[] consensusEvents
     Instant roundTimestamp
-    int32 voteD // either 1 or 2   
+    int32 voteD // either 1 or 2
 ```
 
 Compared to the paper, this format skips `roundInfoPrev` in `UpdateResults` (because it's a separate line), and skips `payload`, `parentBirthRounds`, `parentCreators`, and `signature` in `EventSigned` (because they don't affect consensus). It also adds fields for `EventID` and `PendingRound` to help identify the objects.
 
-Each round starts by giving `RoundInfoPrev` then `RoundInfo`. If they have a `pendingRound == 1`, then it is starting over with a new hashgraph, and all previous events in the file should be ignored. 
+Each round starts by giving `RoundInfoPrev` then `RoundInfo`. If they have a `pendingRound == 1`, then it is starting over with a new hashgraph, and all previous events in the file should be ignored.
 
 It then gives the `EventInfo` for many events. Whenever an event appears for the first time for this hashgraph, it gives its `EventSigned` just before its `EventInfo`.
 

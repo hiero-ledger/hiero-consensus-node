@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 
-import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo;
-import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfo;
-import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfoPrev;
-import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo.UpdateResults;
-
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URISyntaxException;
@@ -18,6 +13,10 @@ import java.time.Instant;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo.UpdateResults;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfo;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfoPrev;
 
 /** Class to output a log file for checking the consensus calculations in {@link HashgraphInfo HashgraphInfo}.
  * The filename should be set in OUTPUT_FILE_NAME. It will be written in the same directory as this source
@@ -48,19 +47,19 @@ public class HashgraphInfoTestLogCreate {
             "calculations");
 
     /** RoundInfoPrev is a CSV row starting with this number */
-    private final static int ROUND_INFO_PREV_TYPE = 0;
+    private static final int ROUND_INFO_PREV_TYPE = 0;
 
     /** RoundInfo is a CSV row starting with this number */
-    private final static int ROUND_INFO_TYPE = 1;
+    private static final int ROUND_INFO_TYPE = 1;
 
     /** EventInfo is a CSV row starting with this number */
-    private final static int EVENT_SIGNED_TYPE = 2;
+    private static final int EVENT_SIGNED_TYPE = 2;
 
     /** EventInfo is a CSV row starting with this number */
-    private final static int EVENT_INFO_TYPE = 3;
+    private static final int EVENT_INFO_TYPE = 3;
 
     /** UpdateResults is a CSV row starting with this number */
-    private final static int UPDATE_RESULTS_TYPE = 4;
+    private static final int UPDATE_RESULTS_TYPE = 4;
 
     /**
      * Create random hashgraphs, and update the events repeatedly to reach consensus. Write all the results to
@@ -76,7 +75,6 @@ public class HashgraphInfoTestLogCreate {
     public static void main(final String[] args) {
         final Random random = new Random();
 
-
         Path outputFile = outputFilePath();
         if (outputFile == null) {
             return;
@@ -90,9 +88,9 @@ public class HashgraphInfoTestLogCreate {
             printRoundInfoPrev(out, roundInfoPrev);
 
             RoundInfo roundInfo = new RoundInfo(
-                    1, //long pendingRound
-                    new long[]{100,200,300,400}, //long[] nodes
-                    new long[]{101,102,103,104}, //long[] stake
+                    1, // long pendingRound
+                    new long[] {100, 200, 300, 400}, // long[] nodes
+                    new long[] {101, 102, 103, 104}, // long[] stake
                     10, // int coinInterval
                     3, // int seeNum
                     3, // int seeDen
@@ -101,15 +99,14 @@ public class HashgraphInfoTestLogCreate {
                     2); // int numRoundsAddressBook
             printRoundInfo(out, roundInfo);
 
-
             EventInfo eventInfo = new EventInfo(
-                    hashgraphInfo,  // HashgraphInfo hashgraphInfo
+                    hashgraphInfo, // HashgraphInfo hashgraphInfo
                     1, // long eventID
                     1, // long creator (the creatorID, not the index of the creator used in calculations)
-                    Instant.now(),  // Instant timeCreated
-                    1, //long birthRound
+                    Instant.now(), // Instant timeCreated
+                    1, // long birthRound
                     random.nextInt(), // int coin
-                    new EventInfo[]{}, // EventInfo[] parents
+                    new EventInfo[] {}, // EventInfo[] parents
                     null); // Object payload
             recentEvents.add(eventInfo);
             printEventSigned(out, eventInfo);
@@ -121,12 +118,11 @@ public class HashgraphInfoTestLogCreate {
             }
 
         } catch (Exception e) {
-            //final IOException
+            // final IOException
             System.out.println("ERROR: while writing " + outputFile + " - " + e);
             for (StackTraceElement line : e.getStackTrace()) {
                 System.out.println(line.toString());
             }
-
 
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
@@ -148,9 +144,10 @@ public class HashgraphInfoTestLogCreate {
      * @return the Path, or null if anything went wrong, in which case an error has already been printed
      */
     private static Path outputFilePath() {
-        //Find the directory holding the compiled class, which is where the upward search starts.
+        // Find the directory holding the compiled class, which is where the upward search starts.
         // This is independent of the working directory the JVM happens to be launched from.
-        final CodeSource codeSource = HashgraphInfoTestLogCreate.class.getProtectionDomain().getCodeSource();
+        final CodeSource codeSource =
+                HashgraphInfoTestLogCreate.class.getProtectionDomain().getCodeSource();
         final URL location = codeSource == null ? null : codeSource.getLocation();
         if (location == null) {
             System.out.println("ERROR: the location of the compiled class is unavailable - no file was written");
@@ -161,8 +158,8 @@ public class HashgraphInfoTestLogCreate {
         try {
             path = Path.of(location.toURI());
         } catch (final URISyntaxException | IllegalArgumentException | FileSystemNotFoundException e) {
-            System.out.println("ERROR: the compiled class is not at a local file path: " + location
-                    + " - no file was written");
+            System.out.println(
+                    "ERROR: the compiled class is not at a local file path: " + location + " - no file was written");
             return null;
         }
 
@@ -174,8 +171,7 @@ public class HashgraphInfoTestLogCreate {
 
         // walk up to the repository directory
         Path directory = start;
-        while (directory != null
-                && !REPOSITORY_DIRECTORY_NAME.equals(String.valueOf(directory.getFileName()))) {
+        while (directory != null && !REPOSITORY_DIRECTORY_NAME.equals(String.valueOf(directory.getFileName()))) {
             directory = directory.getParent();
         }
         if (directory == null) {
@@ -234,7 +230,7 @@ public class HashgraphInfoTestLogCreate {
         line.append(ROUND_INFO_PREV_TYPE);
         line.append(",").append(roundInfoPrev.pendingRound());
         line.append(",").append(roundInfoPrev.prevJudgeCon1() ? 1 : 0);
-        appendEvents(line,roundInfoPrev.prevJudges());
+        appendEvents(line, roundInfoPrev.prevJudges());
         line.append(",").append(roundInfoPrev.prevJudgesCopied() ? 1 : 0);
         line.append(",").append(roundInfoPrev.prevMinNonAncientRound());
         line.append(",").append(roundInfoPrev.prevNumCons());
@@ -269,7 +265,7 @@ public class HashgraphInfoTestLogCreate {
         line.append(",").append(eventInfo.getCreator());
         line.append(",").append(eventInfo.getBirthRound());
         line.append(",").append(eventInfo.getCoin());
-        appendEvents(line,eventInfo.getParentsSigned());
+        appendEvents(line, eventInfo.getParentsSigned());
         // parentBirthRounds, parentCreators, signature skipped because they don't affect consensus
         out.println(line);
     }
@@ -280,7 +276,8 @@ public class HashgraphInfoTestLogCreate {
      */
     private static void printEventInfo(PrintWriter out, EventInfo eventInfo) {
         StringBuilder line = new StringBuilder();
-        HashgraphInfo h = eventInfo.getHashgraph();;
+        HashgraphInfo h = eventInfo.getHashgraph();
+        ;
         line.append(EVENT_INFO_TYPE);
         line.append(",").append(eventID(eventInfo));
         line.append(",").append(eventID(eventInfo.getSelfParent()));
@@ -302,8 +299,8 @@ public class HashgraphInfoTestLogCreate {
         line.append(",").append(eventInfo.isConsensus() ? 1 : 0);
         line.append(",").append(eventInfo.getConsensusOrder());
         Instant t = eventInfo.getConsensusTimestamp();
-        line.append(",").append(t==null ? -1 : t.getEpochSecond());
-        line.append(",").append(t==null ? -1 : t.getNano());
+        line.append(",").append(t == null ? -1 : t.getEpochSecond());
+        line.append(",").append(t == null ? -1 : t.getNano());
         out.println(line);
     }
 
@@ -311,7 +308,7 @@ public class HashgraphInfoTestLogCreate {
     private static void printUpdateResults(PrintWriter out, UpdateResults updateResults) {
         StringBuilder line = new StringBuilder();
         line.append(UPDATE_RESULTS_TYPE);
-        appendEvents(line,updateResults.consensusEvents());
+        appendEvents(line, updateResults.consensusEvents());
         line.append(",").append(updateResults.roundTimestamp().getEpochSecond());
         line.append(",").append(updateResults.roundTimestamp().getNano());
         line.append(",").append(updateResults.voteD());
