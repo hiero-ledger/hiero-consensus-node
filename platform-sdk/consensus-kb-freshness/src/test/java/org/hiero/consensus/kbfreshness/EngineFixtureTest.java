@@ -56,6 +56,31 @@ class EngineFixtureTest {
     }
 
     @Test
+    void declarationLineRefsMigrateToSymbolForEveryKind() {
+        final String autoFix = AutoFixRenderer.render(result);
+        assertThat(autoFix)
+                .contains("`WithMethod.java:6` → `WithMethod.java#foo`") // method
+                .contains("`WithMethod.java:5` → `WithMethod.java#WithMethod`") // type
+                .contains("`PaletteFixture.java:6` → `PaletteFixture.java#RED`") // enum constant
+                .contains("`FieldFixture.java:6` → `FieldFixture.java#counter`"); // field
+        // A line inside a body (line 7 is blank, in no declaration) is not a symbol — it does not migrate.
+        assertThat(autoFix).doesNotContain("`WithMethod.java:7` →");
+    }
+
+    @Test
+    void sourceSymbolRefResolvesWhenDeclaredAndAssertsWhenGone() {
+        // `WithMethod.java#foo` names a declared method — clean, no finding.
+        assertThat(findings)
+                .noneMatch(
+                        f -> f.kind() == AnchorKind.SOURCE_SYMBOL && f.target().equals("foo"));
+        // `WithMethod.java#nope` names no declared symbol — a rename/removal, asserted absent.
+        final Finding gone = require(AnchorKind.SOURCE_SYMBOL, "nope"::equals);
+        assertThat(gone.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(gone.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(gone.evidence()).contains("WithMethod.java").contains("nope");
+    }
+
+    @Test
     void classInDifferentModuleIsPackageMoveNotAbsent() {
         final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.contains("module-a") && t.endsWith("MovedClass.java"));
         assertThat(f.outcome()).isNotEqualTo(Outcome.ABSENT);
@@ -271,8 +296,10 @@ class EngineFixtureTest {
         // (CONFIG_PREFIX), the FQN citation of MovedClass, and RelocatedClass. Moved lines: foo, run.
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("| Auto-fix — moved lines | 2 |");
+        // Symbol migrations: WithMethod.java, PaletteFixture.java, FieldFixture.java (concepts/symbol-refs).
+        assertThat(report).contains("| Auto-fix — `:NN`→`#symbol` migrations | 3 |");
         assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 5 |");
-        assertThat(report).contains("| Fixable now with `--fix` | 7 |");
+        assertThat(report).contains("| Fixable now with `--fix` | 10 |");
     }
 
     @Test
