@@ -648,6 +648,13 @@ java -jar ./validator-<version>.jar blocks-to-pces \
 loads a saved state snapshot, replays a PCES stream on top of it through the consensus
 node's **real** production replay mechanism, and writes the resulting state to disk.
 
+> **Important:** The `replay-pces` command requires a production platform code change from commit
+> [`140f94f`](https://github.com/hiero-ledger/hiero-consensus-node/commit/140f94fff19a3a6f809df339ed17349ef5ae3426)
+> to work properly. This commit introduces the `allowUnsignedPcesEvents` intake flag
+> which allows reconstructed (unsigned) PCES events produced by `blocks-to-pces` to pass the
+> intake signature validator. Without it, every replayed event is silently dropped at signature
+> validation and no rounds reach consensus
+
 This command builds and starts a genuine `SwirldsPlatform` — the same one `ServicesMain`
 constructs — and drives the body of `SwirldsPlatform.start()` minus gossip. The production
 `PcesModule.replayPcesEvents` path is exercised: events flow through the full
