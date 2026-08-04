@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,17 +31,17 @@ public final class BlockStreamingUtils {
 
         if ('G' == unit || 'g' == unit) {
             // parse gigabytes
-            final long parsedGigabytes = parseLong(str.substring(0, str.length() - 2));
+            final long parsedGigabytes = parseLong(str.substring(0, str.length() - 1));
             final long parsedBytes = multiply(GB_TO_BYTES, parsedGigabytes);
             bytes = Math.max(-1L, parsedBytes);
         } else if ('M' == unit || 'm' == unit) {
             // parse megabytes
-            final long parsedMegabytes = parseLong(str.substring(0, str.length() - 2));
+            final long parsedMegabytes = parseLong(str.substring(0, str.length() - 1));
             final long parsedBytes = multiply(MB_TO_BYTES, parsedMegabytes);
             bytes = Math.max(-1L, parsedBytes);
         } else if ('K' == unit || 'k' == unit) {
             // parse kilobytes
-            final long parsedKilobytes = parseLong(str.substring(0, str.length() - 2));
+            final long parsedKilobytes = parseLong(str.substring(0, str.length() - 1));
             final long parsedBytes = multiply(KB_TO_BYTES, parsedKilobytes);
             bytes = Math.max(-1L, parsedBytes);
         } else if (Character.isDigit(unit)) {

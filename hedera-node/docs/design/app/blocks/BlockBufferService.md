@@ -44,8 +44,8 @@ produced by a given consensus node in an ordered manner.
 ## Backpressure Mechanism
 
 The block stream system implements a backpressure mechanism to ensure that block nodes keep pace with the incoming block stream.
-If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production 
-and transaction handling on the consensus node. This ensures system stability and prevents the accumulation of 
+If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production
+and transaction handling on the consensus node. This ensures system stability and prevents the accumulation of
 unacknowledged blocks in the stream buffer.
 
 ### Buffer Management
