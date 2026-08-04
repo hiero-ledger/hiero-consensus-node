@@ -584,9 +584,9 @@ java -jar ./validator-<version>.jar blocks-to-pces \
 - `--origin-round` (or `-or`) — The round of the state snapshot these PCES files will be
   replayed against (required). Stamped as the PCES stream origin. Also used as the right
   anchor for the GCS left-boundary search (extended backward by `--rounds-non-ancient`).
-- `--target-round` (or `-tr`) — The last round whose events are extracted; events from higher
-  rounds are ignored. Required when `--block-stream-dir` is a GCS URI. Default = extract all
-  available rounds.
+- `--target-round` (or `-tr`) — Identifies the last block to extract: the block that _contains_
+  this round. The entire block is extracted (all its rounds, including any after this round) - it
+  is not truncated at this round. Required when `--block-stream-dir` is a GCS URI.
 - `--out` (or `-o`) — Output directory. PCES files are written under a
   `pces-<originRound>-<targetRound>` subdirectory. Default = `./out`.
 - `--rounds-non-ancient` (or `-rna`) — Number of rounds to extend the extraction window
