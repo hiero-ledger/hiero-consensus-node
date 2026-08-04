@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.concurrent;
 
-import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,11 +22,17 @@ import org.hiero.consensus.event.validation.EventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * An {@link EventIntakeModule} implementation that consolidates hashing, validation,
@@ -43,6 +44,9 @@ import org.hiero.consensus.transaction.TransactionLimits;
  * </pre>
  */
 public class ConcurrentEventIntakeModule implements EventIntakeModule {
+
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     @Nullable
     private WireTransformer<EventWindow, EventWindow> eventWindowWire;
@@ -76,6 +80,8 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
         final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
 
         // --- Set up dispatchers ---
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventWindowWire =
                 new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
         this.clearCommandWire =
@@ -93,6 +99,7 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
                 .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent, "unordered events"));
 
         // --- Wire INJECT: event window → processor + orphan buffer ---
+        eventWindowExtractor.getOutputWire().solderTo(eventWindowWire.getInputWire(), INJECT);
         eventWindowWire
                 .getOutputWire()
                 .solderTo(processorWiring.getInputWire(EventIntakeProcessor::setEventWindow), INJECT);
@@ -178,7 +185,16 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventWindowWire, "Not initialized").getInputWire();
     }
 

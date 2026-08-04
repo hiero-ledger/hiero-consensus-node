@@ -1,5 +1,7 @@
 # consensus-kb-freshness
 
+![](assets/fressness_checker_logo.png)
+
 A deterministic checker that detects when the curated consensus-layer knowledge base
 (`platform-sdk/docs/consensus-layer/`) has drifted out of sync with the code it documents, so a
 human curator can repair it.
@@ -104,7 +106,9 @@ last-commit date of the topic's anchored source against the topic's `last_review
 The loop closes by bumping `last_reviewed`: a topic whose semantic pass found every claim supported
 (or whose contradictions were fixed) should be marked reviewed — mechanically, via
 `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; rewrites only an *existing*
-`last_reviewed:` frontmatter line) — or every future run re-worklists the same topics.
+`last_reviewed:` frontmatter line) — or every future run re-worklists the same topics. A reference to
+a renamed or removed symbol counts as a contradiction (even if the behavior survives), so it blocks
+the bump.
 
 ## Lanes — how a result is routed
 

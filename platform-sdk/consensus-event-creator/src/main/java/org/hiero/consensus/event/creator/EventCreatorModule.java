@@ -3,10 +3,6 @@ package org.hiero.consensus.event.creator;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,6 +10,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -21,6 +18,10 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Creates and signs events. Will sometimes decide not to create new events based on external rules.
@@ -72,13 +73,22 @@ public interface EventCreatorModule {
     InputWire<PlatformEvent> orderedEventInputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} component.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the event window
+     * @return the {@link InputWire} for the consensus round
      */
-    @InputWireLabel("event window")
+    @InputWireLabel("consensus round")
     @NonNull
-    InputWire<EventWindow> eventWindowInputWire();
+    InputWire<ConsensusRound> consensusRoundInputWire();
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    InputWire<EventWindow> initialEventWindowInputWire();
 
     /**
      * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
@@ -112,16 +122,18 @@ public interface EventCreatorModule {
     InputWire<SyncProgress> syncProgressInputWire();
 
     /**
+     * {@link InputWire} for the quiescence command.
+     *
+     * @return the {@link InputWire} for the quiescence command
+     */
+    @InputWireLabel("quiescence command")
+    @NonNull
+    InputWire<QuiescenceCommand> quiescenceCommandInputWire();
+
+    /**
      * Destroys the module.
      */
     void destroy();
-
-    /**
-     * Submit a quiescence command to the platform monitor.
-     *
-     * @param quiescenceCommand the quiescence command to submit
-     */
-    void submitQuiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
 
     /**
      * Flushes all events of the internal event creation manager.
