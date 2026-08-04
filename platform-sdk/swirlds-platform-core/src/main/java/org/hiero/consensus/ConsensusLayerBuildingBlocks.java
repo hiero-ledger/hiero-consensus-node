@@ -2,9 +2,6 @@
 package org.hiero.consensus;
 
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -25,6 +22,9 @@ import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
 
 public record ConsensusLayerBuildingBlocks(
         @NonNull WiringModel wiringModel,
