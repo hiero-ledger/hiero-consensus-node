@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -301,9 +300,8 @@ public final class ReplayPcesWorkflow {
                                 + "enough rounds past the target to decide it. Regenerate with blocks-to-pces covering "
                                 + "more rounds past the target, or choose a target within the decided range.");
             }
-            throw new IllegalStateException(
-                    "PCES replay produced no consensus rounds — nothing to write. "
-                            + "Check PCES placement and origin/round alignment.");
+            throw new IllegalStateException("PCES replay produced no consensus rounds — nothing to write. "
+                    + "Check PCES placement and origin/round alignment.");
         }
 
         try {
@@ -323,12 +321,7 @@ public final class ReplayPcesWorkflow {
             // The state's stateToDiskReason is not PERIODIC_SNAPSHOT, so the write is performed synchronously and is
             // complete when this call returns.
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformConfig,
-                    fileSystemManager,
-                    selfId,
-                    destination,
-                    capturedState,
-                    stateLifecycleManager);
+                    platformConfig, fileSystemManager, selfId, destination, capturedState, stateLifecycleManager);
 
             log.info("Final replayed state for round {} written to {}", round, destination);
             return round;
@@ -340,7 +333,7 @@ public final class ReplayPcesWorkflow {
             throw e;
         }
     }
-     /** Copies the PCES files into the database directory the platform will scan
+    /** Copies the PCES files into the database directory the platform will scan
      * ({@link PcesUtilities#getDatabaseDirectory}). The {@code blocks-to-pces} tool writes its output under a
      * node-id-0 subtree; this stages those files into the location keyed by {@code selfId} so the
      * {@code PcesFileTracker} discovers them at platform build time.
