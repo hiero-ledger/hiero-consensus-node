@@ -14,7 +14,7 @@ network. For how gossip works, see the
 May depend on:
 - `consensus-model`, `consensus-state`, `consensus-utility`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other functional-api modules

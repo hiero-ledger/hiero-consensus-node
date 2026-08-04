@@ -11,7 +11,6 @@ module org.hiero.consensus.otter.docker.app {
     requires transitive org.apache.logging.log4j.core;
     requires com.swirlds.base;
     requires com.swirlds.common;
-    requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
@@ -25,6 +24,7 @@ module org.hiero.consensus.otter.docker.app {
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.wiring.framework;
     requires io.grpc;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
