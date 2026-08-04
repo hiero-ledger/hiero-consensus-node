@@ -667,6 +667,7 @@ the resulting state and block hashes against the originals.
 - The state round must match the PCES stream origin, or the platform will discard the files.
 - The `--rounds-non-ancient` extension must have been used in `blocks-to-pces` (default 26),
   or the earliest events will be stuck in the orphan buffer and consensus will not advance.
+
 ### Usage
 
 ```shell
@@ -710,6 +711,7 @@ java -jar ./validator-<version>.jar replay-pces \
   real hinTS. No live TSS network required. Default = `true`.
 - `--target-round` (or `-t`) — The round to advance the state to. Must be less than or equal
   to the last round in the PCES stream. Required.
+
 ### Notes
 
 - The command sets `event.preconsensus.intake.allowUnsignedPcesEvents=true` automatically.
@@ -725,5 +727,5 @@ java -jar ./validator-<version>.jar replay-pces \
 - The snapshot round in the output equals the round PCES advanced the state to. Compare the
   `hashInfo.txt` from the output state against the original production state at that round to
   verify equivalence.
-- If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not 
-the same as the target round, the replay will fail. 
+- If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not
+  the same as the target round, the replay will fail.

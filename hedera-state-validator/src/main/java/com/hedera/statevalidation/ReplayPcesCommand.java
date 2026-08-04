@@ -9,7 +9,6 @@ import com.hedera.statevalidation.blockstream.ReplayPcesWorkflow;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.util.BootstrapUtils;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
@@ -25,9 +24,9 @@ import picocli.CommandLine.Option;
  * Loads a saved state, replays a PCES stream on top of it using the consensus node's real replay mechanism, and writes
  * the resulting state snapshot to disk.
  *
- * <p>This builds and starts a genuine {@code SwirldsPlatform} (the same one {@code ServicesMain} builds) so that the
- * production {@code PcesModule.replayPcesEvents} path is exercised — it is not a custom replay harness. Gossip is never
- * started; only PCES replay runs, after which the advanced state is dumped.
+ * <p>This builds the consensus layer (the same one {@code ServicesMain} builds) so that the production
+ * {@code PcesModule.replayPcesEvents} path is exercised — it is not a custom replay harness. Gossip is never started;
+ * only PCES replay runs, after which the advanced state is dumped.
  *
  * <p>Intended to be paired with {@code blocks-to-pces}: that tool reconstructs PCES files from a block stream, and this
  * command replays them on a node started from the matching state snapshot, to validate block-stream equivalence.
@@ -44,6 +43,9 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     private static final Logger log = LogManager.getLogger(ReplayPcesCommand.class);
 
+    public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
+
+    private long targetRound = DEFAULT_TARGET_ROUND;
     private Path pcesDir;
     private Path outDir = Path.of("./replay-out");
     private long selfIdValue = 0;
@@ -86,6 +88,14 @@ public class ReplayPcesCommand implements Callable<Integer> {
         this.forceMockSignatures = forceMockSignatures;
     }
 
+    @Option(
+            names = {"-t", "--target-round"},
+            description = "The last round that should be applied to the state, any higher rounds are ignored. "
+                    + "Default = apply all available rounds.")
+    private void setTargetRound(final long targetRound) {
+        this.targetRound = targetRound;
+    }
+
     @Override
     public Integer call() throws Exception {
         parent.resolveAndGetStateDir();
@@ -95,15 +105,20 @@ public class ReplayPcesCommand implements Callable<Integer> {
         //  - allowUnsignedPcesEvents: blocks-to-pces produces unsigned reconstructed events; without this the intake
         //    pipeline drops every replayed event at signature validation (see the unsigned-event intake path).
         //  - forceMockSignatures: Tier-1 deterministic block signing with no live TSS network.
+        // IMPORTANT: this flag is non-existent in the production codebase. It requires
+        // production code change that should never be a part of the main branch.
+        // See commit 140f94fff19a3a6f809df339ed17349ef5ae3426 for more details.
         System.setProperty("event.preconsensus.intake.allowUnsignedPcesEvents", "true");
         if (forceMockSignatures) {
             System.setProperty("tss.forceMockSignatures", "true");
         }
+        System.setProperty("pces.forceIgnorePcesSignatures", "true");
+        System.setProperty("event.preconsensus.copyRecentStreamToStateSnapshots", "false");
+        System.setProperty("event.preconsensus.limitReplayFrequency", "false");
+        System.setProperty("state.saveStatePeriod", "3600");
+        System.setProperty("blockStream.writerMode", "FILE");
 
         final NodeId selfId = NodeId.of(selfIdValue);
-
-        // Constructable registry must be set up before any state deserialization, exactly as ServicesMain.main does.
-        BootstrapUtils.setupConstructableRegistry();
 
         // Build the platform configuration the same way ServicesMain does (mirrors production; reads system props).
         final Configuration platformConfig = ServicesMain.buildPlatformConfig();
@@ -122,6 +137,7 @@ public class ReplayPcesCommand implements Callable<Integer> {
                 pcesDir,
                 outDir,
                 selfId,
+                targetRound,
                 consensusEventStreamName,
                 platformConfig,
                 fileSystemManager,

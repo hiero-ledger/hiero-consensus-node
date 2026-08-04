@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
+import static com.hedera.statevalidation.ReplayPcesCommand.DEFAULT_TARGET_ROUND;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
@@ -9,18 +10,15 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.statevalidation.ReplayPcesCommand;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.test.fixtures.builder.TestPlatformBuilder;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,11 +29,13 @@ import java.security.KeyStoreException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
@@ -46,34 +46,36 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.state.SignedStateFileReader;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * Loads a saved state, replays a PCES stream on top of it using the consensus node's <b>real</b> replay mechanism, and
  * dumps the resulting state to disk.
  *
  * <p>This intentionally reuses the production startup path rather than a bespoke replay harness. It constructs the same
- * {@link Hedera} execution layer and {@link Platform} that {@link ServicesMain#main} builds, then drives the body of
- * {@link com.swirlds.platform.SwirldsPlatform#start()} <i>minus gossip</i>:
+ * {@link Hedera} execution layer and {@link Platform} that {@link ServicesMain#main} builds via
+ * {@link TestPlatformBuilder}, which performs all restart priming (consensus snapshot override, event window,
+ * ISS-detector seeding, {@code onStateInitialized}, etc.) automatically. It then drives the body of
+ * {@code SwirldsPlatform.start()} <i>minus gossip</i>:
  *
  * <ol>
- *   <li>Build the platform exactly as {@code ServicesMain} does — loading the initial state, initializing the States
- *       API, deriving roster/keys, and calling {@link PlatformBuilder}. The {@code SwirldsPlatform} constructor (run
- *       inside {@link PlatformComponentBuilder#build()}) performs all the restart priming
- *       ({@code consensusSnapshotOverride}, {@code updateEventWindow}, signature-collector and ISS-detector seeding,
- *       etc.) automatically.</li>
- *   <li>Start the recycle bin, metrics, and platform coordinator (the first three lines of {@code start()}).</li>
+ *   <li>Build the platform via {@link TestPlatformBuilder} — loading the initial state, initializing the States API,
+ *       deriving roster/keys, and constructing all consensus-layer modules. The builder's {@code build()} performs all
+ *       the restart priming that {@code SwirldsPlatform}'s constructor does.</li>
+ *   <li>Start the recycle bin, metrics, and wiring model.</li>
  *   <li>Call {@code pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound)} — the same call normal startup
- *       makes — but do <b>not</b> call {@code startGossip()}.</li>
- *   <li>Pull the latest immutable state, mark it {@link StateToDiskReason#PCES_RECOVERY_COMPLETE}, and dump it to disk,
- *       blocking until the write finishes.</li>
+ *       makes — but do <b>not</b> start gossip.</li>
+ *   <li>Flush the pipeline, locate the saved state the platform wrote, and copy it to the output directory. When a
+ *       {@code --target-round} is specified, the exact target-round snapshot is located and copied instead of the
+ *       latest periodic snapshot.</li>
  * </ol>
  *
- * <p>The replay bounds are recomputed from the loaded state using the same public helpers the {@code SwirldsPlatform}
- * constructor uses ({@code initialState.getRound()} and {@link org.hiero.consensus.platformstate.PlatformStateUtils#ancientThresholdOf}),
- * so they are identical to a production restart — no reflection into platform internals is required.
+ * <p>The replay bounds are recomputed from the loaded state using the same public helpers the platform constructor
+ * uses ({@code initialState.getRound()} and
+ * {@link org.hiero.consensus.platformstate.PlatformStateUtils#ancientThresholdOf}), so they are identical to a
+ * production restart — no reflection into platform internals is required.
  */
 public final class ReplayPcesWorkflow {
 
@@ -88,6 +90,7 @@ public final class ReplayPcesWorkflow {
      * @param pcesDir the directory containing the PCES files to replay (produced by {@code blocks-to-pces})
      * @param outDir the directory where the resulting state snapshot will be written
      * @param selfId the node id to run as; must match the node id the PCES files were generated for
+     * @param targetRound the last round that should be applied ({@link ReplayPcesCommand#DEFAULT_TARGET_ROUND} for all)
      * @param consensusEventStreamName the consensus event stream name (e.g. "0.0.3"); supplied by the caller because
      *     {@code ServicesMain} derives it via private helpers. For replay it only names an output directory.
      * @param platformConfig the fully-built platform configuration (production-mirroring, plus replay flags)
@@ -101,6 +104,7 @@ public final class ReplayPcesWorkflow {
             @NonNull final Path pcesDir,
             @NonNull final Path outDir,
             @NonNull final NodeId selfId,
+            final long targetRound,
             @NonNull final String consensusEventStreamName,
             @NonNull final Configuration platformConfig,
             @NonNull final FileSystemManager fileSystemManager,
@@ -124,7 +128,6 @@ public final class ReplayPcesWorkflow {
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
 
         // --- Place the PCES files where the PcesFileTracker will scan them, before the platform is built ---
-        // DefaultPcesModule.initialize scans PcesUtilities.getDatabaseDirectory(config, fsm, selfId) at build time.
         stagePcesFiles(pcesDir, platformConfig, fileSystemManager, selfId);
 
         // --- Load the initial state directly from the given path ---
@@ -133,7 +136,7 @@ public final class ReplayPcesWorkflow {
 
         log.info("Loading state from {}", stateDir);
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readState(stateDir, platformContext, stateLifecycleManager);
+                SignedStateFileReader.readState(stateDir, platformContext.getConfiguration(), stateLifecycleManager);
 
         final ReservedSignedState initialState = deserializedSignedState.reservedSignedState();
         final Hash originalHash = deserializedSignedState.originalHash();
@@ -154,78 +157,86 @@ public final class ReplayPcesWorkflow {
         final RosterHistory rosterHistory = rosterStore.getRosterHistory();
 
         // --- Generate ephemeral keys for this node ---
-        // initNodeSecurity loads keys from disk (PKCS12 keystores), which don't exist in an offline replay
-        // environment, causing KEY_LOADING_FAILED. For PCES replay we never start gossip or interact with
-        // peers, so real keys are not needed — the platform only requires them to satisfy internal certificate
-        // validation at build time. KeysAndCertsGenerator.generateKeysAndCerts produces self-consistent
-        // ephemeral keys that satisfy those checks without any on-disk key infrastructure.
         final KeysAndCerts keysAndCerts =
                 KeysAndCertsGenerator.generateKeysAndCerts(List.of(selfId)).get(selfId);
 
-        // Register the platform service-state stubs (PlatformStateService, RosterService) on the manager's
-        // current mutable state, immediately before building the platform. This must come AFTER Hedera's
-        // initializeStatesApi (whose onStateInitialized migration rebuilds the services map and would otherwise
-        // overwrite earlier stub registration) and BEFORE PlatformComponentBuilder.build() (whose SwirldsPlatform
-        // constructor calls copyMutableState() then accesses PlatformStateService — the copy carries this metadata
-        // forward via VirtualMapStateImpl's copy constructor). This is the same registration StateUtils.initState
-        // performs; the platform's own init path does not register these platform stubs.
+        // Register the platform service-state stubs on the manager's current mutable state.
         SignedStateFileReader.registerServiceStates(stateLifecycleManager.getMutableState());
 
-        // --- Recompute replay bounds exactly as the SwirldsPlatform constructor does (non-genesis) ---
-        // These MUST be read before PlatformBuilder.build(): build() takes ownership of the initialState
-        // reservation and closes it during construction (copyMutableState + startup handling), after which
-        // initialState.get() throws ReferenceCountException.
+        // --- Recompute replay bounds (must read before build() consumes the state) ---
         final long startingRound = initialState.get().getRound();
         final long pcesReplayLowerBound = ancientThresholdOf(state);
 
-        // Computed deterministically from config by the same public helper ServicesMain uses.
         final int transactionOffsetNanos = ServicesMain.transactionOffsetNanos(platformConfig);
         hedera.setTxnOffsetNanos(transactionOffsetNanos);
 
-        // --- Build the platform (constructor priming runs inside build()) ---
-        final PlatformComponentBuilder componentBuilder = PlatformBuilder.create(
-                        Hedera.APP_NAME,
-                        Hedera.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        consensusStateEventHandler,
-                        selfId,
-                        consensusEventStreamName,
-                        rosterHistory,
-                        stateLifecycleManager)
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(hedera)
-                .withStaleEventConsumer(hedera)
-                .withTransactionOffsetNanos(transactionOffsetNanos)
-                .buildComponentBuilder();
+        // --- Build the platform via TestPlatformBuilder ---
+        // TestPlatformBuilder.build() constructs the real SwirldsPlatform (which Hedera needs for
+        // onStateInitialized), runs InitialStateLoader, wires all modules, and closes the initial state
+        // reservation. We then access buildingBlocks() to drive replay without starting gossip.
+        final TestPlatformBuilder builder = new TestPlatformBuilder(
+                platformConfig,
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                keysAndCerts,
+                selfId,
+                platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
+                hedera,
+                consensusStateEventHandler,
+                initialState,
+                stateLifecycleManager,
+                version,
+                new PersistenceScope(Hedera.APP_NAME, Hedera.SWIRLD_NAME),
+                consensusEventStreamName,
+                transactionOffsetNanos);
 
-        final Platform platform = componentBuilder.build();
-        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
+        final Platform platform = builder.build();
+        final ConsensusLayerBuildingBlocks buildingBlocks = builder.buildingBlocks();
+
+        // --- Target-round capture: tap the hashgraph consensus-round output so we can track the highest round
+        //     that reached consensus. Must be soldered before the wiring model starts. ---
+        final AtomicLong latestConsensusRound = new AtomicLong(-1);
+        buildingBlocks
+                .hashgraphModule()
+                .consensusRoundOutputWire()
+                .solderTo(
+                        "replayRoundTracker",
+                        "consensus round",
+                        round -> latestConsensusRound.set(round.getRoundNum()));
 
         boolean started = false;
         try {
             log.info(
-                    "Driving PCES replay: startingRound={}, pcesReplayLowerBound={}",
+                    "Driving PCES replay: startingRound={}, pcesReplayLowerBound={}, targetRound={}",
                     startingRound,
-                    pcesReplayLowerBound);
+                    pcesReplayLowerBound,
+                    targetRound == DEFAULT_TARGET_ROUND ? "all" : targetRound);
 
-            // --- Drive the body of SwirldsPlatform.start() MINUS startGossip() ---
+            // --- Drive the body of SwirldsPlatform.start() MINUS gossip ---
             platformContext.getRecycleBin().start();
             platformContext.getMetrics().start();
-            blocks.platformCoordinator().start();
-            started = true; // wiring model is now started; destroy()/stop() is safe from here on
-            blocks.platformComponents().pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
-            // NOTE: deliberately NOT calling blocks.platformCoordinator().startGossip()
+            buildingBlocks.wiringModel().start();
+            started = true;
 
-            // --- Capture the resulting state and dump it to disk (ADR-003 steps 3-4) ---
-            final long resultRound = dumpResultingState(blocks, platformConfig, outDir);
+            buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
+            // NOTE: deliberately NOT calling buildingBlocks.gossipModule().startInputWire().inject(...)
+
+            // --- Flush the pipeline so state snapshots are written to disk ---
+            buildingBlocks.pipelineFlusher().flushPrimaryPipeline();
+
+            // --- Write the resulting state ---
+            final long resultRound;
+            if (targetRound != DEFAULT_TARGET_ROUND) {
+                resultRound = writeTargetRoundState(platformConfig, outDir, targetRound, latestConsensusRound.get());
+            } else {
+                resultRound = copyLatestSnapshotToOutDir(platformConfig, outDir);
+            }
+
             log.info("PCES replay complete. Resulting state round: {}, written under {}", resultRound, outDir);
             return resultRound;
         } finally {
-            // platform.destroy() calls platformCoordinator.stop(), which throws if the wiring model was never
-            // started. Only destroy when start succeeded, and never let cleanup mask the original exception.
             if (started) {
                 try {
                     platform.destroy();
@@ -239,41 +250,67 @@ public final class ReplayPcesWorkflow {
     }
 
     /**
-     * Pulls the latest immutable state from the nexus, marks it for saving, and dumps it to disk, blocking until the
-     * write completes.
-     *
-     * @return the round of the dumped state
+     * Writes the target-round state to the output directory. Looks for the exact round directory first; falls back to
+     * the closest available round if the periodic save didn't land on the target.
      */
-    private static long dumpResultingState(
-            @NonNull final PlatformBuildingBlocks blocks,
-            @NonNull Configuration platformConfig,
-            @NonNull final Path outDir) {
-        try (final ReservedSignedState reserved =
-                blocks.latestImmutableStateNexus().getState("replay-pces result")) {
-            if (reserved == null) {
-                throw new IllegalStateException(
-                        "PCES replay produced no immutable state — nothing to dump. "
-                                + "This usually means no events were replayed (check PCES placement and origin/round alignment).");
-            }
-            final SignedState signedState = reserved.get();
-            signedState.markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE);
+    private static long writeTargetRoundState(
+            @NonNull final Configuration platformConfig,
+            @NonNull final Path outDir,
+            final long targetRound,
+            final long actualLatestRound)
+            throws IOException {
 
-            final StateDumpRequest request =
-                    StateDumpRequest.create(signedState.reserve("dumping replay-pces result state"));
-            blocks.platformCoordinator().dumpStateToDisk(request);
-            request.waitForFinished().run();
-
-            final long round = signedState.getRound();
-
-            // Copy the snapshot from the platform's internal saved-state location to the caller's outDir.
-            try {
-                copySnapshotToOutDir(platformConfig, round, outDir);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            return round;
+        if (actualLatestRound < targetRound) {
+            throw new IllegalStateException(
+                    "Target round " + targetRound + " never reached consensus during replay (latest was "
+                            + actualLatestRound + "). The PCES does not contain enough rounds past the target to "
+                            + "decide it. Regenerate with blocks-to-pces covering more rounds past the target "
+                            + "(increase DECISION_MARGIN_ROUNDS), or choose a target within the decided range.");
         }
+
+        final Path savedStateDir =
+                platformConfig.getConfigData(PathsConfig.class).savedStateDir();
+        final Path existingRoundDir = findRoundDirectory(savedStateDir, targetRound);
+        if (existingRoundDir != null) {
+            return copyRoundDirToOutDir(existingRoundDir, targetRound, outDir);
+        }
+
+        log.info("Target round {} was not periodically saved; falling back to closest available round", targetRound);
+        final Path closestRoundDir = findLatestRoundDirectory(savedStateDir);
+        if (closestRoundDir == null) {
+            throw new IllegalStateException("No saved state found under " + savedStateDir + " after replay. "
+                    + "This usually means no events were replayed.");
+        }
+
+        final long closestRound = Long.parseLong(closestRoundDir.getFileName().toString());
+        log.info("Closest available saved round is {} (target was {})", closestRound, targetRound);
+        return copyRoundDirToOutDir(closestRoundDir, closestRound, outDir);
+    }
+
+    /**
+     * Copies a round directory to the output directory, returning the round number.
+     */
+    private static long copyRoundDirToOutDir(@NonNull final Path roundDir, final long round, @NonNull final Path outDir)
+            throws IOException {
+        final Path destination = outDir.resolve(Long.toString(round));
+        log.info("Copying replay state from {} to {}", roundDir, destination);
+        Files.createDirectories(destination);
+        try (final Stream<Path> files = Files.walk(roundDir)) {
+            files.forEach(source -> {
+                final Path target = destination.resolve(roundDir.relativize(source));
+                try {
+                    if (Files.isDirectory(source)) {
+                        Files.createDirectories(target);
+                    } else {
+                        Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (final IOException e) {
+                    throw new java.io.UncheckedIOException("Failed to copy " + source + " -> " + target, e);
+                }
+            });
+        }
+        log.info("Replay state for round {} copied to {}", round, destination);
+        return round;
     }
 
     /**
@@ -291,15 +328,10 @@ public final class ReplayPcesWorkflow {
 
         final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, fileSystemManager, selfId);
 
-        // Find the directory in pcesDir that actually contains the .pces files. blocks-to-pces writes them under a
-        // node-id subdirectory (node 0). Accept either pcesDir directly containing .pces files, or a single
-        // node-id subdirectory containing them.
         final Path sourceDir = locatePcesFiles(pcesDir);
 
         log.info("Staging PCES files from {} into {}", sourceDir, databaseDirectory);
 
-        // Ensure a clean database directory — leftover .pces files from a prior run would
-        // be picked up by PcesFileTracker and corrupt the replay.
         if (Files.isDirectory(databaseDirectory)) {
             try (final Stream<Path> stale = Files.list(databaseDirectory)) {
                 stale.filter(p -> p.getFileName().toString().endsWith(".pces")).forEach(p -> {
@@ -326,10 +358,6 @@ public final class ReplayPcesWorkflow {
         }
     }
 
-    /**
-     * Resolves the directory that actually holds the {@code .pces} files. Accepts {@code pcesDir} itself if it directly
-     * contains them, otherwise descends into a single node-id subdirectory (as produced by {@code blocks-to-pces}).
-     */
     @NonNull
     private static Path locatePcesFiles(@NonNull final Path pcesDir) throws IOException {
         if (containsPcesFiles(pcesDir)) {
@@ -355,58 +383,51 @@ public final class ReplayPcesWorkflow {
     }
 
     /**
-     * Copies the state snapshot written by the platform to the caller-specified output directory.
-     * The platform writes to {@code <savedStateDir>/<appName>/<swirldName>/<selfId>/<round>/}.
-     * We locate that directory and copy its contents into {@code <outDir>/<round>/}.
+     * Locates the latest state snapshot written by the platform, copies it to {@code outDir}, and returns the round.
      */
-    private static void copySnapshotToOutDir(
-            @NonNull final Configuration platformConfig, final long round, @NonNull final Path outDir)
-            throws IOException {
-        // Resolve the platform's saved-state directory for this round. The convention is:
-        //   savedStateDir / appName / swirldName / selfId / round
-        // where savedStateDir defaults to "./data/saved", appName = ServicesMain class name, swirldName = "123".
-        // Rather than reconstruct the convention, scan for the round directory.
+    private static long copyLatestSnapshotToOutDir(
+            @NonNull final Configuration platformConfig, @NonNull final Path outDir) throws IOException {
         final Path savedStateDir =
                 platformConfig.getConfigData(PathsConfig.class).savedStateDir();
-        final Path roundDir = findRoundDirectory(savedStateDir, round);
+        final Path roundDir = findLatestRoundDirectory(savedStateDir);
         if (roundDir == null) {
-            log.warn(
-                    "Could not find saved state directory for round {} under {}; outDir copy skipped.",
-                    round,
-                    savedStateDir);
-            return;
+            throw new IllegalStateException("PCES replay produced no saved state under " + savedStateDir
+                    + ". This usually means no events were replayed "
+                    + "(check PCES placement and origin/round alignment).");
         }
-
-        final Path destination = outDir.resolve(Long.toString(round));
-        log.info("Copying replay state from {} to {}", roundDir, destination);
-        Files.createDirectories(destination);
-        try (final Stream<Path> files = Files.walk(roundDir)) {
-            files.forEach(source -> {
-                final Path target = destination.resolve(roundDir.relativize(source));
-                try {
-                    if (Files.isDirectory(source)) {
-                        Files.createDirectories(target);
-                    } else {
-                        Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (final IOException e) {
-                    throw new java.io.UncheckedIOException("Failed to copy " + source + " -> " + target, e);
-                }
-            });
-        }
-        log.info("Replay state for round {} copied to {}", round, destination);
+        final long round = Long.parseLong(roundDir.getFileName().toString());
+        return copyRoundDirToOutDir(roundDir, round, outDir);
     }
 
-    /**
-     * Searches for a directory named {@code <round>} under the saved-state root (recursively).
-     * Returns the first match, or null if not found.
-     */
     private static Path findRoundDirectory(final Path root, final long round) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return null;
+        }
         final String roundName = Long.toString(round);
         try (final Stream<Path> dirs = Files.walk(root)) {
             return dirs.filter(Files::isDirectory)
                     .filter(p -> p.getFileName().toString().equals(roundName))
                     .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    private static Path findLatestRoundDirectory(final Path root) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return null;
+        }
+        try (final Stream<Path> dirs = Files.walk(root)) {
+            return dirs.filter(Files::isDirectory)
+                    .filter(p -> {
+                        try {
+                            Long.parseLong(p.getFileName().toString());
+                            return true;
+                        } catch (final NumberFormatException e) {
+                            return false;
+                        }
+                    })
+                    .max(Comparator.comparingLong(
+                            p -> Long.parseLong(p.getFileName().toString())))
                     .orElse(null);
         }
     }
