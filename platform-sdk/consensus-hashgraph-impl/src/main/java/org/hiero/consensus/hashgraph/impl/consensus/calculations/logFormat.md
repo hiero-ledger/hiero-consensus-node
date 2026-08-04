@@ -76,6 +76,6 @@ Each round starts by giving `RoundInfoPrev` then `RoundInfo`. If they have a `pe
 
 It then gives the `EventInfo` for many events. Whenever an event appears for the first time for this hashgraph, it gives its `EventSigned` just before its `EventInfo`.
 
-If an event reaches consensus (so the `update()` method returned a non-null result), then the next line will be the `UpdateResults` returned by that method. This is then followed by the new `RoundInfo` and `RoundInfoPrev` where the `pendingRound` is incremented by 1, followed by many events recalculated with that new pending round.
+If an event reaches consensus (so the `update()` method returned a non-null result), then the next line will be the `UpdateResults` returned by that method. This is then followed by the new `RoundInfoPrev` and `RoundInfo` where the `pendingRound` is incremented by 1, followed by many events recalculated with that new pending round.
 
 All events in every hashgraph will be valid events. So when an event is added to the hashgraph, its `parentsSigned` list has at most one parent for each creator, and lists the self-parent first (if there is one). Its `timeCreated` is greater than its self-parent. Its `birthRound` is greater than or equal to all its parents. Its `coin` will be a uniform random `int32` (rather than limited to the range 0 to n, for n nodes in the birth round). Nodes will always have nonnegative stake, with at least one node having positive stake.
