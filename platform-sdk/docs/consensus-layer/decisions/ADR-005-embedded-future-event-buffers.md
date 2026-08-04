@@ -189,7 +189,7 @@ See **Decision** above.
 - `consensus-event-creator-impl/.../DefaultEventCreationManager.java` — owns
   the `FutureEventBuffer`; releases events to the creator on
   `setEventWindow(...)`.
-- `swirlds-platform-core/.../PlatformCoordinator.java` —
+- `swirlds-platform-core/.../PipelineFlusher.java` —
   `flushPrimaryPipeline()`, the ordered flush this decision keeps simple.
 - RUL-002 — the flush-ordering
   rule whose single-pass guarantee depends on this decision.

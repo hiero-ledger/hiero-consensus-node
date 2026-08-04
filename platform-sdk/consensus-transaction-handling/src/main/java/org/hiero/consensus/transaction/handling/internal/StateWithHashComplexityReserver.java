@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction.handling.internal;
 
-import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
+import org.hiero.consensus.wiring.framework.transformers.AdvancedTransformation;
 
 /**
  * Manages reservations of a signed state contained in a {@link TransactionHandlerResult} object when the
