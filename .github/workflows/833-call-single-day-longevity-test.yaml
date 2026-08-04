@@ -198,6 +198,7 @@ jobs:
   longevity-tests-start:
     name: Start
     runs-on: hl-cn-sdlt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     outputs:
       run-hcn-version: ${{ steps.set-hcn-version.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
