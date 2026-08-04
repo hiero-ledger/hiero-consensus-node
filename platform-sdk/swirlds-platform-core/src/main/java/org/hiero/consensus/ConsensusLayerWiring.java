@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
-import static com.swirlds.component.framework.wires.SolderType.INJECT;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -27,6 +26,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.extensions;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.reconfigureSharedSubProcessLogging;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.buildRsaBootstrapJson;
 import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
@@ -159,6 +160,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 targetBlockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 targetNetwork.start();
+                reconfigureSharedSubProcessLogging(targetNetwork);
                 SHARED_NETWORK.set(targetNetwork);
 
                 // Set both the thread-local and the static shared network reference
@@ -177,6 +179,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     }
                 }
                 targetNetwork.start();
+                reconfigureSharedSubProcessLogging(targetNetwork);
                 SHARED_NETWORK.set(targetNetwork);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else {
