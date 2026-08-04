@@ -73,9 +73,9 @@ public final class ConsensusTestDefinitions {
         // This line will generate the first 1,000 events, feed them into consensus, and stop
         orchestrator.generateEvents(0.007);
         // This will bring up the GUI and all events generated thus far will be available to view
-        //ConsensusTestDebugGui.runGui(orchestrator);
+        // ConsensusTestDebugGui.runGui(orchestrator);
         // This generates the remaining 9,000
-//        orchestrator.generateEvents(0.9);
+        //        orchestrator.generateEvents(0.9);
 
         // This line verifies the output of the two consensus instances
         orchestrator.validateAndClear(consensusOutputValidator);

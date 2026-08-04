@@ -1195,11 +1195,14 @@ public final class HashgraphInfo {
             // calculate roundTimestamp to be returned: weighted median timeCreated of all judges
             Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
             final EventInfo[] judgesArrayFinal = judgesArray; // make final for use in lambdas
-            Arrays.sort(h.sortInd, (Integer i1, Integer i2) ->  // sort by timeCreated, ascending
-                (i2 >= judgesArrayFinal.length) ? -1
-                    : (i1 >= judgesArrayFinal.length) ? 1
-                        : judgesArrayFinal[i1].timeCreated.compareTo(judgesArrayFinal[i2].timeCreated)
-            );
+            Arrays.sort(
+                    h.sortInd,
+                    (Integer i1, Integer i2) -> // sort by timeCreated, ascending
+                    (i2 >= judgesArrayFinal.length)
+                            ? -1
+                            : (i1 >= judgesArrayFinal.length)
+                                    ? 1
+                                    : judgesArrayFinal[i1].timeCreated.compareTo(judgesArrayFinal[i2].timeCreated));
             {
                 long stake = 0; // sum of weights of judges with earlier created time
                 int medianPos;
@@ -1228,10 +1231,11 @@ public final class HashgraphInfo {
             // function consensusOrder /--------------------------------------------------------------------------
             // function consensusTimestamp /----------------------------------------------------------------------
             if (r.judgeCon1 && consensusEventsArray.length > 0) { // if each is ancestor of at least one judge
-                Arrays.sort(consensusEventsArray,// sort by timeCon(r,d,x) which is just gen plus a constant
+                Arrays.sort(
+                        consensusEventsArray, // sort by timeCon(r,d,x) which is just gen plus a constant
                         Comparator.comparingLong((EventInfo e) -> e.gen)
                                 .thenComparingInt((EventInfo e) -> e.searchOrder)); // tiebreaker is searchOrder
-//                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
+                //                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(i);
@@ -1242,11 +1246,14 @@ public final class HashgraphInfo {
                     long stake = 0;
                     int medianPos;
                     Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
-                    Arrays.sort(h.sortInd, (Integer i1, Integer i2) ->  // sort by received time, ascending
-                        (i2 >= judgesArrayFinal.length) ? -1
-                                : (i1 >= judgesArrayFinal.length) ? 1
-                                        : event.receivedTime[i1].compareTo(event.receivedTime[i2])
-                    );
+                    Arrays.sort(
+                            h.sortInd,
+                            (Integer i1, Integer i2) -> // sort by received time, ascending
+                            (i2 >= judgesArrayFinal.length)
+                                            ? -1
+                                            : (i1 >= judgesArrayFinal.length)
+                                                    ? 1
+                                                    : event.receivedTime[i1].compareTo(event.receivedTime[i2]));
                     for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                         stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
                         if (2 * stake >= h.totalStake) {
@@ -1255,14 +1262,19 @@ public final class HashgraphInfo {
                     }
                     event.consensusTimestamp = event.receivedTime[medianPos];
                 }
-                Arrays.sort(consensusEventsArray, // sort by weighted median time received
-                                Comparator.comparing((EventInfo e) -> e.consensusTimestamp)
-                                .thenComparingLong((EventInfo e) -> e.gen) // sort by gen. Then tiebreaker is searchOrder
+                Arrays.sort(
+                        consensusEventsArray, // sort by weighted median time received
+                        Comparator.comparing((EventInfo e) -> e.consensusTimestamp)
+                                .thenComparingLong(
+                                        (EventInfo e) -> e.gen) // sort by gen. Then tiebreaker is searchOrder
                                 .thenComparingInt((EventInfo e) -> e.searchOrder));
-                Arrays.sort(consensusEventsArray, Comparator.comparing((EventInfo e) -> e.consensusTimestamp)
-                        //.thenComparingLong((EventInfo e) -> e.gen) // sort by gen. Then tiebreaker is searchOrder
-                        .thenComparingLong((EventInfo e) -> e.searchOrder)); /**/
-//                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
+                Arrays.sort(
+                        consensusEventsArray,
+                        Comparator.comparing((EventInfo e) -> e.consensusTimestamp)
+                                // .thenComparingLong((EventInfo e) -> e.gen) // sort by gen. Then tiebreaker is
+                                // searchOrder
+                                .thenComparingLong((EventInfo e) -> e.searchOrder)); /**/
+                //                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                 }

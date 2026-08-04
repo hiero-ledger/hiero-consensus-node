@@ -227,8 +227,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n                 prevJudgeCon1  "
                         + h.getLatestRoundInfoPrev().prevJudgeCon1();
                 str += "\n                    prevJudges  "
-                        + eventInfosToString(
-                                h.getLatestRoundInfoPrev().prevJudges());
+                        + eventInfosToString(h.getLatestRoundInfoPrev().prevJudges());
                 str += "\n              prevJudgesCopied  "
                         + h.getLatestRoundInfoPrev().prevJudgesCopied();
                 str += "\n        prevMinNonAncientRound  "
