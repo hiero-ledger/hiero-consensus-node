@@ -11,6 +11,7 @@ import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.ReplayPcesCommand;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -28,15 +29,15 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -47,6 +48,7 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.state.SignedStateFileReader;
+import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
@@ -109,7 +111,7 @@ public final class ReplayPcesWorkflow {
             @NonNull final Configuration platformConfig,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
-            @NonNull final com.swirlds.base.time.Time time)
+            @NonNull final Time time)
             throws IOException, InterruptedException, ParseException, KeyStoreException, ExecutionException {
         requireNonNull(stateDir);
         requireNonNull(pcesDir);
@@ -195,16 +197,30 @@ public final class ReplayPcesWorkflow {
         final Platform platform = builder.build();
         final ConsensusLayerBuildingBlocks buildingBlocks = builder.buildingBlocks();
 
-        // --- Target-round capture: tap the hashgraph consensus-round output so we can track the highest round
-        //     that reached consensus. Must be soldered before the wiring model starts. ---
-        final AtomicLong latestConsensusRound = new AtomicLong(-1);
+        // --- Final-state capture ---
+        // Tap the hashed-state output so we retain the exact ReservedSignedState the platform produced for the
+        // final replayed round (highest round <= targetRound). We keep exactly one reservation at a time, swapping
+        // in the newer state and releasing the older. flushPrimaryPipeline() flushes the state hasher, which feeds
+        // this wire, so by the time the flush returns this reference holds the final hashed state. This avoids
+        // relying on the periodic-save mechanism (which may never fire within a single hourly bucket) and the
+        // filesystem scan (which can race the async snapshot manager). Must be soldered before the model starts.
+        final AtomicReference<ReservedSignedState> capturedFinalState = new AtomicReference<>();
         buildingBlocks
-                .hashgraphModule()
-                .consensusRoundOutputWire()
-                .solderTo(
-                        "replayRoundTracker",
-                        "consensus round",
-                        round -> latestConsensusRound.set(round.getRoundNum()));
+                .stateModule()
+                .hashedStateOutputWire()
+                .solderTo("replayFinalStateCapture", "hashed state", (ReservedSignedState rs) -> {
+                    final long round = rs.get().getRound();
+                    if (round > targetRound) {
+                        // Beyond the requested target — discard the reservation given to this consumer.
+                        rs.close();
+                        return;
+                    }
+                    // Retain this state, releasing any previously captured (lower-round) one.
+                    final ReservedSignedState previous = capturedFinalState.getAndSet(rs);
+                    if (previous != null) {
+                        previous.close();
+                    }
+                });
 
         boolean started = false;
         try {
@@ -223,20 +239,28 @@ public final class ReplayPcesWorkflow {
             buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
             // NOTE: deliberately NOT calling buildingBlocks.gossipModule().startInputWire().inject(...)
 
-            // --- Flush the pipeline so state snapshots are written to disk ---
+            // --- Flush the primary pipeline so transaction handling and state hashing complete, populating
+            //     capturedFinalState with the final hashed round. ---
             buildingBlocks.pipelineFlusher().flushPrimaryPipeline();
 
-            // --- Write the resulting state ---
-            final long resultRound;
-            if (targetRound != DEFAULT_TARGET_ROUND) {
-                resultRound = writeTargetRoundState(platformConfig, outDir, targetRound, latestConsensusRound.get());
-            } else {
-                resultRound = copyLatestSnapshotToOutDir(platformConfig, outDir);
-            }
+            // --- Write the exact final replayed state, synchronously, to the output directory ---
+            final long resultRound = writeFinalState(
+                    capturedFinalState.getAndSet(null),
+                    targetRound,
+                    platformConfig,
+                    fileSystemManager,
+                    selfId,
+                    stateLifecycleManager,
+                    outDir);
 
             log.info("PCES replay complete. Resulting state round: {}, written under {}", resultRound, outDir);
             return resultRound;
         } finally {
+            // Release any captured state that wasn't consumed by writeFinalState (e.g. on an exception path).
+            final ReservedSignedState leftover = capturedFinalState.getAndSet(null);
+            if (leftover != null) {
+                leftover.close();
+            }
             if (started) {
                 try {
                     platform.destroy();
@@ -250,71 +274,73 @@ public final class ReplayPcesWorkflow {
     }
 
     /**
-     * Writes the target-round state to the output directory. Looks for the exact round directory first; falls back to
-     * the closest available round if the periodic save didn't land on the target.
+     * Writes the captured final replayed state synchronously to {@code outDir/<round>} via
+     * {@link SignedStateFileWriter#writeSignedStateFilesToDirectory}. This is the same mechanism {@code dumpStateTask}
+     * uses; for a non-periodic state the write is synchronous, so when this method returns the state is fully on disk.
+     *
+     * <p>The method takes ownership of the reservation and releases it (the writer does so internally). If
+     * {@code capturedState} is null, no round was captured — either nothing reached consensus, or (when a target was
+     * requested) the target was never reached.
+     *
+     * @return the round of the written state
      */
-    private static long writeTargetRoundState(
-            @NonNull final Configuration platformConfig,
-            @NonNull final Path outDir,
+    private static long writeFinalState(
+            final ReservedSignedState capturedState,
             final long targetRound,
-            final long actualLatestRound)
+            @NonNull final Configuration platformConfig,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final NodeId selfId,
+            @NonNull final VirtualMapStateLifecycleManager stateLifecycleManager,
+            @NonNull final Path outDir)
             throws IOException {
 
-        if (actualLatestRound < targetRound) {
+        if (capturedState == null) {
+            if (targetRound != DEFAULT_TARGET_ROUND) {
+                throw new IllegalStateException(
+                        "Target round " + targetRound + " was never reached during replay. The PCES does not contain "
+                                + "enough rounds past the target to decide it. Regenerate with blocks-to-pces covering "
+                                + "more rounds past the target, or choose a target within the decided range.");
+            }
             throw new IllegalStateException(
-                    "Target round " + targetRound + " never reached consensus during replay (latest was "
-                            + actualLatestRound + "). The PCES does not contain enough rounds past the target to "
-                            + "decide it. Regenerate with blocks-to-pces covering more rounds past the target "
-                            + "(increase DECISION_MARGIN_ROUNDS), or choose a target within the decided range.");
+                    "PCES replay produced no consensus rounds — nothing to write. "
+                            + "Check PCES placement and origin/round alignment.");
         }
 
-        final Path savedStateDir =
-                platformConfig.getConfigData(PathsConfig.class).savedStateDir();
-        final Path existingRoundDir = findRoundDirectory(savedStateDir, targetRound);
-        if (existingRoundDir != null) {
-            return copyRoundDirToOutDir(existingRoundDir, targetRound, outDir);
-        }
+        try {
+            final long round = capturedState.get().getRound();
+            if (targetRound != DEFAULT_TARGET_ROUND && round < targetRound) {
+                throw new IllegalStateException(
+                        "Target round " + targetRound + " never reached consensus during replay (highest was "
+                                + round + "). The PCES does not contain enough rounds past the target to decide it. "
+                                + "Regenerate with blocks-to-pces covering more rounds past the target, or choose a "
+                                + "target within the decided range.");
+            }
 
-        log.info("Target round {} was not periodically saved; falling back to closest available round", targetRound);
-        final Path closestRoundDir = findLatestRoundDirectory(savedStateDir);
-        if (closestRoundDir == null) {
-            throw new IllegalStateException("No saved state found under " + savedStateDir + " after replay. "
-                    + "This usually means no events were replayed.");
-        }
+            final Path destination = outDir.resolve(Long.toString(round));
+            log.info("Writing final replayed state for round {} to {}", round, destination);
 
-        final long closestRound = Long.parseLong(closestRoundDir.getFileName().toString());
-        log.info("Closest available saved round is {} (target was {})", closestRound, targetRound);
-        return copyRoundDirToOutDir(closestRoundDir, closestRound, outDir);
+            // Synchronous write: writeSignedStateFilesToDirectory takes ownership of the reservation and releases it.
+            // The state's stateToDiskReason is not PERIODIC_SNAPSHOT, so the write is performed synchronously and is
+            // complete when this call returns.
+            SignedStateFileWriter.writeSignedStateFilesToDirectory(
+                    platformConfig,
+                    fileSystemManager,
+                    selfId,
+                    destination,
+                    capturedState,
+                    stateLifecycleManager);
+
+            log.info("Final replayed state for round {} written to {}", round, destination);
+            return round;
+        } catch (final RuntimeException | IOException e) {
+            // writeSignedStateFilesToDirectory only releases on its own success path; ensure we don't leak on failure.
+            if (!capturedState.isClosed()) {
+                capturedState.close();
+            }
+            throw e;
+        }
     }
-
-    /**
-     * Copies a round directory to the output directory, returning the round number.
-     */
-    private static long copyRoundDirToOutDir(@NonNull final Path roundDir, final long round, @NonNull final Path outDir)
-            throws IOException {
-        final Path destination = outDir.resolve(Long.toString(round));
-        log.info("Copying replay state from {} to {}", roundDir, destination);
-        Files.createDirectories(destination);
-        try (final Stream<Path> files = Files.walk(roundDir)) {
-            files.forEach(source -> {
-                final Path target = destination.resolve(roundDir.relativize(source));
-                try {
-                    if (Files.isDirectory(source)) {
-                        Files.createDirectories(target);
-                    } else {
-                        Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (final IOException e) {
-                    throw new java.io.UncheckedIOException("Failed to copy " + source + " -> " + target, e);
-                }
-            });
-        }
-        log.info("Replay state for round {} copied to {}", round, destination);
-        return round;
-    }
-
-    /**
-     * Copies the PCES files into the database directory the platform will scan
+     /** Copies the PCES files into the database directory the platform will scan
      * ({@link PcesUtilities#getDatabaseDirectory}). The {@code blocks-to-pces} tool writes its output under a
      * node-id-0 subtree; this stages those files into the location keyed by {@code selfId} so the
      * {@code PcesFileTracker} discovers them at platform build time.
@@ -379,36 +405,6 @@ public final class ReplayPcesWorkflow {
     private static boolean containsPcesFiles(@NonNull final Path dir) throws IOException {
         try (final Stream<Path> files = Files.list(dir)) {
             return files.anyMatch(p -> p.getFileName().toString().endsWith(".pces"));
-        }
-    }
-
-    /**
-     * Locates the latest state snapshot written by the platform, copies it to {@code outDir}, and returns the round.
-     */
-    private static long copyLatestSnapshotToOutDir(
-            @NonNull final Configuration platformConfig, @NonNull final Path outDir) throws IOException {
-        final Path savedStateDir =
-                platformConfig.getConfigData(PathsConfig.class).savedStateDir();
-        final Path roundDir = findLatestRoundDirectory(savedStateDir);
-        if (roundDir == null) {
-            throw new IllegalStateException("PCES replay produced no saved state under " + savedStateDir
-                    + ". This usually means no events were replayed "
-                    + "(check PCES placement and origin/round alignment).");
-        }
-        final long round = Long.parseLong(roundDir.getFileName().toString());
-        return copyRoundDirToOutDir(roundDir, round, outDir);
-    }
-
-    private static Path findRoundDirectory(final Path root, final long round) throws IOException {
-        if (!Files.isDirectory(root)) {
-            return null;
-        }
-        final String roundName = Long.toString(round);
-        try (final Stream<Path> dirs = Files.walk(root)) {
-            return dirs.filter(Files::isDirectory)
-                    .filter(p -> p.getFileName().toString().equals(roundName))
-                    .findFirst()
-                    .orElse(null);
         }
     }
 
