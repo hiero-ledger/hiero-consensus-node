@@ -147,6 +147,16 @@ class HistoryServiceImplTest {
     }
 
     @Test
+    void stopsControllersWorkWhenAsked() {
+        withMockSubject();
+        given(component.controllers()).willReturn(controllers);
+
+        subject.stop();
+
+        verify(controllers).stop();
+    }
+
+    @Test
     void handoffIsNoop() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);

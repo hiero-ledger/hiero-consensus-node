@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.monitor.IllegalPlatformStatusException;
 import org.hiero.consensus.status.monitor.actions.CatastrophicFailureAction;
@@ -35,6 +34,7 @@ import org.hiero.consensus.status.monitor.actions.SelfEventReachedConsensusActio
 import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.monitor.actions.StateWrittenToDiskAction;
 import org.hiero.consensus.status.monitor.actions.TimeElapsedAction;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;

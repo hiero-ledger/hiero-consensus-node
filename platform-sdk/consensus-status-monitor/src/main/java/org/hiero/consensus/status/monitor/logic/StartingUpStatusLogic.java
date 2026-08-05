@@ -3,11 +3,11 @@ package org.hiero.consensus.status.monitor.logic;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.monitor.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.monitor.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#STARTING_UP} status.

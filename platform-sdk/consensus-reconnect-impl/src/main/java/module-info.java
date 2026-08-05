@@ -24,7 +24,6 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;
-    requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
@@ -35,6 +34,7 @@ module org.hiero.consensus.reconnect.impl {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.transaction.handling;
+    requires org.hiero.consensus.wiring.framework;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

@@ -18,7 +18,7 @@ Must not depend on:
 - Other supporting modules (`consensus-metrics`, `consensus-utility`, `consensus-roster`) — must not pull in higher-level helpers
 - Any functional-api or impl module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
-- `swirlds-component-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
+- `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
 No known violations.
