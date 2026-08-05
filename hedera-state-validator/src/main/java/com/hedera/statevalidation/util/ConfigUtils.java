@@ -47,7 +47,7 @@ import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.BasicConfig;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;

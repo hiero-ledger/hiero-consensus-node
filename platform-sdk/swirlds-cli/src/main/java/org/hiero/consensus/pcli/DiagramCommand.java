@@ -16,7 +16,6 @@ import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSched
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -40,6 +39,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
@@ -145,12 +145,12 @@ public final class DiagramCommand extends AbstractCommand {
             throws IOException, KeyGeneratingException, NoSuchAlgorithmException, KeyStoreException,
                     NoSuchProviderException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-        final PlatformContext platformContext = PlatformContext.create(configuration);
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
-        final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                .build();
-
-        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,
