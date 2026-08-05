@@ -62,11 +62,9 @@ jobs:
           done
 
           # Verify all four artifact files using the manifest (avoids hardcoding individual hashes here)
-          if [[ "${status}" -eq 0 ]]; then
-            echo "Verifying artifact files via ${ARTIFACTS_PATH}/wraps-artifacts.sha384 ..."
-            (cd "${ARTIFACTS_PATH}" && sha384sum -c wraps-artifacts.sha384) || {
-              echo "::error::Artifact hash verification failed"
-              status=1
-            }
-          fi
+          echo "Verifying artifact files via ${ARTIFACTS_PATH}/wraps-artifacts.sha384 ..."
+          (cd "${ARTIFACTS_PATH}" && sha384sum -c wraps-artifacts.sha384) || {
+            echo "::error::Artifact hash verification failed"
+            status=1
+          }
           exit "${status}"

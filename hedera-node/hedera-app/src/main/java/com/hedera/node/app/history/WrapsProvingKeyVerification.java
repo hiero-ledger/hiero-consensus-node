@@ -218,7 +218,14 @@ public class WrapsProvingKeyVerification {
             asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
             return;
         }
-        final Bytes fileHash = hashFile(provingKeyPath);
+        final Bytes fileHash;
+        try {
+            fileHash = hashFile(provingKeyPath);
+        } catch (final UncheckedIOException e) {
+            log.warn("Failed to read WRAPS proving key file at {}; initiating download", provingKeyPath, e);
+            asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+            return;
+        }
         if (!fileHash.equals(expectedHash)) {
             log.warn(
                     "WRAPS proving key hash mismatch at {} (expected={}, actual={}), initiating download",
@@ -401,13 +408,17 @@ public class WrapsProvingKeyVerification {
     private static void writeArtifactsManifest(@NonNull final Path extractionDir) {
         final var manifestPath = extractionDir.resolve(WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
         final var sb = new StringBuilder();
-        for (final var name : List.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin")) {
+        for (final var name : REQUIRED_ARTIFACT_FILES) {
             final var filePath = extractionDir.resolve(name);
             if (!Files.isRegularFile(filePath)) {
                 log.warn("Skipping missing artifact {} while writing WRAPS manifest", name);
                 continue;
             }
-            sb.append(hashFile(filePath).toHex()).append("  ").append(name).append('\n');
+            try {
+                sb.append(hashFile(filePath).toHex()).append("  ").append(name).append('\n');
+            } catch (final UncheckedIOException e) {
+                log.warn("Failed to hash artifact {} while writing WRAPS manifest; skipping", name, e);
+            }
         }
         try {
             Files.writeString(manifestPath, sb.toString());
