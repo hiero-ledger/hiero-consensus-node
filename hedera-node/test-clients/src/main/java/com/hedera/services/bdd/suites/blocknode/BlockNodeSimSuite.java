@@ -60,7 +60,8 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1, 2, 3},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.ackedBlocksToRetain", "25"
                         })
             })
     @Order(1)

@@ -712,7 +712,7 @@ public class BlockBufferService {
      * unacknowledged blocks.
      *
      * <p>When backpressure is enabled, pruning also enforces a soft retention floor configured via
-     * {@code blockStream.buffer.minAckedBlocksToBuffer}: at least this many of the most recent
+     * {@code blockStream.buffer.ackedBlocksToRetain}: at least this many of the most recent
      * acknowledged blocks are retained; older acknowledged blocks are dropped even when the buffer is
      * below {@code maxBlocks}. This keeps steady-state memory low when the block node is healthy while
      * still preserving a recent window of acked blocks in case one is re-requested. The hard
@@ -723,7 +723,7 @@ public class BlockBufferService {
         final int maxBlocksAllowed = maxBufferedBlocks();
         final long maxBytesAllowed = maxBufferedBytes();
         final boolean backpressureEnabled = isBackpressureEnabled();
-        final int maxAckedBlocksToRetain = bufferConfig().minAckedBlocksToBuffer();
+        final int maxAckedBlocksToRetain = bufferConfig().ackedBlocksToRetain();
         final List<Long> orderedBlocks = new ArrayList<>(blockBuffer.keySet());
         Collections.sort(orderedBlocks);
 

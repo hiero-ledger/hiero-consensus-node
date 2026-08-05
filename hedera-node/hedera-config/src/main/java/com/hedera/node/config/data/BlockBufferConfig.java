@@ -33,12 +33,12 @@ import java.time.Duration;
  *                          the buffer is considered recovered.)
  * @param isBufferPersistenceEnabled true if periodic persistence to disk of the block buffer is permitted, else false
  * @param bufferDirectory the root directory that the block buffer will be persisted into, if enabled
- * @param minAckedBlocksToBuffer the minimum number of acknowledged blocks to retain in the buffer at any given time.
- *                               This is a "soft" limit: when the buffer is under pressure from unacknowledged blocks
- *                               and pushing against {@code maxBlocks}, acknowledged blocks below this floor may still
- *                               be pruned to make room. When the block node is healthy, this floor allows the buffer
- *                               to remain small while still preserving a recent window of acknowledged blocks in case
- *                               the block node re-requests one. Only applies when backpressure is enabled.
+ * @param ackedBlocksToRetain the number of acknowledged blocks to retain in the buffer at any given time.
+ *                            This is a "soft" limit: when the buffer is under pressure from unacknowledged blocks
+ *                            and pushing against {@code maxBlocks} or {@code maxBytes}, acknowledged blocks below this
+ *                            floor may still be pruned to make room. When the block node is healthy, this floor allows
+ *                            the buffer to remain small while still preserving a recent window of acknowledged blocks
+ *                            in case the block node re-requests one.
  */
 // spotless:off
 @ConfigData("blockStream.buffer")
@@ -51,5 +51,5 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "85.0") @Min(0) @NetworkProperty double recoveryThreshold,
         @ConfigProperty(defaultValue = "false") @NodeProperty boolean isBufferPersistenceEnabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
-        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int minAckedBlocksToBuffer) {}
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain) {}
 // spotless:on
