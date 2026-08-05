@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.v070;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerCancunOperations;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerPragueOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -143,8 +145,7 @@ public interface V070Module {
         oneTimeEVMModuleInitialization();
 
         final var operationRegistry = new OperationRegistry();
-        HederaOperationsRegistry.forVersion(EvmSpecVersion.PRAGUE)
-                .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
+        registerPragueOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
 

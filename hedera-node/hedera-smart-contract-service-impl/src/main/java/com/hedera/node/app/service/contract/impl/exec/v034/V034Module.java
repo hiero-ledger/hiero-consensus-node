@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.v034;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerLondonOperations;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerParisOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -124,8 +126,7 @@ public interface V034Module {
             @CustomOps @NonNull final Set<Operation> customOps) {
         // Use Paris EVM with 0.34 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
-        HederaOperationsRegistry.forVersion(EvmSpecVersion.PARIS)
-                .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
+        registerParisOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         return new HEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.PARIS);
