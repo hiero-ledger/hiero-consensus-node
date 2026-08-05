@@ -88,7 +88,7 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
 
         @NonNull
         @Override
-        public ExampleFixedValue realParse(
+        public ExampleFixedValue parse(
                 @NonNull PbjReader in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
             return new ExampleFixedValue(in);
         }
@@ -99,7 +99,7 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
         }
 
         @Override
-        public void realWrite(@NonNull ExampleFixedValue value, @NonNull PbjWriter out) {
+        public void write(@NonNull ExampleFixedValue value, @NonNull PbjWriter out) {
             value.writeTo(out);
         }
 

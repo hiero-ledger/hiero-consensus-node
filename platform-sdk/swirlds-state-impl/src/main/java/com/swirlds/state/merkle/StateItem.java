@@ -64,7 +64,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * @return Parsed StateItem model object
          * @throws ParseException If parsing fails
          */
-        public @NonNull StateItem realParse(
+        public @NonNull StateItem parse(
                 @NonNull final PbjReader input,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -132,7 +132,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * @param data The input model data to write
          * @param out  The output stream to write to
          */
-        public void realWrite(@NonNull StateItem data, @NonNull final PbjWriter out) {
+        public void write(@NonNull StateItem data, @NonNull final PbjWriter out) {
             writeDelimited(out, FIELD_KEY, toIntExact(data.key.length()), v -> v.writeBytes(data.key));
             writeDelimited(out, FIELD_VALUE, toIntExact(data.value.length()), v -> v.writeBytes(data.value));
         }

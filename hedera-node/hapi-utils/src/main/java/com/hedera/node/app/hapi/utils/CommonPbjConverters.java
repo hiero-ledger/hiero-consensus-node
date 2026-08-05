@@ -284,7 +284,7 @@ public class CommonPbjConverters {
             final var bytes = requireNonNull(proto).toByteArray();
             final var codecField = requireNonNull(pbjClass).getDeclaredField("PROTOBUF");
             final var codec = (Codec<R>) codecField.get(null);
-            return codec.parseStrict(BufferedData.wrap(bytes));
+            return codec.parseStrict(bytes);
         } catch (NoSuchFieldException | IllegalAccessException | ParseException e) {
             // Should be impossible, so just propagate an exception
             throw new RuntimeException("Invalid conversion to PBJ for " + pbjClass.getSimpleName(), e);
@@ -419,7 +419,7 @@ public class CommonPbjConverters {
         requireNonNull(keyValue);
         try {
             final var bytes = keyValue.toByteArray();
-            return Key.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
+            return Key.PROTOBUF.parseStrict(bytes);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
@@ -446,8 +446,7 @@ public class CommonPbjConverters {
             final var bytes = txBody.toByteArray();
             // parse in strict mode.
             // We can't use the `parseStrict` call because we want to also validate the depth of protob messages.
-            return TransactionBody.PROTOBUF.parse(
-                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            return TransactionBody.PROTOBUF.parse(bytes, false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

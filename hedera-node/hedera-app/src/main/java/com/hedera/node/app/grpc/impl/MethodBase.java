@@ -49,7 +49,7 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
     // used), but these threads are long-lived and the lifetime of the thread local is the same as
     // the application
     private static final ThreadLocal<PbjWriter> BUFFER_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> new PbjWriter(MAX_RESPONSE_SIZE));
+            ThreadLocal.withInitial(() -> new PbjWriter(MAX_RESPONSE_SIZE, false));
 
     /** The name of the service associated with this method. */
     protected final String serviceName;

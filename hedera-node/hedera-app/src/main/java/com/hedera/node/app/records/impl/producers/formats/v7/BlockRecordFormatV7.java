@@ -187,7 +187,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
 
         @NonNull
         @Override
-        public RecordStreamItemV7 realParse(
+        public RecordStreamItemV7 parse(
                 @NonNull final PbjReader readableSequentialData,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -203,7 +203,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         }
 
         @Override
-        public void realWrite(@NonNull RecordStreamItemV7 item, @NonNull PbjWriter output) {
+        public void write(@NonNull RecordStreamItemV7 item, @NonNull PbjWriter output) {
             // TBD
         }
 
