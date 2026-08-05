@@ -56,8 +56,16 @@ jobs:
 
       - name: Read config
         id: get-test-config
+        env:
+          TEST_TYPE: ${{ inputs.test-type }}
         run: |
-          CONFIG_FILE=".github/workflows/support/chewie/${{ inputs.test-type }}-config.json"
+          valid_types=("sdpt" "sdlt")
+          if [[ ! "${valid_types[*]}" =~ "${TEST_TYPE}" ]]; then
+            echo "::error::Invalid test-type: '${TEST_TYPE}'. Must be one of: ${valid_types[*]}"
+            exit 1
+          fi
+
+          CONFIG_FILE=".github/workflows/support/chewie/${TEST_TYPE}-config.json"
           if [[ ! -f "${CONFIG_FILE}" ]]; then
             echo "::error::Test config file not found: ${CONFIG_FILE}"
             exit 1

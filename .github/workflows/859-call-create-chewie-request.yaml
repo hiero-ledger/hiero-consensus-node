@@ -42,10 +42,6 @@ on:
         required: true
         description: "The duration (in minutes) for the allocation."
         type: number
-      token-expiry:
-        required: true
-        description: "The expiration time for the Chewie token."
-        type: string
       request-timeout:
         required: false
         description: "How long (in seconds) to poll for an approved allocation before giving up. Defaults to 3600."
@@ -134,7 +130,6 @@ jobs:
         env:
           CHEWIE_JWT_B64: ${{ secrets.chewie-token }}
           REF: ${{ github.ref }}
-          JWT_EXPIRY: ${{ inputs.token-expiry }}
         run: |
           CHEWIE_JWT=$(.github/workflows/support/chewie/decode-b64-jwt.sh "${CHEWIE_JWT_B64}")
           if [[ "${CHEWIE_JWT}" == Error* ]]; then
@@ -218,7 +213,7 @@ jobs:
           start_time=$(date +%s)
 
           while true; do
-            response_and_code=$(curl -k -sS -X GET "${HOST}/api/v1/compute/allocation/${ALLOCATION_ID}" \
+            response_and_code=$(curl -sS -X GET "${HOST}/api/v1/compute/allocation/${ALLOCATION_ID}" \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${CHEWIE_JWT}" \
               -w '\n%{http_code}')
@@ -267,7 +262,7 @@ jobs:
             exit 1
           fi
 
-          response_and_code=$(curl -k -sS -X GET "${HOST}/${API_EP_COMPUTE_ALLOCATION}/${REQUEST_ID}" \
+          response_and_code=$(curl -sS -X GET "${HOST}/${API_EP_COMPUTE_ALLOCATION}/${REQUEST_ID}" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${CHEWIE_JWT}" \
             -w '\n%{http_code}')
