@@ -33,7 +33,7 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -64,8 +64,8 @@ class PlatformStatusTransitionMatrixTest {
     private static final SelfEventReachedConsensusAction SELF_EVENT_CONSENSUS =
             new SelfEventReachedConsensusAction(DEFAULT_INSTANT);
     private static final StartedReplayingEventsAction STARTED_REPLAYING = new StartedReplayingEventsAction();
-    private static final StateWrittenToDiskAction FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, true);
-    private static final StateWrittenToDiskAction NON_FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, false);
+    private static final FreezeCompleteAction FREEZE_STATE_WRITTEN = new FreezeCompleteAction(0, true);
+    private static final FreezeCompleteAction NON_FREEZE_STATE_WRITTEN = new FreezeCompleteAction(0, false);
     private static final TimeElapsedAction TIME_ELAPSED =
             new TimeElapsedAction(DEFAULT_INSTANT, new TimeElapsedAction.QuiescingStatus(false, DEFAULT_INSTANT));
 

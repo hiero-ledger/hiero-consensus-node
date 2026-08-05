@@ -7,7 +7,7 @@ import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#STARTING_UP} status.
@@ -49,12 +49,12 @@ public class StartingUpStatusLogic extends AbstractStatusLogic {
     }
 
     /**
-     * Receiving a {@link StateWrittenToDiskAction} while in {@link PlatformStatus#STARTING_UP} throws an exception,
+     * Receiving a {@link FreezeCompleteAction} while in {@link PlatformStatus#STARTING_UP} throws an exception,
      * since this is not conceivable in standard operation.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskAction action) {
+    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final FreezeCompleteAction action) {
         return illegal(action);
     }
 }

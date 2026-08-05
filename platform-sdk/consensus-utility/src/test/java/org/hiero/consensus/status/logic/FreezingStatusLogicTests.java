@@ -14,7 +14,7 @@ import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,7 @@ class FreezingStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new StateWrittenToDiskAction(testFreezeRound, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(testFreezeRound, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
@@ -55,7 +55,7 @@ class FreezingStatusLogicTests {
                 logic,
                 new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
                 logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
     }
 
     @Test

@@ -8,7 +8,6 @@ import java.time.Instant;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
@@ -25,25 +24,6 @@ public interface PlatformMonitor {
     @Nullable
     @InputWireLabel("evaluate status")
     PlatformStatus heartbeat(@NonNull Instant time);
-
-    /**
-     * Inform the monitor that a state has been written to disk
-     *
-     * @return the new status after processing this information, or null if the status did not change
-     */
-    @Nullable
-    @InputWireLabel("state saving monitoring")
-    PlatformStatus stateWrittenToDisk(@NonNull StateSavingResult result);
-
-    /**
-     * Inform the monitor of ISS notifications
-     *
-     * @param notification an ISS notifications
-     * @return the new status after processing this information, or null if the status did not change
-     */
-    @Nullable
-    @InputWireLabel("ISS notification monitoring")
-    PlatformStatus issNotification(@NonNull IssNotification notification);
 
     /**
      * Submit a status action

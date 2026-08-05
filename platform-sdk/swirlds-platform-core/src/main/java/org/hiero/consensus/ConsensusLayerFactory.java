@@ -4,6 +4,7 @@ package org.hiero.consensus;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static java.util.Objects.requireNonNullElse;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -25,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -33,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
@@ -56,6 +59,7 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -129,6 +133,9 @@ public class ConsensusLayerFactory {
     @NonNull
     private final String consensusEventStreamName;
 
+    @NonNull
+    private final RunningEventHashOverride runningEventHashOverride;
+
     /**
      * Creates a new factory with the inputs provided by the execution layer.
      *
@@ -148,11 +155,13 @@ public class ConsensusLayerFactory {
         transactionOffsetNanos = inputs.transactionOffsetNanos();
         transactionLimits = inputs.transactionLimits();
         consensusSnapshot = inputs.consensusSnapshot();
+        runningEventHashOverride = requireNonNullElse(inputs.runningEventHashOverride(),
+                new RunningEventHashOverride(Cryptography.NULL_HASH, false));
         executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         wiringModel = initializeWiringModel(inputs.wiringModel());
         secureRandom = initializeSecureRandom(inputs.secureRandom());
         additionalProperties = inputs.additionalProperties();
-        consensusEventStreamName= inputs.consensusEventStreamName();
+        consensusEventStreamName = inputs.consensusEventStreamName();
     }
 
     /**
@@ -161,7 +170,7 @@ public class ConsensusLayerFactory {
      * @return the result of the factory, containing the platform coordinator and the building blocks
      */
     @NonNull
-    public ConsensusLayerBuildingBlocks create() {
+    public ConsensusLayer create() {
         final EventCreatorModule eventCreatorModule = createEventCreatorModule();
         final IntakeEventCounter intakeEventCounter = createIntakeEventCounter();
         final EventPipelineTracker eventPipelineTracker = createEventPipelineTracker(eventCreatorModule);
@@ -210,9 +219,11 @@ public class ConsensusLayerFactory {
                 eventIntakeModule, eventCreatorModule, gossipModule, pcesModule, hashgraphModule, statusMonitorModule,
                 freezePeriodChecker);
 
-        ConsensusLayerWiring.wire(inputs, buildingBlocks);
+        ConsensusLayerWiring.wire(executionLayerCallbacks, buildingBlocks);
 
         initialize(buildingBlocks);
+
+        return consensusLayer;
     }
 
     /**
@@ -261,6 +272,9 @@ public class ConsensusLayerFactory {
                     .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
             buildingBlocks.gossipModule().flush();
         }
+
+        buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride)
+                .put(runningEventHashOverride);
     }
 
 

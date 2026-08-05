@@ -9,7 +9,6 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.main.model.NodeId;
@@ -17,13 +16,12 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.hiero.consensus.uptime.UptimeTracker;
 
@@ -122,9 +120,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      * {@inheritDoc}
      */
     @Override
-    public PlatformStatus stateWrittenToDisk(@NonNull final StateSavingResult result) {
-        return statusStateMachine.submitStatusAction(
-                new StateWrittenToDiskAction(result.round(), result.freezeState()));
+    public PlatformStatus onFreezeComplete() {
+        return statusStateMachine.submitStatusAction(new FreezeCompleteAction());
     }
 
     /**
@@ -132,11 +129,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Nullable
     @Override
-    public PlatformStatus issNotification(@NonNull final IssNotification notification) {
-        if (CATASTROPHIC_ISS_TYPES.contains(notification.getIssType())) {
+    public PlatformStatus issNotification() {
             return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
-        }
-        // don't change status for other types of ISSs
-        return null;
     }
 }

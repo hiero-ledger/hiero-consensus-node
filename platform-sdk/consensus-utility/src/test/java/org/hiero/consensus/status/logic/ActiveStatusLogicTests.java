@@ -21,7 +21,7 @@ import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction.QuiescingStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,13 +87,13 @@ class ActiveStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new StateWrittenToDiskAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
     }
 
     @Test

@@ -3,7 +3,6 @@ package org.hiero.consensus;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -14,19 +13,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.platformstate.PlatformStateUtils;
-import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.actions.CatastrophicFailureAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 
 public class ConsensusLayerImpl implements ConsensusLayer {
 
@@ -125,11 +122,15 @@ public class ConsensusLayerImpl implements ConsensusLayer {
 
     @Override
     public void oldestRestartableSnapshot(@NonNull final ConsensusSnapshot consensusSnapshot) {
-
+        pcesModule.minimumBirthRoundInputWire().inject(extractAncientThreshold(consensusSnapshot));
     }
 
     @Override
     public void onStatusUpdate(@NonNull final StatusUpdate status) {
-
+        switch (status) {
+            case FREEZE_COMPLETE -> statusMonitorModule.platformStatusActionInputWire().inject(new FreezeCompleteAction());
+            case CATASTROPHIC_FAILURE -> statusMonitorModule.platformStatusActionInputWire().inject(new CatastrophicFailureAction());
+            default -> throw new IllegalArgumentException("Unknown status: " + status);
+        }
     }
 }

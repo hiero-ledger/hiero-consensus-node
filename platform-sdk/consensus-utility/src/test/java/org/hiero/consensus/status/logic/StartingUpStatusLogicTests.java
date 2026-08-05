@@ -17,7 +17,7 @@ import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -66,7 +66,7 @@ class StartingUpStatusLogicTests {
         assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
         assertException(logic, new FallenBehindAction(), logic.getStatus());
         assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
-        assertException(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        assertException(logic, new StateWrittenToDiskAction(0, true), logic.getStatus());
+        assertException(logic, new FreezeCompleteAction(0, false), logic.getStatus());
+        assertException(logic, new FreezeCompleteAction(0, true), logic.getStatus());
     }
 }

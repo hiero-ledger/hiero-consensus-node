@@ -18,7 +18,7 @@ import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,14 +56,14 @@ class ReplayingEventsStatusLogicTests {
         assertNoTransition(logic, new FreezePeriodEnteredAction(6L), logic.getStatus());
         assertNoTransition(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         // if the state written to disk isn't the freeze state, we shouldn't transition
-        assertNoTransition(logic, new StateWrittenToDiskAction(5, false), logic.getStatus());
-        assertTransition(logic, new StateWrittenToDiskAction(6, true), PlatformStatus.FREEZE_COMPLETE);
+        assertNoTransition(logic, new FreezeCompleteAction(5, false), logic.getStatus());
+        assertTransition(logic, new FreezeCompleteAction(6, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new StateWrittenToDiskAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
@@ -87,7 +87,7 @@ class ReplayingEventsStatusLogicTests {
                         new TimeElapsedAction.QuiescingStatus(true, time.now().plus(5, ChronoUnit.SECONDS))),
                 logic.getStatus());
         assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
     }
 
     @Test

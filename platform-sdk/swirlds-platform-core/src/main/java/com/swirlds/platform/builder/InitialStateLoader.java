@@ -35,6 +35,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -109,6 +110,15 @@ public class InitialStateLoader {
 
         if (!startedFromGenesis) {
             buildingBlocks.stateModule().sendState(signedState);
+            final ConsensusSnapshot consensusSnapshot = PlatformStateUtils.consensusSnapshotOf(signedState.getState());
+            if (consensusSnapshot == null) {
+                logger.error(STARTUP.getMarker(), "Initial state does not have a consensus snapshot. Unable to initialize the consensus node.");
+                throw new IllegalStateException("Initial state does not have a consensus snapshot");
+            }
+            final int roundsNonAncient =
+                    inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
+            final EventWindow eventWindow = EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient);
+            buildingBlocks.stateModule().initialEventWindowInputWire().inject(eventWindow);
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
 

@@ -17,5 +17,5 @@ public sealed interface PlatformStatusAction
                 ReconnectCompleteAction,
                 SelfEventReachedConsensusAction,
                 StartedReplayingEventsAction,
-                StateWrittenToDiskAction,
+        FreezeCompleteAction,
                 TimeElapsedAction {}

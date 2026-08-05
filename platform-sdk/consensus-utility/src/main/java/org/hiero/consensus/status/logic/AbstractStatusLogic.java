@@ -14,7 +14,7 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 
 /**
@@ -25,7 +25,7 @@ import org.hiero.consensus.status.actions.TimeElapsedAction;
  * The defaults are:
  * <ul>
  *     <li>a {@link CatastrophicFailureAction} transitions to {@link PlatformStatus#CATASTROPHIC_FAILURE};</li>
- *     <li>a {@link StateWrittenToDiskAction} transitions to {@link PlatformStatus#FREEZE_COMPLETE} when it is a freeze
+ *     <li>a {@link FreezeCompleteAction} transitions to {@link PlatformStatus#FREEZE_COMPLETE} when it is a freeze
  *     state, otherwise it has no effect;</li>
  *     <li>a {@link TimeElapsedAction} and a {@link SelfEventReachedConsensusAction} have no effect;</li>
  *     <li>every other action is illegal and throws an {@link IllegalPlatformStatusException}.</li>
@@ -52,7 +52,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
             case ReconnectCompleteAction a -> onReconnectComplete(a);
             case SelfEventReachedConsensusAction a -> onSelfEventReachedConsensus(a);
             case StartedReplayingEventsAction a -> onStartedReplayingEvents(a);
-            case StateWrittenToDiskAction a -> onStateWrittenToDisk(a);
+            case FreezeCompleteAction a -> onStateWrittenToDisk(a);
             case TimeElapsedAction a -> onTimeElapsed(a);
         };
     }
@@ -101,7 +101,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
     }
 
     @NonNull
-    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskAction action) {
+    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final FreezeCompleteAction action) {
         return action.isFreezeState() ? new FreezeCompleteStatusLogic() : this;
     }
 

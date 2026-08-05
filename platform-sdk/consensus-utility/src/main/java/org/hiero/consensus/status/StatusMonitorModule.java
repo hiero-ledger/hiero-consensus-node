@@ -8,6 +8,7 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -64,28 +65,6 @@ public class StatusMonitorModule {
 
         final PlatformMonitor platformMonitor = new DefaultPlatformMonitor(configuration, metrics, time, selfId, freezePeriodChecker);
         platformMonitorWiring.bind(platformMonitor);
-    }
-
-    /**
-     * {@link InputWire} to inform the monitor that a state has been written to disk
-     *
-     * @return the {@link InputWire} for state saving monitoring
-     */
-    @NonNull
-    @InputWireLabel("state saving monitoring")
-    public InputWire<StateSavingResult> stateWrittenToDiskInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk);
-    }
-
-    /**
-     * {@link InputWire} to inform the monitor of ISS notifications
-     *
-     * @return the {@link InputWire} for ISS notification monitoring
-     */
-    @InputWireLabel("ISS notification monitoring")
-    @NonNull
-    public InputWire<IssNotification> issNotificationInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::issNotification);
     }
 
     /**

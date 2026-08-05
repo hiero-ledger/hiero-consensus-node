@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.ConsensusLayer.StatusUpdate;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -94,11 +95,16 @@ public class ConsensusLayerAdapterWiring {
 
         state.stateSavingResultOutputWire().buildTransformer("oldestSnapshotTransformer", "savedStateResult",
                         StateSavingResult::oldestRestartableConsensusSnapshot)
-                .solderTo("consensusLayer", "oldestRestartableSnapshot", buildingBlocks.consensusLayer()::oldestRestartableSnapshot);
+                .solderTo("consensusLayer", "oldestRestartableSnapshot",
+                        buildingBlocks.consensusLayer()::oldestRestartableSnapshot);
 
         final OutputWire<StateSavingResult> stateSavingResultOutputWire = state.stateSavingResultOutputWire();
         stateSavingResultOutputWire.solderTo("consensusLayer", "onFreezeCompleteStatusUpdate",
-                (_) -> buildingBlocks.consensusLayer().onStatusUpdate(StatusUpdate.FREEZE_COMPLETE));
+                (result) -> {
+                    if (result.freezeState()) {
+                        buildingBlocks.consensusLayer().onStatusUpdate(StatusUpdate.FREEZE_COMPLETE);
+                    }
+                });
         stateSavingResultOutputWire
                 .buildTransformer(
                         "stateSavedNotifier",
@@ -118,7 +124,11 @@ public class ConsensusLayerAdapterWiring {
                 buildingBlocks.issDetectionModule().issNotificationOutputWire();
 
         issNotification.solderTo("consensusLayer", "onIssStatusUpdate",
-                (_) -> buildingBlocks.consensusLayer().onStatusUpdate(StatusUpdate.CATASTROPHIC_FAILURE));
+                (notification) -> {
+                    if (notification.getIssType() == IssType.CATASTROPHIC_ISS) {
+                        buildingBlocks.consensusLayer().onStatusUpdate(StatusUpdate.CATASTROPHIC_FAILURE);
+                    }
+                });
         issNotification.solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
     }
 

@@ -12,7 +12,7 @@ import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,8 +40,8 @@ class CatastrophicFailureStatusLogicTests {
         assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
         assertNoTransition(logic, new FallenBehindAction(), logic.getStatus());
         assertNoTransition(logic, new ReconnectCompleteAction(0), logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, true), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(0, true), logic.getStatus());
         assertNoTransition(logic, new CatastrophicFailureAction(), logic.getStatus());
         assertNoTransition(
                 logic,

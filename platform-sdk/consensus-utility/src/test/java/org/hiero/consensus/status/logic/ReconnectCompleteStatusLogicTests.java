@@ -18,7 +18,7 @@ import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.FreezeCompleteAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,13 +43,13 @@ class ReconnectCompleteStatusLogicTests {
     @Test
     @DisplayName("Go to CHECKING when the round written precisely matches the reconnect state round")
     void toCheckingWithPreciseRoundMatch() {
-        assertTransition(logic, new StateWrittenToDiskAction(reconnectStateRound, false), PlatformStatus.CHECKING);
+        assertTransition(logic, new FreezeCompleteAction(reconnectStateRound, false), PlatformStatus.CHECKING);
     }
 
     @Test
     @DisplayName("Go to CHECKING when the round written doesn't precisely match the reconnect state round")
     void toCheckingWithImpreciseRoundMatch() {
-        assertTransition(logic, new StateWrittenToDiskAction(reconnectStateRound + 3, false), PlatformStatus.CHECKING);
+        assertTransition(logic, new FreezeCompleteAction(reconnectStateRound + 3, false), PlatformStatus.CHECKING);
     }
 
     @Test
@@ -62,14 +62,14 @@ class ReconnectCompleteStatusLogicTests {
     @DisplayName("Go to FREEZING when the round written precisely matches the reconnect state round")
     void toFreezingWithPreciseRoundMatch() {
         assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
-        assertTransition(logic, new StateWrittenToDiskAction(reconnectStateRound, false), PlatformStatus.FREEZING);
+        assertTransition(logic, new FreezeCompleteAction(reconnectStateRound, false), PlatformStatus.FREEZING);
     }
 
     @Test
     @DisplayName("Go to FREEZING when the round written doesn't precisely match the reconnect state round")
     void toFreezingWithImpreciseRoundMatch() {
         assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
-        assertTransition(logic, new StateWrittenToDiskAction(reconnectStateRound + 5, false), PlatformStatus.FREEZING);
+        assertTransition(logic, new FreezeCompleteAction(reconnectStateRound + 5, false), PlatformStatus.FREEZING);
     }
 
     @Test
@@ -80,7 +80,7 @@ class ReconnectCompleteStatusLogicTests {
         logic = new ReconnectCompleteStatusLogic(
                 reconnectStateRound, 10L, configuration.getConfigData(PlatformStatusConfig.class));
 
-        assertTransition(logic, new StateWrittenToDiskAction(reconnectStateRound, false), PlatformStatus.FREEZING);
+        assertTransition(logic, new FreezeCompleteAction(reconnectStateRound, false), PlatformStatus.FREEZING);
     }
 
     @Test
@@ -99,7 +99,7 @@ class ReconnectCompleteStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new StateWrittenToDiskAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
@@ -117,7 +117,7 @@ class ReconnectCompleteStatusLogicTests {
                         new TimeElapsedAction.QuiescingStatus(true, time.now().plus(5, ChronoUnit.MINUTES))),
                 logic.getStatus());
         // if the state written is prior to the reconnect state, it should be ignored
-        assertNoTransition(logic, new StateWrittenToDiskAction(reconnectStateRound - 1, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(reconnectStateRound - 1, false), logic.getStatus());
     }
 
     @Test
