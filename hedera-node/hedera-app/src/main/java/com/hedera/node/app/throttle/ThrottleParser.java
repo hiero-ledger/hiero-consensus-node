@@ -138,7 +138,8 @@ public class ThrottleParser {
         try {
             for (var bucket : throttleDefinitions.throttleBuckets()) {
                 var lcm = leastCommonMultiple(bucket.throttleGroups());
-                final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
+                final var unscaledCapacity =
+                        Math.multiplyExact(Math.multiplyExact(lcm, NTPS_PER_MTPS), CAPACITY_UNITS_PER_NANO_TXN) / 1_000;
                 if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
                     throw new ArithmeticException();
                 }
