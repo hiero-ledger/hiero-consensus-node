@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
@@ -58,6 +57,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
 
 /**
  * A factory class for creating no-op instances of various consensus modules.
