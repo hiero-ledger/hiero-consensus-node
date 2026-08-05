@@ -22,6 +22,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -115,11 +116,12 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting platform {}", selfId);
 
         inputs.recycleBin().start();
+        getMetricsProvider().start();
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
-        buildingBlocks.gossipModule().start();
+        buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
     @Override
@@ -162,8 +164,8 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        buildingBlocks.statusMonitorModule().submitQuiescenceCommand(quiescenceCommand);
-        buildingBlocks.eventCreatorModule().submitQuiescenceCommand(quiescenceCommand);
+        buildingBlocks.statusMonitorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
+        buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 
     /**

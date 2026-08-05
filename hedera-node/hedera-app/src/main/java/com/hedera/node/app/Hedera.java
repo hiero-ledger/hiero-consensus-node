@@ -830,6 +830,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         this.platform = requireNonNull(platform);
         //  Reconnect states are constructed from raw VirtualMap and need schema metadata initialization.
         if (trigger == InitTrigger.RECONNECT) {
+            // The TSS services outlive the Dagger application graph rebuilt below, so their process-local
+            // controllers may still reflect the pre-reconnect state. Construction IDs alone cannot detect
+            // a learned state that has advanced the same construction; discard the cached controllers so
+            // the first post-reconnect reconciliation rebuilds them from the learned state.
+            hintsService.stop();
+            historyService.stop();
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
         // With the States API grounded in the working state, we can create the object graph from it

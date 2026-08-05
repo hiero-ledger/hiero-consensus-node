@@ -722,7 +722,7 @@ public class BlockBufferService {
                     .toList();
 
             if (blocksToPersist.isEmpty()) {
-                logger.info("No unacked blocks in the buffer to persist");
+                logger.debug("No unacked blocks in the buffer to persist");
                 return;
             }
 

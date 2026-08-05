@@ -314,10 +314,12 @@ jobs:
       - name: Get Commit Information
         id: fetch-commit-info
         continue-on-error: true
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          echo "commit-hash=${{ inputs.ref }}" >> "${GITHUB_OUTPUT}"
-          echo "commit-author=$(git show -s --format='%an <%ae>' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-email=$(git show -s --format='%ae' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-hash=${REF}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git show -s --format='%an <%ae>' ${REF})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git show -s --format='%ae' ${REF})" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -331,8 +333,10 @@ jobs:
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          title="Deploy Production Release job failed (${{ inputs.ref-name }} - ${{ inputs.ref }})."
+          title="Deploy Production Release job failed (${{ inputs.ref-name }} - ${REF})."
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
