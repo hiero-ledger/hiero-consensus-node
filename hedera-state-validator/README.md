@@ -684,7 +684,7 @@ java -jar ./validator-<version>.jar <path-to-state-round> replay-pces \
   [--out <output-dir>] \
   [--self-id <id>] \
   [--event-stream-name <name>] \
-  [--force-mock-signatures <true|false>]
+  [--force-mock-signatures=<true|false>]
 ```
 
 #### Example
@@ -705,17 +705,24 @@ java -jar ./validator-<version>.jar  ./211155071 replay-pces \
   output of `blocks-to-pces`. Accepts either a flat directory of `.pces` files or the
   node-id-subdirectory layout produced by `blocks-to-pces` — the command locates the files
   automatically and stages them into the database directory the platform scans at startup.
-- `--out` (or `-o`) — Output directory for the resulting state snapshot. The platform writes
-  the snapshot to `<savedStateDir>/<appName>/<swirldName>/<selfId>/<round>/`; this option
-  sets `savedStateDir`. Default = `./replay-out`.
+- `--out` (or `-o`) — Output directory for the resulting state snapshot. The snapshot is written
+  to `<out>/<round>/`, where `<round>` is the resulting state's round number. This directory can
+  be passed directly as `--state-dir` to a subsequent `replay-pces` run. Default = `./replay-out`.
 - `--self-id` (or `-id`) — Node id to run as. Must match the node id the PCES files were
   generated for (default 0 in `blocks-to-pces`). Default = 0.
-- `--event-stream-name` (or `-es`) — Consensus event stream name (e.g. `0.0.3`). Used only
-  to name an output subdirectory; does not affect replay correctness. Default = `0.0.3`.
+- `--event-stream-name` (or `-es`) — Consensus event stream name (e.g. `0.0.3`). Internal platform
+  label only; does not affect replay correctness or the output path. Default = `0.0.3`.
 - `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
   real hinTS. No live TSS network required. Default = `true`.
 - `--target-round` (or `-t`) — The round to advance the state to. Must be less than or equal
   to the last round in the PCES stream. Required.
+
+### Output
+
+The resulting state snapshot is written to `<out>/<round>/` (e.g. `./replay-out/211422945/`), where
+`<round>` is the round of the resulting state. The directory contents are a standard saved-state
+snapshot and can be used directly as the `--state-dir` of a later `replay-pces` or as input to
+`diff` / `sorted-diff`.
 
 ### Notes
 

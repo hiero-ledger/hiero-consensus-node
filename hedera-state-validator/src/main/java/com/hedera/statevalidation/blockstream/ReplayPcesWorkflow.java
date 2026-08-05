@@ -50,6 +50,7 @@ import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
  * Loads a saved state, replays a PCES stream on top of it using the consensus node's <b>real</b> replay mechanism, and
@@ -252,6 +253,11 @@ public final class ReplayPcesWorkflow {
                     stateLifecycleManager,
                     outDir);
 
+            // Publish the snapshot at the flat, documented location <outDir>/<round>/. dumpStateToDisk writes to
+            // the platform's internal saved-state path; copy that round directory out to the caller's outDir so
+            // the result is where the CLI/README promises and is directly usable as a --state-dir for a follow-up.
+            copySnapshotToOutDir(platformConfig, resultRound, outDir);
+
             log.info("PCES replay complete. Resulting state round: {}, written under {}", resultRound, outDir);
             return resultRound;
         } finally {
@@ -317,11 +323,16 @@ public final class ReplayPcesWorkflow {
             final Path destination = outDir.resolve(Long.toString(round));
             log.info("Writing final replayed state for round {} to {}", round, destination);
 
-            // Synchronous write: writeSignedStateFilesToDirectory takes ownership of the reservation and releases it.
-            // The state's stateToDiskReason is not PERIODIC_SNAPSHOT, so the write is performed synchronously and is
-            // complete when this call returns.
-            SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformConfig, fileSystemManager, selfId, destination, capturedState, stateLifecycleManager);
+            // writeSignedStateToDisk creates the target directory (through a temp dir + atomic rename),
+            // deriving the round subdirectory under the given base directory, and marks the reason.
+            SignedStateFileWriter.writeSignedStateToDisk(
+                    platformConfig,
+                    fileSystemManager,
+                    selfId,
+                    outDir, // BASE directory; the writer creates <base>/<round>/ itself
+                    StateToDiskReason.PCES_RECOVERY_COMPLETE,
+                    capturedState,
+                    stateLifecycleManager);
 
             log.info("Final replayed state for round {} written to {}", round, destination);
             return round;
@@ -401,22 +412,44 @@ public final class ReplayPcesWorkflow {
         }
     }
 
-    private static Path findLatestRoundDirectory(final Path root) throws IOException {
-        if (!Files.isDirectory(root)) {
-            return null;
+    private static void copySnapshotToOutDir(
+            @NonNull final Configuration platformConfig, final long round, @NonNull final Path outDir)
+            throws IOException {
+        final Path savedStateDir = Path.of(platformConfig
+                .getConfigData(org.hiero.consensus.config.PathsConfig.class)
+                .savedStateDir()
+                .toString());
+        final Path roundDir = findRoundDirectory(savedStateDir, round);
+        if (roundDir == null) {
+            log.warn(
+                    "Could not find saved state dir for round {} under {}; outDir copy skipped.", round, savedStateDir);
+            return;
         }
+        final Path destination = outDir.resolve(Long.toString(round));
+        Files.createDirectories(destination);
+        try (final Stream<Path> files = Files.walk(roundDir)) {
+            files.forEach(source -> {
+                final Path target = destination.resolve(roundDir.relativize(source));
+                try {
+                    if (Files.isDirectory(source)) {
+                        Files.createDirectories(target);
+                    } else {
+                        Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (final IOException e) {
+                    throw new java.io.UncheckedIOException("Failed to copy " + source + " -> " + target, e);
+                }
+            });
+        }
+        log.info("Replay state for round {} copied to {}", round, destination);
+    }
+
+    private static Path findRoundDirectory(final Path root, final long round) throws IOException {
+        final String roundName = Long.toString(round);
         try (final Stream<Path> dirs = Files.walk(root)) {
             return dirs.filter(Files::isDirectory)
-                    .filter(p -> {
-                        try {
-                            Long.parseLong(p.getFileName().toString());
-                            return true;
-                        } catch (final NumberFormatException e) {
-                            return false;
-                        }
-                    })
-                    .max(Comparator.comparingLong(
-                            p -> Long.parseLong(p.getFileName().toString())))
+                    .filter(p -> p.getFileName().toString().equals(roundName))
+                    .findFirst()
                     .orElse(null);
         }
     }

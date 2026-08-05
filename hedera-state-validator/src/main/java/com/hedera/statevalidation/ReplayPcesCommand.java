@@ -9,6 +9,7 @@ import com.hedera.statevalidation.blockstream.ReplayPcesWorkflow;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
@@ -90,8 +91,11 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     @Option(
             names = {"-t", "--target-round"},
-            description = "The last round that should be applied to the state, any higher rounds are ignored. "
-                    + "Default = apply all available rounds.")
+            required = true,
+            description = "The round whose resulting state is written as the output snapshot. The full PCES "
+                    + "stream is still replayed (decision-margin events past this round are required to bring "
+                    + "this round to consensus), but only this round's state is retained. Default = write the "
+                    + "latest round reached.")
     private void setTargetRound(final long targetRound) {
         this.targetRound = targetRound;
     }
@@ -112,11 +116,52 @@ public class ReplayPcesCommand implements Callable<Integer> {
         if (forceMockSignatures) {
             System.setProperty("tss.forceMockSignatures", "true");
         }
-        System.setProperty("pces.forceIgnorePcesSignatures", "true");
+        System.setProperty("event.preconsensus.forceIgnorePcesSignatures", "true");
         System.setProperty("event.preconsensus.copyRecentStreamToStateSnapshots", "false");
-        System.setProperty("event.preconsensus.limitReplayFrequency", "false");
+
+        // Suppress ONLY the PERIODIC_SNAPSHOT marking, without disabling state saving. With periodic
+        // marking on, DefaultSavedStateController marks the first replayed state crossing a save-period
+        // boundary as PERIODIC_SNAPSHOT, which routes the final-state writer into the ASYNC snapshot path
+        // (blocks to the async timeout as the last replayed state; can collide with the platform's own
+        // periodic snapshot over the same VirtualMap copy). This toggle gates shouldSaveToDisk()'s periodic
+        // branch only; freeze-state and first-round saves still occur, and saveStatePeriod stays > 0 so the
+        // normal state-release/garbage-collection cadence is unaffected (important to bound memory on long
+        // replays — do NOT set saveStatePeriod=0).
+        System.setProperty("state.periodicSnapshotsEnabled", "false");
+        System.setProperty("state.saveStateAsync", "false");
         System.setProperty("state.saveStatePeriod", "3600");
+
         System.setProperty("blockStream.writerMode", "FILE");
+
+        // --- Keep all stream output under outDir; never touch the production /opt/hgcapp defaults. ---
+        // The block stream is the equivalence-validation deliverable, so direct it under outDir. The event
+        // and record streams are not needed for replay and their production default directories live under
+        // /opt/hgcapp (root-owned on a normal workstation); the consensus event stream eagerly creates its
+        // directory during platform build, which would throw before replay starts. Disable them.
+
+        // Block stream -> <outDir>/blockStreams  (BlockStreamConfig.blockFileDir)
+        final Path blockOut = outDir.resolve("blockStreams");
+        Files.createDirectories(blockOut);
+        System.setProperty("blockStream.blockFileDir", blockOut.toAbsolutePath().toString());
+
+        // Event stream -> disabled  (EventConfig.enableEventStreaming); also redirect its dir defensively
+        System.setProperty("event.enableEventStreaming", "false");
+        System.setProperty(
+                "event.eventsLogDir",
+                outDir.resolve("eventsStreams").toAbsolutePath().toString());
+
+        // Record stream -> redirect its dir under outDir  (BlockRecordStreamConfig.logDir)
+        // (writerMode=FILE + streamMode drive block output; the record stream dir must still not default to
+        //  /opt/hgcapp in case any record-stream writer initializes.)
+        System.setProperty(
+                "hedera.recordStream.logDir",
+                outDir.resolve("recordStreams").toAbsolutePath().toString());
+        System.setProperty(
+                "hedera.recordStream.sidecarDir",
+                outDir.resolve("recordStreams")
+                        .resolve("sidecar")
+                        .toAbsolutePath()
+                        .toString());
 
         final NodeId selfId = NodeId.of(selfIdValue);
 
