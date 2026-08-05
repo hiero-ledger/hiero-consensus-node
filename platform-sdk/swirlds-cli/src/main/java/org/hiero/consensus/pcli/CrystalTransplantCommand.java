@@ -33,7 +33,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.PathsConfig;
-import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -92,7 +91,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private Time time;
     private Metrics metrics;
     private RecycleBin recycleBin;
-    private FileSystemManager fileSystemManager;
     private Roster overrideRoster;
     private Path targetNodePath = Paths.get("");
 
@@ -174,9 +172,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 .build();
         this.time = Time.getCurrent();
         this.metrics = new NoOpMetrics();
-        this.recycleBin = new NoOpRecycleBin();
-        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        this.fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        this.recycleBin = new SimpleRecycleBin();
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 

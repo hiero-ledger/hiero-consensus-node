@@ -37,7 +37,7 @@ public class SignedStateFilePath {
      *
      * @param fileSystemManager the file system manager to use for writing signed states and associated data. The root
      *                          location of the file system manager must be set to the location where signed states
-     *                          should be saved according to PathsConfig#savedStateDir.
+     *                          should be saved according to {@code PathsConfig#savedStateDir}.
      */
     public SignedStateFilePath(
             @NonNull final FileSystemManager fileSystemManager,
