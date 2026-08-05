@@ -19,7 +19,7 @@ Must not depend on:
 `consensus-platformstate`)
 - Any functional-api or impl module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
-- `swirlds-component-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
+- `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-virtualmap`
 
 No known violations.

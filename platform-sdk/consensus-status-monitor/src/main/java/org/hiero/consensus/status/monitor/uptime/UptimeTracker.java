@@ -20,12 +20,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.config.UptimeConfig;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.status.monitor.config.UptimeConfig;
 
 /**
  * Monitors the uptime of nodes in the network.

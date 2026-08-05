@@ -21,7 +21,6 @@ import static org.hiero.consensus.transaction.handling.internal.TransactionHandl
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -58,6 +57,7 @@ import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
 
 /**
  * A standard implementation of {@link TransactionHandler}.

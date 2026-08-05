@@ -19,8 +19,8 @@ May depend on:
 Must not depend on:
 - Any functional-api or impl module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
-- `swirlds-component-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
+- `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
 Known violation — `requires transitive com.swirlds.component.framework`: as a supporting
-module this should not depend on `swirlds-component-framework`; needs investigation.
+module this should not depend on `consensus-wiring-framework`; needs investigation.

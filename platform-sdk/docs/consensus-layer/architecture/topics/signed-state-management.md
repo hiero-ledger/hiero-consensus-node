@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Signed state management
-last_reviewed: 2026-05-28
+last_reviewed: 2026-07-28
 ---
 
 # Signed state management
@@ -307,9 +307,12 @@ released its reservation.
 
 ### Component patterns
 
-Within
-[`PlatformWiring.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)
-every consumer of a state-bearing wire follows one of three patterns:
+Every consumer of a state-bearing wire — wired in
+[`StateModule.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/StateModule.java),
+with the inter-module fan-outs to ISS detection and the hashed-state
+notifier in
+[`ConsensusLayerWiring.java`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java)
+— follows one of three patterns:
 
 - **Terminal.** Wraps the input in `try (reservedState)` and produces a
   non-state output (a transaction, a notification, an ISS list, or a
