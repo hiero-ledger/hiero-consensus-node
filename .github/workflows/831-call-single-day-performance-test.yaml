@@ -366,6 +366,7 @@ jobs:
           cd "${{ github.workspace }}"
 
       - name: Fix size BN
+        if: false
         run: |
           cd "${{ github.workspace }}"/target_block_node
           sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ConvertToJson.java
