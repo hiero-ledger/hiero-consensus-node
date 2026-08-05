@@ -12,7 +12,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
