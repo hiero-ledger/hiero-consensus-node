@@ -37,7 +37,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;

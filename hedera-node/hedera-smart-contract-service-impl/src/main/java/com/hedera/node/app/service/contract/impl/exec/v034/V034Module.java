@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.exec.v034;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerLondonOperations;
 import static org.hyperledger.besu.evm.MainnetEVMs.registerParisOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
@@ -38,7 +37,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v030.Version030AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
