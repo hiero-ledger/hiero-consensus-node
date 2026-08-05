@@ -269,7 +269,11 @@ public class BlockNodeSimSuite {
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // saturation should drop as the block node acknowledges the buffered blocks
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation: 0.0%")));
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "ByBlockCount: 0.0000%")));
     }
 
     /**
