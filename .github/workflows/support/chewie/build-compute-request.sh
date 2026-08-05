@@ -37,8 +37,9 @@ build_compute_request() {
       j) JOB="${OPTARG}" ;;
       e) REQUEST_TIMEOUT=${OPTARG} ;;
       *)
-        echo "Error: Invalid option"
-        echo "Usage: ${0} -q <cn_quantity> -c <cn_cpu> -m <cn_memory> -d <duration> -g <consensus-group-name> -a <aux_quantity> -p <aux_cpu> -w <aux_memory> -x <auxiliary-group-name> -i <run_id> -n <run_number> -t <run_attempt> -o <owner> -r <repository> -j <job> -e <request_timeout>"
+        echo "Error: Invalid option" >&2
+        echo "Usage: ${0} -q <cn_quantity> -c <cn_cpu> -m <cn_memory> -d <duration> -g <consensus-group-name> -a <aux_quantity> -p <aux_cpu> -w <aux_memory> -x <auxiliary-group-name> -i <run_id> -n <run_number> -t <run_attempt> -o <owner> -r <repository> -j <job> -e <request_timeout>" >&2
+        return 1
         ;;
     esac
   done

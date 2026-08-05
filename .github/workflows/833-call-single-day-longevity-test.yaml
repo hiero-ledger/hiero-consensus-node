@@ -66,10 +66,10 @@ on:
         required: true
         description: "GitHub Authorization Token for the workflow"
       chewie-host:
-        required: true
+        required: false
         description: "Chewie Host"
       chewie-id-key:
-        required: true
+        required: false
         description: "Chewie Identity Key"
     outputs:
       result:
@@ -601,7 +601,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hl-cn-sdlt-lin-lg
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - longevity-tests-start
