@@ -16,7 +16,7 @@ on:
         type: string
       solo-version:
         required: true
-        default: "v0.84.0"
+        default: "v0.84.1"
         description: "Solo Version:"
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
@@ -306,6 +306,7 @@ jobs:
           cd "${{ github.workspace }}"
 
       - name: Fix size BN
+        if: false
         run: |
           cd "${{ github.workspace }}"/target_block_node
           sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ConvertToJson.java
@@ -385,7 +386,6 @@ jobs:
           wait: 120s
 
       - name: Install Solo
-        if: false
         run: |
           npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -393,6 +393,7 @@ jobs:
           solo --version
 
       - name: Build Solo
+        if: false
         run: |
           set +x
           set +e

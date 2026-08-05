@@ -182,7 +182,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ inputs.ref }}"
-      solo-version: "v0.84.0" #"${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
+      solo-version: "v0.84.1" #"${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
