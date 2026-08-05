@@ -202,6 +202,7 @@ jobs:
           CHEWIE_JWT_B64: ${{ secrets.chewie-token }}
           ALLOCATION_ID: ${{ steps.create-allocation-request.outputs.allocation-id }}
         run: |
+          set -eo pipefail
           CHEWIE_JWT=$(.github/workflows/support/chewie/decode-b64-jwt.sh "${CHEWIE_JWT_B64}")
           if [[ "${CHEWIE_JWT}" == Error* ]]; then
             echo "Failed to decode Chewie JWT: ${CHEWIE_JWT}"
