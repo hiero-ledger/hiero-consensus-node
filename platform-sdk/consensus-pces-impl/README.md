@@ -13,7 +13,7 @@ the API, not this module directly. For PCES internals, see
 May depend on:
 - `consensus-pces` (its API), `consensus-state`, any supporting module
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other `consensus-*-impl` modules
