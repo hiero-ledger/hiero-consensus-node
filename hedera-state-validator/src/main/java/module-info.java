@@ -28,7 +28,6 @@ module com.hedera.state.validator {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.common;
-    requires com.swirlds.component.framework;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;

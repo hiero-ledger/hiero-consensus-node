@@ -12,10 +12,10 @@ import com.hedera.node.app.ServicesMain;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.ReplayPcesCommand;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -415,10 +416,8 @@ public final class ReplayPcesWorkflow {
     private static void copySnapshotToOutDir(
             @NonNull final Configuration platformConfig, final long round, @NonNull final Path outDir)
             throws IOException {
-        final Path savedStateDir = Path.of(platformConfig
-                .getConfigData(org.hiero.consensus.config.PathsConfig.class)
-                .savedStateDir()
-                .toString());
+        final Path savedStateDir = Path.of(
+                platformConfig.getConfigData(PathsConfig.class).savedStateDir().toString());
         final Path roundDir = findRoundDirectory(savedStateDir, round);
         if (roundDir == null) {
             log.warn(
