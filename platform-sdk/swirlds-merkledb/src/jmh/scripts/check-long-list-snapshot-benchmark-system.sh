@@ -20,8 +20,8 @@ echo
 if command -v java >/dev/null; then
     java_version="$(java -version 2>&1 | awk -F'"' 'NR == 1 { print $2 }')"
     echo "Java: ${java_version}"
-    if [[ "${java_version%%.*}" != "25" ]]; then
-        echo "WARNING: Java 25 is recommended"
+    if [[ "${java_version}" != 25.0.2* ]]; then
+        echo "WARNING: Java 25.0.2 is required by this branch"
     fi
 else
     echo "Java: not found"
