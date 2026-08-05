@@ -1,19 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireFilter;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
@@ -25,6 +17,7 @@ import java.util.Queue;
 import java.util.function.UnaryOperator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -53,11 +46,21 @@ import org.hiero.consensus.state.signing.SignedStateMetrics;
 import org.hiero.consensus.state.signing.StateSignatureCollector;
 import org.hiero.consensus.state.signing.StateSigner;
 import org.hiero.consensus.state.utils.SignedStateReserver;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireFilter;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Module for signed state management.
  */
 public class StateModule {
+
+    private final WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
@@ -106,6 +109,8 @@ public class StateModule {
             @NonNull final SavedStateController savedStateController) {
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "State_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 
@@ -130,6 +135,11 @@ public class StateModule {
                 new ComponentWiring<>(model, StateGarbageCollector.class, wiringConfig.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
+
+        // Wire components
+        eventWindowExtractor
+                .getOutputWire()
+                .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow));
 
         // Eventually mark unhashed state for storage and forward to StateHasher
         savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
@@ -280,12 +290,24 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for setting the latest {@link EventWindow}.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the input wire for the transactions
+     * @return the {@link InputWire} for the consensus round
      */
+    @InputWireLabel("consensus round")
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return eventWindowExtractor.getInputWire();
+    }
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow);
     }
 

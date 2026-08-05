@@ -4,29 +4,27 @@ package org.hiero.consensus.pces.noop.impl.test.fixtures;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * No-op implementation of the {@link PcesModule}.
@@ -38,6 +36,7 @@ public class NoopPcesModule implements PcesModule {
     private InputWire<Long> minimumBirthRoundInputWire;
     private InputWire<Long> discontinuityInputWire;
     private OutputWire<PlatformEvent> writtenEventsOutputWire;
+    private InputWire<ConsensusRound> consensusRoundInputWire;
     private InputWire<EventWindow> eventWindowInputWire;
 
     /**
@@ -54,9 +53,7 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable platformStatusFlusher,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         requireNonNull(model);
@@ -65,9 +62,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(selfId);
         requireNonNull(recycleBin);
         requireNonNull(flushPrimaryPipeline);
-        requireNonNull(replayProgressSupplier);
-        requireNonNull(platformStatusFlusher);
-        requireNonNull(statusActionConsumer);
+        requireNonNull(statusMonitorModule);
         requireNonNull(signalEndOfPcesReplay);
 
         final var scheduler = model.<PlatformEvent>schedulerBuilder("InlinePcesWriter")
@@ -99,6 +94,10 @@ public class NoopPcesModule implements PcesModule {
         final BindableInputWire<Long, PlatformEvent> discontinuity = scheduler.buildInputWire("discontinuity");
         discontinuity.bindConsumer(_ -> {});
         this.discontinuityInputWire = discontinuity;
+        final BindableInputWire<ConsensusRound, PlatformEvent> consensusRound =
+                scheduler.buildInputWire("consensus round");
+        consensusRound.bindConsumer(_ -> {});
+        this.consensusRoundInputWire = consensusRound;
         final BindableInputWire<EventWindow, PlatformEvent> eventWindow = scheduler.buildInputWire("event window");
         eventWindow.bindConsumer(_ -> {});
         this.eventWindowInputWire = eventWindow;
@@ -144,7 +143,13 @@ public class NoopPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(consensusRoundInputWire, "Not initialized");
+    }
+
+    @NonNull
+    @Override
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventWindowInputWire, "Not initialized");
     }
 
@@ -164,11 +169,6 @@ public class NoopPcesModule implements PcesModule {
     @NonNull
     public InputWire<Long> discontinuityInputWire() {
         return requireNonNull(discontinuityInputWire, "Not initialized");
-    }
-
-    @Override
-    public void injectMinimumBirthRound(final long minimumBirthRoundNonAncientForOldestState) {
-        // no-op
     }
 
     /**

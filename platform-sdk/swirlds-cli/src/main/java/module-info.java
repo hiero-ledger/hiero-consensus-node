@@ -17,7 +17,6 @@ module org.hiero.consensus.pcli {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.common;
-    requires com.swirlds.component.framework;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
@@ -44,8 +43,10 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.status.monitor;
     requires org.hiero.consensus.transaction.handling;
     requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.wiring.framework;
     requires info.picocli;
     requires io.github.classgraph;
     requires org.apache.logging.log4j;

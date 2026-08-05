@@ -13,10 +13,10 @@ import static org.hiero.sloth.fixtures.app.SlothStateUtils.initGenesisState;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
@@ -32,7 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
@@ -121,7 +121,8 @@ public class ConsensusNodeManager {
                 SlothApp.APP_NAME,
                 SlothApp.SWIRLD_NAME,
                 selfId,
-                platformContext,
+                platformConfig,
+                fileSystemManager,
                 stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();
