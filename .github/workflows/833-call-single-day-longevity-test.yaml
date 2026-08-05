@@ -121,11 +121,11 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Checkout target BN Code
-        run: |
-          git clone https://github.com/hiero-ledger/hiero-block-node.git target_block_node
-          cd target_block_node
-          git checkout ${{ inputs.bnref }}
-          cd "${{ github.workspace }}"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: 'hiero-ledger/hiero-block-node'
+          path: target_block_node
+          ref: ${{ inputs.bnref }}
 
       - name: Check Test Asset
         id: set-k8s-cluster
@@ -415,19 +415,8 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          #FIXME: only main works
-          git checkout main #${{ inputs.solo-version }} #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
-          #echo > resources/templates/application.properties
-          #echo > resources/templates/application.env
-          #echo > resources/templates/settings.txt
+          git checkout ${{ inputs.solo-version }}
 
-          sed -i -e 's/37748736/300000000/g' resources/config/tss-config.yaml
-          sed -i -e 's/37748736/300000000/g' resources/block-node-tss-values.yaml
-
-          sed -i -e 's/37_748_736/300_000_000/g' src/data/schema/model/solo/tss-schema.ts
-          sed -i -e 's/37_748_736/300_000_000/g' src/data/schema/migration/impl/solo/solo-config-v1-migration.ts
-          #sed -i -e "s@, wrapPath@, '/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps-v0.2.0'@g" src/core/helm-values-helper.ts
           task build:compile
           #npm run build
 
