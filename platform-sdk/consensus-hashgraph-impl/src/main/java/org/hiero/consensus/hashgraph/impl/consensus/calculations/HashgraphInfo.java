@@ -695,7 +695,7 @@ public final class HashgraphInfo {
          * When this method is called for the first time on a new hashgraph in memory, it can be passed
          * the {@link RoundInfo roundInfo} for the pending round at that time. In every future call, each call to it
          * must be passed a {@link RoundInfo RoundInfo} that either has the same
-         * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} as in the previous call, or has a
+         * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} as in the previous call or has a
          * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} that is one greater than in the previous call.
          * A new hashgraph starting from scratch at genesis should be started with
          * {@link RoundInfo#pendingRound RoundInfo.pendingRound} == 1.
@@ -730,7 +730,7 @@ public final class HashgraphInfo {
             long minJudgeBirthRound;
             boolean witness;
             boolean prevJudgesCopied; // true iff judges for this round copied from the previous, rather than elected
-            // the following 4 variables are filled in and returned, if this update() reaches consensus on this round
+            // the following 4 variables are filled in and returned if this update() reaches consensus on this round
             EventInfo[] consensusEventsArray; // all events that reached consensus this round (in consensus order)
             Instant roundTimestamp; // the weighted median of the created timestamps of all the judges
             boolean usedCoin = false; // was there a coin round?
