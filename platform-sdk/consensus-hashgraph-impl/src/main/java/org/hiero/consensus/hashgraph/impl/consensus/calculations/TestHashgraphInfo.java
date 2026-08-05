@@ -203,9 +203,7 @@ public class TestHashgraphInfo {
     private static void appendEvents(StringBuilder line, EventInfo[] events) {
         line.append(",").append(events.length);
         for (EventInfo event : events) {
-            if (event != null) {
-                line.append(",").append(eventID(event));
-            }
+            line.append(",").append(eventID(event));
         }
     }
 
