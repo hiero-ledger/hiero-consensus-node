@@ -16,5 +16,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.platform.core;
+    requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.hiero.base.utility.test.fixtures;
 }
