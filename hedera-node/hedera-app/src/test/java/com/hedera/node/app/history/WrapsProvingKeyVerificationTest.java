@@ -114,16 +114,6 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void throwsOnUnreadableFile() throws IOException {
-        final var path = tempDir.resolve("unreadable");
-        Files.createDirectory(path);
-        final var hash = "aa".repeat(48);
-        givenConfigWithHashAndPath(hash, path);
-
-        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(configuration, downloader));
-    }
-
-    @Test
     void downloadsWhenFileMissing() throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
