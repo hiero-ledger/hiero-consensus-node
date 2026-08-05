@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.writer;
 
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
  * This object is responsible for writing preconsensus events to disk. It
