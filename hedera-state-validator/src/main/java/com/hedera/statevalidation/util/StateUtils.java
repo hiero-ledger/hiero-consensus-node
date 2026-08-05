@@ -72,6 +72,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.InstantSource;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -139,10 +140,10 @@ public final class StateUtils {
             throw new IllegalStateException("State is not initialized yet");
         }
         VirtualMapStateImpl defaultState = (VirtualMapStateImpl) getDefaultState();
-        Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
+        Set<Map.Entry<String, HashMap<Integer, StateMetadata<?, ?>>>> serviceEntries =
                 defaultState.getServices().entrySet();
         // resetting readable state caches
-        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
+        for (Map.Entry<String, HashMap<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
             ReadableStates readableStates = defaultState.getReadableStates(serviceEntry.getKey());
             for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
                     serviceEntry.getValue().entrySet()) {

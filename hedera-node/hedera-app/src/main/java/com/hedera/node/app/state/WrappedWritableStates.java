@@ -12,6 +12,7 @@ import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -101,12 +102,22 @@ public class WrappedWritableStates implements WritableStates {
      * Writes all modifications to the underlying {@link WritableStates}.
      */
     public void commit() {
-        // Ensure all commits always happen in lexicographic order by state ID
-        writableKVStateMap.keySet().stream().sorted().forEach(stateId -> (writableKVStateMap.get(stateId)).commit());
-        writableQueueStateMap.keySet().stream().sorted().forEach(stateId -> (writableQueueStateMap.get(stateId))
-                .commit());
-        writableSingletonStateMap.keySet().stream().sorted().forEach(stateId -> (writableSingletonStateMap.get(stateId))
-                .commit());
+        // Ensure all commits always happen in ascending order by state ID
+        Integer[] kvIds = writableKVStateMap.keySet().toArray(new Integer[0]);
+        Arrays.sort(kvIds);
+        Integer[] sinIds = writableSingletonStateMap.keySet().toArray(new Integer[0]);
+        Arrays.sort(sinIds);
+        Integer[] qIds = writableQueueStateMap.keySet().toArray(new Integer[0]);
+        Arrays.sort(qIds);
+        for (Integer id : kvIds) {
+            writableKVStateMap.get(id).commit();
+        }
+        for (Integer id : sinIds) {
+            writableSingletonStateMap.get(id).commit();
+        }
+        for (Integer id : qIds) {
+            writableQueueStateMap.get(id).commit();
+        }
 
         if (delegate instanceof CommittableWritableStates terminalStates) {
             terminalStates.commit();
