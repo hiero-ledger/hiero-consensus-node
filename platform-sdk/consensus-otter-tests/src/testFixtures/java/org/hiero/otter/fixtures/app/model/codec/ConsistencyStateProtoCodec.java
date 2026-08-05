@@ -60,7 +60,7 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
      * @return Parsed ConsistencyState model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull ConsistencyState realParse(
+    public @NonNull ConsistencyState parse(
             @NonNull final PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -187,7 +187,7 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
         }
     }
 
-    public void realWrite(@NonNull ConsistencyState data, @NonNull PbjWriter out) {
+    public void write(@NonNull ConsistencyState data, @NonNull PbjWriter out) {
         // [1] - running_checksum
         writeLong(out, ConsistencyStateSchema.RUNNING_CHECKSUM, data.runningChecksum(), true);
         // [2] - rounds_handled

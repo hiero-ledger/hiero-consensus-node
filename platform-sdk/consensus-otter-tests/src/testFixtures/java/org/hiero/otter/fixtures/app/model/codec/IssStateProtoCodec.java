@@ -47,7 +47,7 @@ public final class IssStateProtoCodec implements Codec<IssState> {
     }
 
     @Override
-    public @NonNull IssState realParse(
+    public @NonNull IssState parse(
             @NonNull final PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth);
@@ -186,7 +186,7 @@ public final class IssStateProtoCodec implements Codec<IssState> {
         }
     }
 
-    public void realWrite(@NonNull IssState data, @NonNull PbjWriter out) {
+    public void write(@NonNull IssState data, @NonNull PbjWriter out) {
         // [1] - issState
         writeLong(out, IssStateSchema.ISS_STATE, data.issState(), true);
 

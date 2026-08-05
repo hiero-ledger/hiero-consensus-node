@@ -99,7 +99,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          * {@inheritDoc}
          */
         @Override
-        public void realWrite(@NonNull final StateValue<V> value, @NonNull final PbjWriter out) {
+        public void write(@NonNull final StateValue<V> value, @NonNull final PbjWriter out) {
             // Write tag
             final int stateId = value.stateId();
             out.writeVarInt(
@@ -119,7 +119,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          */
         @NonNull
         @Override
-        public StateValue<V> realParse(
+        public StateValue<V> parse(
                 @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,

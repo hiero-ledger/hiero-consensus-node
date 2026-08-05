@@ -76,7 +76,7 @@ public final class AccountProtoCodec implements Codec<Account> {
      * @return Parsed Account model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull Account realParse(
+    public @NonNull Account parse(
             @NonNull final PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -231,7 +231,7 @@ public final class AccountProtoCodec implements Codec<Account> {
         }
     }
 
-    public void realWrite(@NonNull Account data, @NonNull PbjWriter out) {
+    public void write(@NonNull Account data, @NonNull PbjWriter out) {
         // [1] - accountId
         writeMessage(out, AccountSchema.ACCOUNT_ID, data.accountId(), AccountId.PROTOBUF);
         // [2] - name

@@ -20,7 +20,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
 
     @NonNull
     @Override
-    public BenchmarkValue realParse(
+    public BenchmarkValue parse(
             @NonNull final PbjReader in,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -30,7 +30,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
     }
 
     @Override
-    public void realWrite(@NonNull final BenchmarkValue value, @NonNull final PbjWriter out) {
+    public void write(@NonNull final BenchmarkValue value, @NonNull final PbjWriter out) {
         value.writeTo(out);
     }
 

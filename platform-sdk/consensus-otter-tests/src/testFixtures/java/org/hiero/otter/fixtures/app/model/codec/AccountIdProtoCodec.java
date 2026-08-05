@@ -72,7 +72,7 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
      * @return Parsed AccountId model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull AccountId realParse(
+    public @NonNull AccountId parse(
             @NonNull final PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -192,7 +192,7 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
         }
     }
 
-    public void realWrite(@NonNull AccountId data, @NonNull PbjWriter out) {
+    public void write(@NonNull AccountId data, @NonNull PbjWriter out) {
         // [1] - id
         writeLong(out, AccountIdSchema.ID, data.id(), true);
 

@@ -34,7 +34,7 @@ public class TestStringCodec implements Codec<String> {
 
     @NonNull
     @Override
-    public String realParse(
+    public String parse(
             @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         Objects.requireNonNull(input);
@@ -59,7 +59,7 @@ public class TestStringCodec implements Codec<String> {
         output.writeBytes(bytes);
     }
 
-    public void realWrite(final @NonNull String value, final @NonNull PbjWriter output) {
+    public void write(final @NonNull String value, final @NonNull PbjWriter output) {
         Objects.requireNonNull(value);
         Objects.requireNonNull(output);
         final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);

@@ -104,7 +104,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     public TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, final long eventBirthRound) {
         var response = OK_RESPONSE;
         if (defaultNodeAccountId.equals(nodeAccountId)) {
-            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE);
+            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE, false);
             final var payload = Bytes.wrap(transaction.toByteArray());
             hedera.ingestWorkflow().submitTransaction(payload, responseBuffer);
             response = parseTransactionResponse(responseBuffer);
@@ -129,7 +129,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         requireNonNull(semanticVersion);
         var response = OK_RESPONSE;
         if (defaultNodeAccountId.equals(nodeAccountId)) {
-            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE);
+            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE, false);
             final var payload = Bytes.wrap(transaction.toByteArray());
             hedera.ingestWorkflow().submitTransaction(payload, responseBuffer);
             response = parseTransactionResponse(responseBuffer);

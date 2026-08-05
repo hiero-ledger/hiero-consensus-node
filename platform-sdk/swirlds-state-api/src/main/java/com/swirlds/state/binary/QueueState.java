@@ -96,7 +96,7 @@ public record QueueState(long head, long tail) {
         }
 
         @Override
-        public void realWrite(@NonNull final QueueState value, @NonNull final PbjWriter out) {
+        public void write(@NonNull final QueueState value, @NonNull final PbjWriter out) {
             final long pos = out.position();
             if (value.head() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_QUEUESTATE_HEAD);
@@ -111,7 +111,7 @@ public record QueueState(long head, long tail) {
 
         @NonNull
         @Override
-        public QueueState realParse(
+        public QueueState parse(
                 @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
