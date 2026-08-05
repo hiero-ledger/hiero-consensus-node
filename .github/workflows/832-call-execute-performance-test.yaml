@@ -177,7 +177,6 @@ jobs:
           sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
           sudo chmod a+rx ${kubectl}
           which kubectl
-          kubectl version
 
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
