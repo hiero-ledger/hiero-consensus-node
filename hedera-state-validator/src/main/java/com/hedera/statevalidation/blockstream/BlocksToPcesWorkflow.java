@@ -8,8 +8,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
