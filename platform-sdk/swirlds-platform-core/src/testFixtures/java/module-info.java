@@ -4,7 +4,7 @@ open module com.swirlds.platform.core.test.fixtures {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -16,5 +16,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.platform.core;
+    requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.hiero.base.utility.test.fixtures;
 }

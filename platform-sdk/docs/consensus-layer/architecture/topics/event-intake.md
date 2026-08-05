@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Event intake
-last_reviewed: 2026-05-15
+last_reviewed: 2026-07-28
 ---
 
 # Event intake

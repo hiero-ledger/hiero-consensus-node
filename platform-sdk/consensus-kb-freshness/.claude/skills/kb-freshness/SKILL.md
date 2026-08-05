@@ -24,6 +24,13 @@ Run the bundled script and capture the output directory:
 bash "${CLAUDE_SKILL_DIR}/scripts/run.sh"
 ```
 
+> **Re-running is destructive — run once, then ask before re-running.** Each run regenerates every
+> artifact in the output directory. If a report already exists there and you (or the user) are
+> mid-remediation, do **not** re-run to "refresh" it — read the existing artifacts in place. Only
+> re-run the engine when the user explicitly asks for a new run. (The runner copies the prior output
+> to `<out>.bak.<timestamp>` as a backstop, but still treat a re-run as overwriting the working
+> report — including the semantic worklist a remediation session is tracking against.)
+
 It prints the output directory (default `<repo>/build/kb-freshness`). Read these artifacts from it:
 
 - `report.md` — the human drift report (deterministic assertions a curator acts on). Its **Summary**
@@ -63,7 +70,8 @@ For each `review` entry:
    anchors). Never rely on memory of what the code does — open the files.
 3. For each **load-bearing prose claim** about behavior in the topic, judge it three ways:
    - `supported` — the current code backs the claim.
-   - `contradicted` — the current code makes the claim false.
+   - `contradicted` — the current code makes the claim false, **or** names a symbol (method, class,
+     field, path) that no longer exists; a rename or removal counts even if the behavior survives.
    - `can't-determine` — you cannot tell from the source available.
 
 An `unknown` entry has no `changedPaths` to read — its `note` names why (usually
@@ -112,9 +120,13 @@ Close with a short, concrete action list derived from this run (skip lines that 
    topic slugs with no document).
 4. **Close the review loop**: for each worklisted topic whose semantic pass found every claim
    `supported` (or whose contradictions have since been fixed), suggest bumping its `last_reviewed`
-   date — mechanically, via `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; a spec without
-   a date uses `--date`). Without the bump, every future run re-worklists the same topics. Never
-   suggest bumping a topic that still has an unresolved contradiction.
+   via `--mark-reviewed <entry-key>` (repeatable). A bare spec records the topic's newest
+   anchored-source commit date — the state this run reviewed, shown as `newestAnchoredCommit` in
+   `worklist.json` — derived from the scanned checkout, never the wall clock (so a run against a stale
+   `main` never marks commits it did not review as reviewed). Without the bump, every
+   future run re-worklists the same topics. Never
+   suggest bumping a topic that still has an unresolved contradiction (which now includes a dangling
+   reference to a renamed or removed symbol).
 5. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
    copying `baseline.proposed.tsv`) and triaging the rows.
 
