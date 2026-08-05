@@ -42,7 +42,7 @@ Column conventions:
 
 ## `platform.wiring.*` — WiringConfig
 
-Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds-component-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
+Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
 
 |   ID    |                       Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
 |---------|--------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -58,7 +58,7 @@ Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds
 
 ## `uptime.*` — UptimeConfig
 
-Module: `swirlds-platform-core`. Source: [UptimeConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/uptime/UptimeConfig.java).
+Module: `consensus-utility`. Source: [UptimeConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/UptimeConfig.java).
 
 |   ID    |              Key              |   Type   | Default |                                            Effect                                             | Range | Fragility |
 |---------|-------------------------------|----------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
@@ -82,6 +82,7 @@ Selects consensus module implementations via ServiceLoader. Each value is a JPMS
 ## `platformStatus.*` — PlatformStatusConfig
 
 Module: `consensus-utility`. Source: [PlatformStatusConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java).
+These delays drive the status state machine; see [architecture/topics/platform-status.md](architecture/topics/platform-status.md).
 
 |   ID    |                        Key                         |   Type   | Default |                                                Effect                                                 | Range | Fragility |
 |---------|----------------------------------------------------|----------|---------|-------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -97,23 +98,20 @@ Module: `swirlds-platform-core`. Source: [PlatformMetricsConfig.java](../../swir
 |---------|------------------------------------------------|---------|---------|------------------------------------------------------------------------------|-------|-----------|
 | TUN-022 | `platform.metrics.eventPipelineMetricsEnabled` | boolean | `true`  | If true, the platform collects and reports metrics about the event pipeline. |       | —         |
 
-## `platformSchedulers.*` — PlatformSchedulersConfig
+## `status.monitor.*` — StatusMonitorWiringConfig
 
-Module: `swirlds-platform-core`. Source: [PlatformSchedulersConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformSchedulersConfig.java).
+Module: `consensus-status-monitor`. Source: [StatusMonitorWiringConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/StatusMonitorWiringConfig.java).
 
-Per-component `TaskSchedulerConfiguration` values that shape the platform wiring (scheduler type, queue capacity, flushable / squelchable flags, metric publication).
+Scheduler configuration for the status monitor. Formerly `PlatformSchedulersConfig` / `platformSchedulers.*`, progressively emptied as the platform wiring was modularised into per-component wiring configs, then renamed when the status monitor moved into its own module.
 
-|   ID    |                    Key                     |            Type            |                                              Default                                               |                            Effect                             | Range | Fragility |
-|---------|--------------------------------------------|----------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------|-------|-----------|
-| TUN-023 | `platformSchedulers.consensusEngine`       | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the consensus engine.             |       | —         |
-| TUN-026 | `platformSchedulers.futureEventBuffer`     | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`                    | Scheduler configuration for the future-event buffer.          |       | —         |
-| TUN-027 | `platformSchedulers.pcesSequencer`         | TaskSchedulerConfiguration | `DIRECT`                                                                                           | Scheduler configuration for the preconsensus event sequencer. |       | —         |
-| TUN-040 | `platformSchedulers.roundDurabilityBuffer` | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC`                                           | Scheduler configuration for the round durability buffer.      |       | —         |
-| TUN-041 | `platformSchedulers.platformMonitor`       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                         | Scheduler configuration for the platform monitor.             |       | —         |
-| TUN-042 | `platformSchedulers.transactionPool`       | TaskSchedulerConfiguration | `DIRECT_THREADSAFE`                                                                                | Scheduler configuration for the transaction pool.             |       | —         |
+|   ID    |              Key               |            Type            |                          Default                           |                     Effect                      | Range | Fragility |
+|---------|--------------------------------|----------------------------|------------------------------------------------------------|-------------------------------------------------|-------|-----------|
+| TUN-041 | `status.monitor.statusMonitor` | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC` | Scheduler configuration for the status monitor. |       | —         |
 
 **Retired.** Keys extracted from this record as the platform wiring was modularised; IDs retired, not reused:
 
+- TUN-023 — consensus engine, now [`hashgraph.wiring.*` — HashgraphWiringConfig](#hashgraphwiring---hashgraphwiringconfig) (TUN-103).
+- TUN-026, TUN-027, TUN-040, TUN-042 — future-event buffer / PCES sequencer / round-durability buffer / transaction pool schedulers; no longer exposed as tunables (no successor key).
 - TUN-024, TUN-025, TUN-029, TUN-033, TUN-034 — state hasher / hash logger / state signer / state signature collector / state snapshot manager, now [`state.wiring.*` — StateWiringConfig](#statewiring---statewiringconfig) (TUN-197…TUN-201).
 - TUN-035, TUN-036, TUN-037, TUN-038 — state garbage collector and signed-state sentinel (each with heartbeat period), now [`state.wiring.*` — StateWiringConfig](#statewiring---statewiringconfig) (TUN-202…TUN-205).
 - TUN-031, TUN-032 — ISS detector / handler, now [`iss.detection.wiring.*` — IssDetectionWiringConfig](#issdetectionwiring---issdetectionwiringconfig) (TUN-206, TUN-207).
@@ -156,7 +154,7 @@ General properties that don't belong to a specific subsystem. Keys are bare prop
 
 ## BasicConfig (no prefix)
 
-Module: `consensus-utility`. Source: [BasicConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/BasicConfig.java).
+Module: `swirlds-platform-core`. Source: [BasicConfig.java](../../swirlds-platform-core/src/main/java/org/hiero/consensus/BasicConfig.java).
 
 General properties that don't belong to a specific subsystem. Keys are bare property names.
 
@@ -167,7 +165,7 @@ General properties that don't belong to a specific subsystem. Keys are bare prop
 
 ## `event.*` — EventConfig
 
-Module: `consensus-utility`. Source: [EventConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/EventConfig.java).
+Module: `consensus-event-stream`. Source: [EventConfig.java](../../consensus-event-stream/src/main/java/org/hiero/consensus/event/stream/config/EventConfig.java).
 
 |   ID    |               Key                |  Type   |           Default           |                                            Effect                                            | Range | Fragility |
 |---------|----------------------------------|---------|-----------------------------|----------------------------------------------------------------------------------------------|-------|-----------|
@@ -178,7 +176,7 @@ Module: `consensus-utility`. Source: [EventConfig.java](../../consensus-utility/
 
 ## `fallen.behind.*` — FallenBehindConfig
 
-Module: `consensus-utility`. Source: [FallenBehindConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/FallenBehindConfig.java).
+Module: `swirlds-platform-core`. Source: [FallenBehindConfig.java](../../swirlds-platform-core/src/main/java/org/hiero/consensus/FallenBehindConfig.java).
 
 |   ID    |                  Key                  |  Type  | Default |                                           Effect                                            | Range | Fragility |
 |---------|---------------------------------------|--------|---------|---------------------------------------------------------------------------------------------|-------|-----------|

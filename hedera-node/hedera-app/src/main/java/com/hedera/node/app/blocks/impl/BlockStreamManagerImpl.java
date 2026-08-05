@@ -45,6 +45,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
@@ -80,6 +81,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -562,32 +564,56 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 return;
             }
 
-            for (int i = 0; i < onDiskPendingBlocks.size(); i++) {
-                var block = onDiskPendingBlocks.get(i);
-                try {
-                    final var pendingWriter = writerSupplier.get();
-
-                    pendingWriter.openBlock(block.number());
-                    block.items()
-                            .forEach(
-                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
-                    addPendingBlock(new PendingBlock(
-                            block.number(),
-                            block.contentsPath(),
-                            block.blockHash(),
-                            block.pendingProof().previousBlockHash(),
-                            block.proofBuilder(),
-                            pendingWriter,
-                            block.pendingProof().blockTimestamp(),
-                            block.siblingHashesIfUseful()));
-                    log.info("Recovered pending block #{}", block.number());
-                } catch (Exception e) {
-                    log.warn("Failed to recover pending block #{}", block.number(), e);
-                }
+            for (final var pendingBlock : recoverableSuffixOf(onDiskPendingBlocks)) {
+                addPendingBlock(pendingBlock);
+                log.info("Recovered pending block #{}", pendingBlock.number());
             }
         } catch (Exception e) {
             log.warn("Failed to load pending blocks", e);
         }
+    }
+
+    /**
+     * Re-creates in-memory pending blocks for as many of the given on-disk pending blocks as possible while keeping
+     * the result contiguous. Since an indirect proof for a pending block requires the sibling hashes of every later
+     * block up to the one whose signature anchors the proof, a recovered block is only useful if all blocks after it
+     * were also recovered; so blocks are recovered newest-first and recovery stops at the first failure, discarding
+     * any older blocks as unprovable.
+     *
+     * @param onDiskPendingBlocks the on-disk pending blocks, in ascending block number order
+     * @return the recovered pending blocks, in ascending block number order
+     */
+    @VisibleForTesting
+    List<PendingBlock> recoverableSuffixOf(@NonNull final List<OnDiskPendingBlock> onDiskPendingBlocks) {
+        final LinkedList<PendingBlock> recovered = new LinkedList<>();
+        for (int i = onDiskPendingBlocks.size() - 1; i >= 0; i--) {
+            final var block = onDiskPendingBlocks.get(i);
+            try {
+                final var pendingWriter = writerSupplier.get();
+
+                pendingWriter.openBlock(block.number());
+                block.items()
+                        .forEach(item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
+                recovered.addFirst(new PendingBlock(
+                        block.number(),
+                        block.contentsPath(),
+                        block.blockHash(),
+                        block.pendingProof().previousBlockHash(),
+                        block.proofBuilder(),
+                        pendingWriter,
+                        block.pendingProof().blockTimestamp(),
+                        block.siblingHashesIfUseful()));
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to recover pending block #{}; discarding {} older pending block(s) that could not"
+                                + " be proven without it",
+                        block.number(),
+                        i,
+                        e);
+                break;
+            }
+        }
+        return recovered;
     }
 
     private void addPendingBlock(@NonNull final PendingBlock pendingBlock) {
@@ -1020,13 +1046,31 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-                final var stateProof = BlockStateProofGenerator.generateStateProof(
-                        currentPendingBlock,
-                        blockNumber,
-                        effectiveSignature,
-                        signedBlock.blockTimestamp(),
-                        // Pass the remaining pending blocks, but don't remove them from the queue
-                        pendingBlocks.stream());
+                final StateProof stateProof;
+                try {
+                    stateProof = BlockStateProofGenerator.generateStateProof(
+                            currentPendingBlock,
+                            blockNumber,
+                            effectiveSignature,
+                            signedBlock.blockTimestamp(),
+                            // Pass the remaining pending blocks, but don't remove them from the queue
+                            pendingBlocks.stream());
+                } catch (final IllegalStateException e) {
+                    // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
+                    // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path
+                    // will — then mark it complete so a freeze waiting on pendingBlockProofsFuture resolves instead
+                    // of hanging on a block that will never be proven.
+                    log.error(
+                            "Cannot construct indirect proof for pending block #{}; dropping it",
+                            currentPendingBlock.number(),
+                            e);
+                    currentPendingBlock.writer().flushIncompleteBlock();
+                    if (currentPendingBlock.contentsPath() != null) {
+                        cleanUpPendingBlock(currentPendingBlock.contentsPath());
+                    }
+                    markPendingBlockProofComplete(currentPendingBlock);
+                    continue;
+                }
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
                 if (log.isDebugEnabled()) {

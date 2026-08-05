@@ -4,13 +4,12 @@ open module com.swirlds.platform.core.test.fixtures {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
-    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;

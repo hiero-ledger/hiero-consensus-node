@@ -58,7 +58,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
         @ConfigProperty(defaultValue = "10ms") @NetworkProperty Duration connectionWorkerSleepDuration,
         @ConfigProperty(defaultValue = "100ms") @NetworkProperty Duration maxRequestDelay,
-        @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout,
+        @ConfigProperty(defaultValue = "20s") @NodeProperty Duration pipelineOperationTimeout,
         @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes,
         @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,

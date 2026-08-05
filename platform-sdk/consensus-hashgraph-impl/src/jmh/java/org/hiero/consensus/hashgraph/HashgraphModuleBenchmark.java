@@ -2,9 +2,6 @@
 package org.hiero.consensus.hashgraph;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.WiringConfig;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -20,6 +17,9 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
+import org.hiero.consensus.wiring.framework.WiringConfig;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

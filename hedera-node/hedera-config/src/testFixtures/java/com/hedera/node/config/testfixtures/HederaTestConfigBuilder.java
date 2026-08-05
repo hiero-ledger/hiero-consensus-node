@@ -77,16 +77,16 @@ import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.config.PlatformStatusConfig;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The

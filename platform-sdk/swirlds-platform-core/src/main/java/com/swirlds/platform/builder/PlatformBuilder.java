@@ -2,7 +2,6 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
@@ -16,12 +15,11 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
-import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -29,8 +27,8 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
-import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
 import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -108,7 +106,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     protected final long transactionOffsetNanos;
 
     /** A callback that is called when a stale self event is detected. */
-    protected StaleEventConsumer staleEventConsumer;
+    protected StaleEventConsumer staleEventConsumer = _ -> {};
 
     /** The building blocks used to construct the consensus layer. */
     protected ConsensusLayerBuildingBlocks buildingBlocks;
@@ -189,49 +187,33 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         used = true;
         final ConsensusLayerInputs inputs = createConsensusLayerInputs();
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
-        final ConsensusLayerFactoryResult factoryOutput = factory.create();
+        buildingBlocks = factory.create();
 
-        buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
-        final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
-
-        PlatformWiring.wire(inputs, buildingBlocks);
+        ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         final SignedState initialSignedState = initialState.get();
         final boolean startedFromGenesis = initialSignedState.isGenesisState();
 
         final SwirldsPlatform platform;
         if (startedFromGenesis) {
-            platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+            platform = new SwirldsPlatform(inputs, buildingBlocks, 0, 0);
         } else {
             final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
-            platform = new SwirldsPlatform(
-                    inputs,
-                    platformCoordinator,
-                    buildingBlocks,
-                    initialAncientThreshold,
-                    initialSignedState.getRound());
+            platform =
+                    new SwirldsPlatform(inputs, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
         }
 
-        InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
+        InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks);
 
         // Future work - capture the reconnect module, add a start() method to it, and call it later
         final boolean reconnectActive =
                 configuration.getConfigData(ReconnectConfig.class).active();
         if (reconnectActive) {
-            factory.setupReconnectModule(
-                    platform,
-                    platformCoordinator,
-                    buildingBlocks.platformComponents(),
-                    buildingBlocks.savedStateController(),
-                    buildingBlocks.reservedSignedStateResultPromise(),
-                    buildingBlocks.fallenBehindMonitor());
+            factory.setupReconnectModule(platform, buildingBlocks);
         }
 
         // Close the initial reservation made on this state, taken in {@link StartupStateUtils#loadInitialState}
         initialState.close();
-
-        // FutureWork figure out if this can be moved into Platform.start()
-        getMetricsProvider().start();
 
         return platform;
     }
@@ -301,7 +283,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
                 staleEventConsumer,
                 null,
                 null,
-                null);
+                Map.of());
     }
 
     /**

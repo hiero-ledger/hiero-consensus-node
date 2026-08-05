@@ -12,7 +12,6 @@ import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,6 +22,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -63,8 +63,6 @@ public class SwirldsPlatform implements Platform {
      */
     private final NotificationEngine notificationEngine;
 
-    private final PlatformCoordinator platformCoordinator;
-
     private final PlatformContext platformContext;
     private final ConsensusLayerInputs inputs;
     private final ConsensusLayerBuildingBlocks buildingBlocks;
@@ -74,7 +72,6 @@ public class SwirldsPlatform implements Platform {
      */
     public SwirldsPlatform(
             @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
             final long initialAncientThreshold,
             final long startingRound) {
@@ -86,7 +83,6 @@ public class SwirldsPlatform implements Platform {
                 inputs.metrics(),
                 inputs.fileSystemManager(),
                 inputs.recycleBin());
-        this.platformCoordinator = platformCoordinator;
         this.initialAncientThreshold = initialAncientThreshold;
         this.startingRound = startingRound;
 
@@ -120,11 +116,12 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting platform {}", selfId);
 
         inputs.recycleBin().start();
+        getMetricsProvider().start();
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
-        buildingBlocks.gossipModule().start();
+        buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
     @Override
@@ -167,7 +164,8 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        platformCoordinator.quiescenceCommand(quiescenceCommand);
+        buildingBlocks.statusMonitorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
+        buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 
     /**

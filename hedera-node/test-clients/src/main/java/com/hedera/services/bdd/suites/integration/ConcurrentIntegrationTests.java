@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -43,6 +44,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
@@ -51,6 +53,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_ASSETS_LOC;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
@@ -58,6 +61,7 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgra
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
@@ -119,6 +123,29 @@ public class ConcurrentIntegrationTests {
     @BeforeAll
     static void setupAll() {
         gossipCertificates = generateX509Certificates(2);
+    }
+
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
+    final Stream<DynamicTest> pureCheckFailureIsChargedToSubmittingNode() {
+        final var dueDiligenceTxn = "pureCheckDueDiligenceTxn";
+        final var party = "party";
+        final var counterparty = "counterparty";
+        final var otherAccount = "otherAccount";
+
+        return hapiTest(
+                cryptoCreate(party).balance(0L),
+                cryptoCreate(counterparty).balance(0L),
+                cryptoCreate(otherAccount).balance(0L),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(aaWith(spec.registry().getAccountID(party), +Long.MAX_VALUE))
+                                .addAccountAmounts(aaWith(spec.registry().getAccountID(otherAccount), +Long.MAX_VALUE))
+                                .addAccountAmounts(aaWith(spec.registry().getAccountID(counterparty), +2))))
+                        .signedBy(DEFAULT_PAYER)
+                        .via(dueDiligenceTxn)
+                        .setNode("4")
+                        .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS),
+                validateChargedAccount(dueDiligenceTxn, "4"));
     }
 
     @HapiTest

@@ -2,7 +2,7 @@
 open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;

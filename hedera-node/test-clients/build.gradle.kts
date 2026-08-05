@@ -118,6 +118,10 @@ tasks.test {
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
+
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 }
@@ -238,9 +242,9 @@ val prCheckPropOverrides =
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,quiescence.gracePeriod=30s,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25",
         "hapiTestCutover" to
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=16",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
@@ -257,9 +261,11 @@ val prCheckPropOverrides =
         "hapiTestQuiescence" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
     )
+// hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
     mapOf(
-        "hapiTestRestart" to "platformStatus.observingStatusDelay=10s",
+        "hapiTestRestart" to
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
         "hapiTestQuiescence" to "platformStatus.observingStatusDelay=10s",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
@@ -441,6 +447,9 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -575,6 +584,9 @@ tasks.register<Test>("testSubprocessConcurrent") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -648,6 +660,9 @@ tasks.register<Test>("testRemote") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -731,6 +746,9 @@ tasks.register<Test>("testEmbedded") {
         systemProperty("fees.simpleFeesEnabled", "true")
     }
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 }
@@ -783,6 +801,9 @@ tasks.register<Test>("testRepeatable") {
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"

@@ -5,6 +5,7 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -87,7 +88,8 @@ public final class RecordAccessor {
             }
         }
         assert rootChunk != null;
-        return rootChunk.chunkRootHash(metadata.getFirstLeafPath(), metadata.getLastLeafPath());
+        return rootChunk.chunkRootHash(
+                MerkleHasher.threadSafeDefault(), metadata.getFirstLeafPath(), metadata.getLastLeafPath());
     }
 
     /**
@@ -114,12 +116,17 @@ public final class RecordAccessor {
         final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
         if (hashChunk != null) {
-            return hashChunk.calcHash(path, metadata.getFirstLeafPath(), metadata.getLastLeafPath());
+            return hashChunk.calcHash(
+                    MerkleHasher.threadSafeDefault(), path, metadata.getFirstLeafPath(), metadata.getLastLeafPath());
         }
         try {
             hashChunk = dataSource.loadHashChunk(chunkId);
             if (hashChunk != null) {
-                return hashChunk.calcHash(path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
+                return hashChunk.calcHash(
+                        MerkleHasher.threadSafeDefault(),
+                        path,
+                        dataSource.getFirstLeafPath(),
+                        dataSource.getLastLeafPath());
             }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read node hash from data source by path", e);

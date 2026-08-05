@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
+
 module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.chaosbot;
@@ -45,7 +48,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base.test.fixtures;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
@@ -58,6 +60,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;
@@ -77,6 +80,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.iss.detection;
@@ -87,6 +91,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.status.monitor;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
@@ -100,4 +105,7 @@ module org.hiero.otter.fixtures {
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
+
+    provides GossipModule with
+            TurtleGossipModule;
 }

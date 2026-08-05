@@ -4,10 +4,6 @@ package org.hiero.consensus.hashgraph;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +13,10 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * The Hashgraph Module is responsible for ordering events deterministically into consensus order and assigning each
@@ -98,11 +98,13 @@ public interface HashgraphModule {
     InputWire<PlatformStatus> platformStatusInputWire();
 
     /**
-     * Inject a new consensus snapshot. This will happen at restart and reconnect boundaries.
+     * Informs the module about a new consensus snapshot. This will happen at restart and reconnect boundaries.
      *
-     * @param consensusSnapshot the new consensus snapshot
+     * @return the consensus snapshot input wire
      */
-    void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot);
+    @InputWireLabel("consensus snapshot override")
+    @NonNull
+    InputWire<ConsensusSnapshot> consensusSnapshotOverrideInputWire();
 
     /**
      * Begin squelching input. While squelching is active, no new tasks will be added on any input wires.

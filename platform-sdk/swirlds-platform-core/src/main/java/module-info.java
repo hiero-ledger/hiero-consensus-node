@@ -26,16 +26,13 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
-    exports com.swirlds.platform.monitor;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system;
-    exports com.swirlds.platform.util;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.wiring;
     exports com.swirlds.platform;
     exports org.hiero.consensus;
 
@@ -44,17 +41,11 @@ module com.swirlds.platform.core {
             org.hiero.consensus.pcli,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
-    exports com.swirlds.platform.uptime to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            com.swirlds.common,
-            com.hedera.node.test.clients;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -74,8 +65,10 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.consensus.concurrent;
