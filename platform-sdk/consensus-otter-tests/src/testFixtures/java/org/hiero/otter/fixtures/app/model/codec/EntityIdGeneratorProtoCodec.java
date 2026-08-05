@@ -72,7 +72,7 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
      * @return Parsed EntityIdGenerator model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull EntityIdGenerator realParse(
+    public @NonNull EntityIdGenerator parse(
             @NonNull final PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -192,7 +192,7 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
         }
     }
 
-    public void realWrite(@NonNull EntityIdGenerator data, @NonNull final PbjWriter out) {
+    public void write(@NonNull EntityIdGenerator data, @NonNull final PbjWriter out) {
         // [1] - nextId
         writeLong(out, EntityIdGeneratorSchema.NEXT_ID, data.nextId(), true);
 

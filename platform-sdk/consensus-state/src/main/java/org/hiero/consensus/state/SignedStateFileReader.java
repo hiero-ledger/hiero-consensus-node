@@ -72,12 +72,12 @@ public final class SignedStateFileReader {
         final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
         if (pbjFile.exists()) {
             sigSet = new SigSet();
-            PbjReader in = PbjUtils.takeTlsReaderStream();
+            PbjReader in = PbjUtils.takeTlsReader();
             try {
                 in.resetWith(new FileInputStream(pbjFile));
                 sigSet.deserialize(in);
             } finally {
-                PbjUtils.returnTlsReaderStream();
+                PbjUtils.returnTlsReader();
             }
         } else {
             throw new IOException("No signature set file found at " + pbjFile.getAbsolutePath());

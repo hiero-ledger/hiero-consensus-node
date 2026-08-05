@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.time.Instant;
@@ -29,13 +28,8 @@ import org.hiero.base.io.exceptions.InvalidVersionException;
 import org.hiero.base.io.streams.SerializableStreamConstants;
 
 public final class PbjUtils {
-    static class ReadCacheBytes {
+    static class ReadCache {
         final PbjReader reader = new PbjReader(Bytes.EMPTY);
-        boolean inUse = false;
-    }
-
-    static class ReadCacheStream {
-        final PbjReader reader = new PbjReader((InputStream) null);
         boolean inUse = false;
     }
 
@@ -44,12 +38,11 @@ public final class PbjUtils {
         boolean inUse = false;
     }
 
-    static ThreadLocal<ReadCacheBytes> tlsReaderBytes = ThreadLocal.withInitial(ReadCacheBytes::new);
-    static ThreadLocal<ReadCacheStream> tlsReaderStream = ThreadLocal.withInitial(ReadCacheStream::new);
+    static ThreadLocal<ReadCache> tlsReader = ThreadLocal.withInitial(ReadCache::new);
     static ThreadLocal<WriteCache> tlsWriter = ThreadLocal.withInitial(WriteCache::new);
 
-    public static PbjReader takeTlsReaderBytes() {
-        ReadCacheBytes cache = tlsReaderBytes.get();
+    public static PbjReader takeTlsReader() {
+        ReadCache cache = tlsReader.get();
         if (cache.inUse) {
             throw new RuntimeException("Trying to get tls byte reader more than once");
         }
@@ -57,27 +50,10 @@ public final class PbjUtils {
         return cache.reader;
     }
 
-    public static void returnTlsReaderBytes() {
-        ReadCacheBytes cache = tlsReaderBytes.get();
+    public static void returnTlsReader() {
+        ReadCache cache = tlsReader.get();
         if (!cache.inUse) {
             throw new RuntimeException("Trying to return tls byte reader more than once");
-        }
-        cache.inUse = false;
-    }
-
-    public static PbjReader takeTlsReaderStream() {
-        ReadCacheStream cache = tlsReaderStream.get();
-        if (cache.inUse) {
-            throw new RuntimeException("Trying to get tls stream reader more than once");
-        }
-        cache.inUse = true;
-        return cache.reader;
-    }
-
-    public static void returnTlsReaderStream() {
-        ReadCacheStream cache = tlsReaderStream.get();
-        if (!cache.inUse) {
-            throw new RuntimeException("Trying to return tls stream reader more than once");
         }
         cache.inUse = false;
     }

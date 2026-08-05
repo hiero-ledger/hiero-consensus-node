@@ -1066,7 +1066,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     }
 
     private static PbjWriter newEmptyBuffer() {
-        return new PbjWriter(BUFFER_SIZE);
+        return new PbjWriter(BUFFER_SIZE, false);
     }
 
     private void mockQueryContext() {

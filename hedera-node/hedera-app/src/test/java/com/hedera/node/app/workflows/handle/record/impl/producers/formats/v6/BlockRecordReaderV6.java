@@ -81,7 +81,7 @@ public class BlockRecordReaderV6 {
      */
     public static RecordStreamFile read(@NonNull final Path filePath) throws Exception {
         if (filePath.getFileName().toString().endsWith(".rcd.gz")) {
-            PbjReader in = PbjUtils.takeTlsReaderStream();
+            PbjReader in = PbjUtils.takeTlsReader();
             try {
                 in.resetWith(new GZIPInputStream(Files.newInputStream(filePath)));
                 int version = in.readInt();
@@ -90,10 +90,10 @@ public class BlockRecordReaderV6 {
                 in.throwOnError();
                 return res;
             } finally {
-                PbjUtils.returnTlsReaderStream();
+                PbjUtils.returnTlsReader();
             }
         } else if (filePath.getFileName().toString().endsWith(".rcd")) {
-            PbjReader in = PbjUtils.takeTlsReaderStream();
+            PbjReader in = PbjUtils.takeTlsReader();
             try {
                 in.resetWith(Files.newInputStream(filePath));
                 int version = in.readInt();
@@ -102,7 +102,7 @@ public class BlockRecordReaderV6 {
                 in.throwOnError();
                 return res;
             } finally {
-                PbjUtils.returnTlsReaderStream();
+                PbjUtils.returnTlsReader();
             }
         } else {
             fail("Unknown file type: " + filePath.getFileName());
@@ -118,14 +118,14 @@ public class BlockRecordReaderV6 {
      * @throws Exception If there is an error reading the file
      */
     public static RecordStreamFile read(byte[] uncompressedData) throws Exception {
-        PbjReader in = PbjUtils.takeTlsReaderBytes();
+        PbjReader in = PbjUtils.takeTlsReader();
         try {
             in.resetWith(uncompressedData);
             int version = in.readInt();
             assertEquals(VERSION, version, "File version does not match");
             return RecordStreamFile.PROTOBUF.parse(in);
         } finally {
-            PbjUtils.returnTlsReaderBytes();
+            PbjUtils.returnTlsReader();
         }
     }
 

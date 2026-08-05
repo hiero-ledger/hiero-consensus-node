@@ -14,7 +14,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.roster.RosterRetriever;
 
 /**
@@ -380,15 +381,15 @@ public class DiskStartupNetworks implements StartupNetworks {
      */
     public static Optional<Network> loadNetworkFrom(@NonNull final Path path) {
         if (Files.exists(path)) {
+            PbjReader reader = PbjUtils.takeTlsReader();
             try (final var fin = Files.newInputStream(path)) {
+                reader.resetWith(fin);
                 return Optional.of(Network.JSON.parse(
-                        new ReadableStreamingData(fin),
-                        true,
-                        false,
-                        DEFAULT_MAX_DEPTH,
-                        STARTUP_NETWORK_JSON_MAX_FIELD_SIZE));
+                        reader, true, false, DEFAULT_MAX_DEPTH, STARTUP_NETWORK_JSON_MAX_FIELD_SIZE));
             } catch (Exception e) {
                 log.warn("Failed to load {} network info from {}", path.toAbsolutePath(), e);
+            } finally {
+                PbjUtils.returnTlsReader();
             }
         }
         return Optional.empty();

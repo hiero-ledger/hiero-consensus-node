@@ -223,7 +223,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
             // It's possible this was intentional, but make a little noise to remind test author this happens
             log.warn("All paid queries get INVALID_NODE_ACCOUNT for non-default nodes in embedded mode");
         }
-        final var responseBuffer = new PbjWriter(MAX_QUERY_RESPONSE_SIZE);
+        final var responseBuffer = new PbjWriter(MAX_QUERY_RESPONSE_SIZE, false);
         if (asNodeOperator) {
             hedera.operatorQueryWorkflow().handleQuery(Bytes.wrap(query.toByteArray()), responseBuffer);
         } else {

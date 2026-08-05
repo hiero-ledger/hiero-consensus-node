@@ -73,13 +73,13 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
 
         @NonNull
         @Override
-        public ExampleVariableValue realParse(
+        public ExampleVariableValue parse(
                 @NonNull PbjReader in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
             return new ExampleVariableValue(in);
         }
 
         @Override
-        public void realWrite(@NonNull ExampleVariableValue value, @NonNull PbjWriter out) {
+        public void write(@NonNull ExampleVariableValue value, @NonNull PbjWriter out) {
             value.writeTo(out);
         }
 

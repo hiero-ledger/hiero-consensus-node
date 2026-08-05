@@ -20,13 +20,13 @@ public class TestValueCodec implements Codec<TestValue> {
 
     @NonNull
     @Override
-    public TestValue realParse(
+    public TestValue parse(
             @NonNull PbjReader in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
         return new TestValue(in);
     }
 
     @Override
-    public void realWrite(@NonNull TestValue value, @NonNull PbjWriter out) {
+    public void write(@NonNull TestValue value, @NonNull PbjWriter out) {
         value.writeTo(out);
     }
 

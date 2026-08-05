@@ -35,7 +35,7 @@ public class TestLongCodec implements Codec<Long> {
 
     @NonNull
     @Override
-    public Long realParse(
+    public Long parse(
             @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         Objects.requireNonNull(input);
@@ -49,7 +49,7 @@ public class TestLongCodec implements Codec<Long> {
         output.writeLong(value);
     }
 
-    public void realWrite(@NonNull Long value, @NonNull PbjWriter output) {
+    public void write(@NonNull Long value, @NonNull PbjWriter output) {
         Objects.requireNonNull(value);
         Objects.requireNonNull(output);
         output.writeLong(value);

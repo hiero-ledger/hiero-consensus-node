@@ -12,7 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.recreat
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.internal.network.Network;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -111,7 +111,7 @@ public abstract class AbstractLocalNode<T extends AbstractLocalNode<T>> extends 
     private Optional<Network> getStartupAddressBookAt(@NonNull final Path path) {
         if (Files.exists(path)) {
             try (final var fin = Files.newInputStream(path)) {
-                return Optional.of(Network.JSON.parse(new ReadableStreamingData(fin)));
+                return Optional.of(Network.JSON.parse(new PbjReader(fin)));
             } catch (Exception ignore) {
             }
         }

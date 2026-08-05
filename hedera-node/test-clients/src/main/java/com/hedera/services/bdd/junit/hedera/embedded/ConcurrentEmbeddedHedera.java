@@ -103,7 +103,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         requireNonNull(transaction);
         requireNonNull(nodeAccountId);
         if (defaultNodeAccountId.equals(nodeAccountId)) {
-            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE);
+            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE, false);
             hedera.ingestWorkflow().submitTransaction(Bytes.wrap(transaction.toByteArray()), responseBuffer);
             return parseTransactionResponse(responseBuffer);
         } else {
@@ -126,7 +126,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         requireNonNull(nodeAccountId);
         requireNonNull(semanticVersion);
         if (defaultNodeAccountId.equals(nodeAccountId)) {
-            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE);
+            final var responseBuffer = new PbjWriter(MAX_PLATFORM_TXN_SIZE, false);
             hedera.ingestWorkflow().submitTransaction(Bytes.wrap(transaction.toByteArray()), responseBuffer);
             return parseTransactionResponse(responseBuffer);
         } else {

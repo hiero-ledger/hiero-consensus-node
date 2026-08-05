@@ -72,7 +72,7 @@ class IngestWorkflowImplTest extends AppTestBase {
     private Bytes requestBuffer;
 
     /** The buffer to write responses into. */
-    private final PbjWriter responseBuffer = new PbjWriter(1024 * 6);
+    private final PbjWriter responseBuffer = new PbjWriter(1024 * 6, false);
 
     /** The request transaction */
     private SignedTransaction signedTx;
