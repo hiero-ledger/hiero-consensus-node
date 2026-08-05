@@ -68,10 +68,10 @@ easiest path — using artifacts from one node sidesteps any cross-node-consiste
 ### Steps
 
 1. **Bring up the platform without gossip.** Perform the same construction-time work as a normal start, then run only
-   the first three lines of `SwirldsPlatform.start()` (`SwirldsPlatform.java:353-355`: recycle bin, metrics, platform
-   coordinator). Do **not** call `platformCoordinator.startGossip()` at line 358.
+   the first three lines of `SwirldsPlatform.start()` (`SwirldsPlatform.java:118-120`: recycle bin, metrics, wiring
+   model). Do **not** start gossip — the `gossipModule().startInputWire().inject(...)` call at line 123.
 2. **Run replay.** Call `PcesModule.replayPcesEvents(pcesReplayLowerBound, startingRound)`
-   (`SwirldsPlatform.java:357`). The replayer drains the PCES iterator into the intake pipeline; consensus is reached
+   (`SwirldsPlatform.java:122`). The replayer drains the PCES iterator into the intake pipeline; consensus is reached
    and transactions handle as during normal startup.
 3. **Capture the resulting state.** Acquire the latest immutable state via the `latestImmutableStateNexus`
    (`SwirldsPlatform.java:114`; interface `SignedStateNexus.getState(reason)` at
@@ -83,8 +83,10 @@ easiest path — using artifacts from one node sidesteps any cross-node-consiste
    (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java:38`);
    construct a `StateDumpRequest` via `StateDumpRequest.create(...)`
    (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/saved/StateDumpRequest.java:28`);
-   hand it to `PlatformCoordinator.dumpStateToDisk(request)`
-   (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java:199`); block
+   submit it to the state snapshot manager's dump task via the state module's dump input wire
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/StateModule.java:203`), handled by
+   `StateSnapshotManager::dumpStateTask`
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultStateSnapshotManager.java:168`); block
    on `request.waitForFinished()` so the process does not exit before the on-disk write completes.
 5. **Close the last record or block file with the execution team.** Coordinate so that the execution-side block stream aligns
    with the dumped state's last consensus round. This is critical because it must be distributed along with the signed state.

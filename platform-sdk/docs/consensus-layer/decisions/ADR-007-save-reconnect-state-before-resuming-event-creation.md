@@ -97,7 +97,7 @@ path is described in [`../architecture/topics/reconnect.md`](../architecture/top
   later state) has been written to disk**. A disk write for a round *prior* to the reconnect state is treated as stale
   and the node keeps waiting. Once the reconnect state is persisted, the node transitions to `CHECKING` — or to
   `FREEZING` if a freeze boundary was crossed — and event creation resumes
-  (`platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java:156-187`).
+  (`platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java:156-187`).
 
 Writing the learned state to disk closes the PCES gap as a recovery concern: the node now has a startable on-disk point
 covering the post-reconnect consensus position. Only then is it allowed to rejoin event creation and again contribute to
@@ -188,6 +188,6 @@ See **Decision** above.
   — `reconnectStateReceived(...)` marks the learned state to be written to disk with reason `RECONNECT`.
 - `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
   — the event-creation gate; creation is withheld in `RECONNECT_COMPLETE`.
-- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java:156-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java:156-187`
   — exit from `RECONNECT_COMPLETE` on `StateWrittenToDiskAction`: wait while the persisted round is below the reconnect
   round, then transition to `CHECKING` (or `FREEZING`).

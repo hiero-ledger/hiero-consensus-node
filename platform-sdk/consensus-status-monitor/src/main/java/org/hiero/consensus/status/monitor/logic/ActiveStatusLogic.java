@@ -6,12 +6,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import org.hiero.base.utility.DurationUtils;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
 import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.monitor.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.monitor.actions.TimeElapsedAction;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#ACTIVE} status.

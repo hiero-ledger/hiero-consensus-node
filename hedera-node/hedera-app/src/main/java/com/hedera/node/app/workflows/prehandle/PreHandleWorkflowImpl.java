@@ -222,54 +222,41 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     configProvider.getConfiguration().getVersion());
         }
 
+        final AccountID payer;
+        final Account payerAccount;
+        // Do node due diligence checks
         try {
-            // But we still re-check for node diligence failures
             transactionChecker.checkParsed(txInfo);
-
-            // Check the transaction size based on enabled features and functionalities
             transactionChecker.checkTransactionSize(txInfo);
-        } catch (PreCheckException e) {
-            return nodeDueDiligenceFailure(
-                    creatorInfo.accountId(),
-                    e.responseCode(),
-                    txInfo,
-                    configProvider.getConfiguration().getVersion());
-        }
 
-        // No reason to do this twice, since every transaction passed to handle is first given to pre-handle
-        if (previousResult == null) {
-            // Also register this txID as having been seen (we don't actually do deduplication in the
-            // pre-handle because deduplication needs to be done deterministically, but we will keep
-            // track of the fact that we have seen this transaction ID, so we can give proper results
-            // in the different receipt queries)
-            deduplicationCache.add(txInfo.transactionID());
-        }
+            // No reason to do this twice, since every transaction passed to handle is first given to pre-handle
+            if (previousResult == null) {
+                // Also register this txID as having been seen (we don't actually do deduplication in the
+                // pre-handle because deduplication needs to be done deterministically, but we will keep
+                // track of the fact that we have seen this transaction ID, so we can give proper results
+                // in the different receipt queries)
+                deduplicationCache.add(txInfo.transactionID());
+            }
 
-        // 2. Get Payer Account---we can never reuse a previous result here, as the payer account could have been
-        // deleted between the last time we looked it up and now
-        final var payer = txInfo.payerID();
-        final var payerAccount = accountStore.getAccountById(payer);
-        if (payerAccount == null) {
-            // If the payer account doesn't exist, then we cannot gather signatures for it, and will need to do
-            // so later during the handle phase. Technically, we could still try to gather and verify the other
-            // signatures, but that might be tricky and complicated with little gain. So just throw.
-            return nodeDueDiligenceFailure(
-                    creatorInfo.accountId(),
-                    PAYER_ACCOUNT_NOT_FOUND,
-                    txInfo,
-                    configProvider.getConfiguration().getVersion());
-        } else if (payerAccount.deleted()) {
-            // this check is not guaranteed, it should be checked again in handle phase. If the payer account is
-            // deleted, we skip the signature verification.
-            return nodeDueDiligenceFailure(
-                    creatorInfo.accountId(),
-                    PAYER_ACCOUNT_DELETED,
-                    txInfo,
-                    configProvider.getConfiguration().getVersion());
-        }
+            // 2. Get Payer Account---we can never reuse a previous result here, as the payer account could have been
+            // deleted between the last time we looked it up and now
+            payer = txInfo.payerID();
+            payerAccount = accountStore.getAccountById(payer);
+            if (payerAccount == null) {
+                // If the payer account doesn't exist, then we cannot gather signatures for it, and will need to do
+                // so later during the handle phase. Technically, we could still try to gather and verify the other
+                // signatures, but that might be tricky and complicated with little gain. So just throw.
+                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+            } else if (payerAccount.deleted()) {
+                // this check is not guaranteed, it should be checked again in handle phase. If the payer account is
+                // deleted, we skip the signature verification.
+                throw new PreCheckException(PAYER_ACCOUNT_DELETED);
+            }
 
-        try {
+            // 3. Check size limit based on payer and run pure checks
             transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payer);
+            final var pureChecksContext = new PureChecksContextImpl(txInfo.txBody(), dispatcher);
+            dispatcher.dispatchPureChecks(pureChecksContext);
         } catch (PreCheckException e) {
             return nodeDueDiligenceFailure(
                     creatorInfo.accountId(),
@@ -278,7 +265,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     configProvider.getConfiguration().getVersion());
         }
 
-        // 3. Expand and verify signatures
+        // 4. Expand and verify signatures
         return expandAndVerifySignatures(
                 txInfo, payer, payerAccount, storeFactory, previousResult, innerTransaction, creatorInfo);
     }
@@ -341,10 +328,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
                 throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
             }
-            // First, perform semantic checks on the transaction
-            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
-            dispatcher.dispatchPureChecks(pureChecksContext);
-            // Then gather the signatures from the transaction handler
+            // Gather the signatures from the transaction handler
             dispatcher.dispatchPreHandle(context);
         } catch (PreCheckException preCheck) {
             // It is quite possible those semantic checks and other tasks will fail and throw a PreCheckException.

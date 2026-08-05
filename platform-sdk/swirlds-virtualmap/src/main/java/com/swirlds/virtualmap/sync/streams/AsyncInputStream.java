@@ -51,8 +51,8 @@ public class AsyncInputStream {
 
     private static final String THREAD_NAME = "async-input-stream";
 
-    // maximum message size in bytes - 8mb
-    static final int MAX_MESSAGE_SIZE = 8 * 1024 * 1024;
+    // maximum message size in bytes - 256Mb
+    static final int MAX_MESSAGE_SIZE = 1 << 28;
 
     /** Lifecycle states of the background reader thread. Transitions are monotonic. */
     public enum Status {

@@ -17,10 +17,10 @@ import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.monitor.IllegalPlatformStatusException;
 import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 import org.hiero.consensus.status.monitor.logic.PlatformStatusLogic;
 import org.hiero.consensus.status.monitor.logic.StartingUpStatusLogic;
 
