@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Reconnect
-last_reviewed: 2026-05-28
+last_reviewed: 2026-07-28
 ---
 
 # Reconnect
@@ -81,13 +81,13 @@ configured thresholds are exceeded. Each attempt walks five phases.
    [Learner / teacher protocol](#learner--teacher-protocol).
 
 4. **Validation and load.** The default `SignedStateValidator`
-   checks only that the received state carries a signature quorum.
-   No roster compatibility or software version check is performed,
-   and the chain of reasoning is: nodes do not establish connections
-   with peers on a different software version, and the roster can
-   only change at a version-upgrade boundary — so the state a node
-   learns will always carry the same roster it already knew about.
-   Reconnect across an upgrade is not yet supported.
+   checks that the received state is not older than the pre-reconnect
+   one (`throwIfOld`) and that it carries a signature quorum.
+   No software version check is performed — nodes do not establish
+   connections with peers on a different software version, and reconnect
+   across an upgrade is not yet supported. `ReconnectController.loadState`
+   double-checks that the state's roster matches the current one, throwing
+   on a mismatch.
    `ReconnectCoordinator.loadReconnectState` then re-initialises
    every component that depends on an event window (hashgraph,
    event intake, shadowgraph, …) against the new state. See
@@ -98,7 +98,7 @@ configured thresholds are exceeded. Each attempt walks five phases.
    `RECONNECT_COMPLETE`, then to `CHECKING` once the state is
    persisted to disk, and the loop returns to phase 1.
 
-If an attempt fails, the controller backs off and re-enters detection;
+If an attempt fails, the controller backs off and retries the reconnect attempt;
 once the count crosses
 `ReconnectConfig.maximumReconnectFailuresBeforeShutdown` the node
 exits via `SystemExitUtils` with `SystemExitCode.RECONNECT_FAILURE`.
@@ -115,16 +115,17 @@ the state flips to behind.
 The trigger condition is in `FallenBehindMonitor.checkAndNotify()`:
 
 ```java
-isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size()
-        || (peersSize > 0 && reportFallenBehind.size() == peersSize);
+isBehind = fallenBehindWeight > fallenBehindWeightThreshold;
 ```
 
-`fallenBehindThreshold` is a proportion (0.0–1.0) read from
-`FallenBehindConfig.fallenBehindThreshold`; the second clause covers
-the edge case where every peer has reported. See
+`fallenBehindWeight` is the summed consensus weight of the peers
+currently reporting the node behind; `fallenBehindWeightThreshold` is
+`round(totalWeightExceptSelf * fallenBehindThreshold)`, with
+`fallenBehindThreshold` a proportion (0.0–1.0) read from
+`FallenBehindConfig.fallenBehindThreshold`. See
 [`../../tunables.md`](../../tunables.md) for the configured value. The
-monitor also surfaces two metrics under the `internal` category:
-`hasFallenBehind` and `numReportFallenBehind`.
+monitor also surfaces three metrics under the `internal` category:
+`hasFallenBehind`, `numReportFallenBehind`, and `weightReportFallenBehind`.
 
 Detection is only the trigger; before the learner can fetch a new
 state the node has to stop gossiping, stop creating events, and clear its pipeline. `notifySyncProtocolPaused()` /
@@ -171,8 +172,9 @@ connection (see [`gossip.md`](gossip.md) for the protocol-stack view).
   whether to accept one as teacher, and `runProtocol()` runs the
   chosen role on the active connection.
 
-The learner-side `shouldInitiate()` has no gates beyond
-`FallenBehindMonitor` reporting the local node behind by this peer.
+The learner-side `shouldInitiate()` gates on `FallenBehindMonitor`
+reporting the local node behind by this peer, and then on acquiring a
+reconnect provide permit (`acquireProvidePermit`).
 The teacher-side conditions are listed in
 [Lifecycle](#lifecycle) step 2.
 
@@ -190,6 +192,11 @@ The orchestration lives in
 [`ReconnectCoordinator.loadReconnectState`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectCoordinator.java);
 see that method for the exact set of overrides and injections it
 performs.
+
+As at restart, the re-initialised hashgraph emits no rounds until it has
+re-identified the judges of the learned state's snapshot, so it never
+re-emits a round already baked into that state — see
+[`restart-and-pces.md`](restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
 
 Status transitions follow loading in two stages.
 `ReconnectController` submits a `ReconnectCompleteAction` once a
@@ -257,6 +264,7 @@ for how reconnect crosses the Consensus / Execution boundary.
 - [`signed-state-management.md`](signed-state-management.md)
 - [`restart-and-pces.md`](restart-and-pces.md)
 - [`event-intake.md`](event-intake.md)
+- [`platform-status.md`](platform-status.md)
 
 **Interfaces**
 
@@ -269,9 +277,7 @@ for how reconnect crosses the Consensus / Execution boundary.
 **Other catalogs**
 
 - Tunables — [`../../tunables.md`](../../tunables.md) (pending).
-- Invariants — [TBD: INV-NNN once `invariants.md` catalog populates;
-  the fallen-behind-threshold proportion and the
-  state-ownership-flip-at-validation step are likely candidates].
+- Invariants — INV-008 — consensus, once reached, is permanent; INV-012 — the minimum non-ancient round never decreases; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - Decisions — [TBD: ADR-NNN once `decisions/` catalog populates].
 - Scenarios — [TBD: SCN-NNN — reconnect failure modes (failure to
   reconnect within retry cap, reconnect succeeded but next freeze

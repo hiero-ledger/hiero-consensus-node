@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
-import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
@@ -82,7 +81,6 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -391,25 +389,6 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void getsResourcePrices() {
         assertThat(subject.resourcePriceCalculator()).isNotNull();
-    }
-
-    @Test
-    void getsFeeCalculator(@Mock FeeCalculator feeCalculator) {
-        given(verifier.numSignaturesVerified()).willReturn(2);
-        given(feeManager.createFeeCalculator(
-                        any(),
-                        eq(Key.DEFAULT),
-                        eq(CRYPTO_TRANSFER_TXN_INFO.functionality()),
-                        eq(2),
-                        eq(0),
-                        eq(CONSENSUS_NOW),
-                        eq(TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES),
-                        eq(false),
-                        eq(readableStoreFactory)))
-                .willReturn(feeCalculator);
-        final var factory = subject.feeCalculatorFactory();
-        assertThat(factory.feeCalculator(TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES))
-                .isSameAs(feeCalculator);
     }
 
     @Test

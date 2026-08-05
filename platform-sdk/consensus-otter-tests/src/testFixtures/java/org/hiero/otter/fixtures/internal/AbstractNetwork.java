@@ -14,7 +14,6 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -49,6 +48,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -631,7 +631,7 @@ public abstract class AbstractNetwork implements Network {
         connected.clear();
         latencyOverrides.clear();
         bandwidthOverrides.clear();
-        updateConnections();
+        recreateConnections(computeConnections());
     }
 
     /**
@@ -1041,6 +1041,24 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void updateConnections() {
+        onConnectionsChanged(computeConnections());
+    }
+
+    /**
+     * Restores the network to a target state, as opposed to applying an incremental change.
+     * The network is guaranteed to be clean after calling this method.
+     *
+     * @param connections a map of connections representing the target state to restore
+     */
+    protected abstract void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections);
+
+    /**
+     * Computes the intended connection state for every ordered pair of distinct nodes.
+     *
+     * @return a map from each connection to its intended state
+     */
+    @NonNull
+    private Map<ConnectionKey, ConnectionState> computeConnections() {
         final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
         for (final Node sender : nodes()) {
             for (final Node receiver : nodes()) {
@@ -1052,7 +1070,7 @@ public abstract class AbstractNetwork implements Network {
                 connections.put(key, connectionState);
             }
         }
-        onConnectionsChanged(connections);
+        return connections;
     }
 
     /**

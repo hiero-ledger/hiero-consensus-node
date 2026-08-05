@@ -4,19 +4,16 @@ import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 
 module org.hiero.consensus.hashgraph.impl {
     exports org.hiero.consensus.hashgraph.impl to
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.gossip.impl.test.fixtures,
             org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures,
             org.hiero.consensus.network.simulation,
             org.hiero.consensus.network.simulation.test.fixtures;
     exports org.hiero.consensus.hashgraph.impl.consensus to
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures,
             org.hiero.consensus.pcli;
     exports org.hiero.consensus.hashgraph.impl.linking to
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures;
     exports org.hiero.consensus.hashgraph.impl.metrics to
@@ -25,7 +22,6 @@ module org.hiero.consensus.hashgraph.impl {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
@@ -33,6 +29,7 @@ module org.hiero.consensus.hashgraph.impl {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.concurrent;

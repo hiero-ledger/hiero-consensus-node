@@ -68,6 +68,9 @@ public class SwirldsLogValidator {
                 List.of("PcesFileTracker", "insufficient data to guarantee"),
                 List.of("BestEffortPcesFileCopy", "No preconsensus event files"),
                 List.of("OSHealthChecker"),
+                List.of("jvmPauseDetectorThread detected JVM paused"),
+                // Transient backpressure under load, e.g. while a node constructs WRAPS proofs
+                List.of("HealthMonitorLogger", "has been unhealthy for"),
                 List.of("DefaultSignedStateSentinel", "Old signed state detected"));
 
         private int numProblems = 0;

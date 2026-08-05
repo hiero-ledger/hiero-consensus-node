@@ -3,12 +3,9 @@ package org.hiero.consensus.pces.impl;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,12 +14,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
@@ -38,8 +35,12 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
-import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Default implementation of the {@link PcesModule}.
@@ -47,10 +48,10 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
 public class DefaultPcesModule implements PcesModule {
 
     @Nullable
-    private ComponentWiring<InlinePcesWriter, PlatformEvent> pcesWriterWiring;
+    private WireTransformer<ConsensusRound, ConsensusRound> consensusRoundDispatcher;
 
     @Nullable
-    private PcesFileTracker initialPcesFiles;
+    private ComponentWiring<InlinePcesWriter, PlatformEvent> pcesWriterWiring;
 
     @Nullable
     private PcesReplayerWiring pcesReplayerWiring;
@@ -74,11 +75,8 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable stateHasherFlusher,
+            @NonNull final Runnable flushPrimaryPipeline,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
@@ -87,9 +85,19 @@ public class DefaultPcesModule implements PcesModule {
         }
 
         // Set up wiring
+        this.consensusRoundDispatcher = new WireTransformer<>(
+                model, "Pces_ConsensusRoundDispatcher", "consensus round", UnaryOperator.identity());
+        final WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor = new WireTransformer<>(
+                model, "Pces_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         final PcesWiringConfig wiringConfig = configuration.getConfigData(PcesWiringConfig.class);
         this.pcesWriterWiring = new ComponentWiring<>(model, InlinePcesWriter.class, wiringConfig.pcesInlineWriter());
         this.pcesReplayerWiring = PcesReplayerWiring.create(model);
+
+        // Wire components
+        consensusRoundDispatcher.getOutputWire().solderTo(eventWindowExtractor.getInputWire(), INJECT);
+        eventWindowExtractor
+                .getOutputWire()
+                .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
         pcesReplayerWiring
                 .doneStreamingPcesOutputWire()
                 .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::beginStreamingNewEvents));
@@ -106,6 +114,7 @@ public class DefaultPcesModule implements PcesModule {
         pcesWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
 
         // Create and bind components
+        final PcesFileTracker initialPcesFiles;
         try {
             final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, fileSystemManager, selfId);
             final boolean permitGaps =
@@ -128,19 +137,16 @@ public class DefaultPcesModule implements PcesModule {
                 configuration,
                 time,
                 pcesReplayerWiring.eventOutput(),
-                flushIntake,
-                flushTransactionHandling,
-                latestImmutableStateSupplier,
+                flushPrimaryPipeline,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
 
         this.pcesCoordinator = new PcesCoordinator(
-                time,
-                initialPcesFiles,
-                pcesReplayerWiring,
-                statusActionConsumer,
-                stateHasherFlusher,
-                signalEndOfPcesReplay);
+                time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule, signalEndOfPcesReplay);
+
+        consensusRoundDispatcher
+                .getOutputWire()
+                .solderTo("PcesReplayer", "consensus round", pcesReplayer::setLatestConsensusRound);
     }
 
     /**
@@ -183,7 +189,16 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(consensusRoundDispatcher, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(pcesWriterWiring, "Not initialized")
                 .getInputWire(InlinePcesWriter::updateNonAncientEventBoundary);
     }

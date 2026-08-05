@@ -34,28 +34,18 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
-          egress-policy: audit
-
-      - name: Install Semantic Version Tools
-        run: |
-          echo "::group::Download SemVer Binary"
-          sudo curl -L -o /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
-          echo "::endgroup::"
-          echo "::group::Change SemVer Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/semver
-          echo "::endgroup::"
-          echo "::group::Show SemVer Binary Version Info"
-          semver --version
-          echo "::endgroup::"
+          setup-semver: "true"
 
       - name: Extract Tag Version
         id: tag
+        env:
+          TAG_TO_DEPLOY: ${{ github.event.inputs.tag-to-deploy }}
         run: |
-          RELEASE_VERSION="$(semver get release "${{ github.event.inputs.tag-to-deploy }}")"
-          PRERELEASE_VERSION="$(semver get prerel "${{ github.event.inputs.tag-to-deploy }}")"
+          RELEASE_VERSION="$(semver get release "${TAG_TO_DEPLOY}")"
+          PRERELEASE_VERSION="$(semver get prerel "${TAG_TO_DEPLOY}")"
 
           FINAL_VERSION="${RELEASE_VERSION}"
           PRERELEASE_FLAG="false"

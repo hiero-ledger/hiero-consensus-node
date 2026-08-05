@@ -9,7 +9,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -250,9 +249,11 @@ public class PcesSliceCommand extends AbstractCommand {
         writeKeysPem(keysAndCertsMap, keysDirectory);
         System.out.println("Wrote keys to: " + keysDirectory);
 
+        final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+
         // Build the slicer
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()
-                .context(createDefaultPlatformContext())
+                .configuration(configuration)
                 .keysAndCertsMap(keysAndCertsMap)
                 .existingPcesFilesLocation(inputDirectory)
                 .exportPcesFileLocation(outputDirectory)
@@ -419,22 +420,6 @@ public class PcesSliceCommand extends AbstractCommand {
             final Path publicCertPath = keysDirectory.resolve(String.format("s-public-%s.pem", nodeName));
             EnhancedKeyStoreLoader.writePemFile(
                     false, publicCertPath, keysAndCerts.sigCert().getEncoded());
-        }
-    }
-
-    /**
-     * Creates a default platform context for CLI operations.
-     *
-     * @return a new platform context
-     */
-    @NonNull
-    public static PlatformContext createDefaultPlatformContext() {
-        try {
-            final Configuration configuration =
-                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-            return PlatformContext.create(configuration);
-        } catch (final IOException e) {
-            throw new java.io.UncheckedIOException("Failed to create platform context", e);
         }
     }
 

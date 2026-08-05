@@ -1,30 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
-import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.state.SignedStateFileWriter.writeSignedStateFilesToDirectory;
+import static org.hiero.consensus.state.saved.SavedStateMetadata.NO_NODE_ID;
 
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.platformstate.PlatformStateAccessor;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.consensus.state.SignedStateFileReader;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import picocli.CommandLine;
 
@@ -56,18 +61,17 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
     @Override
     public Integer call() throws IOException, ExecutionException, InterruptedException, ParseException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-        BootstrapUtils.setupConstructableRegistry();
-
-        final PlatformContext platformContext = PlatformContext.create(configuration);
-        final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getFileSystemManager());
+        ConstructableRegistration.setupConstructableRegistry();
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(
+                        new NoOpMetrics(), Time.getCurrent(), configuration, fileSystemManager);
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readState(statePath, platformContext, stateLifecycleManager);
+                SignedStateFileReader.readState(statePath, configuration, stateLifecycleManager);
         final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState();
         bulkUpdateOf(reservedSignedState.get().getState(), v -> {
             System.out.printf("Replacing platform data %n");
@@ -84,7 +88,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         reservedSignedState.get().getState().getHash(); // calculate hash
         System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
         writeSignedStateFilesToDirectory(
-                platformContext, NO_NODE_ID, outputDir, reservedSignedState, stateLifecycleManager);
+                configuration, fileSystemManager, NO_NODE_ID, outputDir, reservedSignedState, stateLifecycleManager);
 
         return 0;
     }

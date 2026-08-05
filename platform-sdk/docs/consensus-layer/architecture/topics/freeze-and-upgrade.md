@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Freeze and upgrade
-last_reviewed: 2026-06-08
+last_reviewed: 2026-07-28
 ---
 
 # Freeze and upgrade
@@ -56,11 +56,11 @@ reached or passed it, and `lastFrozenTime` has not yet caught up to it.
 That predicate is exposed to the consensus modules as the
 [`FreezePeriodChecker`](../../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/FreezePeriodChecker.java)
 interface; the live binding is built as a lambda in
-[`PlatformBuilder`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
+[`ConsensusLayerFactory`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerFactory.java)
 that closes over the mutable platform state.
 
 `lastFrozenTime` is written by
-[`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#createSignedState`
+[`DefaultTransactionHandler`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/DefaultTransactionHandler.java)`#createSignedState`
 (via `PlatformStateUtils#updateLastFrozenTime`) before `copyMutableState`
 is called, so the `lastFrozenTime = freezeTime` write is committed to
 disk only as part of the freeze state itself. Execution always writes
@@ -102,7 +102,7 @@ explicitly contains both, and
 gates only on that set — there is no separate freeze branch. Gossip
 continues for three reasons: to send this node's event carrying its
 signature transactions on the freeze state and freeze block (see
-[ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md)
+ADR-002
 for detail on the block signatures), to collect those signatures from
 peers, and to relay them to any peers that still need them. Detail in
 [`gossip.md`](gossip.md) and
@@ -136,7 +136,7 @@ roster the network adopts at `freezeRound + 1`. The rewrite is what
 keeps pre-upgrade events validating against the pre-upgrade roster,
 even when the new roster drops some of the nodes that signed them, and
 it gives the upgrade a clean boundary if the event format itself
-changes. See [`birth-round.md`](../concepts/birth-round.md) for detail
+changes. See [`birth-round.md`](../../concepts/birth-round.md) for detail
 on birth round values.
 
 Once `FreezeRoundController#isFrozen` is true, `addEvent` stops feeding
@@ -145,7 +145,7 @@ future event buffer (FEB), and any event that is not a future event is
 returned to the caller as a preconsensus event so the application can
 prehandle it. This is the path freeze-block signature transactions take
 to reach the application after the freeze round (see
-[ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md)).
+ADR-002).
 
 The FEB only buffers events whose birth round is greater than the
 pending round. Once the freeze round reaches consensus the pending
@@ -159,12 +159,12 @@ immediately rather than being buffered.
 ### State save
 
 A signed state is marked for disk via
-[`DefaultSavedStateController`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java)`#shouldSaveToDisk`.
+[`DefaultSavedStateController`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java)`#shouldSaveToDisk`.
 The first branch is `if (signedState.isFreezeState()) return FREEZE_STATE`,
 which short-circuits the periodic-snapshot logic and uses the
 [`StateToDiskReason`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java)`.FREEZE_STATE`
 marker. The actual write happens in
-[`DefaultStateSnapshotManager`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/DefaultStateSnapshotManager.java)`#saveStateTask`,
+[`DefaultStateSnapshotManager`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultStateSnapshotManager.java)`#saveStateTask`,
 which runs downstream of the handle thread (not on it); the resulting
 `StateSavingResult` carries the freeze flag further down the pipeline.
 
@@ -177,7 +177,7 @@ orchestrator class.
    [Trigger](#trigger)).
 2. The first consensus round whose timestamp falls in the freeze
    period is detected in
-   [`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#handleConsensusRound`.
+   [`DefaultTransactionHandler`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/DefaultTransactionHandler.java)`#handleConsensusRound`.
    The handler submits a `FreezePeriodEnteredAction(round)` and sets a
    `freezeRoundReceived` flag; subsequent rounds are then ignored by
    the same handler.
@@ -189,11 +189,10 @@ orchestrator class.
 4. The signed state for the freeze round is marked as a freeze state
    and written to disk (see [State save](#state-save)).
 5. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
-   when the freeze state has been written. The transition logic lives
-   in
-   [`FreezingStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/FreezingStatusLogic.java)
+   when the freeze state has been written. The transition logic is
+   [`AbstractStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/AbstractStatusLogic.java)`#onStateWrittenToDisk`
    and the terminal status in
-   [`FreezeCompleteStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/FreezeCompleteStatusLogic.java).
+   [`FreezeCompleteStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/FreezeCompleteStatusLogic.java).
 6. Gossip continues in `FREEZE_COMPLETE` so that signatures on the
    freeze state can be distributed to laggards; event creation does
    not resume because neither `ACTIVE` nor `CHECKING` is reached again
@@ -245,6 +244,7 @@ Topics:
 - [`gossip.md`](gossip.md)
 - [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md)
 - [`reconnect.md`](reconnect.md)
+- [`platform-status.md`](platform-status.md)
 
 Interface:
 
@@ -257,11 +257,11 @@ operators may search log archives for its vocabulary):
 
 Pending catalogs:
 
-- Invariants — [TBD: INV-NNN once `../invariants.md` catalog populates].
+- Invariants — INV-008 — consensus, once reached, is permanent.
 - Decisions:
-  - [ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md) — blocking
+  - ADR-002 — blocking
     `onSealConsensusRound` to hand off freeze-block signatures from Execution to consensus.
-  - [ADR-006](../../decisions/ADR-006-coordinated-network-wide-upgrade.md) — why upgrades use a
+  - ADR-006 — why upgrades use a
     coordinated network-wide freeze rather than rolling upgrades.
 - Scenarios — [TBD: SCN-NNN — freeze-time anomalies (failed save,
   missed freeze round, post-freeze branching, re-freeze on the same

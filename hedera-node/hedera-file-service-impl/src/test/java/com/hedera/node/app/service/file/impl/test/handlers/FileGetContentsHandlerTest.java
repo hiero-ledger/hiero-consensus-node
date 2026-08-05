@@ -26,7 +26,6 @@ import com.hedera.hapi.node.file.FileGetContentsResponse.FileContents;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileGetContentsHandler;
@@ -48,16 +47,13 @@ class FileGetContentsHandlerTest extends FileTestBase {
     private QueryContext context;
 
     @Mock
-    private FileFeeBuilder usageEstimator;
-
-    @Mock
     private V0490FileSchema genesisSchema;
 
     private FileGetContentsHandler subject;
 
     @BeforeEach
     void setUp() {
-        subject = new FileGetContentsHandler(usageEstimator, genesisSchema);
+        subject = new FileGetContentsHandler(genesisSchema);
     }
 
     @Test

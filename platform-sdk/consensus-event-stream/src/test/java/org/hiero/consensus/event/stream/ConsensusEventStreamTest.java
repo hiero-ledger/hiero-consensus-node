@@ -7,19 +7,19 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -101,6 +101,6 @@ class ConsensusEventStreamTest {
      * @return a random CesEvent
      */
     private static CesEvent createRandomEvent() {
-        return RecoveryTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
+        return EventStreamTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
     }
 }

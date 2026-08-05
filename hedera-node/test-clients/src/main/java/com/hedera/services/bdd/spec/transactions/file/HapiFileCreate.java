@@ -4,24 +4,20 @@ package com.hedera.services.bdd.spec.transactions.file;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnFactory;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FileCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -232,15 +228,6 @@ public class HapiFileCreate extends HapiTxnOp<HapiFileCreate> {
     @Override
     protected HapiFileCreate self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
-        return spec.fees().forActivityBasedOp(HederaFunctionality.FileCreate, this::usageEstimate, txn, numPayerSigs);
-    }
-
-    private FeeData usageEstimate(TransactionBody txn, SigValueObj svo) {
-        return fileOpsUsage.fileCreateUsage(txn, suFrom(svo));
     }
 
     @Override

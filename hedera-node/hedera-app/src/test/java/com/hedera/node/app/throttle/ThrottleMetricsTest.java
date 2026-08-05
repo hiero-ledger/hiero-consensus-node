@@ -204,6 +204,97 @@ class ThrottleMetricsTest {
     }
 
     @Test
+    void setupBytesMetricShouldCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
+        // given
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when
+        throttleMetrics.setupBytesThrottleMetric(throttle, configuration);
+
+        // then
+        verify(metrics).getOrCreate(any(DoubleGauge.Config.class));
+    }
+
+    @Test
+    void setupNonTrackedBytesMetricShouldNotCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
+        // given
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when
+        throttleMetrics.setupBytesThrottleMetric(throttle, configuration);
+
+        // then
+        verify(metrics, never()).getOrCreate(any());
+    }
+
+    @Test
+    void setupBytesTokenShouldNotCreateInertMetric() {
+        // given
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when
+        throttleMetrics.setupThrottleMetrics(List.of(), configuration);
+
+        // then
+        verify(metrics, never()).getOrCreate(any());
+    }
+
+    @Test
+    void updateBytesMetricSucceeds(@Mock LeakyBucketDeterministicThrottle bytesThrottle, @Mock DoubleGauge gauge) {
+        // given
+        when(bytesThrottle.instantaneousPercentUsed()).thenReturn(Math.E);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+        throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
+
+        // when
+        throttleMetrics.updateAllMetrics();
+
+        // then
+        verify(gauge).set(Math.E);
+    }
+
+    @Test
+    void updateGasAndBytesMetricsIndependently(
+            @Mock LeakyBucketDeterministicThrottle gasThrottle,
+            @Mock DoubleGauge gasGauge,
+            @Mock LeakyBucketDeterministicThrottle bytesThrottle,
+            @Mock DoubleGauge bytesGauge) {
+        // given
+        when(gasThrottle.name()).thenReturn("Gas");
+        when(gasThrottle.instantaneousPercentUsed()).thenReturn(Math.PI);
+        when(bytesThrottle.name()).thenReturn("Bytes");
+        when(bytesThrottle.instantaneousPercentUsed()).thenReturn(Math.E);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gasGauge, bytesGauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<GAS>,<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+        throttleMetrics.setupGasThrottleMetric(gasThrottle, configuration);
+        throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
+
+        // when
+        throttleMetrics.updateAllMetrics();
+
+        // then
+        verify(metrics, times(2)).getOrCreate(any(DoubleGauge.Config.class));
+        verify(gasGauge).set(Math.PI);
+        verify(bytesGauge).set(Math.E);
+    }
+
+    @Test
     void setupAndUpdateOpsDurationMetricSucceeds(
             @Mock OpsDurationDeterministicThrottle opsDurationThrottle, @Mock DoubleGauge gauge) {
         when(opsDurationThrottle.name()).thenReturn("OPS_DURATION");
@@ -221,5 +312,60 @@ class ThrottleMetricsTest {
 
         verify(metrics).getOrCreate(any(DoubleGauge.Config.class));
         verify(gauge).set(42.0);
+    }
+
+    @Test
+    void setupWithCombinedStandardAndHighVolumeThrottlesShouldUpdateAllGauges(
+            @Mock DeterministicThrottle standardThrottle,
+            @Mock DoubleGauge standardGauge,
+            @Mock DeterministicThrottle highVolumeThrottle,
+            @Mock DoubleGauge highVolumeGauge) {
+        // given
+        when(standardThrottle.name()).thenReturn("ThroughputLimits");
+        when(standardThrottle.instantaneousPercentUsed()).thenReturn(50.0);
+        when(highVolumeThrottle.name()).thenReturn("HVCryptoCreateThrottles");
+        when(highVolumeThrottle.instantaneousPercentUsed()).thenReturn(75.0);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(standardGauge, highVolumeGauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "ThroughputLimits,HVCryptoCreateThrottles")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when - single call with both standard and high-volume throttles combined
+        throttleMetrics.setupThrottleMetrics(List.of(standardThrottle, highVolumeThrottle), configuration);
+        throttleMetrics.updateAllMetrics();
+
+        // then - both standard and high-volume gauges must be updated
+        verify(standardGauge).set(50.0);
+        verify(highVolumeGauge).set(75.0);
+    }
+
+    @Test
+    void rebuildingThrottleDefinitionsShouldNotDiscardLiveMetricMappings(
+            @Mock DeterministicThrottle standardThrottle,
+            @Mock DoubleGauge standardGauge,
+            @Mock DeterministicThrottle highVolumeThrottle,
+            @Mock DoubleGauge highVolumeGauge) {
+        // given
+        when(standardThrottle.name()).thenReturn("ThroughputLimits");
+        when(standardThrottle.instantaneousPercentUsed()).thenReturn(33.0);
+        when(highVolumeThrottle.name()).thenReturn("HVCryptoCreateThrottles");
+        when(highVolumeThrottle.instantaneousPercentUsed()).thenReturn(66.0);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class)))
+                .thenReturn(standardGauge, highVolumeGauge, standardGauge, highVolumeGauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "ThroughputLimits,HVCryptoCreateThrottles")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+        final var combined = List.of(standardThrottle, highVolumeThrottle);
+
+        // when - simulate a rebuild by calling setupThrottleMetrics a second time
+        throttleMetrics.setupThrottleMetrics(combined, configuration);
+        throttleMetrics.setupThrottleMetrics(combined, configuration);
+        throttleMetrics.updateAllMetrics();
+
+        // then - standard gauge must still be updated after the rebuild
+        verify(standardGauge, times(1)).set(33.0);
+        verify(highVolumeGauge, times(1)).set(66.0);
     }
 }

@@ -7,9 +7,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.*;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * Builder for creating {@link GeneratorEventGraphSource} instances with optional parameters.
@@ -175,20 +176,13 @@ public class GeneratorEventGraphSourceBuilder {
         if (realSignatures) {
             final RosterWithKeys rosterWithKeys = this.rosterWithKeys != null
                     ? this.rosterWithKeys
-                    : RandomRosterBuilder.create(Randotron.create(getSeed()))
-                            .withSize(nodeCount)
-                            .withRealKeysEnabled(true)
-                            .buildWithKeys();
+                    : RosterFactory.randomRosterWithKeys(
+                            Randotron.create(getSeed()), nodeCount, WeightGenerators.GAUSSIAN);
             signer = new RealEventSigner(rosterWithKeys);
             actualRoster = rosterWithKeys.getRoster();
         } else {
             signer = new RandomEventSigner(getSeed());
-            actualRoster = roster != null
-                    ? roster
-                    : RandomRosterBuilder.create(Randotron.create(getSeed()))
-                            .withSize(nodeCount)
-                            .withRealKeysEnabled(false)
-                            .build();
+            actualRoster = roster != null ? roster : RosterFactory.randomRoster(Randotron.create(getSeed()), nodeCount);
         }
 
         return new GeneratorEventGraphSource(

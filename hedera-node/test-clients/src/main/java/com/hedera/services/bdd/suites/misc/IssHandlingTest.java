@@ -39,8 +39,10 @@ import org.junit.jupiter.api.Tag;
  * {@code ledger.transfers.maxLen}, then submitting a {@link com.hedera.hapi.node.token.CryptoTransferTransactionBody}
  * that exceeds that artificial limit.
  * <p>
- * This should cause an ISS to be detected in {@code node1}, and the block stream manager to complete its fatal shutdown
- * process. The remaining nodes should still be able to handle transactions and freeze the network.
+ * This should cause an ISS to be detected in {@code node1}. The block stream manager is <i>not</i> stopped at ISS
+ * detection; {@code node1} keeps streaming until the platform reaches {@code CATASTROPHIC_FAILURE}, at which point the
+ * manager flushes the contents of any open/pending blocks to disk for triage. The remaining nodes
+ * should still be able to handle transactions and freeze the network.
  */
 @Tag(ISS)
 class IssHandlingTest implements LifecycleTest {

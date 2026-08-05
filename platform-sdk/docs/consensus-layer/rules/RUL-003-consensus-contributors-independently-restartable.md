@@ -5,13 +5,13 @@ title: Every node contributing to consensus is independently restartable
 class: structural
 topics: [restart-and-pces, signed-state-management, reconnect, event-creator]
 components:
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java
+  - swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java
+  - consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java
+  - consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ReconnectCompleteStatusLogic.java
+  - consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java
   - consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java
 related:
   invariants: []
@@ -46,7 +46,7 @@ advance through nodes that are creating events. If every such node is
 independently restartable, no reachable consensus position can leave the whole
 network unable to restart after a simultaneous crash — there is always at least
 one startable on-disk state covering the current position.
-[ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md)
+ADR-007
 works through the rolling-reconnect scenario in which losing this property would
 make the network unrecoverable.
 
@@ -64,7 +64,7 @@ persistence path, signed-state saving, and the reconnect gate.
 - **Steady state — persisted before observed.** Every validated event is written
   to PCES *before* any downstream component observes it: the writer's output wire
   is soldered ahead of consensus, gossip, and the event creator's parent-selection
-  input (`PlatformWiring.java:86-96`), and the inline writer writes the event to
+  input (`ConsensusLayerWiring.java:108-118`), and the inline writer writes the event to
   the current file before emitting it (`DefaultInlinePcesWriter.java:71-75`). So
   every event a node needs to reach consensus is durable on disk before consensus
   acts on it; on an ordinary restart the node rebuilds its hashgraph by replaying
@@ -92,7 +92,7 @@ persistence path, signed-state saving, and the reconnect gate.
   does not create events while in that status (`PlatformStatusRule.java:37-45`),
   and leaves it only when a `StateWrittenToDiskAction` reports the reconnect state
   (or later) on disk (`ReconnectCompleteStatusLogic.java:156-187`). See
-  [ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md).
+  ADR-007.
 
 The property is contingent on this combination. If event persistence stopped
 preceding observation, if the node stopped retaining a loadable base state and
@@ -137,9 +137,9 @@ and must be rejected.
 - The property is upheld jointly by normal PCES operation, signed-state saving,
   and the reconnect gate; no single component owns it, so a change in any of those
   areas can put it at risk.
-- Related to [RUL-002](RUL-002-intake-flush-ordering.md), which governs the same
+- Related to RUL-002, which governs the same
   restart boundary from the other side: it flushes the intake pipeline before
   event creation resumes so the event creator observes the latest self event.
-- See [ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md)
+- See ADR-007
   for the reconnect gate and the network-wide unrecoverability scenario this rule
   prevents.

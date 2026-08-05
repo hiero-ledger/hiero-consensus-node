@@ -32,25 +32,17 @@ Column conventions:
   otherwise blank. Blank means "not constrained beyond the type."
 - **Fragility** — reserved for SME curation; `—` until filled in.
 
-## `state.*` — StateCommonConfig
+## StateCommonConfig — removed
 
-Module: `swirlds-common`. Source: [StateCommonConfig.java](../../swirlds-common/src/main/java/com/swirlds/common/config/StateCommonConfig.java).
+`StateCommonConfig` (`swirlds-common`) was removed. Its sole key `state.savedStateDirectory` (TUN-001, retired) is superseded by [`paths.savedStateDir`](#paths---pathsconfig) (TUN-062). ID retired, not reused.
 
-|   ID    |             Key             | Type |   Default    |                                       Effect                                       | Range | Fragility |
-|---------|-----------------------------|------|--------------|------------------------------------------------------------------------------------|-------|-----------|
-| TUN-001 | `state.savedStateDirectory` | Path | `data/saved` | Directory where states are saved; relative to CWD unless the path begins with `/`. |       | —         |
+## TemporaryFileConfig — removed
 
-## `temporaryFiles.*` — TemporaryFileConfig
-
-Module: `swirlds-common`. Source: [TemporaryFileConfig.java](../../swirlds-common/src/main/java/com/swirlds/common/io/config/TemporaryFileConfig.java).
-
-|   ID    |                Key                 | Type |    Default    |                                   Effect                                   | Range | Fragility |
-|---------|------------------------------------|------|---------------|----------------------------------------------------------------------------|-------|-----------|
-| TUN-002 | `temporaryFiles.temporaryFilePath` | Path | `swirlds-tmp` | Directory where temporary files are created (relative to saved-state dir). |       | —         |
+`TemporaryFileConfig` (`swirlds-common`) was removed as obsolete. Its key `temporaryFiles.temporaryFilePath` (TUN-002, retired) has no replacement; the temporary-files directory is configured via [`paths.tmpDir`](#paths---pathsconfig) (TUN-063). ID retired, not reused.
 
 ## `platform.wiring.*` — WiringConfig
 
-Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds-component-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
+Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
 
 |   ID    |                       Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
 |---------|--------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -66,7 +58,7 @@ Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds
 
 ## `uptime.*` — UptimeConfig
 
-Module: `swirlds-platform-core`. Source: [UptimeConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/uptime/UptimeConfig.java).
+Module: `consensus-utility`. Source: [UptimeConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/UptimeConfig.java).
 
 |   ID    |              Key              |   Type   | Default |                                            Effect                                             | Range | Fragility |
 |---------|-------------------------------|----------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
@@ -89,7 +81,8 @@ Selects consensus module implementations via ServiceLoader. Each value is a JPMS
 
 ## `platformStatus.*` — PlatformStatusConfig
 
-Module: `swirlds-platform-core`. Source: [PlatformStatusConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/PlatformStatusConfig.java).
+Module: `consensus-utility`. Source: [PlatformStatusConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java).
+These delays drive the status state machine; see [architecture/topics/platform-status.md](architecture/topics/platform-status.md).
 
 |   ID    |                        Key                         |   Type   | Default |                                                Effect                                                 | Range | Fragility |
 |---------|----------------------------------------------------|----------|---------|-------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -105,36 +98,26 @@ Module: `swirlds-platform-core`. Source: [PlatformMetricsConfig.java](../../swir
 |---------|------------------------------------------------|---------|---------|------------------------------------------------------------------------------|-------|-----------|
 | TUN-022 | `platform.metrics.eventPipelineMetricsEnabled` | boolean | `true`  | If true, the platform collects and reports metrics about the event pipeline. |       | —         |
 
-## `platformSchedulers.*` — PlatformSchedulersConfig
+## `status.monitor.*` — StatusMonitorWiringConfig
 
-Module: `swirlds-platform-core`. Source: [PlatformSchedulersConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformSchedulersConfig.java).
+Module: `consensus-status-monitor`. Source: [StatusMonitorWiringConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/StatusMonitorWiringConfig.java).
 
-Per-component `TaskSchedulerConfiguration` values that shape the platform wiring (scheduler type, queue capacity, flushable / squelchable flags, metric publication).
+Scheduler configuration for the status monitor. Formerly `PlatformSchedulersConfig` / `platformSchedulers.*`, progressively emptied as the platform wiring was modularised into per-component wiring configs, then renamed when the status monitor moved into its own module.
 
-|   ID    |                            Key                            |            Type            |                                                Default                                                |                               Effect                                | Range | Fragility |
-|---------|-----------------------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|-------|-----------|
-| TUN-023 | `platformSchedulers.consensusEngine`                      | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`    | Scheduler configuration for the consensus engine.                   |       | —         |
-| TUN-024 | `platformSchedulers.stateSnapshotManager`                 | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC`                                                | Scheduler configuration for the state snapshot manager.             |       | —         |
-| TUN-025 | `platformSchedulers.stateSigner`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC`                                                       | Scheduler configuration for the state signer.                       |       | —         |
-| TUN-026 | `platformSchedulers.futureEventBuffer`                    | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`                       | Scheduler configuration for the future-event buffer.                |       | —         |
-| TUN-027 | `platformSchedulers.pcesSequencer`                        | TaskSchedulerConfiguration | `DIRECT`                                                                                              | Scheduler configuration for the preconsensus event sequencer.       |       | —         |
-| TUN-028 | `platformSchedulers.applicationTransactionPrehandler`     | TaskSchedulerConfiguration | `CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the application transaction prehandler. |       | —         |
-| TUN-029 | `platformSchedulers.stateSignatureCollector`              | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the state signature collector.          |       | —         |
-| TUN-030 | `platformSchedulers.transactionHandler`                   | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the transaction handler.                |       | —         |
-| TUN-031 | `platformSchedulers.issDetector`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC`                                                      | Scheduler configuration for the ISS detector.                       |       | —         |
-| TUN-032 | `platformSchedulers.issHandler`                           | TaskSchedulerConfiguration | `DIRECT`                                                                                              | Scheduler configuration for the ISS handler.                        |       | —         |
-| TUN-033 | `platformSchedulers.hashLogger`                           | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC`                                                      | Scheduler configuration for the hash logger.                        |       | —         |
-| TUN-034 | `platformSchedulers.stateHasher`                          | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`             | Scheduler configuration for the state hasher.                       |       | —         |
-| TUN-035 | `platformSchedulers.stateGarbageCollector`                | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC`                                                       | Scheduler configuration for the state garbage collector.            |       | —         |
-| TUN-036 | `platformSchedulers.stateGarbageCollectorHeartbeatPeriod` | Duration                   | `200ms`                                                                                               | Heartbeat frequency sent to the state garbage collector.            |       | —         |
-| TUN-037 | `platformSchedulers.signedStateSentinel`                  | TaskSchedulerConfiguration | `SEQUENTIAL UNHANDLED_TASK_METRIC`                                                                    | Scheduler configuration for the signed-state sentinel.              |       | —         |
-| TUN-038 | `platformSchedulers.signedStateSentinelHeartbeatPeriod`   | Duration                   | `10s`                                                                                                 | Heartbeat frequency sent to the signed-state sentinel.              |       | —         |
-| TUN-039 | `platformSchedulers.consensusEventStream`                 | TaskSchedulerConfiguration | `DIRECT_THREADSAFE`                                                                                   | Scheduler configuration for the consensus event stream.             |       | —         |
-| TUN-040 | `platformSchedulers.roundDurabilityBuffer`                | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC`                                              | Scheduler configuration for the round durability buffer.            |       | —         |
-| TUN-041 | `platformSchedulers.platformMonitor`                      | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the platform monitor.                   |       | —         |
-| TUN-042 | `platformSchedulers.transactionPool`                      | TaskSchedulerConfiguration | `DIRECT_THREADSAFE`                                                                                   | Scheduler configuration for the transaction pool.                   |       | —         |
-| TUN-043 | `platformSchedulers.branchDetector`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch detector.                    |       | —         |
-| TUN-044 | `platformSchedulers.branchReporter`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch reporter.                    |       | —         |
+|   ID    |              Key               |            Type            |                          Default                           |                     Effect                      | Range | Fragility |
+|---------|--------------------------------|----------------------------|------------------------------------------------------------|-------------------------------------------------|-------|-----------|
+| TUN-041 | `status.monitor.statusMonitor` | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC` | Scheduler configuration for the status monitor. |       | —         |
+
+**Retired.** Keys extracted from this record as the platform wiring was modularised; IDs retired, not reused:
+
+- TUN-023 — consensus engine, now [`hashgraph.wiring.*` — HashgraphWiringConfig](#hashgraphwiring---hashgraphwiringconfig) (TUN-103).
+- TUN-026, TUN-027, TUN-040, TUN-042 — future-event buffer / PCES sequencer / round-durability buffer / transaction pool schedulers; no longer exposed as tunables (no successor key).
+- TUN-024, TUN-025, TUN-029, TUN-033, TUN-034 — state hasher / hash logger / state signer / state signature collector / state snapshot manager, now [`state.wiring.*` — StateWiringConfig](#statewiring---statewiringconfig) (TUN-197…TUN-201).
+- TUN-035, TUN-036, TUN-037, TUN-038 — state garbage collector and signed-state sentinel (each with heartbeat period), now [`state.wiring.*` — StateWiringConfig](#statewiring---statewiringconfig) (TUN-202…TUN-205).
+- TUN-031, TUN-032 — ISS detector / handler, now [`iss.detection.wiring.*` — IssDetectionWiringConfig](#issdetectionwiring---issdetectionwiringconfig) (TUN-206, TUN-207).
+- TUN-039 — consensus event stream, now [`event.stream.wiring.*` — EventStreamWiringConfig](#eventstreamwiring---eventstreamwiringconfig) (TUN-208).
+- TUN-028, TUN-030 — application transaction prehandler / transaction handler, now [`transaction.handling.wiring.*` — TransactionHandlingWiringConfig](#transactionhandlingwiring---transactionhandlingwiringconfig) (TUN-209, TUN-210).
+- TUN-043, TUN-044 — branch detector / reporter, now [`event.intake.wiring.*` — EventIntakeWiringConfig](#eventintakewiring---eventintakewiringconfig) (TUN-211, TUN-212).
 
 ## `os.health.*` — OSHealthCheckConfig
 
@@ -171,7 +154,7 @@ General properties that don't belong to a specific subsystem. Keys are bare prop
 
 ## BasicConfig (no prefix)
 
-Module: `consensus-utility`. Source: [BasicConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/BasicConfig.java).
+Module: `swirlds-platform-core`. Source: [BasicConfig.java](../../swirlds-platform-core/src/main/java/org/hiero/consensus/BasicConfig.java).
 
 General properties that don't belong to a specific subsystem. Keys are bare property names.
 
@@ -182,7 +165,7 @@ General properties that don't belong to a specific subsystem. Keys are bare prop
 
 ## `event.*` — EventConfig
 
-Module: `consensus-utility`. Source: [EventConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/EventConfig.java).
+Module: `consensus-event-stream`. Source: [EventConfig.java](../../consensus-event-stream/src/main/java/org/hiero/consensus/event/stream/config/EventConfig.java).
 
 |   ID    |               Key                |  Type   |           Default           |                                            Effect                                            | Range | Fragility |
 |---------|----------------------------------|---------|-----------------------------|----------------------------------------------------------------------------------------------|-------|-----------|
@@ -193,7 +176,7 @@ Module: `consensus-utility`. Source: [EventConfig.java](../../consensus-utility/
 
 ## `fallen.behind.*` — FallenBehindConfig
 
-Module: `consensus-utility`. Source: [FallenBehindConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/FallenBehindConfig.java).
+Module: `swirlds-platform-core`. Source: [FallenBehindConfig.java](../../swirlds-platform-core/src/main/java/org/hiero/consensus/FallenBehindConfig.java).
 
 |   ID    |                  Key                  |  Type  | Default |                                           Effect                                            | Range | Fragility |
 |---------|---------------------------------------|--------|---------|---------------------------------------------------------------------------------------------|-------|-----------|
@@ -224,26 +207,20 @@ Module: `consensus-utility`. Source: [RecycleBinConfig.java](../../consensus-uti
 
 Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-reconnect/src/main/java/org/hiero/consensus/reconnect/config/ReconnectConfig.java).
 
-|   ID    |                        Key                         |   Type   | Default |                                                                Effect                                                                | Range | Fragility |
-|---------|----------------------------------------------------|----------|---------|--------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                                          |       | —         |
-| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`).               |       | —         |
-| TUN-069 | `reconnect.asyncStreamTimeout`                     | Duration | `300s`  | Time an `AsyncInputStream` / `AsyncOutputStream` waits before throwing a timeout.                                                    |       | —         |
-| TUN-070 | `reconnect.asyncOutputStreamFlush`                 | Duration | `8ms`   | Period of the periodic flush that drains the async output stream buffer.                                                             |       | —         |
-| TUN-071 | `reconnect.asyncStreamBufferSize`                  | int      | `10000` | Size of the buffers for async input and output streams.                                                                              |       | —         |
-| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                                 |       | —         |
-| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                                        |       | —         |
-| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                                           |       | —         |
-| TUN-075 | `reconnect.teacherMaxNodesPerSecond`               | int      | `0`     | Maximum number of nodes a teacher will send per second; `0` means no limit.                                                          |       | —         |
-| TUN-076 | `reconnect.teacherRateLimiterSleep`                | Duration | `1us`   | Sleep applied by the teacher when throttling is engaged.                                                                             |       | —         |
-| TUN-077 | `reconnect.pullLearnerRootResponseTimeout`         | Duration | `60s`   | Pull-based reconnect: learner-side timeout to receive a virtual root-node response from the teacher.                                 |       | —         |
-| TUN-078 | `reconnect.allMessagesReceivedTimeout`             | Duration | `300s`  | Pull-based reconnect: learner-side timeout to wait until all virtual-view messages are processed after the teacher's final response. |       | —         |
+|   ID    |                        Key                         |   Type   | Default |                                                         Effect                                                         | Range | Fragility |
+|---------|----------------------------------------------------|----------|---------|------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                            |       | —         |
+| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`). |       | —         |
+| TUN-069 | `reconnect.socketTimeout`                          | Duration | `60s`   | Socket timeout for input streams used during reconnect.                                                                |       | —         |
+| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
+| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
+| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
 
 ## `state.*` — StateConfig
 
 Module: `consensus-state`. Source: [StateConfig.java](../../consensus-state/src/main/java/org/hiero/consensus/state/config/StateConfig.java).
 
-Shares the `state.*` prefix with [StateCommonConfig](#state---statecommonconfig); the keys below come from `StateConfig` (SignedStateManager / SignedStateFileManager behavior).
+The keys below come from `StateConfig` (SignedStateManager / SignedStateFileManager behavior).
 
 |   ID    |                  Key                  |   Type   | Default |                                                                    Effect                                                                     | Range | Fragility |
 |---------|---------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -268,6 +245,56 @@ Shares the `state.*` prefix with [StateCommonConfig](#state---statecommonconfig)
 | TUN-097 | `state.deleteInvalidStateFiles`       | boolean  | `false` | At startup, delete state files that can't be deserialized and try the next one; be very careful enabling network-wide.                        |       | —         |
 | TUN-098 | `state.validateInitialState`          | boolean  | `true`  | If false, skip ISS validation on the state loaded from disk at startup (test-only).                                                           |       | —         |
 | TUN-099 | `state.periodicSnapshotsEnabled`      | boolean  | `true`  | Create periodic snapshots of the signed state.                                                                                                |       | —         |
+
+## `state.wiring.*` — StateWiringConfig
+
+Module: `consensus-state`. Source: [StateWiringConfig.java](../../consensus-state/src/main/java/org/hiero/consensus/state/config/StateWiringConfig.java).
+
+Per-component `TaskSchedulerConfiguration` values for the state-management pipeline. Consolidated here from the retired `PlatformSchedulersConfig` keys (state garbage collector and signed-state sentinel, each with a heartbeat period) and the former `StateManagementWiringConfig` (state hasher, hash logger, state signer, state signature collector, state snapshot manager) when `consensus-state-management` was merged into `consensus-state`; defaults are unchanged.
+
+|   ID    |                         Key                         |            Type            |                                          Default                                          |                           Effect                           | Range | Fragility |
+|---------|-----------------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------|------------------------------------------------------------|-------|-----------|
+| TUN-197 | `state.wiring.stateHasher`                          | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the state hasher.              |       | —         |
+| TUN-198 | `state.wiring.hashLogger`                           | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC`                                          | Scheduler configuration for the hash logger.               |       | —         |
+| TUN-199 | `state.wiring.stateSigner`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC`                                           | Scheduler configuration for the state signer.              |       | —         |
+| TUN-200 | `state.wiring.stateSignatureCollector`              | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                | Scheduler configuration for the state signature collector. |       | —         |
+| TUN-201 | `state.wiring.stateSnapshotManager`                 | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC`                                    | Scheduler configuration for the state snapshot manager.    |       | —         |
+| TUN-202 | `state.wiring.stateGarbageCollector`                | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC`                                           | Scheduler configuration for the state garbage collector.   |       | —         |
+| TUN-203 | `state.wiring.stateGarbageCollectorHeartbeatPeriod` | Duration                   | `200ms`                                                                                   | Heartbeat frequency sent to the state garbage collector.   |       | —         |
+| TUN-204 | `state.wiring.signedStateSentinel`                  | TaskSchedulerConfiguration | `SEQUENTIAL UNHANDLED_TASK_METRIC`                                                        | Scheduler configuration for the signed-state sentinel.     |       | —         |
+| TUN-205 | `state.wiring.signedStateSentinelHeartbeatPeriod`   | Duration                   | `10s`                                                                                     | Heartbeat frequency sent to the signed-state sentinel.     |       | —         |
+
+## `iss.detection.wiring.*` — IssDetectionWiringConfig
+
+Module: `consensus-iss-detection`. Source: [IssDetectionWiringConfig.java](../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/config/IssDetectionWiringConfig.java).
+
+Per-component `TaskSchedulerConfiguration` values for the ISS-detection wiring, extracted from the retired `PlatformSchedulersConfig` keys; defaults are unchanged.
+
+|   ID    |                Key                 |            Type            |                     Default                      |                    Effect                     | Range | Fragility |
+|---------|------------------------------------|----------------------------|--------------------------------------------------|-----------------------------------------------|-------|-----------|
+| TUN-206 | `iss.detection.wiring.issDetector` | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC` | Scheduler configuration for the ISS detector. |       | —         |
+| TUN-207 | `iss.detection.wiring.issHandler`  | TaskSchedulerConfiguration | `DIRECT`                                         | Scheduler configuration for the ISS handler.  |       | —         |
+
+## `event.stream.wiring.*` — EventStreamWiringConfig
+
+Module: `consensus-event-stream`. Source: [EventStreamWiringConfig.java](../../consensus-event-stream/src/main/java/org/hiero/consensus/event/stream/config/EventStreamWiringConfig.java).
+
+Extracted from the retired `PlatformSchedulersConfig` `consensusEventStream` key; default unchanged.
+
+|   ID    |                    Key                     |            Type            |       Default       |                         Effect                          | Range | Fragility |
+|---------|--------------------------------------------|----------------------------|---------------------|---------------------------------------------------------|-------|-----------|
+| TUN-208 | `event.stream.wiring.consensusEventStream` | TaskSchedulerConfiguration | `DIRECT_THREADSAFE` | Scheduler configuration for the consensus event stream. |       | —         |
+
+## `transaction.handling.wiring.*` — TransactionHandlingWiringConfig
+
+Module: `consensus-transaction-handling`. Source: [TransactionHandlingWiringConfig.java](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/config/TransactionHandlingWiringConfig.java).
+
+Per-component `TaskSchedulerConfiguration` values for the transaction-handling wiring, extracted from the retired `PlatformSchedulersConfig` keys (`applicationTransactionPrehandler` → `prehandler`, `transactionHandler` → `handler`); defaults are unchanged.
+
+|   ID    |                   Key                    |            Type            |                                                Default                                                |                               Effect                                | Range | Fragility |
+|---------|------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|-------|-----------|
+| TUN-209 | `transaction.handling.wiring.prehandler` | TaskSchedulerConfiguration | `CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the application transaction prehandler. |       | —         |
+| TUN-210 | `transaction.handling.wiring.handler`    | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the transaction handler.                |       | —         |
 
 ## `consensus.*` — ConsensusConfig
 
@@ -329,7 +356,7 @@ Preconsensus event storage (PCES).
 | TUN-119 | `event.preconsensus.spanOverlapFactor`                   | double             | `1.2`                 | Multiplier on the previous-file-span running average during steady state.                                     | ≥1    | —         |
 | TUN-120 | `event.preconsensus.minimumSpan`                         | int                | `5`                   | Floor on the available span when creating a new file (sanity floor on the heuristic).                         |       | —         |
 | TUN-121 | `event.preconsensus.permitGaps`                          | boolean            | `false`               | If false, throw on detected gaps in the PCES file sequence (only relevant if files were deleted out of band). |       | —         |
-| TUN-122 | `event.preconsensus.databaseDirectory`                   | Path               | `preconsensus-events` | Directory where PCES events are stored, relative to `StateCommonConfig.savedStateDirectory`.                  |       | —         |
+| TUN-122 | `event.preconsensus.databaseDirectory`                   | Path               | `preconsensus-events` | Directory where PCES events are stored, relative to `paths.savedStateDir`.                                    |       | —         |
 | TUN-123 | `event.preconsensus.copyRecentStreamToStateSnapshots`    | boolean            | `true`                | If true, copy recent PCES files into the saved-state snapshot directory whenever a snapshot is taken.         |       | —         |
 | TUN-124 | `event.preconsensus.compactLastFileOnStartup`            | boolean            | `true`                | If true, compact the last file's span at startup.                                                             |       | —         |
 | TUN-125 | `event.preconsensus.forceIgnorePcesSignatures`           | boolean            | `false`               | If true, ignore PCES event signatures. **TEST ONLY** — must never be enabled in production.                   |       | —         |
@@ -363,7 +390,7 @@ Module: `consensus-event-creator`. Source: [EventCreationConfig.java](../../cons
 | TUN-137 | `event.creation.eventIntakeThrottle`                 | int      | `1024`  | When the event intake queue equals or exceeds this size, new self-event creation is suspended.                                          |       | —         |
 | TUN-138 | `event.creation.maximumPermissibleUnhealthyDuration` | Duration | `1s`    | Maximum time the system can be unhealthy before event creation stops.                                                                   |       | —         |
 | TUN-139 | `event.creation.maxAllowedSyncLag`                   | int      | `15`    | If the node is lagging more than this many rounds on average, stop creating events; very large values effectively disable the rule.     |       | —         |
-| TUN-140 | `event.creation.maxOtherParents`                     | int      | `1`     | Maximum allowed number of other parents; `1` reproduces the classic single-self-parent / single-other-parent shape.                     |       | —         |
+| TUN-140 | `event.creation.maxOtherParents`                     | int      | `4`     | Maximum number of other parents an event may reference.                                                                                 |       | —         |
 
 ## `event.creation.wiring.*` — EventCreationWiringConfig
 
@@ -388,6 +415,8 @@ Shares the `event.intake.wiring.*` prefix with [PcesWiringConfig](#eventintakewi
 | TUN-144 | `event.intake.wiring.eventDeduplicator`       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(5000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the event deduplicator.        |       | —         |
 | TUN-145 | `event.intake.wiring.eventSignatureValidator` | TaskSchedulerConfiguration | `CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                       | Scheduler configuration for the event signature validator. |       | —         |
 | TUN-146 | `event.intake.wiring.orphanBuffer`            | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`  | Scheduler configuration for the orphan buffer.             |       | —         |
+| TUN-211 | `event.intake.wiring.branchDetector`          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                       | Scheduler configuration for the branch detector.           |       | —         |
+| TUN-212 | `event.intake.wiring.branchReporter`          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                       | Scheduler configuration for the branch reporter.           |       | —         |
 
 ## `gossip.*` — GossipConfig
 

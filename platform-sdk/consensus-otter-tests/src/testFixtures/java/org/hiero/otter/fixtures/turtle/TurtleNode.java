@@ -16,23 +16,18 @@ import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToC
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.component.framework.model.DeterministicWiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.test.fixtures.builder.TestPlatformBuilder;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -40,15 +35,16 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -62,6 +58,8 @@ import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -88,7 +86,6 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
-import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -126,7 +123,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformComponents platformComponent;
+    private ConsensusLayerBuildingBlocks buildingBlocks;
 
     @Nullable
     private OtterApp otterApp;
@@ -227,18 +224,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     fileSystemManager,
                     selfId);
 
-            final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                    .withTime(timeManager.time())
-                    .withConfiguration(currentConfiguration)
-                    .withFileSystemManager(fileSystemManager)
-                    .withMetrics(metrics)
-                    .withRecycleBin(recycleBin)
-                    .build();
+            final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                    new VirtualMapStateLifecycleManager(
+                            metrics, timeManager.time(), currentConfiguration, fileSystemManager);
 
-            final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                    metrics, timeManager.time(), currentConfiguration, fileSystemManager);
-
-            model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
+            model = WiringModelBuilder.create(metrics, timeManager.time())
                     .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
@@ -251,7 +241,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
-                    platformContext,
+                    currentConfiguration,
+                    fileSystemManager,
                     stateLifecycleManager);
 
             if (reservedState.state().get().isGenesisState()) {
@@ -272,39 +263,37 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
-            this.executionLayer = new OtterExecutionLayer(
-                    new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
+            this.executionLayer =
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), metrics, timeManager.time());
 
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
-            final GossipModule gossipModule = new TurtleGossipModule(gossip);
 
-            final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                            OtterApp.APP_NAME,
-                            OtterApp.SWIRLD_NAME,
-                            version,
-                            initialState,
-                            otterApp,
-                            selfId,
-                            eventStreamLoc,
+            final TestPlatformBuilder builder = new TestPlatformBuilder(
+                            currentConfiguration,
+                            metrics,
+                            timeManager.time(),
                             rosterHistory,
-                            stateLifecycleManager)
-                    .withPlatformContext(platformContext)
-                    .withConfiguration(currentConfiguration)
-                    .withKeysAndCerts(keysAndCerts)
-                    .withExecutionLayer(executionLayer)
-                    .withModel(model)
-                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
-                    .withGossipModule(gossipModule)
-                    .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
+                            keysAndCerts,
+                            selfId,
+                            recycleBin,
+                            fileSystemManager,
+                            executionLayer,
+                            otterApp,
+                            initialState,
+                            stateLifecycleManager,
+                            version,
+                            new PersistenceScope(OtterApp.APP_NAME, OtterApp.SWIRLD_NAME),
+                            eventStreamLoc,
+                            OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS)
+                    .withWiringModel(model)
+                    .withSecureRandom(new SecureRandomBuilder(randotron.nextLong()).get())
+                    .withAdditionalProperties(Map.of("simulatedGossip", gossip));
 
-            final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
-            final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
+            platform = builder.build();
 
-            gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
+            buildingBlocks = builder.buildingBlocks();
 
-            platformComponent = platformBuildingBlocks.platformComponents();
-
-            platformComponent
+            buildingBlocks
                     .hashgraphModule()
                     .consensusRoundOutputWire()
                     .solderTo(
@@ -312,15 +301,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "consensusRounds",
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
-            platformComponent
-                    .platformMonitorWiring()
-                    .getOutputWire()
+            buildingBlocks
+                    .statusMonitorModule()
+                    .platformStatusOutputWire()
                     .solderTo(
                             "nodePlatformStatusCollector",
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
-            platform = platformComponentBuilder.build();
             platformStatus = PlatformStatus.STARTING_UP;
 
             platform.start();
@@ -348,7 +336,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             platformStatus = null;
             platform = null;
-            platformComponent = null;
+            buildingBlocks = null;
             executionLayer = null;
             otterApp = null;
             model = null;
@@ -596,5 +584,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void stopProfiling() {
         throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Thread dump is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
+     */
+    @Override
+    @NonNull
+    public String dumpThreads() {
+        throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
     }
 }

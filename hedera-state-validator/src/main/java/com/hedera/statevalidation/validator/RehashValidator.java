@@ -7,7 +7,6 @@ import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,9 +58,8 @@ public class RehashValidator implements Validator {
         this.originalHash = StateUtils.getOriginalStateHash();
         this.records = vm.getRecords();
 
-        final VirtualMapMetadata metadata = vm.getMetadata();
-        this.firstLeafPath = metadata.getFirstLeafPath();
-        this.lastLeafPath = metadata.getLastLeafPath();
+        this.firstLeafPath = vm.getMetadata().getFirstLeafPath();
+        this.lastLeafPath = vm.getMetadata().getLastLeafPath();
     }
 
     /**

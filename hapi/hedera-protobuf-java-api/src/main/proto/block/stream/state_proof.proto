@@ -33,10 +33,10 @@ message StateProof {
     /**
      * The merkle paths that prove the nodes in the block merkle tree.
      * This field SHALL contain, in the following order:
+     * - The merkle path from the consensus timestamp leaf to the root.
      * - The merkle path from the previous block root (the "left-most"
      *   node on level 5) to it's (single) internal node parent (on level
      *   1, adjacent to the block's consensus timestamp).
-     * - The merkle path from the consensus timestamp leaf to the root.
      * - The merkle path of the root of the entire block merkle tree.
      */
     repeated MerklePath paths = 1;

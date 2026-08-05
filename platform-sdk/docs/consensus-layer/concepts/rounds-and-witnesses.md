@@ -140,4 +140,5 @@ deterministic generation, and the code uses
   [`strongly-seeing.md`](strongly-seeing.md),
   [`judges.md`](judges.md),
   [`birth-round.md`](birth-round.md).
+- Invariants: INV-001 (voting round is monotonic along ancestry), INV-008 (consensus, once reached, is permanent).
 - Glossary entry: [`../glossary.md`](../glossary.md).

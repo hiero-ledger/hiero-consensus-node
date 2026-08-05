@@ -46,8 +46,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.BasicConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -140,8 +140,9 @@ public final class ConfigUtils {
                 .withConverter(HederaFunctionalitySet.class, new FunctionalitySetConverter())
                 .withConverter(Bytes.class, new BytesConverter());
         if (!TMP_DIR.isEmpty()) {
-            configurationBuilder.withSource(
-                    new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
+            configurationBuilder.withSource(new SimpleConfigSource()
+                    .withValue("paths.tmpDir", TMP_DIR)
+                    .withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
         }
         configuration = configurationBuilder.build();
     }

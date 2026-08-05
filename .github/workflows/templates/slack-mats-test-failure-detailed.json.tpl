@@ -18,7 +18,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*MATS test failure on `main`. See status below.*"
+            "text": {{ printf "*MATS test failure on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") (getenv "REF_NAME") | data.ToJSON }}
           },
           "fields": [
             {
@@ -32,6 +32,10 @@
             {
               "type": "mrkdwn",
               "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "*Run attempt*: %s" (getenv "RUN_ATTEMPT") | data.ToJSON }}
             }
           ]
         },
@@ -67,7 +71,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ getenv "SLACK_USER_ID" | data.ToJSON }}
+              "text": {{ getenv "SLACK_USER_ID" | default "N/A" | data.ToJSON }}
             },
             {
               "type": "mrkdwn",

@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Reasons not to gossip
-last_reviewed: 2026-06-12
+last_reviewed: 2026-07-28
 ---
 
 # Reasons not to gossip
@@ -282,12 +282,6 @@ ranges are accurate at last review and may shift with refactors.
 - [`topics/freeze-and-upgrade.md`](freeze-and-upgrade.md)
 - [`topics/reconnect.md`](reconnect.md)
 - [`topics/restart-and-pces.md`](restart-and-pces.md)
-
-**Invariants**
-
-- [TBD: INV-NNN — link once `invariants.md` catalog populates. Likely
-  candidates: durability-before-gossip; gossip suspended during
-  reconnect; one-active-sync-per-peer.]
 
 **Decisions**
 

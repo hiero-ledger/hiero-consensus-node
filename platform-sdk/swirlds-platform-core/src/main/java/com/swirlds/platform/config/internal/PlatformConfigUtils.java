@@ -2,23 +2,16 @@
 package com.swirlds.platform.config.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.CONFIG;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.extensions.sources.ConfigMapping;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,8 +23,6 @@ public class PlatformConfigUtils {
     private static final Logger logger = LogManager.getLogger(PlatformConfigUtils.class);
     public static final String SETTING_USED_FILENAME = "settingsUsed.txt";
     private static final String ERROR_CONFIGURATION_IS_NULL = "configuration should not be null";
-    private static final String ERROR_DIRECTORY_IS_NULL = "directory should not be null";
-    private static final String ERROR_STRING_BUILDER_IS_NULL = "stringBuilder should not be null";
 
     private PlatformConfigUtils() {
         // Utility class
@@ -99,55 +90,5 @@ public class PlatformConfigUtils {
                                     propertyNamePrefix, component));
                 })
                 .collect(Collectors.toSet());
-    }
-
-    /**
-     * Write all the settings to the file settingsUsed.txt, some of which might have been changed by settings.txt.
-     *
-     * @param directory the directory to write to
-     */
-    public static void writeSettingsUsed(@NonNull final Path directory, @NonNull final Configuration configuration) {
-        Objects.requireNonNull(directory, ERROR_DIRECTORY_IS_NULL);
-        Objects.requireNonNull(configuration, ERROR_CONFIGURATION_IS_NULL);
-
-        try (final BufferedWriter writer = Files.newBufferedWriter(directory.resolve(SETTING_USED_FILENAME))) {
-            final StringBuilder stringBuilder = new StringBuilder();
-            generateSettingsUsed(stringBuilder, configuration);
-            writer.write(stringBuilder.toString());
-
-            writer.flush();
-        } catch (final IOException e) {
-            logger.error(EXCEPTION.getMarker(), "Error in writing to settingsUsed.txt", e);
-        }
-    }
-
-    /**
-     * Generate the settings used, some of which might have been changed by settings.txt.
-     *
-     * @param stringBuilder the string builder to write to
-     * @param configuration the configuration to use
-     */
-    public static void generateSettingsUsed(
-            @NonNull final StringBuilder stringBuilder, @NonNull final Configuration configuration) {
-        Objects.requireNonNull(stringBuilder, ERROR_STRING_BUILDER_IS_NULL);
-        Objects.requireNonNull(configuration, ERROR_CONFIGURATION_IS_NULL);
-
-        stringBuilder.append("------------- Configuration Overrides -------------");
-        stringBuilder.append(System.lineSeparator());
-        stringBuilder.append(System.lineSeparator());
-
-        final Set<String> propertyNames =
-                configuration.getPropertyNames().collect(Collectors.toCollection(TreeSet::new));
-        for (final String propertyName : propertyNames) {
-            if (configuration.isListValue(propertyName)) {
-                final String value =
-                        Objects.requireNonNullElse(configuration.getValues(propertyName), List.of()).stream()
-                                .map(Object::toString)
-                                .collect(Collectors.joining(", "));
-                stringBuilder.append(String.format("%s, %s%n", propertyName, value));
-            } else {
-                stringBuilder.append(String.format("%s, %s%n", propertyName, configuration.getValue(propertyName)));
-            }
-        }
     }
 }

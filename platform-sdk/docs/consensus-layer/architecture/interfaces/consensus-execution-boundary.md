@@ -1,7 +1,7 @@
 ---
 type: architecture-interface
 title: Consensus / Execution boundary
-last_reviewed: 2026-06-12
+last_reviewed: 2026-07-28
 ---
 
 # Consensus / Execution boundary
@@ -43,25 +43,22 @@ The two halves of the boundary are:
 - **Role:** The construction-time seam. The execution layer assembles its boundary implementations and
   passes them to the builder, then calls `build()` to obtain a `Platform`.
 
-`PlatformBuilder.create(...)` takes the execution layer's boundary implementations directly. Its required
-arguments include:
+The `PlatformBuilder` **constructor** takes the execution layer's boundary implementations directly —
+every one a required (`@NonNull`) argument. They include:
 
-- `SemanticVersion softwareVersion`
-- `ReservedSignedState initialState` — the genesis or loaded state the execution layer supplies
+- `ExecutionLayer executionLayer` — the execution-layer callback surface
 - `ConsensusStateEventHandler consensusStateEventHandler`
-- `RosterHistory rosterHistory`
 - `StateLifecycleManager stateLifecycleManager`
-- `NodeId selfId`, the `appName` / `swirldName`, the consensus-event-stream name
+- `ReservedSignedState initialState` — the genesis or loaded state the execution layer supplies
+- `SemanticVersion softwareVersion`, `RosterHistory rosterHistory`, `NodeId selfId`
+- the `PersistenceScope` (`appName` / `swirldName`) and the consensus-event-stream name
+- the platform infrastructure the node runs on: `Configuration`, `Metrics`, `Time`, `KeysAndCerts`,
+  `RecycleBin`, `FileSystemManager`
 
-Further wiring is added with fluent `with...` methods, notably:
+The only optional input is a single fluent setter:
 
-- `withExecutionLayer(ExecutionLayer)` — registers the `ExecutionLayer` implementation
-- `withStaleEventConsumer(StaleEventConsumer)` — registers the execution layer's stale-event consumer
-- `withConfiguration`, `withPlatformContext`, `withKeysAndCerts`, `withModel`, …
-
-Despite the API suggesting that these parameters are optional, some arguments are actually required
-for the consensus layer to function. For example, the `ExecutionLayer` is required. If it is not
-supplied, the `PlatformBuilder` will throw an exception at runtime when it tries to build the `Platform`.
+- `withStaleEventConsumer(StaleEventConsumer)` — registers the execution layer's stale-event consumer.
+  It defaults to a no-op, so a caller that registers none simply drops the stale-event signal at this seam.
 
 `build()` returns the `Platform`.
 
@@ -102,8 +99,6 @@ supplied, the `PlatformBuilder` will throw an exception at runtime when it tries
 
 - `getRoster()` → `Roster` — only a test mock calls it; the execution layer and consensus-internal code
   read the roster from state (`signedState.getRoster()` / `reservedState.getRoster()`) instead.
-- `getLatestImmutableState(reason)` → `AutoCloseableWrapper<T extends State>` — no caller anywhere except
-  the `NoOpPlatform` test stub. Immutable state is directly passed to `ConsensusStateEventHandler.onPreHandle()`.
 
 ## Implemented by the execution layer
 
@@ -188,7 +183,7 @@ These are the interfaces the execution layer implements (or supplies). The conse
 - **Called by:** consensus layer
 - **Code anchor:** `swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java`
 - **Method:**
-  - `handleStaleEvent(Event)` — called when a stale self-event is detected. Registered via
+  - `processStaleEvent(Event)` — called when a stale self-event is detected. Registered via
     `PlatformBuilder.withStaleEventConsumer` (in production `ServicesMain` registers `Hedera`).
 - **Note:** The consumer is optional; if the execution layer registers none, the consensus layer drops
   the stale-event signal at this seam.
@@ -235,9 +230,9 @@ This lets the execution layer keep a balanced count of in-flight transactions.
   (`consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java`)
   — the chokepoint: one call admits an event, emits it to prehandle, produces consensus rounds, and
   partitions aged-out events into those that reached consensus (no action) and `!isConsensus()` (stale).
-- `PlatformWiring` (`swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java`)
+- `ConsensusLayerWiring` (`swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java`)
   — solders the three outputs to `TransactionPrehandler::prehandleApplicationTransactions`,
-  `TransactionHandler::handleConsensusRound`, and `StaleEventConsumer::handleStaleEvent`; its comment
+  `TransactionHandler::handleConsensusRound`, and `StaleEventConsumer::processStaleEvent`; its comment
   records the contract: *"the consensus engine ensures that all pre-consensus events either reach
   consensus or become stale."*
 - The endpoints in `swirlds-platform-core/.../eventhandling/`:
@@ -309,8 +304,8 @@ These data types appear in the signatures above and travel across the seam:
 ## Lifecycle
 
 1. **Construct.** The execution layer loads or creates an initial state, builds its
-   `ConsensusStateEventHandler`, `StateLifecycleManager`, and `ExecutionLayer`, and passes them to
-   `PlatformBuilder.create(...)` / `with...(...)`. `build()` returns the `Platform`.
+   `ConsensusStateEventHandler`, `StateLifecycleManager`, and `ExecutionLayer`, and passes them to the
+   `PlatformBuilder` constructor (optionally `.withStaleEventConsumer(...)`). `build()` returns the `Platform`.
 2. **Register.** The execution layer registers the optional `StaleEventConsumer` (at build time) and
    notification listeners via `Platform.getNotificationEngine()`.
 3. **Initialize.** The consensus layer calls `ConsensusStateEventHandler.onStateInitialized(...)` with the
@@ -335,13 +330,16 @@ These data types appear in the signatures above and travel across the seam:
   - [Event creator](../topics/event-creator.md) — pulls transactions via `getTransactionsForEvent`; reports
     health via `reportUnhealthyDuration` and reads `PlatformStatus`.
   - [Hashgraph](../topics/hashgraph.md) — produces the consensus rounds and stale events that drive
-    `onHandleConsensusRound` and `StaleEventConsumer::handleStaleEvent`.
+    `onHandleConsensusRound` and `StaleEventConsumer::processStaleEvent`.
   - [Quiescence](../topics/quiescence.md) — driven by `Platform.quiescenceCommand`; relies on the
     [Boundary-wide contracts](#boundary-wide-contracts) pre-handle guarantee.
   - [Freeze and upgrade](../topics/freeze-and-upgrade.md) — freeze-period checks and `PlatformStatus`
     transitions across the seam.
+  - [Platform status](../topics/platform-status.md) — the status state machine behind
+    `ExecutionLayer.newPlatformStatus` and `PlatformStatusChangeNotification`.
   - [Restart and PCES](../topics/restart-and-pces.md) — `StateLifecycleManager.loadSnapshot` and
     `onStateInitialized` with `InitTrigger.RESTART`.
   - [Reconnect](../topics/reconnect.md) — `StateLifecycleManager.createStateFrom` / `initWithState`
     and `onStateInitialized` with `InitTrigger.RECONNECT`; resets the pre-handle contract baseline.
-- Invariants / Decisions: _(TBD: catalogs not yet populated)_.
+- Invariants: INV-005 (every honest event eventually reaches consensus or becomes stale), INV-004 (a stale event is never ordered on any node) — see the [pre-handle → consensus-or-stale contract](#every-pre-handled-event-reaches-consensus-or-goes-stale) above.
+- Decisions: ADR-002 — blocking `onSealConsensusRound` to hand off freeze-block signatures across this boundary.

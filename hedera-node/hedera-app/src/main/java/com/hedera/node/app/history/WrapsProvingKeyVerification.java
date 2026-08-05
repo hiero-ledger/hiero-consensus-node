@@ -43,11 +43,28 @@ import org.apache.logging.log4j.Logger;
  * <p>After successful hash verification, the proving key archive (.tar.gz) is extracted
  * to the directory specified by the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable.
  * The {@code tss.wrapsProvingKeyPath} config controls only where the archive file is stored on disk.
+ *
+ * <p>To avoid re-downloading and re-extracting the multi-gigabyte archive on every startup when the
+ * extracted artifacts are already present (e.g. mounted from the published data-only image), a
+ * hash file ({@value #WRAPS_HASH_FILE_NAME}) is consulted in the artifacts directory before any
+ * download. If its hash matches {@code tss.wrapsProvingKeyHash} and the required artifacts are
+ * present, the download and extraction are skipped entirely. After a successful extraction the hash
+ * file is (re)written so subsequent startups can short-circuit. (This hash file is unrelated to
+ * record-stream sidecar files.)
  */
 public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
 
     static final String WRAPS_ARTIFACTS_ENV_VAR = "TSS_LIB_WRAPS_ARTIFACTS_PATH";
+
+    /**
+     * Name of the hash file written into the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} directory that
+     * holds the SHA-384 hash (bare lowercase hex) of the proving key archive the artifacts were
+     * extracted from. Its presence and value let a node skip re-downloading when the artifacts are
+     * already in place. Must match the file produced by the published proving-key image build.
+     */
+    static final String WRAPS_HASH_FILE_NAME = "wraps.sha384";
+
     public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
     static final Set<String> REQUIRED_ARTIFACT_FILES =
             Set.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin");
@@ -101,11 +118,71 @@ public class WrapsProvingKeyVerification {
         log.info("WRAPS proving key hash from config: {}", expectedHash);
 
         final var provingKeyPath = Paths.get(tssConfig.wrapsProvingKeyPath());
-        validateArtifactsPathConsistency(provingKeyPath, System.getenv(WRAPS_ARTIFACTS_ENV_VAR));
+        final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
+        validateArtifactsPathConsistency(provingKeyPath, envArtifactsPath);
+
+        // If the extracted artifacts are already in place with a hash file matching config, there is
+        // nothing to download or extract (e.g. the artifacts directory is mounted from the published image).
+        if (artifactsAlreadyPresent(envArtifactsPath, bootstrapHash)) {
+            log.info(
+                    "WRAPS artifacts already present in {} with matching {} hash; skipping download and extraction",
+                    envArtifactsPath,
+                    WRAPS_HASH_FILE_NAME);
+            return;
+        }
 
         final var downloadUrl = tssConfig.wrapsProvingKeyDownloadUrl();
         final var retryInterval = tssConfig.wrapsProvingKeyRetryInterval();
         verifyFileAndDownloadIfNeeded(provingKeyPath, bootstrapHash, downloadUrl, downloader, retryInterval);
+    }
+
+    /**
+     * Determines whether the extracted WRAPS artifacts are already present in the artifacts directory
+     * and up to date, so that the archive download and extraction can be skipped. This is the case when
+     * the hash file ({@value #WRAPS_HASH_FILE_NAME}) exists, its contents match the expected
+     * archive hash from config, and all {@link #REQUIRED_ARTIFACT_FILES} are present.
+     *
+     * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
+     * @param expectedHashHex the expected archive hash (bare hex) from {@code tss.wrapsProvingKeyHash}
+     * @return true if the artifacts are already present and match; false if a download is needed
+     */
+    static boolean artifactsAlreadyPresent(
+            @Nullable final String envArtifactsPath, @NonNull final String expectedHashHex) {
+        if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
+            return false;
+        }
+        final var artifactsDir = Paths.get(envArtifactsPath);
+        final var hashFile = artifactsDir.resolve(WRAPS_HASH_FILE_NAME);
+        if (!Files.isRegularFile(hashFile)) {
+            return false;
+        }
+        final String storedHash;
+        try {
+            storedHash = Files.readString(hashFile).trim();
+        } catch (final IOException e) {
+            log.warn("Failed to read WRAPS hash file {}; will verify the archive instead", hashFile, e);
+            return false;
+        }
+        if (!storedHash.equalsIgnoreCase(expectedHashHex.trim())) {
+            log.info(
+                    "WRAPS hash file {} ({}) does not match configured hash ({}); will download and extract",
+                    hashFile,
+                    storedHash,
+                    expectedHashHex);
+            return false;
+        }
+        final var missingArtifacts = REQUIRED_ARTIFACT_FILES.stream()
+                .filter(name -> !Files.isRegularFile(artifactsDir.resolve(name)))
+                .toList();
+        if (!missingArtifacts.isEmpty()) {
+            log.warn(
+                    "WRAPS hash file {} matches config but artifacts {} are missing in {}; will download and extract",
+                    hashFile,
+                    missingArtifacts,
+                    artifactsDir);
+            return false;
+        }
+        return true;
     }
 
     private void verifyFileAndDownloadIfNeeded(
@@ -131,7 +208,7 @@ public class WrapsProvingKeyVerification {
             return;
         }
         // Hash matches - extract the archive
-        tryExtractTarGz(provingKeyPath);
+        tryExtractTarGz(provingKeyPath, expectedHash.toHex());
     }
 
     private void asyncDownloadAndVerify(
@@ -153,7 +230,7 @@ public class WrapsProvingKeyVerification {
                             scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
                             return;
                         }
-                        tryExtractTarGz(provingKeyPath);
+                        tryExtractTarGz(provingKeyPath, expectedHash.toHex());
                         log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
                     } catch (final Throwable t) {
                         log.error(
@@ -185,7 +262,7 @@ public class WrapsProvingKeyVerification {
                         downloader.download(downloadUrl, provingKeyPath);
                         final Bytes downloadedHash = hashFile(provingKeyPath);
                         if (downloadedHash.equals(expectedHash)) {
-                            tryExtractTarGz(provingKeyPath);
+                            tryExtractTarGz(provingKeyPath, expectedHash.toHex());
                             log.info(
                                     "Successfully downloaded and verified WRAPS proving key on retry (hash={})",
                                     expectedHash);
@@ -253,7 +330,7 @@ public class WrapsProvingKeyVerification {
 
     // --- Tar.gz extraction ---
 
-    private static void tryExtractTarGz(@NonNull final Path tarGzPath) {
+    private static void tryExtractTarGz(@NonNull final Path tarGzPath, @NonNull final String expectedHashHex) {
         final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
         if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
             log.warn(
@@ -267,8 +344,28 @@ public class WrapsProvingKeyVerification {
             TarGzExtractor.extract(tarGzPath, extractionDir);
             log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, extractionDir);
             verifyArtifactsDirectoryExists();
+            writeHashFile(extractionDir, expectedHashHex);
         } catch (final IOException e) {
             log.error("Failed to extract WRAPS proving key archive {}", tarGzPath, e);
+        }
+    }
+
+    /**
+     * Writes the hash file ({@value #WRAPS_HASH_FILE_NAME}) into the artifacts directory so that
+     * subsequent startups can detect the artifacts are already present and skip the download/extraction.
+     * A failure to write (e.g. a read-only mount) is logged but is non-fatal: the extracted artifacts
+     * remain usable.
+     *
+     * @param extractionDir the directory the artifacts were extracted into
+     * @param hashHex the archive hash (bare hex) to record
+     */
+    private static void writeHashFile(@NonNull final Path extractionDir, @NonNull final String hashHex) {
+        final var hashFile = extractionDir.resolve(WRAPS_HASH_FILE_NAME);
+        try {
+            Files.writeString(hashFile, hashHex);
+            log.info("Wrote WRAPS proving key hash file {} ({})", hashFile, hashHex);
+        } catch (final IOException e) {
+            log.error("Failed to write WRAPS proving key hash file {}", hashFile, e);
         }
     }
 

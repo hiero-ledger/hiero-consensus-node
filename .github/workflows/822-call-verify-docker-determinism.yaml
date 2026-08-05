@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -102,10 +102,20 @@ jobs:
           echo "sha-abbrev=$(git rev-parse HEAD | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
           echo "source-date=$(git log -1 --pretty=%ct)" >> "${GITHUB_OUTPUT}"
 
+      - name: Compute Commit Prefix
+        id: commit-prefix
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_NAME="${BRANCH_NAME##origin/}"
+          BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
+          COMMIT_PREFIX="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
+          [[ -z "${COMMIT_PREFIX}" ]] && COMMIT_PREFIX="adhoc"
+          echo "prefix=${COMMIT_PREFIX}" | tee "${GITHUB_OUTPUT}"
+
       - name: Baseline Existence Check
         id: baseline
         run: |
-          BASELINE_NAME="${{ steps.commit.outputs.sha }}.tar.gz"
+          BASELINE_NAME="${{ steps.commit-prefix.outputs.prefix }}-${{ steps.commit.outputs.sha }}.tar.gz"
           BASELINE_PATH="gs://hedera-ci-ephemeral-artifacts/${{ github.repository }}/docker/baselines"
           BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
           BASELINE_EXISTS="false"
@@ -146,6 +156,10 @@ jobs:
       - name: Show Docker Info
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: docker info
+
+      - name: Gradle Update Version (Branch Commit)
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: ./gradlew versionAsPrefixedCommit "-PcommitPrefix=${{ steps.commit-prefix.outputs.prefix }}"
 
       - name: Build Gradle Artifacts
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
@@ -249,7 +263,7 @@ jobs:
           git config --global core.eol lf
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -447,7 +461,7 @@ jobs:
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"

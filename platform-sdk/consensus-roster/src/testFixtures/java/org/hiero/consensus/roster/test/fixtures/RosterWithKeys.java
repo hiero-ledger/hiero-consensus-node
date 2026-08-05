@@ -9,7 +9,7 @@ import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A {@link Roster} bundled with the cryptographic keys and certificates for each node. Produced by
- * {@link RandomRosterBuilder#buildWithKeys()} when real key generation is enabled.
+ * {@link RosterFactory#randomRosterWithKeys}.
  */
 public class RosterWithKeys {
     private final Roster roster;

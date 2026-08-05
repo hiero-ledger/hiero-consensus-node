@@ -22,6 +22,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.services.bdd.utils.Signing;
 import java.math.BigInteger;
+import java.util.Optional;
+import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +43,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -70,7 +74,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -99,7 +105,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -126,7 +134,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -153,7 +163,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -180,7 +192,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -209,7 +223,9 @@ class SigningTest {
                 TRUFFLE1_ADDRESS,
                 BigInteger.ZERO,
                 ZERO_BYTES,
-                ZERO_BYTES,
+                null,
+                null,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -233,5 +249,32 @@ class SigningTest {
 
         assertEquals(sigs, sigsAgain);
         assertNotEquals(sigs, sigs1);
+    }
+
+    @Test
+    void extractAuthoritySignatureTest() {
+        final var codeDelegation = new com.hedera.node.app.hapi.utils.ethereum.CodeDelegation(
+                CHAINID_TESTNET, TRUFFLE0_ADDRESS, 1, 1, new byte[0], new byte[0]);
+
+        final byte[] signedTx = Signing.signMessage(
+                new Keccak.Digest256().digest(codeDelegation.calculateSignableMessage()), TRUFFLE0_PRIVATE_ECDSA_KEY);
+
+        final byte[] r = new byte[32];
+        System.arraycopy(signedTx, 0, r, 0, 32);
+        final byte[] s = new byte[32];
+        System.arraycopy(signedTx, 32, s, 0, 32);
+
+        final var signedCodeDelegation = new com.hedera.node.app.hapi.utils.ethereum.CodeDelegation(
+                CHAINID_TESTNET,
+                TRUFFLE0_ADDRESS,
+                1,
+                signedTx[64] + 1, // yParity parity was flipped when signing so adjust here
+                r,
+                s);
+
+        final Optional<EthTxSigs> auth = EthTxSigs.extractAuthoritySignature(signedCodeDelegation);
+
+        Assertions.assertArrayEquals(TRUFFLE0_ADDRESS, auth.get().address());
+        Assertions.assertArrayEquals(TRUFFLE0_PUBLIC_ECDSA_KEY, auth.get().publicKey());
     }
 }

@@ -3,9 +3,10 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.impl.DefaultPcesModule;
 
 module org.hiero.consensus.pces.impl {
+    exports org.hiero.consensus.pces.impl to
+            org.hiero.consensus.state;
     exports org.hiero.consensus.pces.impl.common to
             com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.pcli,
             org.hiero.otter.fixtures,
             org.hiero.sloth.fixtures,
@@ -19,13 +20,13 @@ module org.hiero.consensus.pces.impl {
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.pbj.runtime;
-    requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
-    requires org.hiero.consensus.state;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

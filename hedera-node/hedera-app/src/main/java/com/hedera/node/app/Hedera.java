@@ -107,6 +107,7 @@ import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.app.tss.TssHandoffCoordinator;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
@@ -718,13 +719,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
                 shutdownGrpcServer();
+
+                // Stop the block stream and schedule a handler-thread flush of any open/pending blocks (we may need
+                // them for triage), then wait (bounded) for that flush to complete. This MUST run before the block
+                // node connections are shut down: their shutdown clears the in-memory block buffer that the gRPC
+                // writer flushes open/pending blocks from, so flushing afterwards would capture nothing.
+                blockStreamManager().notifyFatalEvent();
+                blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
+
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
-
-                // Wait for the block stream to close any pending or current blocks–-we may need them for triage
-                blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {
@@ -813,6 +819,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         this.platform = requireNonNull(platform);
         //  Reconnect states are constructed from raw VirtualMap and need schema metadata initialization.
         if (trigger == InitTrigger.RECONNECT) {
+            // The TSS services outlive the Dagger application graph rebuilt below, so their process-local
+            // controllers may still reflect the pre-reconnect state. Construction IDs alone cannot detect
+            // a learned state that has advanced the same construction; discard the cached controllers so
+            // the first post-reconnect reconciliation rebuilds them from the learned state.
+            hintsService.stop();
+            historyService.stop();
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
         // With the States API grounded in the working state, we can create the object graph from it
@@ -1414,7 +1426,9 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
             final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO : null;
-            daggerApp.blockStreamManager().init(state, lastBlockHash);
+            daggerApp
+                    .blockStreamManager()
+                    .init(state, lastBlockHash, blockStreamService.consumeBsiSchemaOverwriteExecuted());
             migrationStateChanges = null;
         }
     }
@@ -1557,13 +1571,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         try {
+            // Capture the freeze block's number here, on the handle thread right after endRound() closed it;
+            // the buffer's lastProducedBlockNumber can still lag behind the freeze block at this point, so
+            // waiting on that watermark instead can resolve vacuously and lose the freeze block (never
+            // delivered to any block node) when connections shut down at FREEZE_COMPLETE.
+            final long freezeBlockNumber = daggerApp.blockStreamManager().blockNo();
             final var blockStreamFuture =
                     requireNonNull(daggerApp.blockStreamManager().pendingBlockProofsFuture());
             final var wrbWritersFuture =
                     requireNonNull(daggerApp.blockRecordManager().noOpenWrbWritersFuture());
             final var signingFuture = CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture);
             final var freezeStateReadyFuture = waitsForBlockNodeAcknowledgements(blockStreamConfig)
-                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round))
+                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round, freezeBlockNumber))
                     : signingFuture;
             logger.info(
                     "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
@@ -1614,7 +1633,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 && daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection();
     }
 
-    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(@NonNull final Round round) {
+    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(
+            @NonNull final Round round, final long freezeBlockNumber) {
         requireNonNull(round);
         if (!daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection()) {
             logger.info(
@@ -1624,14 +1644,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             return completedFuture(null);
         }
         final var blockBufferService = daggerApp.blockBufferService();
-        final var lastProducedBlock = blockBufferService.getLastBlockNumberProduced();
         logger.info(
-                "Freeze round {} block signing completed; waiting for block node acknowledgement through block {}; "
-                        + "highestAckedBlock={}",
+                "Freeze round {} block signing completed; waiting for block node acknowledgement through "
+                        + "freeze block {}; lastProducedBlock={}, highestAckedBlock={}",
                 round.getRoundNum(),
-                lastProducedBlock,
+                freezeBlockNumber,
+                blockBufferService.getLastBlockNumberProduced(),
                 blockBufferService.getHighestAckedBlockNumber());
-        return requireNonNull(blockBufferService.acknowledgedThroughFuture(lastProducedBlock));
+        return requireNonNull(blockBufferService.acknowledgedThroughFuture(freezeBlockNumber));
     }
 
     /**
@@ -1704,15 +1724,35 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             return;
         }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
+        if (TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
+            final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+            final var writableHistoryStore = new WritableHistoryStoreImpl(writableHistoryStates);
+            final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+            final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
+            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
+            final var writableHintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+            if (TssHandoffCoordinator.tryForcedJointHandoff(
+                    writableHistoryStore,
+                    writableHintsStore,
+                    historyService,
+                    hintsService,
+                    previousRoster,
+                    adoptedRoster,
+                    adoptedRosterHash,
+                    tssConfig)) {
+                ((CommittableWritableStates) writableHistoryStates).commit();
+                ((CommittableWritableStates) writableHintsStates).commit();
+            }
+            return;
+        }
         if (tssConfig.historyEnabled()) {
-            final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
             final var store = new WritableHistoryStoreImpl(writableHistoryStates);
             store.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
             ((CommittableWritableStates) writableHistoryStates).commit();
         }
         if (tssConfig.hintsEnabled()) {
-            final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
             final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);

@@ -19,6 +19,6 @@ May depend on:
 Must not depend on:
 - Any `consensus-*-impl` module or functional-api module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
-- `swirlds-component-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
+- `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
 No known violations.

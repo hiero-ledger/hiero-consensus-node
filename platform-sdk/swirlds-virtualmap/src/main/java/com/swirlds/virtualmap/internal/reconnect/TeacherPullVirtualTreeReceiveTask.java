@@ -2,24 +2,18 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.time.Time;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the teacher side, which is responsible for processing requests from the
@@ -30,84 +24,42 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *
  * <p>This task terminates either on exception or when no messages are returned by {@link AsyncInputStream}.
  */
-public class TeacherPullVirtualTreeReceiveTask {
+public class TeacherPullVirtualTreeReceiveTask implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeReceiveTask.class);
 
-    private static final String NAME = "reconnect-teacher-receiver";
-
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final RecordAccessor teacherView;
     private final CountDownLatch tasksDone;
 
-    private final RateLimiter rateLimiter;
-    private final int sleepNanos;
-
     /**
      * Create new thread that will send data lessons and queries for a subtree.
      *
-     * @param time                  the wall clock time
-     * @param reconnectConfig       the configuration for reconnect
-     * @param workGroup             the work group managing the reconnect
      * @param in                    the input stream
      * @param out                   the output stream
      * @param teacherView           view of teacher state
      */
     public TeacherPullVirtualTreeReceiveTask(
-            @NonNull final Time time,
-            @NonNull final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final RecordAccessor teacherView,
             final CountDownLatch tasksDone) {
-        this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.teacherView = teacherView;
         this.tasksDone = tasksDone;
-
-        final int maxRate = reconnectConfig.teacherMaxNodesPerSecond();
-        if (maxRate > 0) {
-            rateLimiter = new RateLimiter(time, maxRate);
-            sleepNanos = (int) reconnectConfig.teacherRateLimiterSleep().toNanos();
-        } else {
-            rateLimiter = null;
-            sleepNanos = -1;
-        }
-    }
-
-    /**
-     * Start the thread that sends lessons and queries to the learner.
-     */
-    public void exec() {
-        workGroup.execute(NAME, this::run);
-    }
-
-    /**
-     * Enforce the rate limit.
-     *
-     * @throws InterruptedException if the thread is interrupted while sleeping
-     */
-    private void rateLimit() throws InterruptedException {
-        if (rateLimiter != null) {
-            while (!rateLimiter.requestAndTrigger()) {
-                NANOSECONDS.sleep(sleepNanos);
-            }
-        }
     }
 
     /**
      * This thread is responsible for sending lessons (and nested queries) to the learner.
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             long requestCounter = 0;
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
-                rateLimit();
                 final byte[] requestBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (requestBytes == null) {
                     break;
@@ -149,8 +101,6 @@ public class TeacherPullVirtualTreeReceiveTask {
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
         } finally {
             tasksDone.countDown();
         }

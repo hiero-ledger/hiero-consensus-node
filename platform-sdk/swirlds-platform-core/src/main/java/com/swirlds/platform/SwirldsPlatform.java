@@ -3,72 +3,26 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.ConsensusModuleBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.DefaultAppNotifier;
-import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.DefaultSavedStateController;
-import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.SavedStateController;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.reconnect.ReconnectModule;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
-import com.swirlds.platform.state.signed.SignedStateMetrics;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.snapshot.SavedStateInfo;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.State;
-import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
-import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -76,7 +30,7 @@ import org.hiero.consensus.state.signed.SignedState;
  */
 public class SwirldsPlatform implements Platform {
 
-    private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * The unique ID of this node.
@@ -105,233 +59,44 @@ public class SwirldsPlatform implements Platform {
     private final long startingRound;
 
     /**
-     * Holds the latest state that is immutable. May be unhashed (in the future), may or may not have all required
-     * signatures. State is returned with a reservation.
-     * <p>
-     * NOTE: This is currently set when a state has finished hashing. In the future, this will be set at the moment a
-     * new state is created, before it is hashed.
-     */
-    private final SignedStateNexus latestImmutableStateNexus;
-
-    /**
      * For passing notifications between the platform and the application.
      */
     private final NotificationEngine notificationEngine;
 
-    /**
-     * The platform context for this platform. Should be used to access basic services
-     */
     private final PlatformContext platformContext;
-
-    /**
-     * Controls which states are saved to disk
-     */
-    private final SavedStateController savedStateController;
-
-    /**
-     * Encapsulated wiring for the platform.
-     */
-    private final PlatformComponents platformComponents;
-
-    private final long pcesReplayLowerBound;
-    private final PlatformCoordinator platformCoordinator;
+    private final ConsensusLayerInputs inputs;
+    private final ConsensusLayerBuildingBlocks buildingBlocks;
 
     /**
      * Constructor.
-     *
-     * @param builder this object is responsible for building platform components and other things needed by the
-     *                platform
      */
-    public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
-        final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
-        platformContext = blocks.platformContext();
+    public SwirldsPlatform(
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
+            final long initialAncientThreshold,
+            final long startingRound) {
+        this.inputs = requireNonNull(inputs);
+        this.buildingBlocks = requireNonNull(buildingBlocks);
+        this.platformContext = PlatformContext.create(
+                inputs.configuration(),
+                inputs.time(),
+                inputs.metrics(),
+                inputs.fileSystemManager(),
+                inputs.recycleBin());
+        this.initialAncientThreshold = initialAncientThreshold;
+        this.startingRound = startingRound;
 
-        // The reservation on this state is held by the caller of this constructor.
-        final SignedState initialState = blocks.initialState().get();
+        selfId = inputs.selfId();
 
-        selfId = blocks.selfId();
+        notificationEngine = buildingBlocks.notificationEngine();
+        currentRoster = inputs.rosterHistory().getCurrentRoster();
 
-        notificationEngine = blocks.notificationEngine();
-
-        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
-        currentRoster = blocks.rosterHistory().getCurrentRoster();
-
-        final Metrics metrics = platformContext.getMetrics();
+        final Metrics metrics = inputs.metrics();
         registerRosterMetrics(metrics, currentRoster, selfId);
 
         RuntimeMetrics.setup(metrics);
 
-        keysAndCerts = blocks.keysAndCerts();
-
-        final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
-
-        savedStateController = new DefaultSavedStateController(platformContext);
-
-        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(metrics);
-        final StateSignatureCollector stateSignatureCollector =
-                new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
-
-        this.platformComponents = blocks.platformComponents();
-        this.platformCoordinator = blocks.platformCoordinator();
-        this.latestImmutableStateNexus = blocks.latestImmutableStateNexus();
-
-        blocks.statusActionSubmitterReference().set(platformCoordinator);
-
-        final Configuration configuration = platformContext.getConfiguration();
-
-        initializeState(initialState, blocks.consensusStateEventHandler());
-
-        // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
-        // - For genesis: the manager creates a genesis state eagerly in its constructor.
-        // - For restart: loadSnapshot() initializes the manager when loading from disk.
-        // - For reconnect: initWithState() re-initializes the manager at runtime.
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
-        // Startup initialization may hash/freeze the state referenced by the initial SignedState.
-        // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
-        stateLifecycleManager.copyMutableState();
-        // Genesis state must stay empty until changes can be externalized in the block stream
-        if (!initialState.isGenesisState()) {
-            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
-        }
-
-        final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
-
-        final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
-
-        final ReconnectModule reconnectModule =
-                ConsensusModuleBuilder.createModule(ReconnectModule.class, configuration);
-        reconnectModule.initialize(
-                configuration,
-                platformContext.getTime(),
-                currentRoster,
-                platformComponents,
-                this,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                blocks.consensusStateEventHandler(),
-                blocks.reservedSignedStateResultPromise(),
-                selfId,
-                blocks.fallenBehindMonitor());
-
-        platformComponents.bind(
-                builder,
-                stateSignatureCollector,
-                eventWindowManager,
-                latestImmutableStateNexus,
-                latestCompleteStateNexus,
-                savedStateController,
-                appNotifier);
-
-        final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
-                ? Cryptography.NULL_HASH
-                : legacyRunningEventHashOf((initialState.getState()));
-        final RunningEventHashOverride runningEventHashOverride =
-                new RunningEventHashOverride(legacyRunningEventHash, false);
-        platformCoordinator.updateRunningHash(runningEventHashOverride);
-
-        // Load the minimum generation into the pre-consensus event writer
-        final String actualMainClassName =
-                configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
-
-        final SignedStateFilePath statePath = new SignedStateFilePath(
-                platformContext.getFileSystemManager(), actualMainClassName, selfId, blocks.swirldName());
-        final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
-        if (!savedStates.isEmpty()) {
-            // The minimum generation of non-ancient events for the oldest state snapshot on disk.
-            final long minimumGenerationNonAncientForOldestState =
-                    savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
-            platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
-        }
-
-        final boolean startedFromGenesis = initialState.isGenesisState();
-
-        latestImmutableStateNexus.setState(initialState.reserve("set latest immutable to initial state"));
-
-        if (startedFromGenesis) {
-            initialAncientThreshold = 0;
-            startingRound = 0;
-            platformCoordinator.updateEventWindow(EventWindow.getGenesisEventWindow());
-        } else {
-            initialAncientThreshold = ancientThresholdOf(initialState.getState());
-            startingRound = initialState.getRound();
-
-            platformCoordinator.sendStateToHashLogger(initialState);
-            platformCoordinator.injectSignatureCollectorState(
-                    initialState.reserve("loading initial state into sig collector"));
-
-            savedStateController.registerSignedStateFromDisk(initialState);
-
-            final ConsensusSnapshot consensusSnapshot =
-                    Objects.requireNonNull(consensusSnapshotOf(initialState.getState()));
-            platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
-
-            // We only load non-ancient events during start up, so the initial expired threshold will be
-            // equal to the ancient threshold when the system first starts. Over time as we get more events,
-            // the expired threshold will continue to expand until it reaches its full size.
-            final int roundsNonAncient =
-                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-            platformCoordinator.updateEventWindow(
-                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
-        }
-
-        blocks.getLatestCompleteStateReference()
-                .set(() -> latestCompleteStateNexus.getState("get latest complete state for reconnect"));
-
-        blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
-
-        if (!initialState.isGenesisState()) {
-            pcesReplayLowerBound = initialAncientThreshold;
-        } else {
-            pcesReplayLowerBound = 0;
-        }
-    }
-
-    /**
-     * Initialize the state.
-     *
-     * @param signedState the state to initialize
-     */
-    private void initializeState(
-            @NonNull final SignedState signedState,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
-
-        final SemanticVersion previousSoftwareVersion;
-        final InitTrigger trigger;
-
-        if (signedState.isGenesisState()) {
-            previousSoftwareVersion = null;
-            trigger = GENESIS;
-        } else {
-            previousSoftwareVersion = creationSoftwareVersionOf(signedState.getState());
-            trigger = RESTART;
-        }
-
-        final State initialState = signedState.getState();
-
-        // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
-        // of that state here. That copy should have caused the hash to be cleared.
-
-        if (initialState.isHashed()) {
-            throw new IllegalStateException("Expected initial state to be unhashed");
-        }
-
-        consensusStateEventHandler.onStateInitialized(signedState.getState(), this, trigger, previousSoftwareVersion);
-
-        // calculate hash
-        abortAndThrowIfInterrupted(
-                initialState::getHash, // calculate hash
-                "interrupted while attempting to hash the state");
-
-        // If our hash changes as a result of the new address book then our old signatures may become invalid.
-        if (trigger != GENESIS) {
-            signedState.pruneInvalidSignatures();
-        }
-
-        logger.info(STARTUP.getMarker(), """
-                The platform is using the following initial state:
-                {}""", getInfoString(signedState.getState()));
+        keysAndCerts = inputs.keysAndCerts();
     }
 
     /**
@@ -350,19 +115,20 @@ public class SwirldsPlatform implements Platform {
     public void start() {
         logger.info(STARTUP.getMarker(), "Starting platform {}", selfId);
 
-        platformContext.getRecycleBin().start();
-        platformContext.getMetrics().start();
-        platformCoordinator.start();
+        inputs.recycleBin().start();
+        getMetricsProvider().start();
+        inputs.metrics().start();
+        buildingBlocks.wiringModel().start();
 
-        platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
-        platformCoordinator.startGossip();
+        buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
+        buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
     @Override
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
-        platformContext.getRecycleBin().stop();
-        platformCoordinator.stop();
+        inputs.recycleBin().stop();
+        buildingBlocks.wiringModel().stop();
         getMetricsProvider().removePlatformMetrics(selfId);
     }
 
@@ -398,7 +164,8 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        platformCoordinator.quiescenceCommand(quiescenceCommand);
+        buildingBlocks.statusMonitorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
+        buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 
     /**
@@ -408,18 +175,5 @@ public class SwirldsPlatform implements Platform {
     @NonNull
     public Roster getRoster() {
         return currentRoster;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    @NonNull
-    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
-        final ReservedSignedState wrapper = latestImmutableStateNexus.getState(reason);
-        return wrapper == null
-                ? AutoCloseableWrapper.empty()
-                : new AutoCloseableWrapper<>((T) wrapper.get().getState(), wrapper::close);
     }
 }

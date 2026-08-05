@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Event creator
-last_reviewed: 2026-06-12
+last_reviewed: 2026-07-28
 ---
 
 # Event creator
@@ -77,10 +77,12 @@ input and output wires plus an `EventTransactionSupplier` passed at
   `TipsetTracker#addPeerEvent` (the latter advances both the per-event
   tipset and `latestGenerations` using the event's sequence number). See
   [event-intake.md](event-intake.md).
-- **Event window from hashgraph** — `eventWindowInputWire` flows to
-  `TipsetEventCreator#setEventWindow`, which prunes ancient tipsets and
-  childless events and also caries the birth round for newly created
-  events. See [hashgraph.md](hashgraph.md).
+- **Event window from hashgraph** — `consensusRoundInputWire` delivers each
+  `ConsensusRound`, whose `EventWindow` (`ConsensusRound::getEventWindow`)
+  feeds `TipsetEventCreator#setEventWindow` — pruning ancient tipsets and
+  childless events and carrying the birth round. A separate
+  `initialEventWindowInputWire` supplies the initial window. See
+  [hashgraph.md](hashgraph.md).
 - **Health duration from health monitor** —
   `healthStatusInputWire` calls
   `DefaultEventCreationManager#reportUnhealthyDuration`, which feeds the
@@ -89,7 +91,9 @@ input and output wires plus an `EventTransactionSupplier` passed at
   See [Permission gates](#permission-gates).
 - **Platform status, sync progress, quiescence** — `platformStatusInputWire`,
   `syncProgressInputWire`, and `quiescenceCommandInputWire` feed the
-  `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively.
+  `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively. The
+  status feeding `PlatformStatusRule` comes from the state machine documented in
+  [`platform-status.md`](platform-status.md), the primary consumer of status.
 - **Transactions from execution** — `EventTransactionSupplier` is a
   functional interface
   (`consensus-model/.../transaction/EventTransactionSupplier.java`)
@@ -101,8 +105,9 @@ input and output wires plus an `EventTransactionSupplier` passed at
 
 - **Self-events** — `createdEventOutputWire` carries each new
   `PlatformEvent` returned by
-  `TipsetEventCreator#maybeCreateEvent`. The event is hashed and signed
-  at `TipsetEventCreator#signEvent` before being returned. The wiring
+  `TipsetEventCreator#maybeCreateEvent`. The event is hashed during
+  assembly (`TipsetEventCreator#assembleEventObject`) and signed at
+  `TipsetEventCreator#signEvent` before being returned. The wiring
   framework forwards the event to event intake, inline PCES and gossip;
   the event creator itself does not call those subsystems.
 
@@ -192,7 +197,9 @@ the advancement score it would produce against the current snapshot,
 and keeps only the candidates whose advancement weight is non-zero. If
 no candidate qualifies and this is not a genesis event, no event is
 created. Otherwise the event creator builds the new event with the
-top-ranked candidate(s) up to `maxOtherParents`. This is the
+top-ranked candidates up to `maxOtherParents` (TUN-140). Selecting several
+other-parents per event advances more tipset slots at once, so
+consensus is reached in fewer rounds. This is the
 snapshot-improvement-score gate from the source doc.
 
 The gate is implemented in
@@ -204,9 +211,9 @@ actual snapshot-update happens later in
 has been assembled.
 
 To keep peers from being permanently starved by this ranking, the
-top-ranked candidate can be probabilistically swapped for an event from
-an ignored peer, weighted by that peer's [selfishness
-score](#selfishness-score).
+lowest-ranked of the chosen other-parents can be probabilistically
+swapped for an event from an ignored peer, weighted by that peer's
+[selfishness score](#selfishness-score).
 
 ### Selfishness score
 
@@ -309,7 +316,7 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
   `eventIntakeThrottle`, `maximumPermissibleUnhealthyDuration`,
   `maxAllowedSyncLag`, `maxOtherParents`, `maxCreationRate`, `period`.
 - Source doc: [../../../core/tipset-algorithm.md](../../../core/tipset-algorithm.md).
-- Invariants: [TBD: INV-NNN once invariants.md catalog populates].
+- Invariants: INV-011 — birth round is monotonic along ancestry; INV-013 — an honest event's coin value is unpredictable; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
 
 ## Future state

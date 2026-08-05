@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import com.swirlds.platform.util.BootstrapUtils;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
+
 import java.nio.file.Path;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
 import picocli.CommandLine;
@@ -25,7 +26,7 @@ public class PcesCompactCommand extends AbstractCommand {
      */
     @Override
     public Integer call() {
-        BootstrapUtils.setupConstructableRegistry();
+        setupConstructableRegistry();
         PcesUtilities.compactPreconsensusEventFiles(rootDirectory);
         return 0;
     }

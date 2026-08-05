@@ -37,7 +37,6 @@ import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.UncheckedSubmitBody;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -214,36 +213,6 @@ class PrivilegesVerifierTest {
         for (var num = 150; num <= 159; num++) {
             assertFalse(subject.canPerformNonCryptoUpdate(58, num));
         }
-    }
-
-    @Test
-    void uncheckedSubmitRejectsUnauthorized() throws InvalidProtocolBufferException {
-        // given:
-        var txn = civilianTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
-        // expect:
-        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
-    }
-
-    @Test
-    void sysAdminCanSubmitUnchecked() throws InvalidProtocolBufferException {
-        // given:
-        var txn = sysAdminTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
-        // expect:
-        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
-    }
-
-    @Test
-    void treasuryCanSubmitUnchecked() throws InvalidProtocolBufferException {
-        // given:
-        var txn = treasuryTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
-        // expect:
-        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
