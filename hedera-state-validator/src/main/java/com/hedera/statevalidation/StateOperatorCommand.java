@@ -38,7 +38,6 @@ public class StateOperatorCommand implements Runnable {
     /** Marker file written after a successful GCS download to distinguish complete from partial caches. */
     private static final String DOWNLOAD_COMPLETE_MARKER = ".download-complete";
 
-
     private static final String STATE_DIR_PROPERTY = "state.dir";
     private static final String TMP_DIR_PROPERTY = "tmp.dir";
 

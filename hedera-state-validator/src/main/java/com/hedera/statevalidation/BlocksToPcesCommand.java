@@ -2,10 +2,14 @@
 package com.hedera.statevalidation;
 
 import static com.hedera.statevalidation.blockstream.BlocksToPcesWorkflow.convert;
+import static com.hedera.statevalidation.blockstream.BlocksToPcesWorkflow.roundSpan;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileName;
 
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.statevalidation.gcp.BlockRangeResolver;
 import com.hedera.statevalidation.gcp.GcpPathHelper;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +34,16 @@ import picocli.CommandLine.Option;
  * <p>The produced PCES files can later be replayed on a node started from a state snapshot at
  * {@code --origin-round} to reproduce the original block stream. Applying the files to a state is out
  * of scope for this command.
+ *
+ * <p><b>Target-round semantics (whole-block).</b> {@code --target-round} identifies the <i>last
+ * block</i> to extract: the block that <i>contains</i> that round. That entire block is included —
+ * all of its rounds, including any after the target round — not truncated at the target round. This
+ * is the same whole-block meaning {@code replay-pces} uses, and it is the inverse of
+ * {@code apply-blocks}, where {@code --target-round} means "stop exactly at this round" and the last
+ * block may be applied only partially. Whole-block extraction is required so that {@code replay-pces}
+ * can drive the block's closing round and finalize the last block, rather than leaving it open. The
+ * resulting state therefore corresponds to the <i>last round of the block containing the target
+ * round</i> (>= the target round), not to the target round exactly.
  *
  * <p><b>Limitations:</b> redacted or filtered block streams are not supported, and the full block
  * range is held in memory during reconstruction.
@@ -100,8 +114,12 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
     @Option(
             names = {"-tr", "--target-round"},
             required = true,
-            description = "The last round whose events are extracted; events from higher rounds are ignored. "
-                    + "Default = extract all available rounds. Required when --block-stream-dir is a GCS path.")
+            description = "Identifies the last block to extract: the block that CONTAINS this round. The entire "
+                    + "block is extracted (all its rounds, including any after this round) — it is NOT truncated "
+                    + "at this round. This whole-block meaning matches replay-pces and is the inverse of "
+                    + "apply-blocks (where --target-round stops exactly at the round, applying the last block "
+                    + "partially). The replayed state will correspond to the last round of the block containing "
+                    + "this round, which may be greater than this round.")
     private void setTargetRound(final long targetRound) {
         this.targetRound = targetRound;
     }
@@ -151,10 +169,38 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
 
             final Path pcesDir = outputPath.resolve("pces-" + originRound + "-" + targetRound);
             if (Files.exists(pcesDir)) {
-                throw new IllegalArgumentException("Output directory already exists: " + pcesDir);
+                // Validate whether a prior run produced a complete, contiguous PCES stream. PCES files
+                // are written in sequence-number order (seq0, seq1, ...) with no gaps. If the stream is
+                // complete and contiguous, skip conversion entirely. If a gap is found (interrupted prior
+                // run), delete the file at the gap and everything after it — those files may be corrupt or
+                // out of order — then fall through to re-run conversion, which will regenerate them.
+                final List<Path> pcesFiles = collectPcesFilesSorted(pcesDir);
+                if (!pcesFiles.isEmpty() && isContiguous(pcesFiles)) {
+                    log.info(
+                            "PCES output directory already exists with {} contiguous .pces files, skipping "
+                                    + "conversion: {}",
+                            pcesFiles.size(),
+                            pcesDir);
+                    return;
+                }
+                if (pcesFiles.isEmpty()) {
+                    log.info("PCES output directory exists but contains no .pces files, cleaning up: {}", pcesDir);
+                    deleteRecursive(pcesDir);
+                }
+                // If pcesFiles is non-empty but non-contiguous, the truncation was already done inside
+                // isContiguous (it deletes from the gap onward). Fall through to re-run conversion, which
+                // will regenerate the missing tail.
             }
 
-            final long count = convert(blockStreamDirectory, pcesDir, originRound);
+            // The extraction window, in consensus rounds, matched to the GCS resolver's semantics:
+            //  - left bound extends roundsNonAncient before originRound (non-ancient parent tail; see option doc)
+            //  - right bound is the target round
+            // convert() applies this window with whole-block granularity (a block is included if its round
+            // span intersects [leftRound, targetRound]), identical to what the GCS BlockRangeResolver downloads,
+            // so a local directory and a GCS source yield the same block set — and thus the same PCES output.
+            final long leftRound = Math.max(1L, originRound - roundsNonAncient);
+
+            final long count = convert(blockStreamDirectory, pcesDir, originRound, leftRound, targetRound);
             log.info("blocks-to-pces complete: {} event(s) written to {}", count, pcesDir);
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -188,11 +234,19 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         final BlockRangeResolver resolver = new BlockRangeResolver(gcpBlockStreamPath, billingProject, tempBlockDir);
         final BlockRangeResolver.BlockRange range = resolver.resolveByRounds(leftSearchRound, targetRound);
 
+        // Download one block PAST the resolved right boundary. replay-pces needs the events in the block
+        // after the target-containing block to decide consensus on (and thus close) the target block —
+        // see filterByRoundWindow. The resolver returns the block containing targetRound; the convert step
+        // selects that block plus the next one, so the next one must be downloaded too. The trailing block
+        // is best-effort: if the target is at the very end of the available stream it may not exist, in
+        // which case the target block simply cannot be closed (the caller must extend --target-round).
+        final long trailingBlock = range.rightBlock() + 1;
+
         log.info(
-                "Block range resolved: [{}, {}] ({} files). Starting download...",
+                "Block range resolved: [{}, {}] (+1 trailing block {}). Starting download...",
                 range.leftBlock(),
                 range.rightBlock(),
-                range.fileCount());
+                trailingBlock);
 
         final List<String> fileNames = new ArrayList<>();
         for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
@@ -202,11 +256,17 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
             }
             fileNames.add(blockFileName(blockNum));
         }
+        // Add the trailing block to the download list (best-effort; verified separately below).
+        final Path trailingLocal = tempBlockDir.resolve(blockFileName(trailingBlock));
+        if (!trailingLocal.toFile().exists() || trailingLocal.toFile().length() == 0) {
+            fileNames.add(blockFileName(trailingBlock));
+        }
 
         if (!fileNames.isEmpty()) {
             GcpPathHelper.downloadFiles(gcpBlockStreamPath, fileNames, tempBlockDir, billingProject, downloadThreads);
         }
 
+        // The resolved range [leftBlock, rightBlock] must be fully present.
         long missingCount = 0;
         for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
             final Path localFile = tempBlockDir.resolve(blockFileName(blockNum));
@@ -217,7 +277,116 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         if (missingCount > 0) {
             throw new IOException(missingCount + " block file(s) missing or empty after download.");
         }
+        // The trailing block is optional: warn if absent so the user knows the last block may not close.
+        if (!trailingLocal.toFile().exists() || trailingLocal.toFile().length() == 0) {
+            log.warn(
+                    "Trailing block {} (needed to close the target block during replay) is not available; "
+                            + "the last block may remain open. Extend --target-round to include more blocks.",
+                    trailingBlock);
+        }
+
+        // Fail-fast guard: verify the resolved left block actually covers the requested left search round.
+        // If the stream does not reach back far enough, the resolver returns the first available block rather
+        // than the block containing leftSearchRound — the extracted PCES then starts too late and replay fails
+        // downstream with a cryptic "insufficient data ... requested lower bound" from PcesFileTracker. Catch
+        // it here with an actionable message instead. The left block is guaranteed on disk at this point.
+        final Block leftBlock = BlockStreamAccess.blockFrom(tempBlockDir.resolve(blockFileName(range.leftBlock())));
+        final long[] leftSpan = roundSpan(leftBlock, -1);
+        final long leftBlockMinRound = leftSpan[0];
+        if (leftBlockMinRound > leftSearchRound) {
+            throw new IOException(String.format(
+                    "Block stream does not reach back far enough for the requested origin. The earliest available "
+                            + "block (%d) starts at round %d, but the extraction requires rounds from %d "
+                            + "(origin %d minus roundsNonAncient %d). The origin round and its non-ancient parent "
+                            + "tail are not present in the stream at %s. Choose an origin round whose covered range "
+                            + "(including %d rounds before it) is fully within the available stream.",
+                    range.leftBlock(),
+                    leftBlockMinRound,
+                    leftSearchRound,
+                    originRound,
+                    roundsNonAncient,
+                    gcpBlockStreamPath,
+                    roundsNonAncient));
+        }
 
         return tempBlockDir;
+    }
+
+    // ─── PCES output validation helpers ──────────────────────────────────────────
+
+    /**
+     * Collects all {@code .pces} files under {@code pcesDir} (including subdirectories — the writer
+     * places files under date-stamped subdirectories), extracts the sequence number from each filename,
+     * and returns them sorted ascending by sequence number.
+     */
+    private static List<Path> collectPcesFilesSorted(@NonNull final Path pcesDir) throws IOException {
+        try (var walk = Files.walk(pcesDir)) {
+            return walk.filter(p -> p.toString().endsWith(".pces"))
+                    .sorted(java.util.Comparator.comparingLong(BlocksToPcesCommand::extractSeqNumber))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+    }
+
+    /**
+     * Checks that the sorted list of PCES files has contiguous sequence numbers (seq0, seq1, seq2, ...).
+     * If a gap is found, deletes the file at the gap and all subsequent files (they may be corrupt or
+     * out of order from an interrupted prior run) and returns {@code false}. Returns {@code true} only
+     * if the full sequence is contiguous with no gaps.
+     */
+    private static boolean isContiguous(@NonNull final List<Path> sortedPcesFiles) throws IOException {
+        if (sortedPcesFiles.isEmpty()) {
+            return false;
+        }
+        long expectedSeq = extractSeqNumber(sortedPcesFiles.get(0));
+        for (int i = 0; i < sortedPcesFiles.size(); i++) {
+            final long actual = extractSeqNumber(sortedPcesFiles.get(i));
+            if (actual != expectedSeq) {
+                // Gap detected at index i. Delete this file and everything after it.
+                log.info(
+                        "PCES contiguity gap: expected seq{} but found seq{} at {}. Deleting {} file(s) from gap onward.",
+                        expectedSeq,
+                        actual,
+                        sortedPcesFiles.get(i),
+                        sortedPcesFiles.size() - i);
+                for (int j = i; j < sortedPcesFiles.size(); j++) {
+                    Files.deleteIfExists(sortedPcesFiles.get(j));
+                }
+                return false;
+            }
+            expectedSeq++;
+        }
+        return true;
+    }
+
+    /**
+     * Extracts the sequence number from a PCES filename. The filename format is:
+     * {@code <timestamp>_seq<N>_minr<M>_maxr<M>_orgn<M>.pces}
+     * where fields are separated by underscores and the sequence number is prefixed with "seq".
+     */
+    private static long extractSeqNumber(@NonNull final Path pcesFile) {
+        final String name = pcesFile.getFileName().toString();
+        // Find the "seq" token among the underscore-separated fields.
+        for (final String part : name.split("_")) {
+            if (part.startsWith("seq")) {
+                try {
+                    return Long.parseLong(part.substring(3));
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException("Cannot parse sequence number from PCES file: " + name, e);
+                }
+            }
+        }
+        throw new IllegalArgumentException("No 'seq' field found in PCES filename: " + name);
+    }
+
+    /** Recursively deletes a directory and all its contents. */
+    private static void deleteRecursive(@NonNull final Path dir) throws IOException {
+        try (var walk = Files.walk(dir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (final IOException ignored) {
+                }
+            });
+        }
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -109,11 +111,24 @@ public class BlockStreamEventBuilder {
 
     /**
      * Parses and returns the transaction body from PBJ bytes.
+     *
+     * <p>Uses the same max message size ({@code MAX_PBJ_RECORD_SIZE}, 32 MiB) and max depth as
+     * {@link com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess#blockFrom}. The PBJ convenience
+     * overloads default to a 2 MiB limit, which is smaller than the block reader's limit and smaller
+     * than valid node-generated transactions (e.g. history-proof votes up to
+     * {@code nodeTransaction.maxBytes} = 32 MiB). Without matching the limit, a block that reads
+     * successfully can fail here during event reconstruction.
      */
     public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
-            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
+                    transactionBytes.toReadableSequentialData(), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            return TransactionBody.PROTOBUF.parse(
+                    signedTransaction.bodyBytes().toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
             throw new RuntimeException("Unable to parse transaction bytes", e);
         }
