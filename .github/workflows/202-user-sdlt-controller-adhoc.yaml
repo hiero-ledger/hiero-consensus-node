@@ -69,11 +69,6 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
-      delete-namespace:
-        required: false
-        default: false
-        type: boolean
-        description: "If true, automatically delete namespace when done"
 
 defaults:
   run:
@@ -181,7 +176,7 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
       duration-minutes: ${{ fromJSON(inputs.duration-minutes) }}
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
-      delete-namespace: ${{ inputs.delete-namespace }}
+      delete-namespace: "false" # chewie automatically deletes the namespace after duration-minutes
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
