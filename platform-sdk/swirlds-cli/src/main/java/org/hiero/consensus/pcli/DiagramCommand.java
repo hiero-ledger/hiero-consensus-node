@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
@@ -13,50 +12,61 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatus
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
-import com.swirlds.component.framework.model.diagram.ModelGroup;
-import com.swirlds.component.framework.model.diagram.ModelManualLink;
-import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
+import com.swirlds.state.NoOpStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelEdgeSubstitution;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelGroup;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelManualLink;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -131,7 +141,9 @@ public final class DiagramCommand extends AbstractCommand {
      * Entry point.
      */
     @Override
-    public Integer call() throws IOException {
+    public Integer call()
+            throws IOException, KeyGeneratingException, NoSuchAlgorithmException, KeyStoreException,
+                    NoSuchProviderException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
@@ -144,15 +156,15 @@ public final class DiagramCommand extends AbstractCommand {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                null,
-                null,
-                null,
-                null,
+                RosterHistory.fakeRoster(),
+                KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
+                NodeId.FIRST_NODE_ID,
+                new NoOpRecycleBin(),
                 fileSystemManager,
                 new NoOpExecutionLayer(),
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
-                null,
-                null,
+                ReservedSignedState.createNullReservation(),
+                new NoOpStateLifecycleManager<>(),
                 SemanticVersion.DEFAULT,
                 "testApp",
                 "123",

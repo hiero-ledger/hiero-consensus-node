@@ -42,6 +42,9 @@ on:
         type: boolean
         default: true
         description: "Run SDK TCK Regression Panel"
+      tck-version:
+        required: false
+        description: "Override default TCK version for testing"
       enable-mirror-node-regression-panel:
         required: true
         type: boolean
@@ -62,11 +65,11 @@ on:
         type: boolean
         default: true
         description: "Run Migration Testing Panel"
-      enable-076-to-077-cutover-panel:
+      enable-077-to-078-cutover-panel:
         required: true
         type: boolean
         default: true
-        description: "Run Solo 0.76 to 0.77 Block Stream Cutover Panel"
+        description: "Run Solo 0.77 to 0.78 Block Stream Cutover Panel"
       execute-state-validator-build:
         required: true
         type: boolean
@@ -111,6 +114,7 @@ jobs:
         id: check-outputs
         run: |
           if [[ "${{ needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.cutover-solo-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
@@ -169,8 +173,8 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Enable Solo 0.76 to 0.77 Cutover Panel: ${{ inputs.enable-076-to-077-cutover-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "TCK Version: ${{ needs.extract-citr-vars.outputs.tck-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Solo 0.77 to 0.78 Cutover Panel: ${{ inputs.enable-077-to-078-cutover-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "TCK Version: ${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "JS SDK Version: ${{ needs.extract-citr-vars.outputs.js-sdk-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Release Version: ${{ needs.extract-citr-vars.outputs.bn-release-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Regression Mirror Node Version: ${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -210,6 +214,7 @@ jobs:
       ref: ${{ inputs.ref }}
       branch-name: ${{ inputs.branch-name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
+      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
@@ -224,9 +229,9 @@ jobs:
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
       enable-migration-testing-panel: ${{ inputs.enable-migration-testing-panel }}
-      enable-076-to-077-cutover-panel: ${{ inputs.enable-076-to-077-cutover-panel }}
+      enable-077-to-078-cutover-panel: ${{ inputs.enable-077-to-078-cutover-panel }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
-      tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
+      tck-version: "${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
       bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"

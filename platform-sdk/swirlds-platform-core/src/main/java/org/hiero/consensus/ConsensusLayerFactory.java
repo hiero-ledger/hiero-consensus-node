@@ -1,26 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.WiringConfig;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
+import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
@@ -70,7 +65,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
@@ -80,10 +74,15 @@ import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.WiringConfig;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * A factory used to construct the consensus layer.
@@ -97,6 +96,9 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private final Configuration configuration;
+
+    @NonNull
+    private final ModulesConfig modulesConfig;
 
     @NonNull
     private final Metrics metrics;
@@ -164,6 +166,7 @@ public class ConsensusLayerFactory {
      */
     public ConsensusLayerFactory(@NonNull final ConsensusLayerInputs inputs) {
         configuration = inputs.configuration();
+        modulesConfig = configuration.getConfigData(ModulesConfig.class);
         metrics = inputs.metrics();
         time = inputs.time();
         rosterHistory = inputs.rosterHistory();
@@ -215,7 +218,7 @@ public class ConsensusLayerFactory {
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         final StateModule stateModule = createStateModule(latestCompleteStateNexus, savedStateController);
 
-        final PcesModule pcesModule = createModule(PcesModule.class, configuration);
+        final PcesModule pcesModule = createModule(PcesModule.class, modulesConfig.pces());
 
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = createConsensusEventStreamWiring();
 
@@ -239,12 +242,7 @@ public class ConsensusLayerFactory {
                 eventCreatorModule,
                 stateModule);
         initializePcesModule(
-                pcesModule,
-                pipelineFlusher,
-                latestImmutableStateNexus,
-                statusMonitorModule,
-                issDetectionModule,
-                eventPipelineTracker);
+                pcesModule, pipelineFlusher, statusMonitorModule, issDetectionModule, eventPipelineTracker);
 
         ConsensusLayerStaticSetup.setup(configuration);
 
@@ -340,7 +338,7 @@ public class ConsensusLayerFactory {
      */
     public void setupReconnectModule(
             @NonNull final Platform platform, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
-        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
+        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, modulesConfig.reconnect());
         reconnectModule.initialize(
                 configuration,
                 time,
@@ -395,7 +393,7 @@ public class ConsensusLayerFactory {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        final GossipModule module = createModule(GossipModule.class, configuration);
+        final GossipModule module = createModule(GossipModule.class, modulesConfig.gossip());
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         module.initialize(
@@ -418,7 +416,7 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private HashgraphModule createHashgraphModule(@Nullable final EventPipelineTracker eventPipelineTracker) {
-        final HashgraphModule module = createModule(HashgraphModule.class, configuration);
+        final HashgraphModule module = createModule(HashgraphModule.class, modulesConfig.hashgraph());
         module.initialize(
                 wiringModel,
                 configuration,
@@ -432,29 +430,12 @@ public class ConsensusLayerFactory {
         return module;
     }
 
-    @NonNull
-    private Supplier<PcesReplayProgress> createPcesReplayProgressSupplier(
-            @NonNull final SignedStateNexus latestImmutableStateNexus) {
-        return () -> {
-            try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("PCES replay")) {
-                if (reservedState == null || reservedState.isNull()) {
-                    return PcesReplayProgress.EMPTY;
-                }
-                final SignedState signedState = reservedState.get();
-                return new PcesReplayProgress(signedState.getRound(), signedState.getConsensusTimestamp());
-            }
-        };
-    }
-
     private void initializePcesModule(
             @NonNull final PcesModule module,
             @NonNull final PipelineFlusher pipelineFlusher,
-            @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final IssDetectionModule issDetectionModule,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final Supplier<PcesReplayProgress> replayProgressSupplier =
-                createPcesReplayProgressSupplier(latestImmutableStateNexus);
         final Runnable signalEndOfPcesReplay = () ->
                 issDetectionModule.signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
         module.initialize(
@@ -467,7 +448,6 @@ public class ConsensusLayerFactory {
                 fileSystemManager,
                 initialState.get().getRound(),
                 pipelineFlusher::flushPrimaryPipeline,
-                replayProgressSupplier,
                 statusMonitorModule,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
@@ -504,7 +484,7 @@ public class ConsensusLayerFactory {
     private EventIntakeModule createEventIntakeModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final EventIntakeModule module = createModule(EventIntakeModule.class, configuration);
+        final EventIntakeModule module = createModule(EventIntakeModule.class, modulesConfig.eventIntake());
         module.initialize(
                 wiringModel,
                 configuration,
@@ -519,7 +499,7 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private EventCreatorModule createEventCreatorModule() {
-        final EventCreatorModule module = createModule(EventCreatorModule.class, configuration);
+        final EventCreatorModule module = createModule(EventCreatorModule.class, modulesConfig.eventCreator());
         module.initialize(
                 wiringModel,
                 configuration,

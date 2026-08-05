@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
@@ -46,7 +45,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
@@ -56,9 +54,10 @@ import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
 
 /**
  * A factory class for creating no-op instances of various consensus modules.
@@ -145,7 +144,6 @@ public class ConsensusNoOpModules {
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
         final Runnable flushPrimaryPipeline = () -> {};
-        final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
@@ -161,7 +159,6 @@ public class ConsensusNoOpModules {
                 fileSystemManager,
                 startingRound,
                 flushPrimaryPipeline,
-                replayProgressSupplier,
                 statusMonitorModule,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);

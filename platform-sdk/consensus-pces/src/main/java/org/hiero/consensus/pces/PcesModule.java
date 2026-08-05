@@ -2,16 +2,11 @@
 package org.hiero.consensus.pces;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -19,7 +14,11 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
@@ -39,7 +38,6 @@ public interface PcesModule {
      * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
      * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
-     * @param replayProgressSupplier a supplier that returns the current replay progress
      * @param statusMonitorModule the {@link StatusMonitorModule} for monitoring the status of the platform
      * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
@@ -54,7 +52,6 @@ public interface PcesModule {
             @NonNull FileSystemManager fileSystemManager,
             long startingRound,
             @NonNull Runnable flushPrimaryPipeline,
-            @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull StatusMonitorModule statusMonitorModule,
             @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);

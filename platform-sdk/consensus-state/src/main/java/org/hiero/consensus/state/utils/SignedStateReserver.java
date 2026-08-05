@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.utils;
 
-import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.transformers.AdvancedTransformation;
 
 /**
  * Manages reservations of a signed state when it needs to be passed to one or more input wires.
