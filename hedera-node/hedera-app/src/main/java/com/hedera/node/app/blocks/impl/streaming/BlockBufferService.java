@@ -145,7 +145,9 @@ public class BlockBufferService {
      * data to a block node or persisting on disk.
      */
     private final LongAdder bufferSizeInBytes = new LongAdder();
-
+    /**
+     * The most recent parsed value for the {@link BlockBufferConfig#ackedBlocksToRetain()} configuration.
+     */
     private final AtomicReference<BufferMaxBytes> bufferMaxBytesRef =
             new AtomicReference<>(new BufferMaxBytes("*", DEFAULT_BUFFER_BYTES));
 
@@ -711,12 +713,12 @@ public class BlockBufferService {
      * until the buffer size is within the configured limit. Also computes saturation based on the number of
      * unacknowledged blocks.
      *
-     * <p>When backpressure is enabled, pruning also enforces a soft retention floor configured via
-     * {@code blockStream.buffer.ackedBlocksToRetain}: at least this many of the most recent
-     * acknowledged blocks are retained; older acknowledged blocks are dropped even when the buffer is
-     * below {@code maxBlocks}. This keeps steady-state memory low when the block node is healthy while
-     * still preserving a recent window of acked blocks in case one is re-requested. The hard
-     * {@code maxBlocks} ceiling still wins when the buffer is dominated by unacknowledged blocks.
+     * <p> During the pruning process a soft retention policy is enforced for acknowledged blocks. Based on
+     * {@link BlockBufferConfig#ackedBlocksToRetain()}, a certain number of acknowledged blocks may be retained in the
+     * buffer. Acknowledged blocks that fall outside of this retention policy are aggressively pruned. However, this
+     * retention policy is overruled when the amount of unacknowledged blocks (either as a count of blocks or as the
+     * total bytes those blocks consume) exceeds the configured limits. When this happens the number of acknowledged
+     * blocks to retain may be less than what is configured - potentially zero.
      */
     private PruneResult pruneBuffer() {
         final long highestBlockAcked = highestAckedBlockNumber.get();
@@ -729,7 +731,7 @@ public class BlockBufferService {
 
         final long ackedBlockRetentionThreshold;
 
-        if (orderedBlocks.isEmpty()) {
+        if (orderedBlocks.isEmpty() || highestBlockAcked < 0) {
             ackedBlockRetentionThreshold = -1L;
         } else {
             final long highestBufferedBlock = orderedBlocks.getLast();
