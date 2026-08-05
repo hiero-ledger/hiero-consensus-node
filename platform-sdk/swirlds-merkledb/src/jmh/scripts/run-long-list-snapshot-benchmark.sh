@@ -4,13 +4,9 @@
 # Runs the full LongList snapshot campaign, writing about 33 TB cumulatively across all configurations.
 # One fixture is reused for every configuration at a leaf count and then deleted, bounding peak disk usage.
 # Raw results and environment metadata are retained.
-#
-# The campaign is designed for:
-#   - Linux with Java 25
-#   - at least 64 GiB RAM
-#   - a sparse-file-capable filesystem with at least 140 GB free
+# Run check-long-list-snapshot-benchmark-system.sh first to review the recommended system resources.
 
-# Environment mismatches only warn; build, benchmark, and result-writing failures stop the campaign.
+# Build, benchmark, and result-writing failures stop the campaign.
 set -euo pipefail
 
 if (( $# != 0 )); then
@@ -28,29 +24,6 @@ SCRATCH_PARENT="${MODULE_DIR}/build/tmp/long-list-snapshot-campaign"
 RESULTS_PARENT="${MODULE_DIR}/build/results/jmh/long-list-snapshot-campaign"
 RESULTS_DIR="${RESULTS_PARENT}/${RUN_ID}"
 ARCHIVE="${RESULTS_PARENT}/${RUN_ID}.tar.gz"
-
-if [[ "$(uname -s)" != "Linux" ]]; then
-    echo "WARNING: This campaign is intended for the Linux benchmark machine" >&2
-fi
-
-java_version="$(java -version 2>&1 | awk -F'"' 'NR == 1 { print $2 }')"
-if [[ "${java_version%%.*}" != "25" ]]; then
-    echo "WARNING: Java 25 is recommended, found ${java_version}" >&2
-fi
-
-ram_bytes=""
-if [[ -r /proc/meminfo ]]; then
-    ram_bytes="$(awk '/^MemTotal:/ { printf "%.0f", $2 * 1024 }' /proc/meminfo)"
-fi
-disk_bytes="$(df -Pk "${MODULE_DIR}" | awk 'NR == 2 { printf "%.0f", $4 * 1024 }')"
-if [[ -z "${ram_bytes}" ]]; then
-    echo "WARNING: Could not determine total RAM" >&2
-elif (( ram_bytes < 64 * 1024 * 1024 * 1024 )); then
-    echo "WARNING: At least 64 GiB RAM is recommended, found ${ram_bytes} bytes" >&2
-fi
-if (( disk_bytes < 140000000000 )); then
-    echo "WARNING: At least 140 GB free disk space is recommended, found ${disk_bytes} bytes" >&2
-fi
 
 mkdir -p "${SCRATCH_PARENT}" "${RESULTS_DIR}"
 SCRATCH_DIR="$(mktemp -d "${SCRATCH_PARENT}/run.XXXXXX")"

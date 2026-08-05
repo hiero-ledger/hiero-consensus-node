@@ -32,14 +32,14 @@ merged default remains `P=1` until that confirmation; no alternate scheduler
 or buffer experiment is currently justified. See
 [`benchmark-results.md`](benchmark-results.md).
 
-| Metadata | Entities |
-|---|---|
-| Status | Implemented; representative performance confirmation pending |
-| Designer | [@thenswan](https://github.com/thenswan) |
-| Functional impacts | MerkleDB and VirtualMap snapshot writing |
-| Related issue | [#26469: LongList index chunks can be written to disk in parallel](https://github.com/hiero-ledger/hiero-consensus-node/issues/26469) |
-| Related work | [#25820: Zero-downtime upgrade](https://github.com/hiero-ledger/hiero-consensus-node/issues/25820) |
-| Last updated | 2026-07-27 |
+|      Metadata      |                                                               Entities                                                                |
+|--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| Status             | Implemented; representative performance confirmation pending                                                                          |
+| Designer           | [@thenswan](https://github.com/thenswan)                                                                                              |
+| Functional impacts | MerkleDB and VirtualMap snapshot writing                                                                                              |
+| Related issue      | [#26469: LongList index chunks can be written to disk in parallel](https://github.com/hiero-ledger/hiero-consensus-node/issues/26469) |
+| Related work       | [#25820: Zero-downtime upgrade](https://github.com/hiero-ledger/hiero-consensus-node/issues/25820)                                    |
+| Last updated       | 2026-07-27                                                                                                                            |
 
 ---
 
@@ -114,13 +114,13 @@ be byte-for-byte identical; no file-format version change is required.
 
 The five implementations have different sources:
 
-| Implementation | Source representation | Current write behavior | Production use |
-|---|---|---|---|
-| [`LongListHeap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java) | `AtomicLongArray` chunks | Iterates individual indices into a 1 MiB direct buffer | Tests/legacy |
-| [`LongListOffHeap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java) | Direct `ByteBuffer` chunks | Writes chunk views sequentially | Tests/legacy |
-| [`LongListSegment`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java) | Shared-arena `MemorySegment` chunks | Writes segment views sequentially | Default production index |
-| [`LongListDisk`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java) | Logical chunks mapped to non-contiguous offsets in a backing file | Uses a chunk-sized thread-local buffer to read a full chunk or boundary slice, then writes it | Production when `useDiskIndices=true` |
-| [`LongListDiskSegment`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java) | File-mapped shared-arena segments at fixed offsets | Writes mapped segment views sequentially | ZDT-oriented implementation, not currently selected by `MerkleDbDataSource` |
+|                                                          Implementation                                                           |                       Source representation                       |                                    Current write behavior                                     |                               Production use                                |
+|-----------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| [`LongListHeap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java)               | `AtomicLongArray` chunks                                          | Iterates individual indices into a 1 MiB direct buffer                                        | Tests/legacy                                                                |
+| [`LongListOffHeap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java)         | Direct `ByteBuffer` chunks                                        | Writes chunk views sequentially                                                               | Tests/legacy                                                                |
+| [`LongListSegment`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java)         | Shared-arena `MemorySegment` chunks                               | Writes segment views sequentially                                                             | Default production index                                                    |
+| [`LongListDisk`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java)               | Logical chunks mapped to non-contiguous offsets in a backing file | Uses a chunk-sized thread-local buffer to read a full chunk or boundary slice, then writes it | Production when `useDiskIndices=true`                                       |
+| [`LongListDiskSegment`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java) | File-mapped shared-arena segments at fixed offsets                | Writes mapped segment views sequentially                                                      | ZDT-oriented implementation, not currently selected by `MerkleDbDataSource` |
 
 The default `longListChunkSize` is 1,048,576 longs, or 8 MiB per
 chunk. The allowed maximum is almost 2 GiB per chunk, and a list can contain up
@@ -280,12 +280,12 @@ all writes.
 
 #### Alternatives
 
-| Alternative | Advantages | Disadvantages | Decision |
-|---|---|---|---|
-| One target channel, positional writes | Small change; one descriptor; one force; no shared-position lock on the pinned Unix provider | Filesystem/device completion may still serialize or regress | **Selected** |
-| One target channel per worker | May alter behavior on a future provider that serializes per channel | More descriptors and cleanup; less clear portable force semantics; no expected benefit on the pinned Unix provider | Revisit only if profiling identifies a per-channel bottleneck |
-| `AsynchronousFileChannel` | Explicit asynchronous API | Unix provider commonly delegates blocking writes to an executor; harder partial-write, buffer-lifetime, and failure handling | Rejected |
-| Memory-map the target | Parallel memory copies and one mapped layout | Very large mappings, explicit unmapping/force concerns, larger behavior change | Rejected |
+|              Alternative              |                                          Advantages                                          |                                                        Disadvantages                                                         |                           Decision                            |
+|---------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
+| One target channel, positional writes | Small change; one descriptor; one force; no shared-position lock on the pinned Unix provider | Filesystem/device completion may still serialize or regress                                                                  | **Selected**                                                  |
+| One target channel per worker         | May alter behavior on a future provider that serializes per channel                          | More descriptors and cleanup; less clear portable force semantics; no expected benefit on the pinned Unix provider           | Revisit only if profiling identifies a per-channel bottleneck |
+| `AsynchronousFileChannel`             | Explicit asynchronous API                                                                    | Unix provider commonly delegates blocking writes to an executor; harder partial-write, buffer-lifetime, and failure handling | Rejected                                                      |
+| Memory-map the target                 | Parallel memory copies and one mapped layout                                                 | Very large mappings, explicit unmapping/force concerns, larger behavior change                                               | Rejected                                                      |
 
 ### 2. Reuse the existing live bounds
 
@@ -366,12 +366,12 @@ representative environments show a stable benefit.
 
 #### Alternatives
 
-| Alternative | Advantages | Disadvantages | Decision |
-|---|---|---|---|
-| Let positional workers grow the file | Smallest focused change; successful output is deterministic | Early size-changing writes may serialize | **Selected** |
-| One-byte logical extension | Removes size changes from worker writes after setup | Extra write; no physical reservation; failed output can still have the expected logical length; unproven benefit | Benchmark-gated only |
-| Native `fallocate` | Can reserve physical space and fail early | Non-portable native dependency | Rejected |
-| Write a temporary file and rename | Stronger publication semantics | Broader naming, move, and durability behavior | Possible follow-up |
+|             Alternative              |                         Advantages                          |                                                  Disadvantages                                                   |       Decision       |
+|--------------------------------------|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|----------------------|
+| Let positional workers grow the file | Smallest focused change; successful output is deterministic | Early size-changing writes may serialize                                                                         | **Selected**         |
+| One-byte logical extension           | Removes size changes from worker writes after setup         | Extra write; no physical reservation; failed output can still have the expected logical length; unproven benefit | Benchmark-gated only |
+| Native `fallocate`                   | Can reserve physical space and fail early                   | Non-portable native dependency                                                                                   | Rejected             |
+| Write a temporary file and rename    | Stronger publication semantics                              | Broader naming, move, and durability behavior                                                                    | Possible follow-up   |
 
 ### 4. Configure total writer threads per LongList
 
@@ -423,11 +423,11 @@ a total-process retention bound because other long-lived threads may already
 retain buffers in the static thread local. The selected `P=2` candidate reduces
 that rough per-snapshot maximum to `6 * 8 MiB = 48 MiB`.
 
-| Threads per LongList | Index-writer ceiling | Advantages | Disadvantages | Role |
-|---:|---:|---|---|---|
-| `1` | 3 | Single-writer path; preserves prior three-list concurrency topology | Does not exercise parallel range writing | Required control and initial default |
-| `2` | 6 | Smallest parallel setting with strong Disk mean improvements in both local campaigns | Focused Segment mean was 6.7% slower; requires representative no-regression confirmation | Production candidate |
-| `3`–`16` | 9–48 | Tested the plateau and high-queue-depth hypothesis | No cross-implementation advantage; more buffers, stacks, and contention | No further testing without new evidence |
+| Threads per LongList | Index-writer ceiling |                                      Advantages                                      |                                      Disadvantages                                       |                  Role                   |
+|---------------------:|---------------------:|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|-----------------------------------------|
+|                  `1` |                    3 | Single-writer path; preserves prior three-list concurrency topology                  | Does not exercise parallel range writing                                                 | Required control and initial default    |
+|                  `2` |                    6 | Smallest parallel setting with strong Disk mean improvements in both local campaigns | Focused Segment mean was 6.7% slower; requires representative no-regression confirmation | Production candidate                    |
+|             `3`–`16` |                 9–48 | Tested the plateau and high-queue-depth hypothesis                                   | No cross-implementation advantage; more buffers, stacks, and contention                  | No further testing without new evidence |
 
 A fixed value is preferred over `availableProcessors()` or a CPU percentage.
 Storage queue depth, filesystem behavior, and device parallelism do not scale
@@ -448,17 +448,17 @@ evidence.
 
 #### Alternatives
 
-| Executor ownership | Advantages | Disadvantages | Decision |
-|---|---|---|---|
-| Snapshot-scoped range pool sized for `3P` workers | Preserves the `P=1` concurrency topology; capacity for `P` workers per list; no threads retained between snapshots; no first-configuration-wins state | Requires passing an executor through the two snapshot call paths | **Selected** |
-| Pool per `LongList.writeToFile()` | Encapsulated in the list | Creates three pool lifecycles and obscures the total snapshot thread count | Rejected |
-| Pool retained by each data source | Avoids repeated thread creation | Retains idle threads, including on temporary snapshot copies; close-order coupling | Rejected |
-| Static node-wide pool | Bounds multiple simultaneous data sources | First-configuration-wins problem, cross-data-source head-of-line blocking, awkward lifecycle | Rejected |
-| Existing cached snapshot executor | No new pool | Couples blocking parents and children; making it fixed can starve parents waiting for children; the LongList worker lifecycle is no longer snapshot-scoped | Rejected |
-| Compaction executor | Existing configured bounded pool | Compaction tasks can occupy it while blocked by snapshot coordination, creating starvation or deadlock | Rejected |
-| Common `ForkJoinPool` / parallel streams | Minimal plumbing | Process-wide CPU-oriented resource; poor ownership for blocking storage I/O | Rejected |
-| A bounded number of virtual-thread range tasks | Same logical concurrency limit; cheap thread creation | Changes the execution model without removing the need to bound tasks and storage concurrency | Rejected |
-| Virtual thread per chunk | Cheap thread objects | Does not bound device queue depth, task count, or buffers | Rejected |
+|                Executor ownership                 |                                                                      Advantages                                                                       |                                                                       Disadvantages                                                                        |   Decision   |
+|---------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+| Snapshot-scoped range pool sized for `3P` workers | Preserves the `P=1` concurrency topology; capacity for `P` workers per list; no threads retained between snapshots; no first-configuration-wins state | Requires passing an executor through the two snapshot call paths                                                                                           | **Selected** |
+| Pool per `LongList.writeToFile()`                 | Encapsulated in the list                                                                                                                              | Creates three pool lifecycles and obscures the total snapshot thread count                                                                                 | Rejected     |
+| Pool retained by each data source                 | Avoids repeated thread creation                                                                                                                       | Retains idle threads, including on temporary snapshot copies; close-order coupling                                                                         | Rejected     |
+| Static node-wide pool                             | Bounds multiple simultaneous data sources                                                                                                             | First-configuration-wins problem, cross-data-source head-of-line blocking, awkward lifecycle                                                               | Rejected     |
+| Existing cached snapshot executor                 | No new pool                                                                                                                                           | Couples blocking parents and children; making it fixed can starve parents waiting for children; the LongList worker lifecycle is no longer snapshot-scoped | Rejected     |
+| Compaction executor                               | Existing configured bounded pool                                                                                                                      | Compaction tasks can occupy it while blocked by snapshot coordination, creating starvation or deadlock                                                     | Rejected     |
+| Common `ForkJoinPool` / parallel streams          | Minimal plumbing                                                                                                                                      | Process-wide CPU-oriented resource; poor ownership for blocking storage I/O                                                                                | Rejected     |
+| A bounded number of virtual-thread range tasks    | Same logical concurrency limit; cheap thread creation                                                                                                 | Changes the execution model without removing the need to bound tasks and storage concurrency                                                               | Rejected     |
+| Virtual thread per chunk                          | Cheap thread objects                                                                                                                                  | Does not bound device queue depth, task count, or buffers                                                                                                  | Rejected     |
 
 The proposed `IntStream.range(...).parallel()` pattern is a concise way to
 stripe loop indices, but it uses the process-wide common `ForkJoinPool`.
@@ -509,12 +509,12 @@ rationale as a short inline comment near the partitioning code.
 
 #### Alternatives
 
-| Scheduling model | Advantages | Disadvantages | Decision |
-|---|---|---|---|
-| Fixed contiguous range tasks and `CompletableFuture.allOf()` | Small, bounded, deterministic, and local; configured threads have one meaning; `allOf().join()` gives a simple quiescence point | A coarse range cannot be split | **Selected** |
-| One task per chunk | Natural load balancing | Up to 2,097,152 tasks/futures; unacceptable scheduler and memory overhead | Rejected |
-| Striped/non-contiguous lanes | Spreads each worker across the whole list | Weaker target locality; changes ordering without increasing the configured concurrency | Deferred; current measurements do not justify it |
-| More bounded ranges or dynamic chunk/batch claiming | Better tail balancing | More atomic coordination and less locality/determinism | Benchmark only if fixed ranges show measured tail imbalance |
+|                       Scheduling model                       |                                                           Advantages                                                            |                                     Disadvantages                                      |                          Decision                           |
+|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|-------------------------------------------------------------|
+| Fixed contiguous range tasks and `CompletableFuture.allOf()` | Small, bounded, deterministic, and local; configured threads have one meaning; `allOf().join()` gives a simple quiescence point | A coarse range cannot be split                                                         | **Selected**                                                |
+| One task per chunk                                           | Natural load balancing                                                                                                          | Up to 2,097,152 tasks/futures; unacceptable scheduler and memory overhead              | Rejected                                                    |
+| Striped/non-contiguous lanes                                 | Spreads each worker across the whole list                                                                                       | Weaker target locality; changes ordering without increasing the configured concurrency | Deferred; current measurements do not justify it            |
+| More bounded ranges or dynamic chunk/batch claiming          | Better tail balancing                                                                                                           | More atomic coordination and less locality/determinism                                 | Benchmark only if fixed ranges show measured tail imbalance |
 
 ### 6. Preserve current buffer and source-copy behavior
 
@@ -857,11 +857,11 @@ For every timed campaign:
 
 Use three evidence tiers to avoid overfitting:
 
-| Environment | Purpose | Decision weight |
-|---|---|---|
-| Development machine | Correctness and selection of a single representative-host candidate | Completed; retained `P=2` from strong Disk mean gains, with a focused 6.7% Segment mean regression to validate |
-| Repeatable representative Linux performance/test host | Production-shaped direct `P=1/2` comparison across both index modes | Required before changing the default |
-| A separate production-like Linux filesystem/storage, when available | Confirm `P=1/2` under realistic deployment conditions | Final confirmation |
+|                             Environment                             |                               Purpose                               |                                                Decision weight                                                 |
+|---------------------------------------------------------------------|---------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| Development machine                                                 | Correctness and selection of a single representative-host candidate | Completed; retained `P=2` from strong Disk mean gains, with a focused 6.7% Segment mean regression to validate |
+| Repeatable representative Linux performance/test host               | Production-shaped direct `P=1/2` comparison across both index modes | Required before changing the default                                                                           |
+| A separate production-like Linux filesystem/storage, when available | Confirm `P=1/2` under realistic deployment conditions               | Final confirmation                                                                                             |
 
 Choose the smallest per-list thread count on a broad, repeatable performance
 plateau across representative environments and large end-to-end snapshots. Do
@@ -877,18 +877,18 @@ bottleneck.
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Storage serializes or is slower with concurrent writes | Compare per representative environment; choose a conservative plateau; configurable one-thread rollback |
-| Existing per-writer buffers multiply with writers | Preserve them to isolate the scheduling change; benchmark bounded staging only if representative `P=2` measurements make memory a real concern |
-| Millions of chunks create scheduler pressure | At most `P` ranges and `P` tasks per list |
-| Initial EOF growth reduces overlap | Measure first; benchmark pre-extension only if evidence identifies growth as a limiter |
-| Disk mappings or Segment arenas change during copy | Retain the existing stable-source snapshot/close sequencing and weak public mutation contract |
-| Range workers from the three lists contend | Use one `3P` snapshot-scoped bound and benchmark whole snapshots; consider finer work only if queueing creates a measured tail |
-| A dominant list has a final slow coarse range | Balanced contiguous ranges first; add finer bounded work only after measured tail imbalance |
-| Concurrent data-source snapshots multiply the per-snapshot pool | Include realistic concurrency in representative tests; consider node ownership only if observed |
-| Executor nesting causes starvation | Use a dedicated range pool separate from the outer snapshot executor |
-| Added public overload is misused | Existing one-argument API remains available; explicit caller-ownership Javadoc |
+|                              Risk                               |                                                                   Mitigation                                                                   |
+|-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| Storage serializes or is slower with concurrent writes          | Compare per representative environment; choose a conservative plateau; configurable one-thread rollback                                        |
+| Existing per-writer buffers multiply with writers               | Preserve them to isolate the scheduling change; benchmark bounded staging only if representative `P=2` measurements make memory a real concern |
+| Millions of chunks create scheduler pressure                    | At most `P` ranges and `P` tasks per list                                                                                                      |
+| Initial EOF growth reduces overlap                              | Measure first; benchmark pre-extension only if evidence identifies growth as a limiter                                                         |
+| Disk mappings or Segment arenas change during copy              | Retain the existing stable-source snapshot/close sequencing and weak public mutation contract                                                  |
+| Range workers from the three lists contend                      | Use one `3P` snapshot-scoped bound and benchmark whole snapshots; consider finer work only if queueing creates a measured tail                 |
+| A dominant list has a final slow coarse range                   | Balanced contiguous ranges first; add finer bounded work only after measured tail imbalance                                                    |
+| Concurrent data-source snapshots multiply the per-snapshot pool | Include realistic concurrency in representative tests; consider node ownership only if observed                                                |
+| Executor nesting causes starvation                              | Use a dedicated range pool separate from the outer snapshot executor                                                                           |
+| Added public overload is misused                                | Existing one-argument API remains available; explicit caller-ownership Javadoc                                                                 |
 
 ## Implementation and delivery plan
 
