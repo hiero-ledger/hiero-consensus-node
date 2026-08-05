@@ -31,11 +31,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -103,10 +101,26 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void skipsDownloadWhenFileMatchesHash() throws IOException {
+    void doesNotHashOrDownloadWhenArtifactsEnvVarIsBlank(final EnvironmentVariables environment) throws IOException {
+        // A directory cannot be read as a FileInputStream; if the code attempted to hash it
+        // an UncheckedIOException would be thrown.  The early-return when
+        // TSS_LIB_WRAPS_ARTIFACTS_PATH is unset must prevent any file access.
+        final var path = tempDir.resolve("would-fail-if-read");
+        Files.createDirectory(path);
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
+        given(tssConfig.wrapsProvingKeyHash()).willReturn(HASH_A.toHex());
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, "");
+
+        assertDoesNotThrow(() -> subject.ensureProvingKey(configuration, downloader));
+        verifyNoInteractions(downloader);
+    }
+
+    @Test
+    void skipsDownloadWhenFileMatchesHash(final EnvironmentVariables environment) throws IOException {
         final var path = tempDir.resolve("proving.key");
         Files.write(path, CONTENT_A);
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -114,10 +128,22 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void downloadsWhenFileMissing() throws Exception {
+    void throwsOnUnreadableFile(final EnvironmentVariables environment) throws IOException {
+        final var path = tempDir.resolve("unreadable");
+        Files.createDirectory(path);
+        final var hash = "aa".repeat(48);
+        givenConfigWithHashAndPath(hash, path);
+        setArtifactsEnvVar(environment);
+
+        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(configuration, downloader));
+    }
+
+    @Test
+    void downloadsWhenFileMissing(final EnvironmentVariables environment) throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_A);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -125,11 +151,12 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void downloadsOnHashMismatch() throws Exception {
+    void downloadsOnHashMismatch(final EnvironmentVariables environment) throws Exception {
         final var path = tempDir.resolve("proving.key");
         Files.write(path, "wrong content on disk".getBytes());
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_A);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -137,30 +164,33 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void continuesWhenDownloadedFileHashStillMismatches() throws Exception {
+    void continuesWhenDownloadedFileHashStillMismatches(final EnvironmentVariables environment) throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         final var configHash = "aa".repeat(48); // won't match CONTENT_B's hash
         givenConfigWithHashAndPath(configHash, path);
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
     }
 
     @Test
-    void continuesOnDownloadIOException() throws Exception {
+    void continuesOnDownloadIOException(final EnvironmentVariables environment) throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         final var configHash = "aa".repeat(48);
         givenConfigWithHashAndPath(configHash, path);
         doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
     }
 
     @Test
-    void passesConfiguredDownloadUrlToDownloader() throws Exception {
+    void passesConfiguredDownloadUrlToDownloader(final EnvironmentVariables environment) throws Exception {
         final var path = tempDir.resolve("nonexistent.key");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_A);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -221,7 +251,7 @@ class WrapsProvingKeyVerificationTest {
         for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
             Files.write(tempDir.resolve(artifact), artifact.getBytes());
         }
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
+        setArtifactsEnvVar(environment);
 
         assertDoesNotThrow(
                 () -> validateArtifactsPathConsistency(tempDir.resolve("wraps-v1.0.0.tar.gz"), tempDir.toString()));
@@ -230,11 +260,12 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void schedulesRetryOnDownloadHashMismatch() throws Exception {
+    void schedulesRetryOnDownloadHashMismatch(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
@@ -246,11 +277,12 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void schedulesRetryOnDownloadException() throws Exception {
+    void schedulesRetryOnDownloadException(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         doThrow(new IOException("network error")).when(downloader).download(anyString(), any());
+        setArtifactsEnvVar(environment);
 
         given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
@@ -262,12 +294,13 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void retryUsesConfiguredInterval() throws Exception {
+    void retryUsesConfiguredInterval(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         given(tssConfig.wrapsProvingKeyRetryInterval()).willReturn(Duration.ofSeconds(42));
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
@@ -279,11 +312,12 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void doesNotScheduleSecondRetryWhenRetryAlreadyScheduled() throws Exception {
+    void doesNotScheduleSecondRetryWhenRetryAlreadyScheduled(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         given(retryScheduler.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
@@ -297,11 +331,12 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void retrySucceedsAndCancelsScheduledFuture() throws Exception {
+    void retrySucceedsAndCancelsScheduledFuture(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
         given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
@@ -318,11 +353,12 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void retryTaskContinuesOnHashMismatch() throws Exception {
+    void retryTaskContinuesOnHashMismatch(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
         given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
@@ -338,11 +374,12 @@ class WrapsProvingKeyVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void retryTaskContinuesOnDownloadException() throws Exception {
+    void retryTaskContinuesOnDownloadException(final EnvironmentVariables environment) throws Exception {
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
+        setArtifactsEnvVar(environment);
 
         final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
         given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
@@ -412,13 +449,13 @@ class WrapsProvingKeyVerificationTest {
             throws IOException {
         writeRequiredArtifacts(tempDir);
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
 
         // No archive on disk; only the extracted artifacts + hash file are present (mounted-image scenario)
         given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn(HASH_A.toHex());
         given(tssConfig.wrapsProvingKeyPath())
                 .willReturn(tempDir.resolve("wraps.tar.gz").toString());
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -429,11 +466,11 @@ class WrapsProvingKeyVerificationTest {
     void downloadsWhenHashFileMismatches(final EnvironmentVariables environment) throws Exception {
         writeRequiredArtifacts(tempDir);
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), "bb".repeat(48));
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
 
         final var archivePath = tempDir.resolve("wraps.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), archivePath);
         givenDownloaderWritesContent(archivePath, CONTENT_A);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -444,11 +481,11 @@ class WrapsProvingKeyVerificationTest {
     void downloadsWhenHashFileMatchesButArtifactMissing(final EnvironmentVariables environment) throws Exception {
         // Hash file matches config but a required artifact is missing -> not "already present"
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
 
         final var archivePath = tempDir.resolve("wraps.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), archivePath);
         givenDownloaderWritesContent(archivePath, CONTENT_A);
+        setArtifactsEnvVar(environment);
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -468,11 +505,11 @@ class WrapsProvingKeyVerificationTest {
         final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
 
         final var extractionDir = tempDir.resolve("extracted");
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
 
         given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
         given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
 
         subject.ensureProvingKey(configuration, downloader);
 
@@ -484,40 +521,6 @@ class WrapsProvingKeyVerificationTest {
         final var hashFile = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME);
         assertTrue(Files.isRegularFile(hashFile), "hash file was not written");
         assertEquals(archiveHash, Files.readString(hashFile).trim());
-
-        // Manifest is written alongside the hash file
-        final var manifestFile = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
-        assertTrue(Files.isRegularFile(manifestFile), "artifacts manifest was not written");
-        final var manifestLines = Files.readAllLines(manifestFile);
-        assertEquals(4, manifestLines.size(), "manifest should list all 4 artifacts");
-        for (final var line : manifestLines) {
-            assertTrue(line.matches("[0-9a-f]{96}  .+"), "manifest line format is incorrect: " + line);
-        }
-        final Set<String> manifestedFiles = manifestLines.stream()
-                .map(line -> line.substring(line.indexOf("  ") + 2).trim())
-                .collect(Collectors.toSet());
-        assertEquals(WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES, manifestedFiles);
-    }
-
-    @Test
-    void artifactsAlreadyPresentTrueWhenValidManifestPresent() throws IOException {
-        writeRequiredArtifacts(tempDir);
-        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
-        writeArtifactsManifest(tempDir);
-
-        assertTrue(artifactsAlreadyPresent(tempDir.toString(), HASH_A.toHex()));
-    }
-
-    @Test
-    void artifactsAlreadyPresentFalseWhenManifestIsMissingEntries() throws IOException {
-        writeRequiredArtifacts(tempDir);
-        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
-        // Manifest that only lists 2 of the 4 required files
-        Files.writeString(
-                tempDir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME),
-                "aa".repeat(48) + "  decider_pp.bin\n" + "aa".repeat(48) + "  decider_vp.bin\n");
-
-        assertFalse(artifactsAlreadyPresent(tempDir.toString(), HASH_A.toHex()));
     }
 
     // ===== helpers =====
@@ -526,7 +529,9 @@ class WrapsProvingKeyVerificationTest {
         given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn(bootstrapHash);
         given(tssConfig.wrapsProvingKeyPath()).willReturn(provingKeyPath.toString());
-        given(tssConfig.wrapsProvingKeyDownloadUrl()).willReturn(DOWNLOAD_URL);
+        // downloadUrl and retryInterval are only used when a download is triggered; mark lenient
+        // so tests whose code path does not reach the download step don't fail on unused stubs
+        Mockito.lenient().when(tssConfig.wrapsProvingKeyDownloadUrl()).thenReturn(DOWNLOAD_URL);
         Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
 
@@ -539,20 +544,14 @@ class WrapsProvingKeyVerificationTest {
                 .download(anyString(), eq(path));
     }
 
+    private void setArtifactsEnvVar(final EnvironmentVariables environment) {
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
+    }
+
     private static void writeRequiredArtifacts(final Path dir) throws IOException {
         for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
             Files.write(dir.resolve(artifact), artifact.getBytes(StandardCharsets.UTF_8));
         }
-    }
-
-    private static void writeArtifactsManifest(final Path dir) throws IOException {
-        final var sb = new StringBuilder();
-        for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
-            final var hash = noThrowSha384HashOf(Bytes.wrap(artifact.getBytes(StandardCharsets.UTF_8)))
-                    .toHex();
-            sb.append(hash).append("  ").append(artifact).append('\n');
-        }
-        Files.writeString(dir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME), sb.toString());
     }
 
     // ===== minimal tar.gz builder (mirrors TarGzExtractorTest) =====

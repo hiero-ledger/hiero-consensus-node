@@ -38,7 +38,6 @@ import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -221,8 +220,7 @@ class StateFileManagerTests {
         final int statesOnDisk = 3;
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(StateConfig_.SAVE_STATE_PERIOD, stateSavePeriod)
-                .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
-                .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory.toFile().toString());
+                .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk);
         final Configuration configuration = configBuilder.getOrCreateConfig();
 
         // Each state now has a VirtualMap for ROSTERS, and each VirtualMap consumes a lot of RAM.
@@ -350,10 +348,8 @@ class StateFileManagerTests {
         final Random random = getRandomPrintSeed();
         final int statesOnDisk = 3;
 
-        final TestConfigBuilder configBuilder = new TestConfigBuilder()
-                .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
-                .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory.toFile().toString())
-                .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory);
+        final TestConfigBuilder configBuilder =
+                new TestConfigBuilder().withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk);
         final Configuration configuration = configBuilder.getOrCreateConfig();
 
         final int count = 10;
