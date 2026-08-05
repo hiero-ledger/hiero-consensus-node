@@ -173,8 +173,7 @@ rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
 `r + 1` if a super-majority is reached. As a short-circuit, any event
-whose non-deterministic generation (NGen) is below the latest decided
-round's generation
+whose nGen is below the latest decided round's judges
 (`ConsensusRounds.isOlderThanDecidedRoundGeneration`), and any consensus
 event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and
 strongly-seeing work — see RUL-005. For the conceptual background see

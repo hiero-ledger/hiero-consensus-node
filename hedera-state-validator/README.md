@@ -435,7 +435,8 @@ The [DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) cla
 ```shell
 java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
   --out=<output-directory> \
-  [--service-name=<service-name> --state-key=<state-key>]
+  [--service-name=<service-name> --state-key=<state-key>] \
+  [--ignore-field=<path> ...]
 ```
 
 ### Parameters
@@ -448,6 +449,33 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - `--out` (or `-o`) - Directory where the resulting json files are written (required).
 - `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
 - `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+- `--ignore-field` (or `-i`) - Value field path(s) to ignore when comparing entries. Entries that differ only in the ignored fields are treated as identical and suppressed from the diff output. The option is repeatable; a comma-separated list is also accepted. Paths use dotted notation with an explicit array wildcard `[*]`:
+  - `expirationSecond` - a top-level field
+  - `accountId.accountNum` - a nested object field
+  - `transfers[*].amount` - a field on every element of an array
+  - `tokens[*]` - all elements of an array
+    Only value fields are supported; key fields are never masked. Paths that do not match a given value are silently ignored, so one set of ignore paths can be applied across heterogeneous state values.
+
+### Example
+
+Diff two states, ignoring expected differences in account expiration and stake metadata:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=./out \
+  --service-name=TokenService --state-key=ACCOUNTS \
+  --ignore-field=expirationSecond \
+  --ignore-field=stakeAtStartOfLastRewardedPeriod
+```
+
+Or equivalently with comma separation:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=./out \
+  --service-name=TokenService --state-key=ACCOUNTS \
+  --ignore-field=expirationSecond,stakeAtStartOfLastRewardedPeriod
+```
 
 ### Notes
 
@@ -455,6 +483,7 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - `state1-diff.json` contains entries that were either deleted in the second state or modified (showing the old value).
 - `state2-diff.json` contains entries that were either added in the second state or modified (showing the new value).
 - Service name and state key should both be either omitted or specified.
+- When `--ignore-field` is used, the fast byte-level comparison is still performed first. Parsing and field masking only runs on entries whose raw bytes already differ, so there is no performance impact on identical entries.
 
 ## Compact
 

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.context.internal;
+package com.swirlds.platform.context;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.DefaultPlatformContext;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.context.internal.PlatformUncaughtExceptionHandler;
 import java.nio.file.Path;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
