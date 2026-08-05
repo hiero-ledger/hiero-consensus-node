@@ -161,6 +161,9 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
               "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log" \
+              > "${OUT_DIR}/${pod}-block-node-comms.log" 2>&1
           done
 
           if [[ -d "${HOME}/.solo/logs" ]]; then
