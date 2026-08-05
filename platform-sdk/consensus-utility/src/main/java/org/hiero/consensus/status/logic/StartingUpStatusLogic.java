@@ -54,7 +54,7 @@ public class StartingUpStatusLogic extends AbstractStatusLogic {
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final FreezeCompleteAction action) {
+    protected PlatformStatusLogic onFreezeComplete(@NonNull final FreezeCompleteAction action) {
         return illegal(action);
     }
 }

@@ -115,21 +115,4 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
             lastQuiescenceCommandTime = time.now();
         }
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public PlatformStatus onFreezeComplete() {
-        return statusStateMachine.submitStatusAction(new FreezeCompleteAction());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Nullable
-    @Override
-    public PlatformStatus issNotification() {
-            return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
-    }
 }

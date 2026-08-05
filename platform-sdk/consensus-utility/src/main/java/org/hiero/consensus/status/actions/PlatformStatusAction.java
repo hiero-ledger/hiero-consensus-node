@@ -14,8 +14,7 @@ public sealed interface PlatformStatusAction
                 DoneReplayingEventsAction,
                 FallenBehindAction,
                 FreezePeriodEnteredAction,
-                ReconnectCompleteAction,
                 SelfEventReachedConsensusAction,
                 StartedReplayingEventsAction,
-        FreezeCompleteAction,
+                FreezeCompleteAction,
                 TimeElapsedAction {}

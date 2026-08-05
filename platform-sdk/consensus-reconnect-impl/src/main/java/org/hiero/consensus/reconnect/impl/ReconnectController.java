@@ -40,7 +40,6 @@ import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 
@@ -242,7 +241,7 @@ public class ReconnectController implements Runnable {
         stateLifecycleManager.initWithState(state);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-        reconnectCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
+        // TODO ensure the state is saved to disk and then reconstruct the consensus layer
         savedStateController.reconnectStateReceived(signedState.reserve("savedStateController.reconnectStateReceived"));
         reconnectCoordinator.loadReconnectState(configuration, signedState);
     }

@@ -204,7 +204,8 @@ public class ConsensusLayerAdapterFactory {
     }
 
     /**
-     * Constructs most of the components and modules required to create the platform.
+     * Constructs most of the components and modules required to create the platform, and binds their implementations to
+     * the schedulers.
      *
      * @return the result of the factory, containing the platform coordinator and the building blocks
      */
@@ -248,7 +249,6 @@ public class ConsensusLayerAdapterFactory {
                 issDetectionModule,
                 transactionHandlingModule,
                 stateModule,
-                eventStreamWiring,
                 runningEventHashOverrideWiring,
                 notifierWiring,
                 notificationEngine,
@@ -279,6 +279,7 @@ public class ConsensusLayerAdapterFactory {
                 executionLayerCallbacks,
                 consensusSnapshot,
                 runningEventHashOverride,
+                consensusEventStreamName,
                 version,
                 transactionOffsetNanos,
                 executionLayer.getTransactionLimits(),
@@ -463,6 +464,7 @@ public class ConsensusLayerAdapterFactory {
             }
         };
     }
+
     @NonNull
     private SecureRandom initializeSecureRandom(@Nullable final SecureRandom secureRandomOverride) {
         if (secureRandomOverride != null) {

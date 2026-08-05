@@ -126,8 +126,8 @@ public class CesEvent extends AbstractSerializableHashable
 
     @Override
     @NonNull
-    public List<ConsensusTransaction> getConsensusTransactions() {
-        return platformEvent.getConsensusTransactions();
+    public List<ConsensusTransaction> getTransactions() {
+        return platformEvent.getTransactions();
     }
 
     @NonNull
@@ -144,11 +144,6 @@ public class CesEvent extends AbstractSerializableHashable
     @Override
     public Instant getConsensusTimestamp() {
         return platformEvent.getConsensusTimestamp();
-    }
-
-    @Override
-    public Iterator<Transaction> transactionIterator() {
-        return platformEvent.transactionIterator();
     }
 
     @Override

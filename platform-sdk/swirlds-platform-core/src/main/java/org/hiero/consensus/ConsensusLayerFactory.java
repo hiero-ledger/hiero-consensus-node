@@ -312,7 +312,8 @@ public class ConsensusLayerFactory {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
-                stateLifecycleManager,
+//                stateLifecycleManager,
+                null,
                 additionalProperties);
         return module;
     }

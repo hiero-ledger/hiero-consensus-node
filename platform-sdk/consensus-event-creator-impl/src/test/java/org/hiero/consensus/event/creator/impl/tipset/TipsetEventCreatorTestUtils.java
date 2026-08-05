@@ -215,7 +215,7 @@ public class TipsetEventCreatorTestUtils {
             simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor);
         }
 
-        final List<Bytes> convertedTransactions = newEvent.getTransactions().stream()
+        final List<Bytes> convertedTransactions = newEvent.getTransactionWrappers().stream()
                 .map(TransactionWrapper::getApplicationTransaction)
                 .toList();
         // We should see the expected transactions

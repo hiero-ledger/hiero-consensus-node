@@ -54,8 +54,11 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final HashgraphModule hashgraphModule,
+            @NonNull final Runnable flushGossipModule,
             @Nullable final EventPipelineTracker pipelineTracker) {
         requireNonNull(model);
         requireNonNull(configuration);

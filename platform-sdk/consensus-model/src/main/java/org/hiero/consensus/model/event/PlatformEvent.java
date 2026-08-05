@@ -188,11 +188,6 @@ public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEv
     }
 
     @Override
-    public Iterator<Transaction> transactionIterator() {
-        return new TypedIterator<>(metadata.getTransactions().iterator());
-    }
-
-    @Override
     public Instant getTimeCreated() {
         return metadata.getTimeCreated();
     }
@@ -336,11 +331,6 @@ public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEv
         return consensusTimestamp;
     }
 
-    @Override
-    public @NonNull Iterator<ConsensusTransaction> consensusTransactionIterator() {
-        return new TypedIterator<>(metadata.getTransactions().iterator());
-    }
-
     /**
      * @return the consensus order for this event, this will be {@link ConsensusConstants#NO_CONSENSUS_ORDER} if the
      * event has not reached consensus
@@ -381,7 +371,12 @@ public class PlatformEvent implements org.hiero.consensus.main.model.ConsensusEv
         }
     }
 
-    public @org.jspecify.annotations.NonNull List<TransactionWrapper> getTransactions() {
+    public @NonNull List<ConsensusTransaction> getTransactions() {
+        return metadata.getConsensusTransactions();
+    }
+
+    @NonNull
+    public List<TransactionWrapper> getTransactionWrappers() {
         return metadata.getTransactions();
     }
 

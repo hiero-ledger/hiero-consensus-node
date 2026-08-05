@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.AbstractHashable;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -45,6 +46,11 @@ public class EventMetadata extends AbstractHashable {
      * list of transactions
      */
     private final List<TransactionWrapper> transactions;
+
+    /**
+     * list of transactions
+     */
+    private final List<ConsensusTransaction> consensusTransactions;
     /**
      * The event descriptor for this event. Is not itself hashed.
      */
@@ -87,6 +93,7 @@ public class EventMetadata extends AbstractHashable {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
                 .toList();
+        this.consensusTransactions = transactions.stream().map(ConsensusTransaction.class::cast).toList();
         this.birthRound = birthRound;
     }
 
@@ -173,6 +180,14 @@ public class EventMetadata extends AbstractHashable {
     @NonNull
     public List<TransactionWrapper> getTransactions() {
         return transactions;
+    }
+
+    /**
+     * @return list of transactions wrappers
+     */
+    @NonNull
+    public List<ConsensusTransaction> getConsensusTransactions() {
+        return consensusTransactions;
     }
 
     /**

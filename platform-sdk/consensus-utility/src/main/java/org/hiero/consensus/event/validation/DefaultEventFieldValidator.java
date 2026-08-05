@@ -141,11 +141,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     }
 
     private boolean isTransactionByteCountValid(@NonNull final PlatformEvent event) {
-        long totalTransactionBytes = 0;
-        final Iterator<Transaction> iterator = event.transactionIterator();
-        while (iterator.hasNext()) {
-            totalTransactionBytes += iterator.next().getSize();
-        }
+        final long totalTransactionBytes = event.getTransactions().stream().mapToLong(Transaction::getSize).sum();
 
         if (totalTransactionBytes > transactionLimits.maxTransactionBytesPerEvent()) {
             tooManyTransactionBytesLogger.error(

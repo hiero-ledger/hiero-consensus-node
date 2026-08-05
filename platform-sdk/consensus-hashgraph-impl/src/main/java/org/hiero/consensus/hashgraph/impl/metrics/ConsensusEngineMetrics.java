@@ -206,9 +206,7 @@ public class ConsensusEngineMetrics {
         long appSize = 0;
         int numAppTrans = 0;
 
-        final Iterator<Transaction> iterator = event.getBaseEvent().transactionIterator();
-        while (iterator.hasNext()) {
-            final Transaction transaction = iterator.next();
+        for (final Transaction transaction : event.getBaseEvent().getTransactions()) {
             numAppTrans++;
             appSize += transaction.getSize();
             avgBytesPerTransaction.update(transaction.getSize());

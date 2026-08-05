@@ -118,7 +118,7 @@ public class EventCreatorNetworkBenchmark {
                     new TipsetEventCreator(configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of);
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
-                    configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
+                    configuration, metrics, time, eventCreator, roster, nodeId);
 
             // Set platform status to ACTIVE so events can be created
             eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);

@@ -155,9 +155,7 @@ public class UptimeTracker {
         // new self event
         final Instant previousSelfEventConsensusTimestamp = lastSelfEventTime.get();
 
-        round.forEach(event -> {
-            lastEventsInRoundByCreator.put(event.getCreatorId(), event);
-        });
+        round.getConsensusEvents().forEach(event -> lastEventsInRoundByCreator.put(event.getCreatorId(), event));
 
         final ConsensusEvent lastSelfEvent = lastEventsInRoundByCreator.get(selfId);
         if (lastSelfEvent != null) {

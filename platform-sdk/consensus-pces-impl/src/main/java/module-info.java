@@ -27,7 +27,11 @@ module org.hiero.consensus.pces.impl {
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
     requires org.apache.logging.log4j;
-    requires static transitive com.github.spotbugs.annotations; requires org.hiero.consensus.event.intake; requires org.hiero.consensus.event.creator; requires org.hiero.consensus.hashgraph; requires org.hiero.consensus.gossip;
+    requires static transitive com.github.spotbugs.annotations;
+    requires org.hiero.consensus.event.intake;
+    requires org.hiero.consensus.event.creator;
+    requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.gossip;
 
     provides PcesModule with
             DefaultPcesModule;

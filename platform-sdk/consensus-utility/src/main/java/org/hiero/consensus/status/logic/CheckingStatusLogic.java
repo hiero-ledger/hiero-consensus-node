@@ -36,7 +36,7 @@ public class CheckingStatusLogic extends AbstractStatusLogic {
     @NonNull
     @Override
     protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
-        return new BehindStatusLogic(config);
+        return new BehindStatusLogic();
     }
 
     /**

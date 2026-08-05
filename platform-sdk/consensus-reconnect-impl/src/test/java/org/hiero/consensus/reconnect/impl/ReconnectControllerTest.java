@@ -59,7 +59,6 @@ import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.test.fixtures.WeightGenerators;

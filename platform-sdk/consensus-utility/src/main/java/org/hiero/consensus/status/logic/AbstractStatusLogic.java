@@ -11,7 +11,6 @@ import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.actions.FreezeCompleteAction;
@@ -49,10 +48,9 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
             case DoneReplayingEventsAction a -> onDoneReplayingEvents(a);
             case FallenBehindAction a -> onFallenBehind(a);
             case FreezePeriodEnteredAction a -> onFreezePeriodEntered(a);
-            case ReconnectCompleteAction a -> onReconnectComplete(a);
             case SelfEventReachedConsensusAction a -> onSelfEventReachedConsensus(a);
             case StartedReplayingEventsAction a -> onStartedReplayingEvents(a);
-            case FreezeCompleteAction a -> onStateWrittenToDisk(a);
+            case FreezeCompleteAction a -> onFreezeComplete(a);
             case TimeElapsedAction a -> onTimeElapsed(a);
         };
     }
@@ -86,11 +84,6 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
     }
 
     @NonNull
-    protected PlatformStatusLogic onReconnectComplete(@NonNull final ReconnectCompleteAction action) {
-        return illegal(action);
-    }
-
-    @NonNull
     protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusAction action) {
         return this;
     }
@@ -101,8 +94,8 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
     }
 
     @NonNull
-    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final FreezeCompleteAction action) {
-        return action.isFreezeState() ? new FreezeCompleteStatusLogic() : this;
+    protected PlatformStatusLogic onFreezeComplete(@NonNull final FreezeCompleteAction action) {
+        return new FreezeCompleteStatusLogic();
     }
 
     @NonNull

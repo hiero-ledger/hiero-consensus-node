@@ -24,7 +24,6 @@ public record ConsensusLayerAdapterBuildingBlocks(
         @NonNull IssDetectionModule issDetectionModule,
         @NonNull TransactionHandlingModule transactionHandlingModule,
         @NonNull StateModule stateModule,
-        @NonNull ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         @NonNull RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         @NonNull ComponentWiring<AppNotifier, Void> notifierWiring,
         @NonNull NotificationEngine notificationEngine,

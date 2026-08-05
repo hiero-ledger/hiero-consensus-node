@@ -14,7 +14,6 @@ import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.actions.FreezeCompleteAction;

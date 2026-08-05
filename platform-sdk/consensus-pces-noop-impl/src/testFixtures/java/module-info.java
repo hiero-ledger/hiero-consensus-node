@@ -15,6 +15,10 @@ open module org.hiero.consensus.pces.noop.impl.test.fixtures {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.utility;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.hiero.consensus.event.intake;
+    requires org.hiero.consensus.event.creator;
+    requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.gossip;
 
     provides PcesModule with
             NoopPcesModule;
