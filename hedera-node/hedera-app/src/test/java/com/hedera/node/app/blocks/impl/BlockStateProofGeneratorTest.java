@@ -242,9 +242,12 @@ class BlockStateProofGeneratorTest {
                 var current = startHash;
                 for (final SiblingNode sibling : path.siblings()) {
                     if (sibling.hash().length() == 0) {
-                        // Null-hash sentinel: applies the single-child internal node wrap (depth3→depth2).
-                        // Present for every block — intermediate blocks have a timestamp after it;
-                        // the signed block does not (its timestamp is in mp1).
+                        // Null-hash sentinel: this level's sibling branch was an empty subtree omitted from the
+                        // tree, so a single-child wrap is applied instead of combining with a real sibling. The
+                        // fixed depth3→depth2 reserved-roots wrap contributes one of these for every block —
+                        // intermediate blocks have a timestamp after it, the signed block does not (its
+                        // timestamp is in mp1) — but any other sibling slot may also be a sentinel if that
+                        // level's branch happened to be empty for this particular block.
                         current = BlockImplUtils.hashInternalNodeSingleChild(current);
                     } else if (sibling.isLeft()) {
                         // Left sibling is an indirect block's consensus timestamp; the sentinel
@@ -398,7 +401,10 @@ class BlockStateProofGeneratorTest {
 
                 final var currentSibling = allMp2Hashes.get(i);
                 if (currentSibling.hash().length() == 0) {
-                    // Null-hash sentinel: single-child wrap (depth3→depth2), present for every block
+                    // Null-hash sentinel: this level's sibling branch was an empty subtree omitted from the
+                    // tree, so a single-child wrap is applied instead of combining with a real sibling. The
+                    // fixed depth3→depth2 reserved-roots wrap contributes one of these for every block, but any
+                    // other sibling slot may also be a sentinel if that level's branch was empty for this block.
                     finalHash = BlockImplUtils.hashInternalNodeSingleChild(finalHash);
                 } else if (currentSibling.isLeft()) {
                     // Left sibling is an indirect block's consensus timestamp

@@ -243,21 +243,27 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 .orElseThrow()
                 .blockFooterOrThrow();
 
-        final var prevBlockRootsHash = Bytes.wrap(prevBlockHashesTree.computeRootHash());
+        final var prevBlockRootsHash =
+                BlockImplUtils.presentSubtreeHash(Bytes.wrap(prevBlockHashesTree.computeRootHash()));
         final var startOfBlockStateHash = footer.startOfBlockStateRootHash();
-        final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputsHash = Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputsHash = Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
-        final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+        final var consensusHeaderHash =
+                BlockImplUtils.presentSubtreeHash(Bytes.wrap(consensusHeaderHasher.computeRootHash()));
+        final var inputsHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(inputTreeHasher.computeRootHash()));
+        final var outputsHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(outputTreeHasher.computeRootHash()));
+        final var stateChangesHash =
+                BlockImplUtils.presentSubtreeHash(Bytes.wrap(stateChangesHasher.computeRootHash()));
+        final var traceDataHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(traceDataHasher.computeRootHash()));
 
-        final var d5n1 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
-        final var d5n2 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var d5n3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var d5n4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-        final var d4n1 = BlockImplUtils.hashInternalNode(d5n1, d5n2);
-        final var d4n2 = BlockImplUtils.hashInternalNode(d5n3, d5n4);
-        final var d3n1 = BlockImplUtils.hashInternalNode(d4n1, d4n2);
+        // d5n1 and d5n2 are never absent, since previousBlockHash and startOfBlockStateHash are always present;
+        // d5n3 and d5n4 may each collapse to a single child, or be entirely absent if both of their branches
+        // are empty.
+        final var d5n1 = BlockImplUtils.combineChildren(previousBlockHash, prevBlockRootsHash);
+        final var d5n2 = BlockImplUtils.combineChildren(startOfBlockStateHash, consensusHeaderHash);
+        final var d5n3 = BlockImplUtils.combineChildren(inputsHash, outputsHash);
+        final var d5n4 = BlockImplUtils.combineChildren(stateChangesHash, traceDataHash);
+        final var d4n1 = BlockImplUtils.combineChildren(d5n1, d5n2);
+        final var d4n2 = BlockImplUtils.combineChildren(d5n3, d5n4);
+        final var d3n1 = requireNonNull(BlockImplUtils.combineChildren(d4n1, d4n2));
         final var tsBytes = Timestamp.PROTOBUF.toBytes(blockTimestamp);
         final var d2n1 = BlockImplUtils.hashLeaf(tsBytes);
         final var d2n2 = BlockImplUtils.hashInternalNodeSingleChild(d3n1);

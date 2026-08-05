@@ -1646,6 +1646,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
      * in the case of the genesis block, this value should be {@link BlockStreamManager#HASH_OF_ZERO}. For
      * all other blocks, it should be the actual previous block's root hash.
+     * <p>
+     * Branches 1 and 3 ({@code prevBlockHash}, {@code startingStateHash}) always represent a real value, even
+     * at genesis when that value happens to be {@link BlockStreamManager#HASH_OF_ZERO}, so they are never
+     * omitted from the tree. The other six branches are roots of subtrees that may have no leaves at all (e.g.
+     * a block with no trace data); such a branch is omitted from the tree entirely&mdash;rather than hashed in
+     * as {@code HASH_OF_ZERO}&mdash;and the internal node above it is hashed with only its remaining child, the
+     * same "incrementally collapsed" treatment already used for the reserved roots 9-16 below.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
      */
@@ -1661,19 +1668,29 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
 
-        // Compute depth five hashes
-        final var depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, prevBlockRootsHash);
-        final var depth5Node2 = BlockImplUtils.hashInternalNode(startingStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var depth5Node4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
+        final var branch2 = BlockImplUtils.presentSubtreeHash(prevBlockRootsHash);
+        final var branch4 = BlockImplUtils.presentSubtreeHash(consensusHeaderHash);
+        final var branch5 = BlockImplUtils.presentSubtreeHash(inputsHash);
+        final var branch6 = BlockImplUtils.presentSubtreeHash(outputsHash);
+        final var branch7 = BlockImplUtils.presentSubtreeHash(stateChangesHash);
+        final var branch8 = BlockImplUtils.presentSubtreeHash(traceDataHash);
 
-        // Compute depth four hashes
-        final var depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+        // Compute depth five hashes. Depth5Node1 and depth5Node2 are never absent, since branches 1 and 3 are
+        // always present; depth5Node3 and depth5Node4 may each collapse to a single child, or be entirely
+        // absent if both of their branches are empty.
+        final var depth5Node1 = BlockImplUtils.combineChildren(prevBlockHash, branch2);
+        final var depth5Node2 = BlockImplUtils.combineChildren(startingStateHash, branch4);
+        final var depth5Node3 = BlockImplUtils.combineChildren(branch5, branch6);
+        final var depth5Node4 = BlockImplUtils.combineChildren(branch7, branch8);
+
+        // Compute depth four hashes. Depth4Node1 is never absent (depth5Node1 never is); depth4Node2 may be
+        // absent if both depth5Node3 and depth5Node4 are.
+        final var depth4Node1 = BlockImplUtils.combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = BlockImplUtils.combineChildren(depth5Node3, depth5Node4);
 
         // Compute depth three hash (there's no node 2 hash as the reserved subroots aren't encoded anywhere in the
-        // tree)
-        final var depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+        // tree). Never absent, since depth4Node1 never is.
+        final var depth3Node1 = requireNonNull(BlockImplUtils.combineChildren(depth4Node1, depth4Node2));
 
         // Compute depth two hashes (timestamp + last right sibling)
         final var tsBytes = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
@@ -1686,12 +1703,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var rootHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
 
         return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
-            // Level 6 first sibling (right child)
-            new MerkleSiblingHash(false, prevBlockRootsHash),
-            // Level 5 first sibling (right child)
-            new MerkleSiblingHash(false, depth5Node2),
-            // Level 4 first sibling (right child)
-            new MerkleSiblingHash(false, depth4Node2)
+            // Level 6 first sibling (right child); an empty siblingHash means branch 2 had no leaves, and the
+            // level below was single-child-hashed from prevBlockHash alone
+            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(branch2)),
+            // Level 5 first sibling (right child); always present, since branch 3 always is
+            new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
+            // Level 4 first sibling (right child); an empty siblingHash means depth5Node3 and depth5Node4 were
+            // both absent, and depth3Node1 was single-child-hashed from depth4Node1 alone
+            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(depth4Node2))
             // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
             // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
             // tree, this level's hash will need to be re-added as an internal node here.

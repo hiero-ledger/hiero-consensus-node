@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
 
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -142,5 +143,49 @@ public class BlockImplUtils {
     public static byte[] hashInternalNode(
             @NonNull final MessageDigest digest, @NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
         return hashOfAll(digest, INTERNAL_NODE_PREFIX, leftHash, rightHash);
+    }
+
+    /**
+     * Interprets a subtree root hash as computed by {@link IncrementalStreamingHasher#computeRootHash()},
+     * treating the {@link BlockStreamManager#HASH_OF_ZERO} sentinel it returns for a leafless subtree as
+     * "absent" (i.e. {@code null}) rather than a real value to be hashed into the tree.
+     *
+     * @param subtreeRootHash the subtree's root hash
+     * @return the hash, or null if the subtree had no leaves
+     */
+    public static @Nullable Bytes presentSubtreeHash(@NonNull final Bytes subtreeRootHash) {
+        return BlockStreamManager.HASH_OF_ZERO.equals(subtreeRootHash) ? null : subtreeRootHash;
+    }
+
+    /**
+     * Combines two potentially-absent child hashes into their parent's hash, omitting either child that
+     * represents an empty subtree instead of hashing it in as a real value. If both children are absent, the
+     * parent itself is absent, and the pair it belongs to should in turn omit it.
+     *
+     * @param left the left child's hash, or null if that subtree has no leaves
+     * @param right the right child's hash, or null if that subtree has no leaves
+     * @return the parent's hash, or null if both children are absent
+     */
+    public static @Nullable Bytes combineChildren(@Nullable final Bytes left, @Nullable final Bytes right) {
+        if (left != null && right != null) {
+            return hashInternalNode(left, right);
+        } else if (left != null) {
+            return hashInternalNodeSingleChild(left);
+        } else if (right != null) {
+            return hashInternalNodeSingleChild(right);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the given hash, or {@link Bytes#EMPTY} if it is null. Used to encode an absent sibling as the
+     * empty-hash sentinel expected by {@code MerkleSiblingHash}/{@code SiblingNode}.
+     *
+     * @param hash the hash, or null if absent
+     * @return the hash, or {@link Bytes#EMPTY} if null
+     */
+    public static Bytes orEmpty(@Nullable final Bytes hash) {
+        return hash == null ? Bytes.EMPTY : hash;
     }
 }

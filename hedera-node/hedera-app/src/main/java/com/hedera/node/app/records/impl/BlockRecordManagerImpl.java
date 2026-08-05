@@ -104,8 +104,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
     };
 
-    private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
-
     /**
      * The number of blocks to keep multiplied by hash size. This is computed based on the
      * {@link BlockRecordStreamConfig#numOfBlockHashesInState()} setting multiplied by the size of each hash. This
@@ -630,29 +628,31 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        // Branch 1: previousWrappedRecordBlockRootHash
-        // Branch 2: allPrevBlocksRootHash
-        final Bytes depth5Node1 =
-                BlockImplUtils.hashInternalNode(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash);
+        // Branch 1: previousWrappedRecordBlockRootHash (always present, even if literally HASH_OF_ZERO for the
+        // very first wrapped record block)
+        // Branch 2: allPrevBlocksRootHash (absent if this is the first wrapped record block)
+        final var depth5Node1 = BlockImplUtils.combineChildren(
+                previousWrappedRecordBlockRootHash, BlockImplUtils.presentSubtreeHash(allPrevBlocksRootHash));
 
-        // Branches 3/4 (empty — no state hash or consensus header in wrapped record blocks)
-        @SuppressWarnings("UnnecessaryLocalVariable")
-        final Bytes depth5Node2 = EMPTY_INT_NODE;
+        // Branches 3/4: wrapped record blocks carry no state hash or consensus header at all, so this pair is
+        // always fully absent from the tree, rather than hashed in as HASH_OF_ZERO
+        final Bytes depth5Node2 = null;
 
-        // Branch 5: HASH_OF_ZERO (no inputs tree)
-        // Branch 6: outputItemsTreeRootHash
-        final Bytes outputTreeHash = entry.outputItemsTreeRootHash();
-        final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
+        // Branch 5: wrapped record blocks carry no input tree, so it's always absent
+        // Branch 6: outputItemsTreeRootHash, absent only if the record file had no output items
+        final var depth5Node3 = BlockImplUtils.combineChildren(
+                null, BlockImplUtils.presentSubtreeHash(entry.outputItemsTreeRootHash()));
 
-        // Branches 7/8 (empty — no state changes or trace data in wrapped record blocks)
-        @SuppressWarnings("UnnecessaryLocalVariable")
-        final Bytes depth5Node4 = EMPTY_INT_NODE;
+        // Branches 7/8: wrapped record blocks carry no state changes or trace data, so this pair is always
+        // fully absent from the tree
+        final Bytes depth5Node4 = null;
 
-        // Intermediate depths 4, 3, and 2
-        final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+        // Intermediate depths 4, 3, and 2. Depth4Node1 is never absent (depth5Node1 never is); depth4Node2 may
+        // be absent if the record file had no output items.
+        final var depth4Node1 = BlockImplUtils.combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = BlockImplUtils.combineChildren(depth5Node3, depth5Node4);
 
-        final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+        final var depth3Node1 = requireNonNull(BlockImplUtils.combineChildren(depth4Node1, depth4Node2));
 
         final Bytes depth2Node1 = entry.consensusTimestampHash();
         final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);

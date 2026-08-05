@@ -329,10 +329,15 @@ class IndirectProofSequenceValidator {
         for (int i = 0; i < numIntermediateBlocks; i++) {
             final var currentBlockPaths = partialPathsByBlock.get(currentBlockNum++);
             for (final var s : currentBlockPaths.right().siblingHashes()) {
-                allSiblingHashes.add(SiblingNode.newBuilder()
-                        .isLeft(s.isFirst())
-                        .hash(s.siblingHash())
-                        .build());
+                // An empty siblingHash means this level's sibling branch was an empty subtree and was omitted
+                // from the tree entirely, so a single-child wrap sentinel is used instead of a real sibling.
+                allSiblingHashes.add(
+                        s.siblingHash().length() == 0
+                                ? SiblingNode.newBuilder().build()
+                                : SiblingNode.newBuilder()
+                                        .isLeft(s.isFirst())
+                                        .hash(s.siblingHash())
+                                        .build());
             }
             allSiblingHashes.add(SiblingNode.newBuilder().build()); // null-hash sentinel
             allSiblingHashes.add(SiblingNode.newBuilder()
@@ -344,10 +349,13 @@ class IndirectProofSequenceValidator {
 
         // Add sibling hashes for the signed block (excluding its timestamp, which lives in mp1)
         for (final var s : partialPathsByBlock.get(signedBlockNum).right().siblingHashes()) {
-            allSiblingHashes.add(SiblingNode.newBuilder()
-                    .isLeft(s.isFirst())
-                    .hash(s.siblingHash())
-                    .build());
+            allSiblingHashes.add(
+                    s.siblingHash().length() == 0
+                            ? SiblingNode.newBuilder().build()
+                            : SiblingNode.newBuilder()
+                                    .isLeft(s.isFirst())
+                                    .hash(s.siblingHash())
+                                    .build());
         }
         allSiblingHashes.add(SiblingNode.newBuilder().build()); // null-hash sentinel
 
@@ -473,7 +481,10 @@ class IndirectProofSequenceValidator {
         var hash = mp2.hashOrThrow();
         for (final SiblingNode sibling : allSiblings) {
             if (sibling.hash().length() == 0) {
-                // Null-hash sentinel: applies single-child wrap (depth3→depth2). Present for every block.
+                // Null-hash sentinel: this level's sibling branch was an empty subtree and was omitted from the
+                // tree entirely, so a single-child wrap is applied instead of combining with a real sibling.
+                // Every block has at least one of these (the fixed depth3->depth2 reserved-roots wrap), but any
+                // other level may also collapse to a sentinel if its branch happened to be empty for this block.
                 hash = BlockImplUtils.hashInternalNodeSingleChild(hash);
             } else if (sibling.isLeft()) {
                 hash = BlockImplUtils.hashInternalNode(sibling.hash(), hash);

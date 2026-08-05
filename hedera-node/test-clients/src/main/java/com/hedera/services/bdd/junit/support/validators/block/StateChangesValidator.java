@@ -826,6 +826,31 @@ public class StateChangesValidator implements BlockStreamValidator {
         return Bytes.wrap(digest.digest());
     }
 
+    /**
+     * Interprets a subtree root hash as {@link BlockStreamManager#HASH_OF_ZERO} meaning "absent" rather than a
+     * real value to hash into the tree, mirroring {@link BlockImplUtils#presentSubtreeHash(Bytes)} but built on
+     * this class's independently reimplemented hash primitives.
+     */
+    private static @Nullable Bytes presentSubtreeHash(final Bytes subtreeRootHash) {
+        return BlockStreamManager.HASH_OF_ZERO.equals(subtreeRootHash) ? null : subtreeRootHash;
+    }
+
+    /**
+     * Combines two potentially-absent child hashes into their parent's hash, omitting either child that
+     * represents an empty subtree, mirroring {@link BlockImplUtils#combineChildren(Bytes, Bytes)}.
+     */
+    private static @Nullable Bytes combineChildren(@Nullable final Bytes left, @Nullable final Bytes right) {
+        if (left != null && right != null) {
+            return hashInternalNode(left, right);
+        } else if (left != null) {
+            return hashInternalNodeSingleChild(left);
+        } else if (right != null) {
+            return hashInternalNodeSingleChild(right);
+        } else {
+            return null;
+        }
+    }
+
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
     private RootAndSiblingHashes computeBlockHash(
@@ -838,24 +863,28 @@ public class StateChangesValidator implements BlockStreamValidator {
             final IncrementalStreamingHasher consensusHeaderHasher,
             final Bytes finalStateChangesHash,
             final IncrementalStreamingHasher traceDataHasher) {
-        final var prevBlocksRootHash = Bytes.wrap(prevBlockRootsHasher.computeRootHash());
-        final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputTreeHash = Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+        final var prevBlocksRootHash = presentSubtreeHash(Bytes.wrap(prevBlockRootsHasher.computeRootHash()));
+        final var consensusHeaderHash = presentSubtreeHash(Bytes.wrap(consensusHeaderHasher.computeRootHash()));
+        final var inputTreeHash = presentSubtreeHash(Bytes.wrap(inputTreeHasher.computeRootHash()));
+        final var outputTreeHash = presentSubtreeHash(Bytes.wrap(outputTreeHasher.computeRootHash()));
+        final var traceDataHash = presentSubtreeHash(Bytes.wrap(traceDataHasher.computeRootHash()));
+        final var finalStateChanges = presentSubtreeHash(finalStateChangesHash);
 
-        // Compute depth five hashes
-        final var depth5Node1 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = hashInternalNode(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = hashInternalNode(finalStateChangesHash, traceDataHash);
+        // Compute depth five hashes. Depth5Node1 and depth5Node2 are never absent, since previousBlockHash and
+        // startOfBlockStateHash are always present; depth5Node3 and depth5Node4 may each collapse to a single
+        // child, or be entirely absent if both of their branches are empty.
+        final var depth5Node1 = combineChildren(previousBlockHash, prevBlocksRootHash);
+        final var depth5Node2 = combineChildren(startOfBlockStateHash, consensusHeaderHash);
+        final var depth5Node3 = combineChildren(inputTreeHash, outputTreeHash);
+        final var depth5Node4 = combineChildren(finalStateChanges, traceDataHash);
 
-        // Compute depth four hashes
-        final var depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
+        // Compute depth four hashes. Depth4Node1 is never absent (depth5Node1 never is); depth4Node2 may be
+        // absent if both depth5Node3 and depth5Node4 are.
+        final var depth4Node1 = combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = combineChildren(depth5Node3, depth5Node4);
 
         // Compute depth three hash (no 'node 2' at this level since reserved subroots 9-16 aren't encoded in the tree)
-        final var depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
+        final var depth3Node1 = requireNonNull(combineChildren(depth4Node1, depth4Node2));
 
         // Compute depth two hashes (timestamp + last right sibling)
         final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
@@ -866,9 +895,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var root = hashInternalNode(depth2Node1, depth2Node2);
 
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
-            new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, depth5Node2),
-            new MerkleSiblingHash(false, depth4Node2),
+            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(prevBlocksRootHash)),
+            new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
+            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(depth4Node2)),
         });
     }
 

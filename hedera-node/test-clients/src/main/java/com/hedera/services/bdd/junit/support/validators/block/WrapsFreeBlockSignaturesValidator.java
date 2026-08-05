@@ -1307,27 +1307,33 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             @NonNull final IncrementalStreamingHasher consensusHeaderHasher,
             @NonNull final Bytes finalStateChangesHash,
             @NonNull final IncrementalStreamingHasher traceDataHasher) {
-        final var prevBlocksRootHash = Bytes.wrap(prevBlockRootsHasher.computeRootHash());
-        final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputTreeHash = Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+        final var prevBlocksRootHash =
+                BlockImplUtils.presentSubtreeHash(Bytes.wrap(prevBlockRootsHasher.computeRootHash()));
+        final var consensusHeaderHash =
+                BlockImplUtils.presentSubtreeHash(Bytes.wrap(consensusHeaderHasher.computeRootHash()));
+        final var inputTreeHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(inputTreeHasher.computeRootHash()));
+        final var outputTreeHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(outputTreeHasher.computeRootHash()));
+        final var traceDataHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(traceDataHasher.computeRootHash()));
+        final var stateChangesHash = BlockImplUtils.presentSubtreeHash(finalStateChangesHash);
 
-        final var depth5Node1 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
-        final var depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-        final var depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+        // Depth5Node1 and depth5Node2 are never absent, since previousBlockHash and startOfBlockStateHash are
+        // always present; depth5Node3 and depth5Node4 may each collapse to a single child, or be entirely
+        // absent if both of their branches are empty.
+        final var depth5Node1 = BlockImplUtils.combineChildren(previousBlockHash, prevBlocksRootHash);
+        final var depth5Node2 = BlockImplUtils.combineChildren(startOfBlockStateHash, consensusHeaderHash);
+        final var depth5Node3 = BlockImplUtils.combineChildren(inputTreeHash, outputTreeHash);
+        final var depth5Node4 = BlockImplUtils.combineChildren(stateChangesHash, traceDataHash);
+        final var depth4Node1 = BlockImplUtils.combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = BlockImplUtils.combineChildren(depth5Node3, depth5Node4);
+        final var depth3Node1 = requireNonNull(BlockImplUtils.combineChildren(depth4Node1, depth4Node2));
         final var depth2Node1 = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
         final var depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
         final var root = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
 
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
-            new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, depth5Node2),
-            new MerkleSiblingHash(false, depth4Node2),
+            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(prevBlocksRootHash)),
+            new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
+            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(depth4Node2)),
         });
     }
 

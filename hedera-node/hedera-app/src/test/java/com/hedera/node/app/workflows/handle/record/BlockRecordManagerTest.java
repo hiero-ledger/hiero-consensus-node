@@ -885,8 +885,6 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Nested
     class ComputeWrappedRecordBlockRootHashTest {
 
-        private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
-
         @Test
         void producesHashOfCorrectSize() {
             final var result = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
@@ -971,14 +969,15 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var consensusHash = randomHash();
             final var entry = entryWith(outputHash, consensusHash);
 
-            // Manually compute the expected tree structure
+            // Manually compute the expected tree structure. Branches 3/4 and 7/8 are always fully absent for
+            // wrapped record blocks (no state hash/consensus header/state changes/trace data), and branch 5
+            // (inputs) is always absent too, so depth5Node2 and depth5Node4 are omitted from the tree entirely
+            // and depth5Node3 is single-child-hashed from outputHash alone.
             final Bytes depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
-            final Bytes depth5Node2 = EMPTY_INT_NODE;
-            final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
-            final Bytes depth5Node4 = EMPTY_INT_NODE;
+            final Bytes depth5Node3 = BlockImplUtils.hashInternalNodeSingleChild(outputHash);
 
-            final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-            final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+            final Bytes depth4Node1 = BlockImplUtils.hashInternalNodeSingleChild(depth5Node1);
+            final Bytes depth4Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth5Node3);
 
             final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
 

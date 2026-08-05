@@ -164,6 +164,15 @@ public class IncrementalStreamingHasher {
     }
 
     /**
+     * Returns whether no leaves have been added to the tree yet.
+     *
+     * @return true if the tree has no leaves
+     */
+    public boolean isEmpty() {
+        return leafCount == 0;
+    }
+
+    /**
      * Saves the current hashing state to a binary file.
      *
      * <p>File format:
