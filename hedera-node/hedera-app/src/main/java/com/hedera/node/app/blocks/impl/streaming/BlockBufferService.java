@@ -754,7 +754,7 @@ public class BlockBufferService {
             ++numChecked;
 
             if (!block.isClosed()) {
-                // this block is closed, and therefore not eligible to be pruned
+                // this block is not closed, and therefore not eligible to be pruned
                 ++numInProgress;
                 newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
                 newLatestBlock = Math.max(newLatestBlock, blockNumber);
