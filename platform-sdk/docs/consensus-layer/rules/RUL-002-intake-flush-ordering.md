@@ -5,7 +5,7 @@ title: The intake pipeline is flushed component-by-component in topological orde
 class: structural
 topics: [restart-and-pces, event-intake, wiring-framework]
 components:
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java
+  - swirlds-platform-core/src/main/java/org/hiero/consensus/PipelineFlusher.java
   - swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java
   - consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java
@@ -52,20 +52,20 @@ system to its throughput limit.
 
 ## Why it holds now
 
-The order is enforced by `PlatformCoordinator.flushPrimaryPipeline()`, whose
+The order is enforced by `PipelineFlusher.flushPrimaryPipeline()`, whose
 body is a fixed sequence of per-component `flush()` calls and carries an
 explicit warning that the order must not be changed without consulting the
 wiring diagram:
 
 ```java
 public void flushPrimaryPipeline() {
-    components.eventIntakeModule().flush();
-    components.pcesModule().flush();
-    components.gossipModule().flush();
-    components.hashgraphModule().flush();
-    components.transactionHandlingModule().flush();
-    components.eventCreatorModule().flush();
-    components.stateModule().flush();
+    eventIntakeModule.flush();
+    pcesModule.flush();
+    gossipModule.flush();
+    hashgraphModule.flush();
+    transactionHandlingModule.flush();
+    eventCreatorModule.flush();
+    stateModule.flush();
 }
 ```
 
@@ -118,7 +118,7 @@ condition: **the orphan buffer is inert during the flush.**
 
 On the replay path it is — because of the seeded window, not the PCES stream
 order. Before replay, the orphan buffer is seeded with the loaded state's event
-window (`SwirldsPlatform` startup → `PlatformCoordinator.updateEventWindow`),
+window (platform init → `InitialStateLoader` injects the initial event window),
 and the replay lower bound is that same loaded-state ancient threshold
 (`SwirldsPlatform` sets `pcesReplayLowerBound = initialAncientThreshold`). So
 the replay set holds only events non-ancient at the seeded window, and every

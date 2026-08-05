@@ -48,7 +48,7 @@ principles as `consensus-*` modules.
 - `swirlds-config-api` — configuration API.
 - `swirlds-metrics-api` — metrics API.
 - `swirlds-metrics-impl` — metrics implementation; depend on `swirlds-metrics-api` instead.
-- `swirlds-component-framework` — wiring framework for composing components into data pipelines.
+- `consensus-wiring-framework` — wiring framework for composing components into data pipelines.
 - `swirlds-state-api` — state access and lifecycle API (singleton, queue, key-value).
 - `swirlds-state-impl` — implementation of `swirlds-state-api`.
 - `swirlds-virtualmap` — disk-backed virtual merkle map for large state.
@@ -59,7 +59,7 @@ principles as `consensus-*` modules.
 **Usage rules:**
 
 - **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
-- **Allowed in functional-api and functional-impl modules only (not supporting modules):** `swirlds-component-framework`
+- **Allowed in functional-api and functional-impl modules only (not supporting modules):** `consensus-wiring-framework`
 - **Allowed in `consensus-platformstate`, `consensus-roster`, and `consensus-iss-detection` only:** `swirlds-state-api`, `swirlds-state-impl`
 - **Allowed in `consensus-state`, `consensus-state-management`, and `consensus-transaction-handling` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Transitional — currently present in `consensus-gossip`, `consensus-gossip-impl`, and `consensus-reconnect-impl` but not permitted in the final architecture:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`

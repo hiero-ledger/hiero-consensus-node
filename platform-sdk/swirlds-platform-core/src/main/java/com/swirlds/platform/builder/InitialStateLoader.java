@@ -116,7 +116,11 @@ public class InitialStateLoader {
                     .initialEventWindowDispatcher()
                     .getInputWire()
                     .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks.gossipModule().flush();
+            // No flush is required here. The dispatcher is a DIRECT_THREADSAFE transformer, so inject() delivers the
+            // event window on the calling thread: by the time it returns, every downstream component has either
+            // handled it or has it queued ahead of anything sent later. Gossip is the case that matters, as its start
+            // signal arrives on the same sequential scheduler when SwirldsPlatform.start() runs, so the sync threads
+            // it spawns are guaranteed to see the event window.
             buildingBlocks
                     .issDetectionModule()
                     .overridingStateInputWire()
