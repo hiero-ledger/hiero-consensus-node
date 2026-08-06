@@ -121,7 +121,7 @@ public class TestHashgraphInfo {
             printEventSigned(out, eventInfo);
 
             updateResults = eventInfo.update(roundInfo, roundInfoPrev);
-            printEventInfo(out, eventInfo);
+            printEventInfo(out, eventInfo, roundInfoPrev);
             if (updateResults != null) {
                 printUpdateResults(out, updateResults);
             }
@@ -215,11 +215,14 @@ public class TestHashgraphInfo {
         }
     }
 
-    /** append to the CSV line an array of booleans (length then each as 0=false 1=true) with comma before not after */
-    private static void appendBooleans(StringBuilder line, boolean[] booleans) {
-        line.append(",").append(booleans.length);
-        for (boolean b : booleans) {
-            line.append(",").append(b ? 1 : 0);
+    /**
+     * Append to the CSV line the first len elements of an array of booleans (length then each as 0=false 1=true)
+     * with a comma before but not after.
+     */
+    private static void appendBooleans(StringBuilder line, boolean[] booleans, int len) {
+        line.append(",").append(len);
+        for (int i=0; i< len; i++) {
+            line.append(",").append(booleans[i] ? 1 : 0);
         }
     }
 
@@ -273,7 +276,7 @@ public class TestHashgraphInfo {
      * Return one line of the CSV file describing the given EventInfo with calculated memoized fields.
      * This must be called immediately after eventInfo.update(...) because some fields are read from the hashgraph.
      */
-    private static void printEventInfo(PrintWriter out, EventInfo eventInfo) {
+    private static void printEventInfo(PrintWriter out, EventInfo eventInfo, RoundInfoPrev roundInfoPrev) {
         StringBuilder line = new StringBuilder();
         HashgraphInfo h = eventInfo.getHashgraph();
         line.append(EVENT_INFO_TYPE);
@@ -284,7 +287,7 @@ public class TestHashgraphInfo {
         line.append(",").append(h.getTotalStake());
         line.append(",").append(h.getMinNonAncientRound());
         line.append(",").append(h.getVoteD());
-        appendBooleans(line, eventInfo.getAncestorJudge());
+        appendBooleans(line, eventInfo.getAncestorJudge(), roundInfoPrev.prevJudges().length);
         line.append(",").append(eventInfo.getGen());
         appendEvents(line, eventInfo.getLastSee());
         appendEvents(line, eventInfo.getStronglySeeP());
@@ -293,7 +296,7 @@ public class TestHashgraphInfo {
         line.append(",").append(eventID(eventInfo.getFirstWitnessS()));
         appendEvents(line, eventInfo.getStronglySeeS1());
         appendEvents(line, eventInfo.getVoteE());
-        appendBooleans(line, eventInfo.getVoteB());
+        appendBooleans(line, eventInfo.getVoteB(), eventInfo.getVoteB().length);
         line.append(",").append(eventInfo.isConsensus() ? 1 : 0);
         line.append(",").append(eventInfo.getConsensusOrder());
         Instant t = eventInfo.getConsensusTimestamp();
