@@ -8,7 +8,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -81,7 +80,7 @@ public class Tipset {
 
     /**
      * Get the tip generation for a given node. If the node is not in the roster or no event from that node is know,
-     * return {@link PlatformEvent#UNASSIGNED_SEQUENCE_NUMBER}.
+     * return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
      *
      * @param nodeId the node in question
      * @return the tip generation for the node
