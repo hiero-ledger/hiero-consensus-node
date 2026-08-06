@@ -618,7 +618,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     /**
      * Computes the wrapped record block root hash for a single block from its constituent hashes.
      * <p>
-     * Unlike the live block-production path, {@code allPrevBlocksRootHash} and
+     * Unlike the block stream block-production path, {@code allPrevBlocksRootHash} and
      * {@code entry.outputItemsTreeRootHash()} here are already-finalized hashes with no accompanying leaf count
      * ({@link WrappedRecordFileBlockHashes} carries only the root hash), so presence for those two branches
      * must be inferred with {@link BlockImplUtils#presentSubtreeHash(Bytes)} rather than a precise

@@ -1663,6 +1663,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * as {@code HASH_OF_ZERO}&mdash;and the internal node above it is hashed with only its remaining child, the
      * same "incrementally collapsed" treatment already used for the reserved roots 9-16 below.
      * <p>
+     * This describes the shape of a <i>block stream block</i> only. Wrapped record blocks are assembled by
+     * {@code BlockRecordManagerImpl#computeWrappedRecordBlockRootHash} and use a different shape: they carry no
+     * start-of-block state hash, consensus header, inputs, state changes, or trace data, so branches 3, 4, 5, 7,
+     * and 8 are all omitted and only branches 1, 2, and 6 can be present. That branch 3 is <b>always</b> present
+     * here and <b>never</b> present there is load-bearing, not incidental: it makes depth4Node1 a binary node for
+     * every block stream block and a single-child node for every wrapped record block, so the two kinds of block
+     * can never produce a colliding root hash.
+     * <p>
+     * One consequence of omitting a branch is that any {@code BlockFooter} field carrying that branch's value is
+     * no longer committed to by the block root hash&mdash;{@code startOfBlockStateRootHash} for every wrapped
+     * record block, and {@code rootHashOfAllBlockHashesTree} whenever branch 2 is empty (block 0, and the first
+     * wrapped record block). Those fields remain independently recomputable by a verifier, but they are not
+     * authenticated by the root hash for those blocks.
+     * <p>
      * Presence for those six branches is a caller-supplied {@code @Nullable} value rather than something this
      * method infers from the hash bytes themselves: a subtree whose only leaf happens to serialize to
      * zero-length content would hash to exactly {@code HASH_OF_ZERO} too (since that sentinel is itself just

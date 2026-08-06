@@ -63,8 +63,16 @@ message StateProof {
  *    block root hash. For these the `hash` field is set.
  * 3. Merkle paths in the middle between another merkle path and the root. For
  *    these, none of the fields are set.
- * Merkle paths can only include sibling nodes for binary internal nodes. If
- * there is a unary node in the path a new MerklePath must be started.
+ *
+ * A merkle path MAY include both binary and unary internal nodes. A binary
+ * internal node is represented by a `SiblingNode` carrying the hash of the
+ * other child. A unary internal node -- one whose sibling subtree contained no
+ * leaves and was therefore omitted from the tree rather than hashed in as a
+ * placeholder value -- is represented by a `SiblingNode` whose `hash` is empty.
+ * Every level between the start of the path and its parent SHALL be
+ * represented by exactly one `SiblingNode`, so that the position of a sibling
+ * within `siblings` identifies the level it belongs to whether or not that
+ * level is unary.
  */
 message MerklePath {
 
@@ -111,13 +119,22 @@ message MerklePath {
 message SiblingNode {
     /**
      * True when this sibling is on the left of the merkle path, False if on
-     * the right side of the merkle path
+     * the right side of the merkle path.
+     * <p>
+     * This field SHALL be ignored when `hash` is empty, as a unary internal
+     * node has no sibling to position.
      */
     bool is_left = 1;
 
     /**
      * The hash of the sibling node that can be combined with the merkle path
      * computed hashes as the proof is validated.
+     * <p>
+     * If this field is empty, the parent at this level is a unary internal
+     * node: the sibling subtree contained no leaves and was omitted from the
+     * tree entirely. A verifier SHALL then compute the parent from the running
+     * path hash alone, using the single-child internal node hash, rather than
+     * combining it with a sibling value.
      */
     bytes hash = 2;
 }
@@ -140,6 +157,9 @@ message MerkleSiblingHash {
      * sibling hashes of a binary merkle tree.<br/>
      * If this is unset, then this sibling MUST be the second hash in the pair
      * of sibling hashes of a binary merkle tree.
+     * <p>
+     * This field SHALL be ignored when `sibling_hash` is empty, as a unary
+     * internal node has no sibling to position.
      */
     bool is_first = 1;
 
@@ -149,7 +169,12 @@ message MerkleSiblingHash {
      * <p>
      * The algorithm for this hash SHALL match the algorithm for the block that
      * contains this sibling.<br/>
-     * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
+     * This SHALL contain either the raw (e.g.) 384 bits (48 bytes) of the hash
+     * value, or no bytes at all.<br/>
+     * If this field is empty, the parent at this level is a unary internal
+     * node: the sibling subtree contained no leaves and was omitted from the
+     * tree entirely. The parent SHALL then be computed from the child on the
+     * path alone, using the single-child internal node hash.
      */
     bytes sibling_hash = 2;
 }
