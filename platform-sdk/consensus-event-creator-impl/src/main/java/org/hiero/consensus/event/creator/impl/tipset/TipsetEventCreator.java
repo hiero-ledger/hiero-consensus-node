@@ -170,20 +170,12 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
-                // Normally we will ingest self events before we get to this point, but it's possible
-                // to learn of self events for the first time here if we are loading from a restart (via PCES)
-                // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen number value assigned by the orphan buffer. We use nGen and not sequence
-                // number because nGen tells us which is higher in the graph - sequence number does not.
+            if (lastSelfEvent == null ||
+                    (lastSelfEvent.getOrigin() == EventOrigin.STORAGE && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber())) {
+                // The node has restarted, and we need to keep track of our latest self event to prevent branching
                 lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
                 tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
-            } else {
-                // We already ingested this self event (when it was created),
-                // or it is older than the event we are already tracking.
-                return;
             }
         } else {
             tipsetTracker.addPeerEvent(event);
@@ -353,7 +345,8 @@ public class TipsetEventCreator implements EventCreator {
 
     /**
      * Check if given element is present inside the array
-     * @param array collection to check
+     *
+     * @param array   collection to check
      * @param element element to look for
      * @return true if element is contained in array, false otherwise
      */
