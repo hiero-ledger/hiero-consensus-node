@@ -36,6 +36,8 @@ import java.util.OptionalLong;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A small utility that runs the * {@code #processTransaction()} call implied by the
@@ -43,6 +45,8 @@ import javax.inject.Inject;
  */
 @TransactionScope
 public class ContextTransactionProcessor implements Callable<CallOutcome> {
+    private static final Logger log = LogManager.getLogger(ContextTransactionProcessor.class);
+
     private final HandleContext context;
     private final ContractsConfig contractsConfig;
     private final Configuration configuration;
@@ -151,6 +155,12 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 contractsConfig.throttleThrottleByOpsDuration() && throttleAdviser != null;
         final var shouldApplyOpsDurationThrottle = opsDurationThrottleEnabled
                 && !context.body().transactionIDOrElse(TransactionID.DEFAULT).scheduled();
+        log.warn(
+                "[REPLAY-DEBUG] opsDurationThrottleEnabled ?= {}, contractsConfig.throttleThrottleByOpsDuration() ?= {}, throttleAdviser ?= null ?= {}, shouldApplyOpsDurationThrottle ?= {}",
+                opsDurationThrottleEnabled,
+                contractsConfig.throttleThrottleByOpsDuration(),
+                (throttleAdviser != null),
+                shouldApplyOpsDurationThrottle);
 
         final OpsDurationCounter opsDurationCounter;
         if (shouldApplyOpsDurationThrottle) {

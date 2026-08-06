@@ -228,7 +228,13 @@ public class ThrottleAccumulator {
             // Effectively unlimited in case of a no-op throttle
             return Long.MAX_VALUE;
         }
-        return contractOpsDurationThrottle.capacityFree(now);
+        final var res = contractOpsDurationThrottle.capacityFree(now);
+        log.warn(
+                "[REPLAY-DEBUG] Checking ops duration capacity at consensus timestamp {}. Result = {}. Capacity is {}",
+                now,
+                res,
+                contractOpsDurationThrottle.capacity());
+        return res;
     }
 
     /**
@@ -240,7 +246,17 @@ public class ThrottleAccumulator {
         if (throttleType == NOOP_THROTTLE) {
             return;
         }
+        final var usedBefore = contractOpsDurationThrottle.used();
         contractOpsDurationThrottle.useCapacity(now, opsDurationUnitsToConsume);
+        final var usedAfter = contractOpsDurationThrottle.used();
+        log.warn(
+                "[REPLAY-DEBUG] Using {} units of ops duration throttle at consensus timestamp {}."
+                        + "Used before was {}, now it's {}. Capacity is {}",
+                opsDurationUnitsToConsume,
+                now,
+                usedBefore,
+                usedAfter,
+                contractOpsDurationThrottle.capacity());
     }
 
     /**
