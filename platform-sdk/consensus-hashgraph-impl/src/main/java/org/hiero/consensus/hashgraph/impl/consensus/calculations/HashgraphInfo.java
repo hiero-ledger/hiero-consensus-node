@@ -818,7 +818,7 @@ public final class HashgraphInfo {
                 { // function voteD  /----------------------------------------------------------------------------
                     long totalStake = 0;
                     for (EventInfo judge : rp.prevJudges) {
-                        totalStake += r.stake[judge.creator];
+                        totalStake += judge.creator < 0 ? 0 : r.stake[judge.creator];
                     }
                     h.voteD = (rp.prevJudgesCopied
                                     || (rp.prevJudgeCon1 && !r.judgeCon1)
@@ -1211,7 +1211,8 @@ public final class HashgraphInfo {
                 long stake = 0; // sum of weights of judges with earlier created time
                 int medianPos;
                 for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
-                    stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
+                    int creator = judgesArray[h.sortInd[medianPos]].creator;
+                    stake += creator < 0 ? 0 : r.stake[creator];
                     if (2 * stake >= h.totalStake) {
                         break;
                     }
@@ -1259,7 +1260,8 @@ public final class HashgraphInfo {
                                                     ? 1
                                                     : event.receivedTime[i1].compareTo(event.receivedTime[i2]));
                     for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
-                        stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
+                        int creator = judgesArray[h.sortInd[medianPos]].creator;
+                        stake += creator < 0 ? 0 : r.stake[creator];
                         if (2 * stake >= h.totalStake) {
                             break;
                         }
@@ -1293,8 +1295,9 @@ public final class HashgraphInfo {
             minJudgeBirthRound = Long.MAX_VALUE;
             long judgeStake = 0;
             for (EventInfo judge : h.judges) {
+                int creator = judge.creator;
                 minJudgeBirthRound = Math.min(minJudgeBirthRound, judge.birthRound);
-                judgeStake += r.stake[judge.creator];
+                judgeStake += creator < 0 ? 0 : r.stake[judge.creator];
             }
             if (judgeStake * 3 <= 2 * h.totalStake) {
                 // math theorem in the paper: this can never happen

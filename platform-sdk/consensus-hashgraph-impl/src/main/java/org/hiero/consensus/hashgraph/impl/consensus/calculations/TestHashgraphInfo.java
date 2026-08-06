@@ -11,10 +11,8 @@ import java.nio.file.Path;
 import java.security.CodeSource;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo.UpdateResults;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfo;
@@ -342,46 +340,72 @@ public class TestHashgraphInfo {
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
     static void createLogFile(String outputFilename) {
-        final Random random = new Random();
-
-        Path outputFile = getFilePath(outputFilename);
+        final int MAX_NODE_ID = 999;
+        final int NUM_NODES = 4;
+        final int MIN_OTHER_PARENTS = 1;
+        final int MAX_OTHER_PARENTS = 3;
+        final Path outputFile = getFilePath(outputFilename);
         if (outputFile == null) {
             return;
         }
         try (final PrintWriter out = new PrintWriter(Files.newBufferedWriter(outputFile))) {
+            final Random random = new Random(RANDOM_SEED);
+            final EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEvents = new LinkedList<>();
             HashMap<Long, EventInfo> mapIdToEventInfo = new HashMap<Long, EventInfo>();
+            HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<Long, HashMap<Long, Integer>>();
+            HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<Long, HashMap<Integer, Long>>();
+            HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
+            HashMap<Integer, Long> mapCurrNodeIndexToNodeId; // = new HashMap<Integer, Long>();
             UpdateResults updateResults;
             long nextEventID  = 1;
             long eventsWritten = 0; //number of times an EventInfo row has been written so far
-            NewHashgraphRow newHashgraphRow = new NewHashgraphRow(SOFTWARE_VERSION, RANDOM_SEED, Instant.now());
-            RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
-            RoundInfo roundInfo = new RoundInfo(
-                    1, // long pendingRound
-                    new long[] {100, 200, 300, 400}, // long[] nodes
-                    new long[] {101, 102, 103, 104}, // long[] stake
-                    10, // int coinInterval
-                    3, // int seeNum
-                    3, // int seeDen
-                    false, // boolean judgeCon1
-                    5, // int targetNumRoundsNonAncient
-                    2); // int numRoundsAddressBook
+            boolean newHashgraph = true;
+            boolean newRound = true;
+            RoundInfo roundInfo = null;
 
-            writeNewHashgraphRow(out, newHashgraphRow);
-            writeRoundInfoPrev(out, roundInfoPrev);
-            writeRoundInfo(out, roundInfo);
+            //fields for the next roundInfo
+            long[] roundInfoNodes = new long[] {100, 200, 300, 400};
+            long[] roundInfoStake = new long[] {101, 102, 103, 104};
+            int roundInfoCoinInterval = 10;
+            int roundInfoSeeNum = 3;
+            int roundInfoSeeDen = 3;
+            boolean roundInfoJudgeCon1 = false;
+            int roundInfoTargetNumRoundsNonAncient = 5;
+            int roundInfoNumRoundsAddressBook = 2;
+
+            RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
+                if (newHashgraph) {
+                    writeNewHashgraphRow(out, new NewHashgraphRow(SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
+                    newHashgraph = false;
+                }
+                if (newRound) {
+                    roundInfo = new RoundInfo(roundInfoPrev.pendingRound(),
+                            roundInfoNodes, roundInfoStake, roundInfoCoinInterval, roundInfoSeeNum,
+                            roundInfoSeeDen, roundInfoJudgeCon1, roundInfoTargetNumRoundsNonAncient,
+                            roundInfoNumRoundsAddressBook);
+                    writeRoundInfoPrev(out, roundInfoPrev);
+                    writeRoundInfo(out, roundInfo);
+                    newRound = false;
+                }
+                int creatorIndex = random.nextInt(roundInfo.nodes().length);
+                ArrayList<EventInfo> possibleParents = new ArrayList<>();
+                int numParents = 0;
+                EventInfo selfParent = null;
+                EventInfo[] parents = new EventInfo[numParents];
                 EventInfo eventInfo = new EventInfo(
                         hashgraphInfo, // HashgraphInfo hashgraphInfo
                         nextEventID++, // long eventID
-                        1, // long creator (the creatorID, not the index of the creator used in calculations)
+                        creatorIndex, // int creator
                         Instant.now(), // Instant timeCreated
                         roundInfo.pendingRound(), // long birthRound
                         random.nextInt(), // int coin
-                        new EventInfo[]{}, // EventInfo[] parents
+                        parents, // EventInfo[] parents
                         null); // Object payload
+                lastEvent[(int)roundInfo.nodes()[eventInfo.getCreator()]] = eventInfo;
                 mapIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEvents.add(eventInfo);
                 writeEventSigned(out, eventInfo);
@@ -392,22 +416,12 @@ public class TestHashgraphInfo {
                 if (updateResults != null) {
                     writeUpdateResults(out, updateResults);
                     roundInfoPrev = updateResults.nextRoundInfoPrev();
-                    roundInfo = new RoundInfo(
-                            roundInfoPrev.pendingRound(), // long pendingRound
-                            roundInfo.nodes(), // long[] nodes
-                            roundInfo.stake(), // long[] stake
-                            roundInfo.coinInterval(), // int coinInterval
-                            roundInfo.seeNum(), // int seeNum
-                            roundInfo.seeDen(), // int seeDen
-                            roundInfo.judgeCon1(), // boolean judgeCon1
-                            roundInfo.targetNumRoundsNonAncient(), // int targetNumRoundsNonAncient
-                            roundInfo.numRoundsAddressBook()); // int numRoundsAddressBook
+                    newRound = true;
                     for (EventInfo event : updateResults.consensusEvents()) {
                         writeEventInfo(out, event, roundInfoPrev);
                         eventsWritten++;
                     }
                     writeRoundInfoPrev(out, roundInfoPrev);
-                    writeRoundInfo(out, roundInfo);
                 }
             }
 
