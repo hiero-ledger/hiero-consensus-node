@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.config;
+package org.hiero.consensus;
 
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
