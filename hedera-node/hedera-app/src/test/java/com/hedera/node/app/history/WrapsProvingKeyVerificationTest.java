@@ -264,7 +264,8 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void doesNotStartSecondDownloadWhileOneIsInFlight() throws Exception {
+    void doesNotStartSecondDownloadWhileOneIsInFlight(final EnvironmentVariables environment) throws Exception {
+        setArtifactsEnvVar(environment);
         final var executor = Executors.newSingleThreadExecutor();
         try {
             final var subject = new WrapsProvingKeyVerification(executor);
@@ -296,9 +297,10 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void releasesTheInFlightGuardOnceADownloadFinishes() throws Exception {
+    void releasesTheInFlightGuardOnceADownloadFinishes(final EnvironmentVariables environment) throws Exception {
         // The guard's failure mode is "silently never downloads again", so pin down that it is released. Each
         // attempt leaves content whose hash does not match, so a second init trigger must download again.
+        setArtifactsEnvVar(environment);
         final var path = tempDir.resolve("key.tar.gz");
         givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
@@ -310,9 +312,10 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void stillDownloadsAfterTheExecutorRejectsAnAttempt() throws Exception {
+    void stillDownloadsAfterTheExecutorRejectsAnAttempt(final EnvironmentVariables environment) throws Exception {
         // An executor that rejects the first submission, then runs inline. The rejected task never runs, so
         // nothing inside it can release the in-flight guard; a later attempt must not be locked out.
+        setArtifactsEnvVar(environment);
         final var rejectFirst = new Executor() {
             private boolean rejected = false;
 
