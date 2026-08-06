@@ -146,7 +146,7 @@ public class BlockBufferService {
      */
     private final LongAdder bufferSizeInBytes = new LongAdder();
     /**
-     * The most recent parsed value for the {@link BlockBufferConfig#ackedBlocksToRetain()} configuration.
+     * The most recent parsed value for the {@link BlockBufferConfig#maxBytes()} configuration.
      */
     private final AtomicReference<BufferMaxBytes> bufferMaxBytesRef =
             new AtomicReference<>(new BufferMaxBytes("*", DEFAULT_BUFFER_BYTES));
