@@ -3,11 +3,15 @@ package org.hiero.consensus.pcli.recovery;
 
 import static org.hiero.consensus.pcli.recovery.EventRecoveryWorkflow.recoverState;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.DefaultConfiguration;
 import java.nio.file.Path;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.AbstractCommand;
 import org.hiero.consensus.pcli.EventStreamCommand;
@@ -113,10 +117,17 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
         final Configuration configuration =
                 DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create(), configurationPath);
 
-        final PlatformContext platformContext = PlatformContext.create(configuration);
+        final Metrics metrics = new NoOpMetrics();
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final Time time = Time.getCurrent();
 
         recoverState(
-                platformContext,
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
                 bootstrapSignedState,
                 eventStreamDirectory,
                 !ignorePartialRounds,

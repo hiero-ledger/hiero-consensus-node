@@ -7,9 +7,9 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -39,7 +39,6 @@ jmhModuleInfo {
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
