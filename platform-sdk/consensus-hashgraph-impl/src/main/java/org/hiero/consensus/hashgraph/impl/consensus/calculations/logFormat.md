@@ -50,7 +50,7 @@ If any field is an array, it is represented by its length followed by all elemen
   EventSigned (type 3)
     int64 eventID
     Instant timeCreated
-    int32 creator // this is an index into RoundInfo.nodes[], not a nodeID
+    int32 creator // index into the RoundInfo.nodes[] of the birth round, not a nodeID. (-1 if not in the array)
     int64 birthRound
     int32 coin // this is a uniform random int32, not limited to [0,numNodes]
     EventInfo[] parentsSigned
