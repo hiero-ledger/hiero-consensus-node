@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.platform;
+package com.swirlds.platform.test.fixtures.builder;
 
 import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Files;

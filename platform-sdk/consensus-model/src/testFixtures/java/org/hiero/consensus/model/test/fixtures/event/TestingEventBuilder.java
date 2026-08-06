@@ -139,7 +139,7 @@ public class TestingEventBuilder {
 
     /**
      * The non-deterministic generation of the event. This value is calculated by the orphan buffer in production.
-     * Defaults to {@link EventConstants#GENERATION_UNDEFINED}
+     * Defaults to {@link NonDeterministicGeneration#GENERATION_UNDEFINED}
      */
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
@@ -149,9 +149,9 @@ public class TestingEventBuilder {
     /** The origin of this events */
     private EventOrigin origin = EventOrigin.GOSSIP;
 
-    private long sequenceNumberOverride = PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+    private long sequenceNumberOverride = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
-    private static final AtomicLong sequenceNumber = new AtomicLong(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER + 1);
+    private static final AtomicLong sequenceNumber = new AtomicLong(EventConstants.SEQUENCE_NUMBER_UNDEFINED + 1);
 
     /**
      * Constructor
@@ -177,7 +177,7 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Set the non-deterministic generation to use. If not set, default to {@link EventConstants#GENERATION_UNDEFINED}
+     * Set the non-deterministic generation to use. If not set, default to {@link NonDeterministicGeneration#GENERATION_UNDEFINED}
      *
      * @param nGen the ngen
      * @return this instance
@@ -550,7 +550,7 @@ public class TestingEventBuilder {
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
         platformEvent.setNGen(nGen);
-        if (sequenceNumberOverride > PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER) {
+        if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {
             platformEvent.setSequenceNumber(sequenceNumberOverride);
         } else {
             platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
