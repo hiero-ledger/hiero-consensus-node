@@ -15,7 +15,6 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -198,20 +197,11 @@ public enum BlockStreamAccess {
             if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
                     // parseStrict shorthand omitted intentionally: maxSize validation requires the multi-arg overload.
-                    return Block.PROTOBUF.parse(
-                            Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
-                            true,
-                            false,
-                            DEFAULT_MAX_DEPTH,
-                            MAX_PBJ_RECORD_SIZE);
+                    return Block.PROTOBUF.parse(in.readAllBytes(), true, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
                 }
             } else {
                 return Block.PROTOBUF.parse(
-                        Bytes.wrap(Files.readAllBytes(path)).toReadableSequentialData(),
-                        true,
-                        false,
-                        DEFAULT_MAX_DEPTH,
-                        MAX_PBJ_RECORD_SIZE);
+                        Files.readAllBytes(path), true, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
             }
         } catch (IOException | ParseException e) {
             throw new RuntimeException("Failed reading block @ " + path, e);

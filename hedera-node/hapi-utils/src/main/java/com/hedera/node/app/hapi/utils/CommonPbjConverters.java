@@ -37,16 +37,16 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hederahashgraph.api.proto.java.AccountID.AccountCase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import org.hiero.base.utility.PbjUtils;
 
 public class CommonPbjConverters {
     public static final int MAX_PBJ_RECORD_SIZE = 33554432;
@@ -134,12 +134,14 @@ public class CommonPbjConverters {
     public static <T> byte[] asBytes(@NonNull Codec<T> codec, @NonNull T tx) {
         requireNonNull(codec);
         requireNonNull(tx);
+        PbjWriter writer = PbjUtils.takeTlsWriter();
         try {
-            final var bytes = new ByteArrayOutputStream();
-            codec.write(tx, new WritableStreamingData(bytes));
-            return bytes.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("Unable to convert from PBJ to bytes", e);
+            codec.write(tx, writer);
+            byte[] bytes = writer.toByteArray();
+            writer.throwOnError();
+            return bytes;
+        } finally {
+            PbjUtils.returnTlsWriter();
         }
     }
 
@@ -282,7 +284,7 @@ public class CommonPbjConverters {
             final var bytes = requireNonNull(proto).toByteArray();
             final var codecField = requireNonNull(pbjClass).getDeclaredField("PROTOBUF");
             final var codec = (Codec<R>) codecField.get(null);
-            return codec.parseStrict(BufferedData.wrap(bytes));
+            return codec.parseStrict(bytes);
         } catch (NoSuchFieldException | IllegalAccessException | ParseException e) {
             // Should be impossible, so just propagate an exception
             throw new RuntimeException("Invalid conversion to PBJ for " + pbjClass.getSimpleName(), e);
@@ -417,7 +419,7 @@ public class CommonPbjConverters {
         requireNonNull(keyValue);
         try {
             final var bytes = keyValue.toByteArray();
-            return Key.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
+            return Key.PROTOBUF.parseStrict(bytes);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
@@ -444,8 +446,7 @@ public class CommonPbjConverters {
             final var bytes = txBody.toByteArray();
             // parse in strict mode.
             // We can't use the `parseStrict` call because we want to also validate the depth of protob messages.
-            return TransactionBody.PROTOBUF.parse(
-                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            return TransactionBody.PROTOBUF.parse(bytes, false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

@@ -3,7 +3,8 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -35,19 +36,7 @@ public class TestLongCodec implements Codec<Long> {
     @NonNull
     @Override
     public Long parse(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
-            throws ParseException {
-        Objects.requireNonNull(input);
-        return Long.valueOf(input.readLong());
-    }
-
-    @NonNull
-    @Override
-    public Long parse(@NonNull final ReadableSequentialData input, final boolean strictMode, final int maxDepth)
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         Objects.requireNonNull(input);
         return Long.valueOf(input.readLong());
@@ -60,8 +49,14 @@ public class TestLongCodec implements Codec<Long> {
         output.writeLong(value);
     }
 
+    public void write(@NonNull Long value, @NonNull PbjWriter output) {
+        Objects.requireNonNull(value);
+        Objects.requireNonNull(output);
+        output.writeLong(value);
+    }
+
     @Override
-    public int measure(@Nullable ReadableSequentialData input) {
+    public int measure(@Nullable PbjReader input) {
         return Long.BYTES;
     }
 
@@ -71,8 +66,7 @@ public class TestLongCodec implements Codec<Long> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull final Long value, @NonNull final ReadableSequentialData input)
-            throws ParseException {
+    public boolean fastEquals(@NonNull final Long value, @NonNull final PbjReader input) throws ParseException {
         Objects.requireNonNull(value);
         Objects.requireNonNull(input);
         return value.equals(parse(input));

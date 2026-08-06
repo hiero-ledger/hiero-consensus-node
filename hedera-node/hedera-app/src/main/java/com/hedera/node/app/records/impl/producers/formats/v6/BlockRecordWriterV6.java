@@ -27,10 +27,9 @@ import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRecord;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -121,10 +120,8 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private GZIPOutputStream gzipOutputStream = null;
     /** HashingOutputStream for hashing the file contents, wraps {@link #gzipOutputStream} or {@link #fileOutputStream} */
     private HashingOutputStream hashingOutputStream;
-    /** The buffered output stream we are writing to, wraps {@link #hashingOutputStream} */
-    private BufferedOutputStream bufferedOutputStream;
-    /** WritableStreamingData we are writing to, wraps {@link #bufferedOutputStream} */
-    private WritableStreamingData outputStream;
+    /** PbjWriter we are writing to, wraps {@link #hashingOutputStream} */
+    private PbjWriter outputStream;
     /** The state of this writer */
     private State state;
 
@@ -209,8 +206,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             fileOutputStream = Files.newOutputStream(recordFilePath);
             gzipOutputStream = new GZIPOutputStream(fileOutputStream);
             hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), gzipOutputStream);
-            bufferedOutputStream = new BufferedOutputStream(hashingOutputStream);
-            outputStream = new WritableStreamingData(bufferedOutputStream);
+            outputStream = new PbjWriter(hashingOutputStream);
 
             // Write the header
             writeHeader(hapiProtoVersion);
@@ -250,7 +246,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         try {
             // There are a lot of flushes and closes here, but unfortunately it is not guaranteed that a OutputStream
             // will propagate though a chain of streams. So we have to flush and close each one individually.
-            bufferedOutputStream.flush();
+            outputStream.flush();
             if (gzipOutputStream != null) gzipOutputStream.flush();
             fileOutputStream.flush();
 
@@ -258,7 +254,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             writeFooter(endRunningHash);
 
             outputStream.close();
-            bufferedOutputStream.close();
             if (gzipOutputStream != null) gzipOutputStream.close();
             fileOutputStream.close();
 
@@ -286,17 +281,17 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     // =================================================================================================================
     // Private implementation methods
 
-    private void writeHeader(@NonNull final SemanticVersion hapiProtoVersion) throws UncheckedIOException {
-        try {
-            // Write the record file version int first to start of file
-            outputStream.writeInt(VERSION_6);
-            // [1] - hapi_proto_version
-            writeMessage(outputStream, HAPI_PROTO_VERSION, hapiProtoVersion, SemanticVersion.PROTOBUF);
-            // [2] - start_object_running_hash
-            writeMessage(outputStream, START_OBJECT_RUNNING_HASH, startObjectRunningHash, HashObject.PROTOBUF);
-        } catch (final IOException e) {
+    private void writeHeader(@NonNull final SemanticVersion hapiProtoVersion) {
+        // Write the record file version int first to start of file
+        outputStream.writeInt(VERSION_6);
+        // [1] - hapi_proto_version
+        writeMessage(outputStream, HAPI_PROTO_VERSION, hapiProtoVersion, SemanticVersion.PROTOBUF);
+        // [2] - start_object_running_hash
+        writeMessage(outputStream, START_OBJECT_RUNNING_HASH, startObjectRunningHash, HashObject.PROTOBUF);
+        if (outputStream.error() != 0) {
+            RuntimeException e = outputStream.getCause();
             logger.warn("Error writing header to record file {}", recordFilePath, e);
-            throw new UncheckedIOException(e);
+            throw e;
         }
     }
 
@@ -306,20 +301,20 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
      * @param endRunningHash the ending running hash after the last record stream item
      */
     private void writeFooter(@NonNull final HashObject endRunningHash) throws UncheckedIOException {
-        try {
-            // [4] - end_object_running_hash
-            writeMessage(outputStream, END_OBJECT_RUNNING_HASH, endRunningHash, HashObject.PROTOBUF);
-            // [5] - block_number
-            writeLong(outputStream, BLOCK_NUMBER, blockNumber);
-            // [6] - sidecars
-            ProtoWriterTools.writeMessageList(
-                    outputStream,
-                    SIDECARS,
-                    sidecarMetadata == null ? Collections.emptyList() : sidecarMetadata,
-                    SidecarMetadata.PROTOBUF);
-        } catch (IOException e) {
+        // [4] - end_object_running_hash
+        writeMessage(outputStream, END_OBJECT_RUNNING_HASH, endRunningHash, HashObject.PROTOBUF);
+        // [5] - block_number
+        writeLong(outputStream, BLOCK_NUMBER, blockNumber);
+        // [6] - sidecars
+        ProtoWriterTools.writeMessageList(
+                outputStream,
+                SIDECARS,
+                sidecarMetadata == null ? Collections.emptyList() : sidecarMetadata,
+                SidecarMetadata.PROTOBUF);
+        if (outputStream.error() != 0) {
+            RuntimeException e = outputStream.getCause();
             logger.warn("Error writing footer to record file {}", recordFilePath, e);
-            throw new UncheckedIOException(e);
+            throw e;
         }
     }
 

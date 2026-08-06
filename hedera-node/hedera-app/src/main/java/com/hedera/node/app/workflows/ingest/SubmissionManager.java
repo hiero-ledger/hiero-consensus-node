@@ -142,10 +142,8 @@ public class SubmissionManager {
                     final var transactions = txBody.atomicBatchOrThrow().transactions();
                     for (final Bytes buffer : transactions) {
                         try {
-                            final var signedTransaction =
-                                    SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
-                            final var body = TransactionBody.PROTOBUF.parseStrict(
-                                    signedTransaction.bodyBytes().toReadableSequentialData());
+                            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(buffer);
+                            final var body = TransactionBody.PROTOBUF.parseStrict(signedTransaction.bodyBytes());
                             final var innerTxnId = body.transactionIDOrThrow();
                             submittedTxns.add(innerTxnId);
                         } catch (ParseException e) {

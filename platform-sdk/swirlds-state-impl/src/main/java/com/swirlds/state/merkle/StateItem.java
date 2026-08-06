@@ -14,11 +14,10 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 
 /**
  * A record to store state items.
@@ -53,7 +52,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
         static final FieldDefinition FIELD_VALUE = new FieldDefinition("valueBytes", FieldType.BYTES, false, 3);
 
         /**
-         * Parses a StateItem object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
+         * Parses a StateItem object from ProtoBuf bytes in a {@link PbjReader}. Throws if in strict mode ONLY.
          *
          * @param input              The data input to parse data from, it is assumed to be in a state ready to read with position at start
          *                           of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
@@ -66,7 +65,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * @throws ParseException If parsing fails
          */
         public @NonNull StateItem parse(
-                @NonNull final ReadableSequentialData input,
+                @NonNull final PbjReader input,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
@@ -100,7 +99,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
             return new StateItem(keyBytes, valueBytes);
         }
 
-        private static int extractFieldNum(ReadableSequentialData input) throws ParseException {
+        private static int extractFieldNum(PbjReader input) throws ParseException {
             final int tag = input.readVarInt(false);
             final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
             if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
@@ -110,8 +109,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
             return tag >> ProtoParserTools.TAG_FIELD_OFFSET;
         }
 
-        private static Bytes readBytes(ReadableSequentialData input, FieldDefinition fieldDefinition)
-                throws ParseException {
+        private static Bytes readBytes(PbjReader input, FieldDefinition fieldDefinition) throws ParseException {
             final ProtoConstants wireType = ProtoWriterTools.wireType(fieldDefinition);
             if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                 throw new ParseException("StateItem key wire type mismatch: expected="
@@ -133,9 +131,8 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          *
          * @param data The input model data to write
          * @param out  The output stream to write to
-         * @throws IOException If there is a problem writing
          */
-        public void write(@NonNull StateItem data, @NonNull final WritableSequentialData out) throws IOException {
+        public void write(@NonNull StateItem data, @NonNull final PbjWriter out) {
             writeDelimited(out, FIELD_KEY, toIntExact(data.key.length()), v -> v.writeBytes(data.key));
             writeDelimited(out, FIELD_VALUE, toIntExact(data.value.length()), v -> v.writeBytes(data.value));
         }
@@ -143,7 +140,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
         /**
          * {@inheritDoc}
          */
-        public int measure(@NonNull final ReadableSequentialData input) throws ParseException {
+        public int measure(@NonNull final PbjReader input) throws ParseException {
             final var start = input.position();
             parse(input);
             final var end = input.position();
@@ -176,8 +173,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * {@inheritDoc}
          */
         @Override
-        public boolean fastEquals(@NonNull StateItem item, @NonNull ReadableSequentialData input)
-                throws ParseException {
+        public boolean fastEquals(@NonNull StateItem item, @NonNull PbjReader input) throws ParseException {
             return item.equals(parse(input));
         }
 

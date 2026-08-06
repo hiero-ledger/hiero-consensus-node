@@ -2,10 +2,8 @@
 package org.hiero.consensus.roster.internal;
 
 import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.security.MessageDigest;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
@@ -25,7 +23,7 @@ public class PbjRecordHasher {
     private static final DigestType DIGEST_TYPE = DigestType.SHA_384;
 
     private final MessageDigest digest = DIGEST_TYPE.buildDigest();
-    private final WritableSequentialData stream = new WritableStreamingData(new HashingOutputStream(digest));
+    private final PbjWriter stream = new PbjWriter(new HashingOutputStream(digest));
 
     /**
      * Computes a Hash object for a given PBJ record and its codec.
@@ -43,11 +41,8 @@ public class PbjRecordHasher {
      */
     @NonNull
     public <T> Hash hash(@NonNull final T record, @NonNull final Codec<T> codec) {
-        try {
-            codec.write(record, stream);
-        } catch (final IOException e) {
-            throw new RuntimeException("An exception occurred while trying to hash a record!", e);
-        }
+        codec.write(record, stream);
+        stream.flush();
         // Reminder, MessageDigest.digest resets the digest, so subsequent writes
         // will calculate an independent hash value.
         return new Hash(digest.digest(), DIGEST_TYPE);

@@ -3,10 +3,10 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 
 public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
 
@@ -21,7 +21,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
     @NonNull
     @Override
     public BenchmarkValue parse(
-            @NonNull final ReadableSequentialData in,
+            @NonNull final PbjReader in,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -30,8 +30,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
     }
 
     @Override
-    public void write(@NonNull final BenchmarkValue value, @NonNull final WritableSequentialData out)
-            throws IOException {
+    public void write(@NonNull final BenchmarkValue value, @NonNull final PbjWriter out) {
         value.writeTo(out);
     }
 
@@ -46,8 +45,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull final BenchmarkValue value, @NonNull final ReadableSequentialData in)
-            throws ParseException {
+    public boolean fastEquals(@NonNull final BenchmarkValue value, @NonNull final PbjReader in) throws ParseException {
         // It can be implemented in a more efficient way, but is it really used in benchmarks?
         final BenchmarkValue other = parse(in);
         return other.equals(value);

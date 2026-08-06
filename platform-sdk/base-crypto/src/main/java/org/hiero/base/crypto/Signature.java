@@ -3,6 +3,7 @@ package org.hiero.base.crypto;
 
 import static org.hiero.base.crypto.SignatureType.RSA;
 
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,6 +11,7 @@ import java.io.IOException;
 import java.util.Objects;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * Encapsulates a cryptographic signature along with its SignatureType.
@@ -112,6 +114,21 @@ public class Signature {
         out.writeInt(CLASS_VERSION);
         out.writeInt(signatureType.ordinal());
         out.writeByteArray(signatureBytes.toByteArray(), true);
+    }
+
+    /**
+     * Serialize this signature to a {@link PbjWriter}.
+     *
+     * @param out the writer to write to
+     * @param withClassId whether to write the class ID
+     */
+    public void serialize(final PbjWriter out, final boolean withClassId) throws IOException {
+        if (withClassId) {
+            out.writeLong(CLASS_ID);
+        }
+        out.writeInt(CLASS_VERSION);
+        out.writeInt(signatureType.ordinal());
+        PbjUtils.writeByteArray(out, signatureBytes.toByteArray(), true);
     }
 
     /**

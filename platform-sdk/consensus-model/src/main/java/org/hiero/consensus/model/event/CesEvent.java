@@ -5,6 +5,8 @@ import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +19,7 @@ import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
@@ -87,6 +90,26 @@ public class CesEvent extends AbstractSerializableHashable
     }
 
     @Override
+    public void serialize(@NonNull PbjWriter out) throws IOException {
+        Objects.requireNonNull(out);
+        Objects.requireNonNull(platformEvent);
+
+        PbjUtils.writePbjRecord(out, platformEvent.getGossipEvent(), GossipEvent.PROTOBUF);
+
+        // some fields used to be part of the stream but are no longer used
+        // in order to maintain compatibility with older versions of the stream, we write a constant in their place
+
+        out.writeInt(CONSENSUS_DATA_CLASS_VERSION);
+        out.writeLong(UNDEFINED); // ConsensusData.generation
+        out.writeLong(UNDEFINED); // ConsensusData.roundCreated
+        out.writeBoolean(false); // ConsensusData.stale
+        out.writeBoolean(lastInRoundReceived);
+        PbjUtils.writeInstant(out, platformEvent.getConsensusTimestamp());
+        out.writeLong(roundReceived);
+        out.writeLong(platformEvent.getConsensusOrder());
+    }
+
+    @Override
     public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
         this.platformEvent = switch (version) {
             case CES_EVENT_VERSION_PBJ_EVENT ->
@@ -100,6 +123,30 @@ public class CesEvent extends AbstractSerializableHashable
         in.readBoolean(); // ConsensusData.stale
         lastInRoundReceived = in.readBoolean();
         final Instant consensusTimestamp = in.readInstant();
+        roundReceived = in.readLong();
+        final long consensusOrder = in.readLong();
+
+        final EventConsensusData eventConsensusData = EventConsensusData.newBuilder()
+                .consensusTimestamp(HapiUtils.asTimestamp(consensusTimestamp))
+                .consensusOrder(consensusOrder)
+                .build();
+        platformEvent.setConsensusData(eventConsensusData);
+    }
+
+    @Override
+    public void deserialize(@NonNull final PbjReader in, final int version) throws IOException {
+        this.platformEvent = switch (version) {
+            case CES_EVENT_VERSION_PBJ_EVENT ->
+                new PlatformEvent(PbjUtils.readPbjRecord(in, GossipEvent.PROTOBUF), EventOrigin.GOSSIP);
+            default -> throw new IOException("Unsupported version " + version);
+        };
+
+        in.readInt(); // ConsensusData.version
+        in.readLong(); // ConsensusData.generation
+        in.readLong(); // ConsensusData.roundCreated
+        in.readBoolean(); // ConsensusData.stale
+        lastInRoundReceived = in.readBoolean();
+        final Instant consensusTimestamp = PbjUtils.readInstant(in);
         roundReceived = in.readLong();
         final long consensusOrder = in.readLong();
 

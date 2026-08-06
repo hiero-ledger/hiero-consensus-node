@@ -3,6 +3,8 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,11 +35,7 @@ public class TestStringCodec implements Codec<String> {
     @NonNull
     @Override
     public String parse(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+            @NonNull PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         Objects.requireNonNull(input);
         final var len = input.readInt();
@@ -61,14 +59,21 @@ public class TestStringCodec implements Codec<String> {
         output.writeBytes(bytes);
     }
 
+    public void write(final @NonNull String value, final @NonNull PbjWriter output) {
+        Objects.requireNonNull(value);
+        Objects.requireNonNull(output);
+        final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        output.writeInt(bytes.length);
+        output.writeBytes(bytes);
+    }
+
     @Override
-    public int measure(final @NonNull ReadableSequentialData input) {
+    public int measure(final @NonNull PbjReader input) {
         return input.readInt() + Integer.BYTES;
     }
 
     @Override
-    public boolean fastEquals(final @NonNull String value, final @NonNull ReadableSequentialData input)
-            throws ParseException {
+    public boolean fastEquals(final @NonNull String value, final @NonNull PbjReader input) throws ParseException {
         Objects.requireNonNull(value);
         Objects.requireNonNull(input);
         return value.equals(parse(input));

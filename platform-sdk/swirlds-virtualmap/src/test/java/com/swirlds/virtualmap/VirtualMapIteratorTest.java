@@ -32,6 +32,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.hiero.base.utility.PbjUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -83,7 +84,7 @@ class VirtualMapIteratorTest extends VirtualTestBase {
         it.setFilter(leaf -> {
             final Bytes keyBytes = leaf.keyBytes();
             // TestKey.longToKey puts a long (8 bytes)
-            final long keyLong = keyBytes.toReadableSequentialData().readLong();
+            final long keyLong = PbjUtils.readLong(keyBytes);
             return keyLong % 2 == 0;
         });
 

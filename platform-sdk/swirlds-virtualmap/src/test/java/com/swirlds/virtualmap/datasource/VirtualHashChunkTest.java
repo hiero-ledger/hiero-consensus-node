@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -632,7 +633,7 @@ public class VirtualHashChunkTest {
     @Test
     void parseFromNullInputTest() {
         // Test that parseFrom returns null for null input
-        final VirtualHashChunk result = VirtualHashChunk.parseFrom(null, 3);
+        final VirtualHashChunk result = VirtualHashChunk.parseFrom((PbjReader) null, 3);
         assertNull(result);
     }
 

@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -141,8 +142,7 @@ public class VirtualLeafBytes<V> {
                 assert this.valueCodec == null || this.valueCodec.equals(valueCodec);
                 this.valueCodec = valueCodec;
                 try {
-                    value = valueCodec.parse(
-                            valueBytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, maxSize);
+                    value = valueCodec.parse(valueBytes, false, false, Codec.DEFAULT_MAX_DEPTH, maxSize);
                 } catch (final ParseException e) {
                     throw new RuntimeException("Failed to deserialize a value from bytes", e);
                 }
@@ -193,6 +193,46 @@ public class VirtualLeafBytes<V> {
      * @return the virtual leaf bytes object
      */
     public static <V> VirtualLeafBytes<V> parseFrom(final ReadableSequentialData in) {
+        if (in == null) {
+            return null;
+        }
+
+        long path = 0;
+        Bytes keyBytes = null;
+        Bytes valueBytes = null;
+
+        while (in.hasRemaining()) {
+            final int field = in.readVarInt(false);
+            final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
+            if (tag == FIELD_LEAFRECORD_PATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                path = in.readLong();
+            } else if (tag == FIELD_LEAFRECORD_KEY.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                final int len = in.readVarInt(false);
+                keyBytes = in.readBytes(len);
+            } else if (tag == FIELD_LEAFRECORD_VALUE.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                final int len = in.readVarInt(false);
+                valueBytes = len == 0 ? Bytes.EMPTY : in.readBytes(len);
+            } else {
+                throw new IllegalArgumentException("Unknown field: " + field);
+            }
+        }
+
+        Objects.requireNonNull(keyBytes, "Missing key bytes in the input");
+
+        // Key hash code is not deserialized
+        return new VirtualLeafBytes<>(path, false, keyBytes, valueBytes);
+    }
+
+    public static <V> VirtualLeafBytes<V> parseFrom(final PbjReader in) {
         if (in == null) {
             return null;
         }

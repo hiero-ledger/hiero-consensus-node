@@ -3,7 +3,7 @@ package com.hedera.node.app.grpc.impl;
 
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,7 +39,7 @@ public final class TransactionMethod extends MethodBase {
 
     /** {@inheritDoc} */
     @Override
-    protected void handle(@NonNull final Bytes requestBuffer, @NonNull final BufferedData responseBuffer) {
+    protected void handle(@NonNull final Bytes requestBuffer, @NonNull final PbjWriter responseBuffer) {
         workflow.submitTransaction(requestBuffer, responseBuffer);
     }
 }

@@ -171,11 +171,7 @@ public class JsonExporter {
                     }
                     stateKey = StateKey.PROTOBUF.parse(keyBytes);
                     stateValue = StateValue.PROTOBUF.parse(
-                            valueBytes.toReadableSequentialData(),
-                            false,
-                            false,
-                            Codec.DEFAULT_MAX_DEPTH,
-                            getVirtualMapValueParseMaxSizeBytes());
+                            valueBytes, false, false, Codec.DEFAULT_MAX_DEPTH, getVirtualMapValueParseMaxSizeBytes());
                     if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
                         JsonUtils.write(
                                 writer,

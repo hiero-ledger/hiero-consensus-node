@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.MerkleHasher;
@@ -136,6 +137,69 @@ public class VirtualHashChunk {
      * @return A deserialized hash chunk
      */
     public static VirtualHashChunk parseFrom(final ReadableSequentialData in, final int height) {
+        if (in == null) {
+            return null;
+        }
+
+        long path = 0;
+        int dataRank = 0;
+        byte[] hashData = null;
+
+        while (in.hasRemaining()) {
+            final int field = in.readVarInt(false);
+            final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
+            if (tag == FIELD_HASHCHUNK_PATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                path = in.readLong();
+            } else if (tag == FIELD_HASHCHUNK_HASHDATA.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                final int len = in.readVarInt(false);
+                final int singleHashLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                hashData = new byte[singleHashLength * getChunkSize(height)];
+                if (len == hashData.length) {
+                    dataRank = height;
+                    // Full chunk, read in one call
+                    if (in.readBytes(hashData) != len) {
+                        throw new IllegalArgumentException("Failed to read " + len + " bytes");
+                    }
+                } else {
+                    // Packed chunk, need to read hashes one by one and put them to the right
+                    // offsets in hashData. This process must be in sync with writeTo()
+                    final int numHashes = len / singleHashLength;
+                    // Check the length is a power of two
+                    if ((numHashes & (numHashes - 1)) != 0) {
+                        throw new IllegalArgumentException("Wrong hash data length: " + numHashes);
+                    }
+                    // Check hashData contains no more hashes than 2 ^ height
+                    if (numHashes > 1 << height) {
+                        throw new IllegalArgumentException(
+                                "Wrong hash data length / height: " + numHashes + " / " + height);
+                    }
+                    dataRank = 1;
+                    while ((1 << dataRank) < numHashes) {
+                        dataRank++;
+                    }
+                    final int step = 1 << (height - dataRank);
+                    for (int i = 0; i < numHashes; i++) {
+                        final int dstOffset = i * singleHashLength * step;
+                        if (in.readBytes(hashData, dstOffset, singleHashLength) != singleHashLength) {
+                            throw new IllegalArgumentException("Failed to read hash chunk");
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("Unknown field: " + field);
+            }
+        }
+
+        return new VirtualHashChunk(path, height, hashData, dataRank);
+    }
+
+    public static VirtualHashChunk parseFrom(PbjReader in, final int height) {
         if (in == null) {
             return null;
         }

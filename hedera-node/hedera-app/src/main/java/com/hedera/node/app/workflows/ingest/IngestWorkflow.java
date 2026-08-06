@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.ingest;
 
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionResponse;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -23,5 +23,5 @@ public interface IngestWorkflow {
      * @param requestBuffer The raw protobuf transaction bytes. Must be a transaction object.
      * @param responseBuffer The raw protobuf response bytes.
      */
-    void submitTransaction(@NonNull Bytes requestBuffer, @NonNull BufferedData responseBuffer);
+    void submitTransaction(@NonNull Bytes requestBuffer, @NonNull PbjWriter responseBuffer);
 }

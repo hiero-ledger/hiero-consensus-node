@@ -15,6 +15,7 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ProgressReporter;
@@ -337,7 +338,7 @@ public class BlockStreamRecoveryWorkflow {
     private static final class BinaryStateChangeApplier {
         private static void applyStateChanges(
                 @NonNull final BinaryState binaryState, @NonNull final Bytes stateChangesBytes) {
-            final ReadableSequentialData input = stateChangesBytes.toReadableSequentialData();
+            PbjReader input = stateChangesBytes.toPbjReader();
             while (input.hasRemaining()) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
@@ -360,6 +361,61 @@ public class BlockStreamRecoveryWorkflow {
                 @NonNull final BinaryState binaryState,
                 @NonNull final ReadableSequentialData input,
                 final long endPosition) {
+            int stateId = -1;
+            while (input.position() < endPosition) {
+                final int tag = input.readVarInt(false);
+                switch (tag) {
+                    // state_id: field 1, uint32 varint => (1 << 3) | 0 = 8
+                    case 8 -> stateId = ProtoParserTools.readUint32(input);
+                    // state_add: field 2, message => (2 << 3) | 2 = 18
+                    // state_remove: field 3, message => (3 << 3) | 2 = 26
+                    case 18, 26 -> skipMessage(input);
+                    // singleton_update: field 4, message => (4 << 3) | 2 = 34
+                    case 34 -> {
+                        final int messageLength = input.readVarInt(false);
+                        if (messageLength > 0) {
+                            final Bytes rawValue =
+                                    readOneOfPayload(input, input.position() + messageLength, "SingletonUpdateChange");
+                            binaryState.updateSingleton(requireStateId(stateId), rawValue);
+                        }
+                    }
+                    // map_update: field 5, message => (5 << 3) | 2 = 42
+                    case 42 -> {
+                        final int messageLength = input.readVarInt(false);
+                        if (messageLength > 0) {
+                            processMapUpdate(
+                                    binaryState, requireStateId(stateId), input, input.position() + messageLength);
+                        }
+                    }
+                    // map_delete: field 6, message => (6 << 3) | 2 = 50
+                    case 50 -> {
+                        final int messageLength = input.readVarInt(false);
+                        if (messageLength > 0) {
+                            processMapDelete(
+                                    binaryState, requireStateId(stateId), input, input.position() + messageLength);
+                        }
+                    }
+                    // queue_push: field 7, message => (7 << 3) | 2 = 58
+                    case 58 -> {
+                        final int messageLength = input.readVarInt(false);
+                        if (messageLength > 0) {
+                            final Bytes rawElement =
+                                    readOneOfPayload(input, input.position() + messageLength, "QueuePushChange");
+                            binaryState.pushQueue(requireStateId(stateId), rawElement);
+                        }
+                    }
+                    // queue_pop: field 8, message => (8 << 3) | 2 = 66
+                    case 66 -> {
+                        skipMessage(input);
+                        binaryState.popQueue(requireStateId(stateId));
+                    }
+                    default -> skipField(input, tag);
+                }
+            }
+        }
+
+        private static void processStateChange(
+                @NonNull final BinaryState binaryState, @NonNull final PbjReader input, final long endPosition) {
             int stateId = -1;
             while (input.position() < endPosition) {
                 final int tag = input.readVarInt(false);
@@ -446,10 +502,67 @@ public class BlockStreamRecoveryWorkflow {
             binaryState.updateKv(stateId, rawKey, rawValue);
         }
 
+        private static void processMapUpdate(
+                @NonNull final BinaryState binaryState,
+                final int stateId,
+                @NonNull final PbjReader input,
+                final long endPosition) {
+            Bytes rawKey = null;
+            Bytes rawValue = null;
+            while (input.position() < endPosition) {
+                final int tag = input.readVarInt(false);
+                switch (tag) {
+                    // key: field 1, message => (1 << 3) | 2 = 10K
+                    case 10 -> {
+                        final int messageLength = input.readVarInt(false);
+                        if (messageLength > 0) {
+                            rawKey = readMapKeyPayload(stateId, input, input.position() + messageLength);
+                        }
+                    }
+                    // value: field 2, message => (2 << 3) | 2 = 18
+                    case 18 -> {
+                        final int messageLength = input.readVarInt(false);
+                        if (messageLength > 0) {
+                            rawValue = readOneOfPayload(input, input.position() + messageLength, "MapChangeValue");
+                        }
+                    }
+                    default -> skipField(input, tag);
+                }
+            }
+            if (rawKey == null || rawValue == null) {
+                throw new IllegalStateException("MapChangeKey or MapChangeValue missing");
+            }
+            binaryState.updateKv(stateId, rawKey, rawValue);
+        }
+
         private static void processMapDelete(
                 @NonNull final BinaryState binaryState,
                 final int stateId,
                 @NonNull final ReadableSequentialData input,
+                final long endPosition) {
+            Bytes rawKey = null;
+            while (input.position() < endPosition) {
+                final int tag = input.readVarInt(false);
+                // key: field 1, message => (1 << 3) | 2 = 10
+                if (tag == 10) {
+                    final int messageLength = input.readVarInt(false);
+                    if (messageLength > 0) {
+                        rawKey = readMapKeyPayload(stateId, input, input.position() + messageLength);
+                    }
+                } else {
+                    skipField(input, tag);
+                }
+            }
+            if (rawKey == null) {
+                throw new IllegalStateException("MapChangeKey missing in MapDeleteChange");
+            }
+            binaryState.removeKv(stateId, rawKey);
+        }
+
+        private static void processMapDelete(
+                @NonNull final BinaryState binaryState,
+                final int stateId,
+                @NonNull final PbjReader input,
                 final long endPosition) {
             Bytes rawKey = null;
             while (input.position() < endPosition) {
@@ -495,6 +608,25 @@ public class BlockStreamRecoveryWorkflow {
             return payload;
         }
 
+        private static Bytes readOneOfPayload(
+                @NonNull final PbjReader input, final long endPosition, @NonNull final String description) {
+            Bytes payload = null;
+            while (input.position() < endPosition) {
+                final int tag = input.readVarInt(false);
+                final var wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+                if (payload == null && wireType == ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    final int length = input.readVarInt(false);
+                    payload = input.readBytes(length);
+                } else {
+                    skipField(input, wireType);
+                }
+            }
+            if (payload == null) {
+                throw new IllegalStateException(description + " payload missing");
+            }
+            return payload;
+        }
+
         /**
          * Reads the first delimited field payload from a map key message.
          * Most block-stream key payloads are byte-compatible with the state key bytes stored in the
@@ -503,6 +635,27 @@ public class BlockStreamRecoveryWorkflow {
          */
         private static Bytes readMapKeyPayload(
                 final int stateId, @NonNull final ReadableSequentialData input, final long endPosition) {
+            Bytes payload = null;
+            Integer fieldNumber = null;
+            while (input.position() < endPosition) {
+                final int tag = input.readVarInt(false);
+                final var wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+                if (payload == null && wireType == ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    fieldNumber = tag >>> ProtoParserTools.TAG_FIELD_OFFSET;
+                    final int length = input.readVarInt(false);
+                    payload = input.readBytes(length);
+                } else {
+                    skipField(input, wireType);
+                }
+            }
+            if (payload == null) {
+                throw new IllegalStateException("MapChangeKey payload missing");
+            }
+            return normalizeMapKeyPayload(stateId, fieldNumber, payload);
+        }
+
+        private static Bytes readMapKeyPayload(
+                final int stateId, @NonNull final PbjReader input, final long endPosition) {
             Bytes payload = null;
             Integer fieldNumber = null;
             while (input.position() < endPosition) {
@@ -566,6 +719,9 @@ public class BlockStreamRecoveryWorkflow {
             skipField(input, ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK));
         }
 
+        private static void skipField(@NonNull final PbjReader input, final int tag) {
+            skipField(input, ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK));
+        }
         /**
          * Skips a protobuf field value for the given wire type.
          *
@@ -581,7 +737,16 @@ public class BlockStreamRecoveryWorkflow {
             }
         }
 
+        private static void skipField(@NonNull final PbjReader input, @NonNull final ProtoConstants wireType) {
+            ProtoParserTools.skipField(input, wireType);
+        }
+
         private static void skipMessage(@NonNull final ReadableSequentialData input) {
+            final int messageLength = input.readVarInt(false);
+            input.skip(messageLength);
+        }
+
+        private static void skipMessage(@NonNull final PbjReader input) {
             final int messageLength = input.readVarInt(false);
             input.skip(messageLength);
         }

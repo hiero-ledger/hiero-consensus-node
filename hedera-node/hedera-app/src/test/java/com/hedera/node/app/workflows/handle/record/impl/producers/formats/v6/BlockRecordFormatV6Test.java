@@ -19,8 +19,8 @@ final class BlockRecordFormatV6Test {
                 // Serialize the record, and then parse the object back in from the protobuf just to make sure we can
                 // round-trip the writing and parsing without losing any data.
                 final var serializedRec = BlockRecordFormatV6.INSTANCE.serialize(rec, BLOCK_NUM, VERSION);
-                final var parsedRecordStreamItem = RecordStreamItem.PROTOBUF.parse(
-                        serializedRec.protobufSerializedRecordStreamItem().toReadableSequentialData());
+                final var parsedRecordStreamItem =
+                        RecordStreamItem.PROTOBUF.parse(serializedRec.protobufSerializedRecordStreamItem());
                 assertThat(rec.transaction()).isEqualTo(parsedRecordStreamItem.transaction());
                 assertThat(rec.transactionRecord()).isEqualTo(parsedRecordStreamItem.record());
                 assertThat(rec.transactionSidecarRecords()).hasSameSizeAs(serializedRec.sideCarItems());

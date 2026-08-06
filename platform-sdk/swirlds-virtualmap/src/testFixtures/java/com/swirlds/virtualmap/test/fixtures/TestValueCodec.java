@@ -3,8 +3,8 @@ package com.swirlds.virtualmap.test.fixtures;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class TestValueCodec implements Codec<TestValue> {
@@ -21,21 +21,17 @@ public class TestValueCodec implements Codec<TestValue> {
     @NonNull
     @Override
     public TestValue parse(
-            @NonNull ReadableSequentialData in,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize) {
+            @NonNull PbjReader in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
         return new TestValue(in);
     }
 
     @Override
-    public void write(@NonNull TestValue value, @NonNull WritableSequentialData out) {
+    public void write(@NonNull TestValue value, @NonNull PbjWriter out) {
         value.writeTo(out);
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData in) {
+    public int measure(@NonNull PbjReader in) {
         throw new UnsupportedOperationException("TestValueCodec.measure() not implemented");
     }
 
@@ -45,7 +41,7 @@ public class TestValueCodec implements Codec<TestValue> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull TestValue value, @NonNull ReadableSequentialData in) throws ParseException {
+    public boolean fastEquals(@NonNull TestValue value, @NonNull PbjReader in) throws ParseException {
         final TestValue other = parse(in);
         return other.equals(value);
     }

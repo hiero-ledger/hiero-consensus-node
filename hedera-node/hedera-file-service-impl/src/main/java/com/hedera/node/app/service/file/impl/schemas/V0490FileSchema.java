@@ -415,8 +415,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
             @NonNull final byte[] feeScheduleJsonBytes) {
         try {
             final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
-                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parseStrict(
-                            Bytes.wrap(feeScheduleJsonBytes).toReadableSequentialData());
+                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parseStrict(feeScheduleJsonBytes);
             return feeSchedule;
         } catch (final Exception e) {
             throw new IllegalArgumentException("Unable to parse simple fee schedule file", e);
