@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
@@ -21,6 +22,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.platformstate.PlatformStateService;
@@ -35,6 +38,8 @@ import org.hiero.consensus.state.signed.SignedState;
  * Utility methods for reading a signed state from disk.
  */
 public final class SignedStateFileReader {
+    private static final Logger logger = LogManager.getLogger(SignedStateFileReader.class);
+
     private SignedStateFileReader() {}
 
     /**
@@ -87,7 +92,12 @@ public final class SignedStateFileReader {
                 false,
                 false);
 
+        final long registrationStart = System.currentTimeMillis();
         registerServiceStates(newSignedState);
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ Saved-state service states are registered, took {} ms",
+                System.currentTimeMillis() - registrationStart);
 
         newSignedState.setSigSet(sigSet);
 
