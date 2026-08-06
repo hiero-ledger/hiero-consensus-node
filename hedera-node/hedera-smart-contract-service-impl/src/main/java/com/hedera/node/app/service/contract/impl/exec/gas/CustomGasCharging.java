@@ -130,6 +130,10 @@ public class CustomGasCharging {
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
             if (!context.shouldChargeGasFees()) {
+                // Even when gas fees are free, a reverted Ethereum transaction must still
+                // consume the sender's nonce; record a zero-amount charge event so that
+                // EthereumTransactionRollbackHandler replays the nonce increment
+                worldUpdater.collectGasFee(sender.hederaId(), 0L, true);
                 return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
             }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
