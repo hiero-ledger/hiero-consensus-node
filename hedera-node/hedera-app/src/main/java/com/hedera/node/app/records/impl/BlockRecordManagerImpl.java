@@ -617,6 +617,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     /**
      * Computes the wrapped record block root hash for a single block from its constituent hashes.
+     * <p>
+     * Unlike the live block-production path, {@code allPrevBlocksRootHash} and
+     * {@code entry.outputItemsTreeRootHash()} here are already-finalized hashes with no accompanying leaf count
+     * ({@link WrappedRecordFileBlockHashes} carries only the root hash), so presence for those two branches
+     * must be inferred with {@link BlockImplUtils#presentSubtreeHash(Bytes)} rather than a precise
+     * {@code IncrementalStreamingHasher.isEmpty()} check. See that method's javadoc for the (currently
+     * unreachable, since real record files always contain actual transaction records) edge case this leaves
+     * open.
      *
      * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
      * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes

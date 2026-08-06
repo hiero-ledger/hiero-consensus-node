@@ -243,16 +243,20 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 .orElseThrow()
                 .blockFooterOrThrow();
 
+        // Presence for each branch is determined from its hasher's actual leaf count, not by comparing the
+        // resulting hash to HASH_OF_ZERO: a subtree whose only leaf serializes to zero-length content would
+        // hash to exactly HASH_OF_ZERO too, so the hash value alone can't reliably distinguish "no leaves" from
+        // "one leaf with empty content".
         final var prevBlockRootsHash =
-                BlockImplUtils.presentSubtreeHash(Bytes.wrap(prevBlockHashesTree.computeRootHash()));
+                prevBlockHashesTree.isEmpty() ? null : Bytes.wrap(prevBlockHashesTree.computeRootHash());
         final var startOfBlockStateHash = footer.startOfBlockStateRootHash();
         final var consensusHeaderHash =
-                BlockImplUtils.presentSubtreeHash(Bytes.wrap(consensusHeaderHasher.computeRootHash()));
-        final var inputsHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(inputTreeHasher.computeRootHash()));
-        final var outputsHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(outputTreeHasher.computeRootHash()));
+                consensusHeaderHasher.isEmpty() ? null : Bytes.wrap(consensusHeaderHasher.computeRootHash());
+        final var inputsHash = inputTreeHasher.isEmpty() ? null : Bytes.wrap(inputTreeHasher.computeRootHash());
+        final var outputsHash = outputTreeHasher.isEmpty() ? null : Bytes.wrap(outputTreeHasher.computeRootHash());
         final var stateChangesHash =
-                BlockImplUtils.presentSubtreeHash(Bytes.wrap(stateChangesHasher.computeRootHash()));
-        final var traceDataHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(traceDataHasher.computeRootHash()));
+                stateChangesHasher.isEmpty() ? null : Bytes.wrap(stateChangesHasher.computeRootHash());
+        final var traceDataHash = traceDataHasher.isEmpty() ? null : Bytes.wrap(traceDataHasher.computeRootHash());
 
         // d5n1 and d5n2 are never absent, since previousBlockHash and startOfBlockStateHash are always present;
         // d5n3 and d5n4 may each collapse to a single child, or be entirely absent if both of their branches

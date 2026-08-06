@@ -439,7 +439,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     previewStateChangesHasher,
                                     previewTraceDataHasher);
                         }
-                        final var previewStateChangesHash = Bytes.wrap(previewStateChangesHasher.computeRootHash());
                         final var previewRootAndSiblings = computeBlockHash(
                                 blockTimestamp,
                                 previousBlockHash,
@@ -448,7 +447,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 previewInputHasher,
                                 previewOutputHasher,
                                 previewConsensusHasher,
-                                previewStateChangesHash,
+                                previewStateChangesHasher,
                                 previewTraceDataHasher);
                         previousBlockHash = previewRootAndSiblings.blockRootHash();
                         incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
@@ -614,9 +613,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             "Final state change " + lastStateChange
                                     + " does not match final block BlockStreamInfo update type");
 
-                    // The state changes hasher already incorporated the last state change, so compute its root hash
-                    final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
-
+                    // The state changes hasher already incorporated the last state change
                     final var thisBlockNum =
                             block.items().getFirst().blockHeaderOrThrow().number();
                     final var expectedRootAndSiblings = computeBlockHash(
@@ -627,7 +624,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             inputTreeHasher,
                             outputTreeHasher,
                             consensusHeaderHasher,
-                            finalStateChangesHash,
+                            stateChangesHasher,
                             traceDataHasher);
                     final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
                     blockNumbers.put(expectedBlockHash, thisBlockNum);
@@ -827,15 +824,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     /**
-     * Interprets a subtree root hash as {@link BlockStreamManager#HASH_OF_ZERO} meaning "absent" rather than a
-     * real value to hash into the tree, mirroring {@link BlockImplUtils#presentSubtreeHash(Bytes)} but built on
-     * this class's independently reimplemented hash primitives.
-     */
-    private static @Nullable Bytes presentSubtreeHash(final Bytes subtreeRootHash) {
-        return BlockStreamManager.HASH_OF_ZERO.equals(subtreeRootHash) ? null : subtreeRootHash;
-    }
-
-    /**
      * Combines two potentially-absent child hashes into their parent's hash, omitting either child that
      * represents an empty subtree, mirroring {@link BlockImplUtils#combineChildren(Bytes, Bytes)}.
      */
@@ -853,6 +841,13 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
+    /**
+     * Presence for each branch is determined from its hasher's actual leaf count, not by comparing the
+     * resulting hash to {@link BlockStreamManager#HASH_OF_ZERO}: a subtree whose only leaf serializes to
+     * zero-length content would hash to exactly {@code HASH_OF_ZERO} too (since that sentinel is itself just
+     * {@code SHA384(0x00)}), so the hash value alone can't reliably distinguish "no leaves" from "one leaf with
+     * empty content".
+     */
     private RootAndSiblingHashes computeBlockHash(
             final Timestamp blockTimestamp,
             final Bytes previousBlockHash,
@@ -861,14 +856,17 @@ public class StateChangesValidator implements BlockStreamValidator {
             final IncrementalStreamingHasher inputTreeHasher,
             final IncrementalStreamingHasher outputTreeHasher,
             final IncrementalStreamingHasher consensusHeaderHasher,
-            final Bytes finalStateChangesHash,
+            final IncrementalStreamingHasher stateChangesHasher,
             final IncrementalStreamingHasher traceDataHasher) {
-        final var prevBlocksRootHash = presentSubtreeHash(Bytes.wrap(prevBlockRootsHasher.computeRootHash()));
-        final var consensusHeaderHash = presentSubtreeHash(Bytes.wrap(consensusHeaderHasher.computeRootHash()));
-        final var inputTreeHash = presentSubtreeHash(Bytes.wrap(inputTreeHasher.computeRootHash()));
-        final var outputTreeHash = presentSubtreeHash(Bytes.wrap(outputTreeHasher.computeRootHash()));
-        final var traceDataHash = presentSubtreeHash(Bytes.wrap(traceDataHasher.computeRootHash()));
-        final var finalStateChanges = presentSubtreeHash(finalStateChangesHash);
+        final var prevBlocksRootHash =
+                prevBlockRootsHasher.isEmpty() ? null : Bytes.wrap(prevBlockRootsHasher.computeRootHash());
+        final var consensusHeaderHash =
+                consensusHeaderHasher.isEmpty() ? null : Bytes.wrap(consensusHeaderHasher.computeRootHash());
+        final var inputTreeHash = inputTreeHasher.isEmpty() ? null : Bytes.wrap(inputTreeHasher.computeRootHash());
+        final var outputTreeHash = outputTreeHasher.isEmpty() ? null : Bytes.wrap(outputTreeHasher.computeRootHash());
+        final var traceDataHash = traceDataHasher.isEmpty() ? null : Bytes.wrap(traceDataHasher.computeRootHash());
+        final var finalStateChanges =
+                stateChangesHasher.isEmpty() ? null : Bytes.wrap(stateChangesHasher.computeRootHash());
 
         // Compute depth five hashes. Depth5Node1 and depth5Node2 are never absent, since previousBlockHash and
         // startOfBlockStateHash are always present; depth5Node3 and depth5Node4 may each collapse to a single

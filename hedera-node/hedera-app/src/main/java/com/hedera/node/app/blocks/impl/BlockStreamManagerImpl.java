@@ -435,15 +435,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
         final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
+        // Branches 2 and 7 are rebuilt from a real IncrementalStreamingHasher here, so their presence can be
+        // read directly from its leaf count. Branches 4, 5, 6, and 8 are only available as persisted root-hash
+        // Bytes (BlockStreamInfo does not also persist a leaf count for them), so presence for those four must
+        // be inferred from whether the value equals HASH_OF_ZERO instead; see BlockImplUtils#presentSubtreeHash
+        // for why that inference is safe only when no real leaf could itself serialize to zero-length content.
         return combine(
                         prevBlockHash,
-                        allPrevBlocksHash,
+                        prevBlocksHasher.isEmpty() ? null : allPrevBlocksHash,
                         blockStreamInfo.startOfBlockStateHash(),
-                        blockStreamInfo.consensusHeaderRootHash(),
-                        blockStreamInfo.inputTreeRootHash(),
-                        blockStreamInfo.outputItemRootHash(),
-                        lastBlockFinalStateChangesHash,
-                        blockStreamInfo.traceDataRootHash(),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.consensusHeaderRootHash()),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.inputTreeRootHash()),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.outputItemRootHash()),
+                        stateChangesHasher.isEmpty() ? null : lastBlockFinalStateChangesHash,
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.traceDataRootHash()),
                         blockStreamInfo.blockTimeOrThrow())
                 .blockRootHash();
     }
@@ -789,15 +794,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
+            // Presence for each of these branches is determined from the hasher's actual leaf count, not by
+            // comparing the resulting hash to HASH_OF_ZERO: a subtree whose only leaf serializes to zero-length
+            // content would hash to exactly HASH_OF_ZERO too, so the hash value alone can't reliably distinguish
+            // "no leaves" from "one leaf with empty content".
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
-                    prevBlockRootsHash,
+                    previousBlockHashes.isEmpty() ? null : prevBlockRootsHash,
                     blockStartStateHash,
-                    consensusHeaderHash,
-                    inputsHash,
-                    outputsHash,
-                    stateChangesHash,
-                    traceDataHash,
+                    consensusHeaderHasher.isEmpty() ? null : consensusHeaderHash,
+                    inputTreeHasher.isEmpty() ? null : inputsHash,
+                    outputTreeHasher.isEmpty() ? null : outputsHash,
+                    stateChangesHasher.isEmpty() ? null : stateChangesHash,
+                    traceDataHasher.isEmpty() ? null : traceDataHash,
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
 
@@ -1653,27 +1662,34 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * a block with no trace data); such a branch is omitted from the tree entirely&mdash;rather than hashed in
      * as {@code HASH_OF_ZERO}&mdash;and the internal node above it is hashed with only its remaining child, the
      * same "incrementally collapsed" treatment already used for the reserved roots 9-16 below.
+     * <p>
+     * Presence for those six branches is a caller-supplied {@code @Nullable} value rather than something this
+     * method infers from the hash bytes themselves: a subtree whose only leaf happens to serialize to
+     * zero-length content would hash to exactly {@code HASH_OF_ZERO} too (since that sentinel is itself just
+     * {@code SHA384(0x00)}, the same value {@code hashLeaf} would produce for an empty leaf), so inferring
+     * "empty" from the hash value alone is not reliable. Callers that have the originating
+     * {@link IncrementalStreamingHasher} should instead pass {@code hasher.isEmpty() ? null : hash}.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
      */
     private static RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
-            @NonNull final Bytes prevBlockRootsHash,
+            @Nullable final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
-            @NonNull final Bytes consensusHeaderHash,
-            @NonNull final Bytes inputsHash,
-            @NonNull final Bytes outputsHash,
-            @NonNull final Bytes stateChangesHash,
-            @NonNull final Bytes traceDataHash,
+            @Nullable final Bytes consensusHeaderHash,
+            @Nullable final Bytes inputsHash,
+            @Nullable final Bytes outputsHash,
+            @Nullable final Bytes stateChangesHash,
+            @Nullable final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
 
-        final var branch2 = BlockImplUtils.presentSubtreeHash(prevBlockRootsHash);
-        final var branch4 = BlockImplUtils.presentSubtreeHash(consensusHeaderHash);
-        final var branch5 = BlockImplUtils.presentSubtreeHash(inputsHash);
-        final var branch6 = BlockImplUtils.presentSubtreeHash(outputsHash);
-        final var branch7 = BlockImplUtils.presentSubtreeHash(stateChangesHash);
-        final var branch8 = BlockImplUtils.presentSubtreeHash(traceDataHash);
+        final var branch2 = prevBlockRootsHash;
+        final var branch4 = consensusHeaderHash;
+        final var branch5 = inputsHash;
+        final var branch6 = outputsHash;
+        final var branch7 = stateChangesHash;
+        final var branch8 = traceDataHash;
 
         // Compute depth five hashes. Depth5Node1 and depth5Node2 are never absent, since branches 1 and 3 are
         // always present; depth5Node3 and depth5Node4 may each collapse to a single child, or be entirely

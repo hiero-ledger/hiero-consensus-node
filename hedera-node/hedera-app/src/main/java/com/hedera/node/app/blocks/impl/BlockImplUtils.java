@@ -149,6 +149,13 @@ public class BlockImplUtils {
      * Interprets a subtree root hash as computed by {@link IncrementalStreamingHasher#computeRootHash()},
      * treating the {@link BlockStreamManager#HASH_OF_ZERO} sentinel it returns for a leafless subtree as
      * "absent" (i.e. {@code null}) rather than a real value to be hashed into the tree.
+     * <p>
+     * <b>This inference is not fully reliable</b>: {@code HASH_OF_ZERO} is itself just {@code SHA384(0x00)}, the
+     * same value {@link #hashLeaf(Bytes) hashLeaf} would produce for a single leaf whose serialized content
+     * happens to be zero-length, so a non-empty one-leaf subtree could in principle be mistaken for an empty
+     * one. Prefer calling {@code hasher.isEmpty() ? null : hash} directly wherever the originating
+     * {@link IncrementalStreamingHasher} is available; reserve this method for contexts where only the already-
+     * computed root hash is available (e.g. a persisted or replayed value with no accompanying leaf count).
      *
      * @param subtreeRootHash the subtree's root hash
      * @return the hash, or null if the subtree had no leaves

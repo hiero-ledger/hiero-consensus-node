@@ -155,6 +155,11 @@ class BlockStateProofGeneratorTest {
         for (int i = 0; i < siblingCount; i++) {
             siblings[i] = new MerkleSiblingHash(false, HASH_OF_ZERO);
         }
+        return pendingBlockWithSiblings(number, Timestamp.DEFAULT, siblings);
+    }
+
+    private static PendingBlock pendingBlockWithSiblings(
+            final long number, final Timestamp timestamp, final MerkleSiblingHash... siblings) {
         return new PendingBlock(
                 number,
                 null,
@@ -162,8 +167,111 @@ class BlockStateProofGeneratorTest {
                 HASH_OF_ZERO,
                 BlockProof.newBuilder().block(number),
                 new NoOpTestWriter(),
-                Timestamp.DEFAULT,
+                timestamp,
                 siblings);
+    }
+
+    /**
+     * Verifies that when a block's Merkle sibling slots 0 (level 6, the previous-block-roots branch) and 2
+     * (level 4, the input/output/state-changes/trace-data branch) were both omitted from the tree because
+     * those subtrees had no leaves, {@link BlockStateProofGenerator} emits the null-hash {@link SiblingNode}
+     * sentinel at exactly those positions&mdash;for both an intermediate (unsigned) block and the signed
+     * block, since the generator has separate code paths for each&mdash;and that traversing the resulting
+     * proof still reconstructs the correct root hash.
+     */
+    @Test
+    void omittedSiblingsAtLevelSixAndFourProduceNullHashSentinels() {
+        final var realSibling1 = Bytes.fromHex("11".repeat(48));
+        final var realSibling2 = Bytes.fromHex("22".repeat(48));
+        final var block1Timestamp = Timestamp.newBuilder().seconds(100).build();
+        final var block2Timestamp = Timestamp.newBuilder().seconds(200).build();
+
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // Block #1 (intermediate): level 6 (index 0) and level 4 (index 2) omitted; level 5 (index 1) real.
+        // The omitted slots deliberately use isFirst=true (rather than production's fixed isFirst=false) so
+        // this test cannot pass merely because an empty hash and an unset isLeft both default to the same PBJ
+        // wire value; the generator must actually detect the empty hash and discard isFirst, not just happen
+        // to match the all-default SiblingNode by coincidence.
+        final var intermediate = pendingBlockWithSiblings(
+                1L,
+                block1Timestamp,
+                new MerkleSiblingHash(true, Bytes.EMPTY),
+                new MerkleSiblingHash(false, realSibling1),
+                new MerkleSiblingHash(true, Bytes.EMPTY));
+        // Signed block (#2): same omission pattern
+        final var signed = pendingBlockWithSiblings(
+                2L,
+                block2Timestamp,
+                new MerkleSiblingHash(true, Bytes.EMPTY),
+                new MerkleSiblingHash(false, realSibling2),
+                new MerkleSiblingHash(true, Bytes.EMPTY));
+
+        final var proof = BlockStateProofGenerator.generateStateProof(
+                current, 2L, FINAL_SIGNATURE, block2Timestamp, Stream.of(intermediate, signed));
+
+        final var siblings = proof.paths().get(BLOCK_CONTENTS_PATH_INDEX).siblings();
+        Assertions.assertThat(siblings)
+                .hasSize(UNSIGNED_BLOCK_SIBLING_COUNT + BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT);
+
+        // Block #1's converted siblings: [omitted, real, omitted, depth3->2 sentinel, timestamp]
+        Assertions.assertThat(siblings.get(0))
+                .as("block #1 level 6 omitted")
+                .isEqualTo(SiblingNode.newBuilder().build());
+        Assertions.assertThat(siblings.get(1))
+                .as("block #1 level 5 real sibling")
+                .isEqualTo(SiblingNode.newBuilder()
+                        .isLeft(false)
+                        .hash(realSibling1)
+                        .build());
+        Assertions.assertThat(siblings.get(2))
+                .as("block #1 level 4 omitted")
+                .isEqualTo(SiblingNode.newBuilder().build());
+        Assertions.assertThat(siblings.get(3))
+                .as("block #1 depth3->2 reserved-roots sentinel")
+                .isEqualTo(SiblingNode.newBuilder().build());
+        Assertions.assertThat(siblings.get(4))
+                .as("block #1 timestamp")
+                .isEqualTo(SiblingNode.newBuilder()
+                        .isLeft(true)
+                        .hash(BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block1Timestamp)))
+                        .build());
+
+        // Signed block's converted siblings: [omitted, real, omitted, depth3->2 sentinel]
+        Assertions.assertThat(siblings.get(5))
+                .as("signed block level 6 omitted")
+                .isEqualTo(SiblingNode.newBuilder().build());
+        Assertions.assertThat(siblings.get(6))
+                .as("signed block level 5 real sibling")
+                .isEqualTo(SiblingNode.newBuilder()
+                        .isLeft(false)
+                        .hash(realSibling2)
+                        .build());
+        Assertions.assertThat(siblings.get(7))
+                .as("signed block level 4 omitted")
+                .isEqualTo(SiblingNode.newBuilder().build());
+        Assertions.assertThat(siblings.get(8))
+                .as("signed block depth3->2 reserved-roots sentinel")
+                .isEqualTo(SiblingNode.newBuilder().build());
+
+        // Round-trip: traversing the proof from the current block's root hash must reproduce the same hash that
+        // manually combining according to the documented single-child-wrap/omission semantics would produce.
+        final var afterLevel6 = BlockImplUtils.hashInternalNodeSingleChild(current.blockHash());
+        final var afterLevel5 = BlockImplUtils.hashInternalNode(afterLevel6, realSibling1);
+        final var afterLevel4 = BlockImplUtils.hashInternalNodeSingleChild(afterLevel5);
+        final var afterDepth3to2 = BlockImplUtils.hashInternalNodeSingleChild(afterLevel4);
+        final var block1RootHash = BlockImplUtils.hashInternalNode(
+                BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block1Timestamp)), afterDepth3to2);
+
+        final var signedAfterLevel6 = BlockImplUtils.hashInternalNodeSingleChild(block1RootHash);
+        final var signedAfterLevel5 = BlockImplUtils.hashInternalNode(signedAfterLevel6, realSibling2);
+        final var signedAfterLevel4 = BlockImplUtils.hashInternalNodeSingleChild(signedAfterLevel5);
+        final var signedAfterDepth3to2 = BlockImplUtils.hashInternalNodeSingleChild(signedAfterLevel4);
+        final var expectedSignedBlockHash = BlockImplUtils.hashInternalNode(
+                BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block2Timestamp)), signedAfterDepth3to2);
+
+        Assertions.assertThat(traverseStateProof(proof, current.blockHash()))
+                .as("Traversal of the proof must reconstruct the signed block's root hash")
+                .isEqualTo(expectedSignedBlockHash);
     }
 
     /**

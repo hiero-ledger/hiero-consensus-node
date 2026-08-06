@@ -180,6 +180,11 @@ public final class RcdFileBlockHashReplay {
     /**
      * Computes the wrapped record block root hash for a single block using the Merkle tree,
      * independent of the production implementation in {@code BlockRecordManagerImpl}.
+     * <p>
+     * {@code allPrevBlocksRootHash} and {@code entry.outputItemsTreeRootHash()} are already-finalized hashes
+     * with no accompanying leaf count, so presence for those two branches is inferred with
+     * {@code presentSubtreeHash} rather than a precise {@code isEmpty()} check; see
+     * {@code BlockImplUtils#presentSubtreeHash} for the (currently unreachable) edge case this leaves open.
      */
     static Bytes computeBlockRootHash(
             @NonNull final Bytes prevWrappedBlockHash,

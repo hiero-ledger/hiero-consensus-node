@@ -404,7 +404,6 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         footer.startOfBlockStateRootHash(),
                         "Wrong start of block state hash for block #" + blockNumber);
 
-                final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
                 final var expectedRootAndSiblings = computeBlockHash(
                         firstConsensusTimestamp,
                         previousBlockHash,
@@ -413,7 +412,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         inputTreeHasher,
                         outputTreeHasher,
                         consensusHeaderHasher,
-                        finalStateChangesHash,
+                        stateChangesHasher,
                         traceDataHasher);
                 final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
                 final var persistedBlockHash = persistedBlockHashFrom(block);
@@ -1297,6 +1296,13 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
+    /**
+     * Presence for each branch is determined from its hasher's actual leaf count, not by comparing the
+     * resulting hash to {@link BlockStreamManager#HASH_OF_ZERO}: a subtree whose only leaf serializes to
+     * zero-length content would hash to exactly {@code HASH_OF_ZERO} too (since that sentinel is itself just
+     * {@code SHA384(0x00)}), so the hash value alone can't reliably distinguish "no leaves" from "one leaf with
+     * empty content".
+     */
     private static RootAndSiblingHashes computeBlockHash(
             @NonNull final Timestamp blockTimestamp,
             @NonNull final Bytes previousBlockHash,
@@ -1305,16 +1311,17 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             @NonNull final IncrementalStreamingHasher inputTreeHasher,
             @NonNull final IncrementalStreamingHasher outputTreeHasher,
             @NonNull final IncrementalStreamingHasher consensusHeaderHasher,
-            @NonNull final Bytes finalStateChangesHash,
+            @NonNull final IncrementalStreamingHasher stateChangesHasher,
             @NonNull final IncrementalStreamingHasher traceDataHasher) {
         final var prevBlocksRootHash =
-                BlockImplUtils.presentSubtreeHash(Bytes.wrap(prevBlockRootsHasher.computeRootHash()));
+                prevBlockRootsHasher.isEmpty() ? null : Bytes.wrap(prevBlockRootsHasher.computeRootHash());
         final var consensusHeaderHash =
-                BlockImplUtils.presentSubtreeHash(Bytes.wrap(consensusHeaderHasher.computeRootHash()));
-        final var inputTreeHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(inputTreeHasher.computeRootHash()));
-        final var outputTreeHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(outputTreeHasher.computeRootHash()));
-        final var traceDataHash = BlockImplUtils.presentSubtreeHash(Bytes.wrap(traceDataHasher.computeRootHash()));
-        final var stateChangesHash = BlockImplUtils.presentSubtreeHash(finalStateChangesHash);
+                consensusHeaderHasher.isEmpty() ? null : Bytes.wrap(consensusHeaderHasher.computeRootHash());
+        final var inputTreeHash = inputTreeHasher.isEmpty() ? null : Bytes.wrap(inputTreeHasher.computeRootHash());
+        final var outputTreeHash = outputTreeHasher.isEmpty() ? null : Bytes.wrap(outputTreeHasher.computeRootHash());
+        final var traceDataHash = traceDataHasher.isEmpty() ? null : Bytes.wrap(traceDataHasher.computeRootHash());
+        final var stateChangesHash =
+                stateChangesHasher.isEmpty() ? null : Bytes.wrap(stateChangesHasher.computeRootHash());
 
         // Depth5Node1 and depth5Node2 are never absent, since previousBlockHash and startOfBlockStateHash are
         // always present; depth5Node3 and depth5Node4 may each collapse to a single child, or be entirely
