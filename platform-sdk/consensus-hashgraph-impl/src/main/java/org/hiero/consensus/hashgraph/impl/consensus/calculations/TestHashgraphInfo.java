@@ -82,7 +82,7 @@ public class TestHashgraphInfo {
      * hiero-consensus-node/platform-sdk/consensus-hashgraph-impl/src/main/java/
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
-     static void createLogFile() {
+    static void createLogFile() {
         final Random random = new Random();
 
         Path outputFile = getFilePath();
@@ -221,7 +221,7 @@ public class TestHashgraphInfo {
      */
     private static void appendBooleans(StringBuilder line, boolean[] booleans, int len) {
         line.append(",").append(len);
-        for (int i=0; i< len; i++) {
+        for (int i = 0; i < len; i++) {
             line.append(",").append(booleans[i] ? 1 : 0);
         }
     }
