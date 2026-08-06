@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -19,14 +21,26 @@ import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.R
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfoPrev;
 
 /** Class to output and check a log file for checking the consensus calculations in {@link HashgraphInfo HashgraphInfo}.
- * The filename should be set in OUTPUT_FILE_NAME. It will be written in the same directory as this source
- * file (if this file is at location DESCENT).
+ * Set the filenames to read and write (or "" to disable the read or write) with INPUT_FILENAME and OUTPUT_FILENAME.
+ * The CSV log file is in the same directory as this source file (if this file is at path DESCENT).
  * <p>
  * The output CSV file is in the format described by logFormat.md, which is also in this directory.
  */
 public class TestHashgraphInfo {
-    /** name of the file to write */
-    private static final String OUTPUT_FILE_NAME = "test.csv";
+    /** generate the random hashgraph using this PRNG seed, for repeatability */
+    private static final long RANDOM_SEED = 1;
+
+    /** the filename to write (or "" if none) including the extension but not the path */
+    private static final String OUTPUT_FILENAME = "test.csv";
+
+    /** the filename to read (or "" if none) including the extension but not the path */
+    private static final String INPUT_FILENAME = "test.csv";
+
+    /** the version of this file (increment when the file format changes, or possibly for big algorithm changes) */
+    private static final long SOFTWARE_VERSION = 1;
+
+    /** how many events to write to the log file */
+    private static final int NUM_EVENTS_TO_WRITE = 100;
 
     /** the ancestor directory to search upward for */
     private static final String REPOSITORY_DIRECTORY_NAME = "hiero-consensus-node";
@@ -46,20 +60,25 @@ public class TestHashgraphInfo {
             "consensus",
             "calculations");
 
+
+
+    /** NewHashgraphRow is a CSV row starting with this number */
+    private static final int NEW_HASHGRAPH_ROW_TYPE = 0;
+
     /** RoundInfoPrev is a CSV row starting with this number */
-    private static final int ROUND_INFO_PREV_TYPE = 0;
+    private static final int ROUND_INFO_PREV_TYPE = 1;
 
     /** RoundInfo is a CSV row starting with this number */
-    private static final int ROUND_INFO_TYPE = 1;
+    private static final int ROUND_INFO_TYPE = 2;
 
     /** EventInfo is a CSV row starting with this number */
-    private static final int EVENT_SIGNED_TYPE = 2;
+    private static final int EVENT_SIGNED_TYPE = 3;
 
     /** EventInfo is a CSV row starting with this number */
-    private static final int EVENT_INFO_TYPE = 3;
+    private static final int EVENT_INFO_TYPE = 4;
 
     /** UpdateResults is a CSV row starting with this number */
-    private static final int UPDATE_RESULTS_TYPE = 4;
+    private static final int UPDATE_RESULTS_TYPE = 5;
 
     /**
      * Create random hashgraphs, and update the events repeatedly to reach consensus. Write all the results to
@@ -68,73 +87,13 @@ public class TestHashgraphInfo {
      * proof that the Hashgraph consensus algorithm is ABFT.
      *
      */
-    public static void main() {
-        createLogFile();
-        checkLogFile();
-    }
-
-    /**
-     * Create random hashgraphs, and update the events repeatedly to reach consensus. Write all the results to
-     * the CSV (Comma Separated Values) file.
-     * <p>
-     * This finds that directory by starting where this compiled class is, then doing "cd .." repeatedly until it finds
-     * the directory hiero-consensus-node, then going down into the directory
-     * hiero-consensus-node/platform-sdk/consensus-hashgraph-impl/src/main/java/
-     * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
-     */
-    static void createLogFile() {
-        final Random random = new Random();
-
-        Path outputFile = getFilePath();
-        if (outputFile == null) {
-            return;
+     static void main() {
+        if (!OUTPUT_FILENAME.isEmpty()) {
+            createLogFile(OUTPUT_FILENAME);
         }
-        try (final PrintWriter out = new PrintWriter(Files.newBufferedWriter(outputFile))) {
-            HashgraphInfo hashgraphInfo = new HashgraphInfo();
-            List<EventInfo> recentEvents = new LinkedList<>();
-            UpdateResults updateResults;
-            RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
-            printRoundInfoPrev(out, roundInfoPrev);
-
-            RoundInfo roundInfo = new RoundInfo(
-                    1, // long pendingRound
-                    new long[] {100, 200, 300, 400}, // long[] nodes
-                    new long[] {101, 102, 103, 104}, // long[] stake
-                    10, // int coinInterval
-                    3, // int seeNum
-                    3, // int seeDen
-                    false, // boolean judgeCon1
-                    5, // int targetNumRoundsNonAncient
-                    2); // int numRoundsAddressBook
-            printRoundInfo(out, roundInfo);
-
-            EventInfo eventInfo = new EventInfo(
-                    hashgraphInfo, // HashgraphInfo hashgraphInfo
-                    1, // long eventID
-                    1, // long creator (the creatorID, not the index of the creator used in calculations)
-                    Instant.now(), // Instant timeCreated
-                    1, // long birthRound
-                    random.nextInt(), // int coin
-                    new EventInfo[] {}, // EventInfo[] parents
-                    null); // Object payload
-            recentEvents.add(eventInfo);
-            printEventSigned(out, eventInfo);
-
-            updateResults = eventInfo.update(roundInfo, roundInfoPrev);
-            printEventInfo(out, eventInfo, roundInfoPrev);
-            if (updateResults != null) {
-                printUpdateResults(out, updateResults);
-            }
-
-        } catch (Exception e) {
-            System.out.println("ERROR: while writing " + outputFile + " - " + e);
-            for (StackTraceElement line : e.getStackTrace()) {
-                System.out.println(line.toString());
-            }
-            return;
+        if (!INPUT_FILENAME.isEmpty()) {
+            checkLogFile(INPUT_FILENAME);
         }
-
-        System.out.println("wrote " + outputFile);
     }
 
     /**
@@ -142,9 +101,10 @@ public class TestHashgraphInfo {
      * compiled class is located and then searching upward until the REPOSITORY_DIRECTORY_NAME directory is found,
      * then searching back downward through the directories in DESCENT.
      *
+     * @param outputFilename the filename (with extension but without a path) of the test CSV log file
      * @return the Path, or null if anything went wrong, in which case an error has already been printed
      */
-    private static Path getFilePath() {
+    private static Path getFilePath(String outputFilename) {
         // Find the directory holding the compiled class, which is where the upward search starts.
         // This is independent of the working directory the JVM happens to be launched from.
         final CodeSource codeSource =
@@ -191,8 +151,17 @@ public class TestHashgraphInfo {
         }
 
         // if no errors so far, then create the file here.
-        return directory.resolve(OUTPUT_FILE_NAME);
+        return directory.resolve(outputFilename);
     }
+
+    /**
+     * Data for a row of the CSV file that is written each time a new hashgraph is created.
+     *
+     * @param softwareVersion the version of TestHashgraphInfo used to create the CSV log file
+     * @param randomSeed the random number generator seed used to generate all the data in the CSV log file
+     * @param time the time when the CSV log file was created
+     */
+    private record NewHashgraphRow(long softwareVersion, long randomSeed, Instant time) {}
 
     /** return the eventID of an event, or -1 if null */
     private static long eventID(EventInfo event) {
@@ -226,8 +195,24 @@ public class TestHashgraphInfo {
         }
     }
 
-    /** return one line of the CSV file describing the RoundInfoPrev fields */
-    private static void printRoundInfoPrev(PrintWriter out, RoundInfoPrev roundInfoPrev) {
+    /** write one line of the CSV file describing the RoundInfoPrev fields */
+    private static void writeNewHashgraphRow(PrintWriter out, NewHashgraphRow newHashgraphRow) {
+        StringBuilder line = new StringBuilder();
+        line.append(NEW_HASHGRAPH_ROW_TYPE);
+        line.append(",").append(newHashgraphRow.softwareVersion());
+        line.append(",").append(newHashgraphRow.randomSeed());
+        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getYear());
+        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getMonth().getValue());
+        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getDayOfMonth());
+        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getHour());
+        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getMinute());
+        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getSecond());
+        line.append(",").append(newHashgraphRow.time().getNano());
+        out.println(line);
+    }
+
+        /** write one line of the CSV file describing the RoundInfoPrev fields */
+    private static void writeRoundInfoPrev(PrintWriter out, RoundInfoPrev roundInfoPrev) {
         StringBuilder line = new StringBuilder();
         line.append(ROUND_INFO_PREV_TYPE);
         line.append(",").append(roundInfoPrev.pendingRound());
@@ -240,8 +225,8 @@ public class TestHashgraphInfo {
         out.println(line);
     }
 
-    /** return one line of the CSV file describing the RoundInfo fields */
-    private static void printRoundInfo(PrintWriter out, RoundInfo roundInfo) {
+    /** write one line of the CSV file describing the RoundInfo fields */
+    private static void writeRoundInfo(PrintWriter out, RoundInfo roundInfo) {
         StringBuilder line = new StringBuilder();
         line.append(ROUND_INFO_TYPE);
         line.append(",").append(roundInfo.pendingRound());
@@ -257,7 +242,7 @@ public class TestHashgraphInfo {
     }
 
     /** return one line of the CSV file describing the EventInfo fields in the signed events, before updating */
-    private static void printEventSigned(PrintWriter out, EventInfo eventInfo) {
+    private static void writeEventSigned(PrintWriter out, EventInfo eventInfo) {
         StringBuilder line = new StringBuilder();
         line.append(EVENT_SIGNED_TYPE);
         line.append(",").append(eventID(eventInfo));
@@ -276,7 +261,7 @@ public class TestHashgraphInfo {
      * Return one line of the CSV file describing the given EventInfo with calculated memoized fields.
      * This must be called immediately after eventInfo.update(...) because some fields are read from the hashgraph.
      */
-    private static void printEventInfo(PrintWriter out, EventInfo eventInfo, RoundInfoPrev roundInfoPrev) {
+    private static void writeEventInfo(PrintWriter out, EventInfo eventInfo, RoundInfoPrev roundInfoPrev) {
         StringBuilder line = new StringBuilder();
         HashgraphInfo h = eventInfo.getHashgraph();
         line.append(EVENT_INFO_TYPE);
@@ -306,7 +291,7 @@ public class TestHashgraphInfo {
     }
 
     /** return one line of the CSV file describing the given EventInfo with calculated memoized fields */
-    private static void printUpdateResults(PrintWriter out, UpdateResults updateResults) {
+    private static void writeUpdateResults(PrintWriter out, UpdateResults updateResults) {
         StringBuilder line = new StringBuilder();
         line.append(UPDATE_RESULTS_TYPE);
         appendEvents(line, updateResults.consensusEvents());
@@ -322,8 +307,8 @@ public class TestHashgraphInfo {
      * Check that the log file correctly matches the calculations done by HashgraphInfo. This can be used to
      * check for regressions after code changes.
      */
-    static void checkLogFile() {
-        Path inputFile = getFilePath();
+    static void checkLogFile(String inputFilename) {
+        Path inputFile = getFilePath(inputFilename);
         if (inputFile == null) {
             return;
         }
@@ -345,5 +330,95 @@ public class TestHashgraphInfo {
         }
 
         System.out.println("read " + inputFile);
+    }
+
+    /**
+     * Create random hashgraphs, and update the events repeatedly to reach consensus. Write all the results to
+     * the CSV (Comma Separated Values) file.
+     * <p>
+     * This finds that directory by starting where this compiled class is, then doing "cd .." repeatedly until it finds
+     * the directory hiero-consensus-node, then going down into the directory
+     * hiero-consensus-node/platform-sdk/consensus-hashgraph-impl/src/main/java/
+     * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
+     */
+    static void createLogFile(String outputFilename) {
+        final Random random = new Random();
+
+        Path outputFile = getFilePath(outputFilename);
+        if (outputFile == null) {
+            return;
+        }
+        try (final PrintWriter out = new PrintWriter(Files.newBufferedWriter(outputFile))) {
+            HashgraphInfo hashgraphInfo = new HashgraphInfo();
+            List<EventInfo> recentEvents = new LinkedList<>();
+            HashMap<Long, EventInfo> mapIdToEventInfo = new HashMap<Long, EventInfo>();
+            UpdateResults updateResults;
+            long nextEventID  = 1;
+            long eventsWritten = 0; //number of times an EventInfo row has been written so far
+            NewHashgraphRow newHashgraphRow = new NewHashgraphRow(SOFTWARE_VERSION, RANDOM_SEED, Instant.now());
+            RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
+            RoundInfo roundInfo = new RoundInfo(
+                    1, // long pendingRound
+                    new long[] {100, 200, 300, 400}, // long[] nodes
+                    new long[] {101, 102, 103, 104}, // long[] stake
+                    10, // int coinInterval
+                    3, // int seeNum
+                    3, // int seeDen
+                    false, // boolean judgeCon1
+                    5, // int targetNumRoundsNonAncient
+                    2); // int numRoundsAddressBook
+
+            writeNewHashgraphRow(out, newHashgraphRow);
+            writeRoundInfoPrev(out, roundInfoPrev);
+            writeRoundInfo(out, roundInfo);
+
+            while (eventsWritten < NUM_EVENTS_TO_WRITE) {
+                EventInfo eventInfo = new EventInfo(
+                        hashgraphInfo, // HashgraphInfo hashgraphInfo
+                        nextEventID++, // long eventID
+                        1, // long creator (the creatorID, not the index of the creator used in calculations)
+                        Instant.now(), // Instant timeCreated
+                        roundInfo.pendingRound(), // long birthRound
+                        random.nextInt(), // int coin
+                        new EventInfo[]{}, // EventInfo[] parents
+                        null); // Object payload
+                mapIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
+                recentEvents.add(eventInfo);
+                writeEventSigned(out, eventInfo);
+
+                updateResults = eventInfo.update(roundInfo, roundInfoPrev);
+                writeEventInfo(out, eventInfo, roundInfoPrev);
+                eventsWritten++;
+                if (updateResults != null) {
+                    writeUpdateResults(out, updateResults);
+                    roundInfoPrev = updateResults.nextRoundInfoPrev();
+                    roundInfo = new RoundInfo(
+                            roundInfoPrev.pendingRound(), // long pendingRound
+                            roundInfo.nodes(), // long[] nodes
+                            roundInfo.stake(), // long[] stake
+                            roundInfo.coinInterval(), // int coinInterval
+                            roundInfo.seeNum(), // int seeNum
+                            roundInfo.seeDen(), // int seeDen
+                            roundInfo.judgeCon1(), // boolean judgeCon1
+                            roundInfo.targetNumRoundsNonAncient(), // int targetNumRoundsNonAncient
+                            roundInfo.numRoundsAddressBook()); // int numRoundsAddressBook
+                    for (EventInfo event : updateResults.consensusEvents()) {
+                        writeEventInfo(out, event, roundInfoPrev);
+                        eventsWritten++;
+                    }
+                    writeRoundInfoPrev(out, roundInfoPrev);
+                    writeRoundInfo(out, roundInfo);
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.println("ERROR: while writing " + outputFile + " - " + e);
+            for (StackTraceElement line : e.getStackTrace()) {
+                System.out.println(line.toString());
+            }
+            return;
+        }
+
+        System.out.println("wrote " + outputFile);
     }
 }
