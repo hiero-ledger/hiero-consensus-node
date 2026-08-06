@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
@@ -100,6 +101,18 @@ class ThrottleParserTest {
         assertThatThrownBy(() -> subject.parse(bytes))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC));
+    }
+
+    @Test
+    void parseWithEmptyBucket_throwsBucketHasNoThrottleGroups() {
+        final var bucket =
+                ThrottleBucket.newBuilder().name("bucket").burstPeriodMs(100L).build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(BUCKET_HAS_NO_THROTTLE_GROUPS));
     }
 
     @Test
