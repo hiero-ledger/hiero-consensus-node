@@ -144,6 +144,7 @@
 /.github/workflows/config/                          @hiero-ledger/github-maintainers
 /.github/workflows/docs/                            @hiero-ledger/github-maintainers
 /.github/workflows/support/                         @hiero-ledger/github-maintainers
+/.github/workflows/support/scripts                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
 /.github/workflows/templates/                       @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
 
 # specific to CITR
