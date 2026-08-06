@@ -1,6 +1,6 @@
 {
   "cn-nodes": {
-    "quantity": 8,
+    "quantity": 9,
     "resources": {
       "cpu": 39,
       "memory": 256000
