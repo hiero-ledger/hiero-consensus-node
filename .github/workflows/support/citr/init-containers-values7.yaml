@@ -231,5 +231,3 @@ cheetah:
   # whether cheetah should stop the pipelines if any error occurs; if false, it will continue with the expectation that the
   # error may get fixed in the next run
   stopOnError: false
-
-
