@@ -45,6 +45,9 @@ on:
       tck-version:
         required: false
         description: "Override default TCK version for testing"
+      js-sdk-version:
+        required: false
+        description: "Override default JS SDK version for testing"
       enable-mirror-node-regression-panel:
         required: true
         type: boolean
@@ -232,7 +235,7 @@ jobs:
       enable-077-to-078-cutover-panel: ${{ inputs.enable-077-to-078-cutover-panel }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       tck-version: "${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}"
-      js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version || needs.extract-citr-vars.outputs.js-sdk-version }}"
       bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
       json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"

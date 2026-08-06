@@ -185,17 +185,22 @@ jobs:
           fetch-tags: true
 
       - name: Checkout JS-SDK Tag
+        env:
+          JS_SDK_VERSION: ${{ inputs.js-sdk-version }}
         run: |
           cd sdk-tck/sdk-server
           git fetch --tags
 
-          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
-          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
-            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
-            git checkout "tags/${{ inputs.js-sdk-version }}"
+          # Check out by tag first, then fall back to commit SHA, then branch.
+          if git rev-parse "refs/tags/${JS_SDK_VERSION}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version (tag): ${JS_SDK_VERSION}"
+            git checkout "tags/${JS_SDK_VERSION}"
+          elif git rev-parse --verify "${JS_SDK_VERSION}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version (commit SHA): ${JS_SDK_VERSION}"
+            git checkout "${JS_SDK_VERSION}"
           else
-            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
-            exit 1 # fail the workflow if not present.
+            echo "Checking out specified JS-SDK version (branch): ${JS_SDK_VERSION}"
+            git fetch origin "${JS_SDK_VERSION}" && git checkout FETCH_HEAD
           fi
 
       - name: Setup PNPM
