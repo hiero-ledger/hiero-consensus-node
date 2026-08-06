@@ -56,14 +56,7 @@ on:
         required: false
         default: "180"
         description: "Expected duration of all tests in minutes"
-        type: choice
-        options:
-          - "180"
-          - "360"
-          - "720"
-          - "900"
-          - "1440"
-          - "1800"
+        type: string
       disable-notifications:
         required: false
         default: true
