@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.config;
+package org.hiero.consensus;
 
 import com.swirlds.config.api.ConfigurationBuilder;
-import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-class StateCommonConfigTest {
+class PathsConfigTest {
 
     @Test
     public void testDefaultValuesValid() {

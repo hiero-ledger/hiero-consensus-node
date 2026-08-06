@@ -19,6 +19,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.config;
+    exports com.swirlds.platform.context;
     exports com.swirlds.platform.crypto;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
