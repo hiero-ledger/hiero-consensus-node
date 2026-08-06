@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -116,10 +117,12 @@ public class SortedDiffExporter {
             Files.createDirectories(dir1.toPath());
             Files.createDirectories(dir2.toPath());
 
-            final List<CompletableFuture<Void>> writes = new ArrayList<>();
-            writes.addAll(writeInParallel(state1DiffByStateId, vm1, dir1));
-            writes.addAll(writeInParallel(state2DiffByStateId, vm2, dir2));
-            CompletableFuture.allOf(writes.toArray(new CompletableFuture[0])).join();
+            final List<CompletableFuture<Void>> plans = new ArrayList<>();
+            for (final Integer stateId : nameByStateId.keySet()) {
+                plans.add(
+                        CompletableFuture.runAsync(() -> planAndWrite(stateId, dir1, dir2, vm1, vm2), executorService));
+            }
+            CompletableFuture.allOf(plans.toArray(new CompletableFuture[0])).join();
         } catch (final IOException e) {
             throw new RuntimeException(e);
         } finally {
@@ -127,6 +130,89 @@ public class SortedDiffExporter {
         }
 
         log.info("Diff time: {} seconds", (System.currentTimeMillis() - startTimestamp) / 1000);
+    }
+
+    /**
+     * Splits one state's diff into aligned files: file {@code n} on both sides covers the same slice of
+     * the sorted union of differing keys, so a modified key always lands in the same file number on both
+     * sides. Files may be uneven, and one side's file may be empty for a pure add/delete range.
+     */
+    private void planAndWrite(
+            final int stateId, final File dir1, final File dir2, final VirtualMap vm1, final VirtualMap vm2) {
+        final Set<Pair<Long, Bytes>> set1 = state1DiffByStateId.get(stateId);
+        final Set<Pair<Long, Bytes>> set2 = state2DiffByStateId.get(stateId);
+        if (set1.isEmpty() && set2.isEmpty()) {
+            return;
+        }
+
+        final Pair<String, String> namePair = nameByStateId.get(stateId);
+        final Comparator<Pair<Long, Bytes>> cmp = keyComparatorFor(stateId);
+        final Iterator<Pair<Long, Bytes>> it1 = set1.iterator();
+        final Iterator<Pair<Long, Bytes>> it2 = set2.iterator();
+        Pair<Long, Bytes> e1 = it1.hasNext() ? it1.next() : null;
+        Pair<Long, Bytes> e2 = it2.hasNext() ? it2.next() : null;
+
+        final List<CompletableFuture<Void>> writes = new ArrayList<>();
+        int unionIndex = 0;
+        int fileIndex = 0;
+        List<Pair<Long, Bytes>> chunk1 = new ArrayList<>();
+        List<Pair<Long, Bytes>> chunk2 = new ArrayList<>();
+
+        while (e1 != null || e2 != null) {
+            if (unionIndex > 0 && unionIndex % MAX_OBJ_PER_FILE == 0) {
+                emit(writes, namePair, fileIndex++, chunk1, chunk2, dir1, dir2, vm1, vm2);
+                chunk1 = new ArrayList<>();
+                chunk2 = new ArrayList<>();
+            }
+            final int c = (e1 == null) ? 1 : (e2 == null) ? -1 : cmp.compare(e1, e2);
+            if (c < 0) { // deletion, state1 only
+                chunk1.add(e1);
+                e1 = it1.hasNext() ? it1.next() : null;
+            } else if (c > 0) { // addition, state2 only
+                chunk2.add(e2);
+                e2 = it2.hasNext() ? it2.next() : null;
+            } else { // modification, both sides -> same file number
+                chunk1.add(e1);
+                chunk2.add(e2);
+                e1 = it1.hasNext() ? it1.next() : null;
+                e2 = it2.hasNext() ? it2.next() : null;
+            }
+            unionIndex++;
+        }
+        emit(writes, namePair, fileIndex, chunk1, chunk2, dir1, dir2, vm1, vm2);
+
+        CompletableFuture.allOf(writes.toArray(new CompletableFuture[0])).join();
+    }
+
+    private void emit(
+            final List<CompletableFuture<Void>> writes,
+            final Pair<String, String> namePair,
+            final int fileIndex,
+            final List<Pair<Long, Bytes>> chunk1,
+            final List<Pair<Long, Bytes>> chunk2,
+            final File dir1,
+            final File dir2,
+            final VirtualMap vm1,
+            final VirtualMap vm2) {
+        if (chunk1.isEmpty() && chunk2.isEmpty()) {
+            return;
+        }
+        // Both files are written even if one chunk is empty, so file n always exists on both sides.
+        final String fileName = String.format(SINGLE_STATE_TMPL, namePair.left(), namePair.right(), fileIndex + 1);
+        writes.add(CompletableFuture.runAsync(() -> writeFile(new File(dir1, fileName), chunk1, vm1), executorService));
+        writes.add(CompletableFuture.runAsync(() -> writeFile(new File(dir2, fileName), chunk2, vm2), executorService));
+    }
+
+    private void writeFile(final File file, final List<Pair<Long, Bytes>> entries, final VirtualMap vm) {
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            for (final Pair<Long, Bytes> entry : entries) {
+                final Bytes valueBytes =
+                        vm.getRecords().findLeafRecord(entry.left()).valueBytes();
+                writeEntry(writer, entry.right(), valueBytes);
+            }
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

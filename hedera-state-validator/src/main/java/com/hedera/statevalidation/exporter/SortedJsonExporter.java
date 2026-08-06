@@ -233,15 +233,20 @@ public class SortedJsonExporter {
             try {
                 final StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
                 final StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
-                if (stateKey1.key().value() instanceof SingletonType) {
+                final Object v1 = stateKey1.key().value();
+                final Object v2 = stateKey2.key().value();
+                final boolean s1 = v1 instanceof SingletonType;
+                final boolean s2 = v2 instanceof SingletonType;
+                if (s1 && s2) {
+                    return 0; // queue metadata singleton is one key; required for union alignment
+                }
+                if (s1) {
                     return -1;
                 }
-                if (stateKey2.key().value() instanceof SingletonType) {
+                if (s2) {
                     return 1;
                 }
-                final Long index1 = (Long) stateKey1.key().value();
-                final Long index2 = (Long) stateKey2.key().value();
-                return index1.compareTo(index2);
+                return ((Long) v1).compareTo((Long) v2);
             } catch (final ParseException e) {
                 throw new RuntimeException(e);
             }

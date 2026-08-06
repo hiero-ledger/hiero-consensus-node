@@ -527,8 +527,8 @@ The command creates two subdirectories under the output directory:
     ...
 ```
 
-- `state1/` contains entries that were either deleted in the second state or modified (showing the old value).
-- `state2/` contains entries that were either added in the second state or modified (showing the new value).
+- `state1/` - entries deleted in the second state or modified (old value), as `{service}_{stateKey}_X.json`.
+- `state2/` - entries added in the second state or modified (new value), as `{service}_{stateKey}_X.json`.
 
 Each file uses the same `{"k":..., "v":...}` JSON-lines format as `sorted-export`, sorted by key bytes. Files under `state1/` and `state2/` are directly comparable file by file (e.g. `diff state1/TokenService_ACCOUNTS_1.json state2/TokenService_ACCOUNTS_1.json`).
 
@@ -549,9 +549,12 @@ java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 
 
 ### Notes
 
+- Files are chunked by the sorted union of differing keys, so file `X` in `state1/` and file `X` in `state2/` cover the same key range. A modified key always lands in the same file number on both sides.
+- Because of this alignment, entry counts per file are uneven and one side's file may be empty for an add- or delete-only range.
 - Service name and state key should both be either omitted or specified.
 - The data is sorted by the **byte representation of the key** (same ordering and caveats as `sorted-export`).
 - The exporter limits the number of objects per file to 1 million; to customize the limit, use VM parameter `-DmaxObjPerFile`.
+- As with `sorted-export`, ordering is stable across state versions, which is what makes the output usable for differential testing.
 
 ## Compact
 
