@@ -21,7 +21,6 @@ testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
-    requires("org.hiero.consensus.metrics")
 
     exportsTo("org.hiero.base.utility")
 }
@@ -30,7 +29,6 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.concurrent")
-    requires("org.hiero.consensus.metrics")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.concurrent.test.fixtures")
     requires("org.junit.jupiter.api")
