@@ -79,6 +79,7 @@ public final class WorklistRenderer {
             m.put("status", e.status().name().toLowerCase(Locale.ROOT));
             m.put("note", e.note());
             m.put("anchoredSourceCount", e.anchoredSourceCount());
+            m.put("newestAnchoredCommit", e.newestAnchoredCommit());
             m.put("changedPaths", new ArrayList<Object>(e.changedPaths()));
             items.add(m);
         }

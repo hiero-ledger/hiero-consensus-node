@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli.utility;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.SwirldMain;
@@ -30,17 +29,17 @@ public class HederaUtils {
      * Hedera main class has a particular way of building using a static method.
      * This is to avoid the circular dependency app-->platform-->app
      *
-     * @param platformContext The platform context
+     * @param configuration The configuration of the consensus node
+     * @param time the source of time
      * @throws RuntimeException when there is an issue loading the class
      * @return an instance of hedera app
      */
-    public static SwirldMain createHederaAppMain(@NonNull final PlatformContext platformContext) {
+    public static SwirldMain createHederaAppMain(@NonNull final Configuration configuration, @NonNull final Time time) {
         try {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
             Method newHederaMethod =
                     mainClass.getDeclaredMethod("newHedera", Configuration.class, Metrics.class, Time.class);
-            return (SwirldMain) newHederaMethod.invoke(
-                    null, platformContext.getConfiguration(), new NoOpMetrics(), platformContext.getTime());
+            return (SwirldMain) newHederaMethod.invoke(null, configuration, new NoOpMetrics(), time);
         } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException
