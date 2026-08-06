@@ -77,7 +77,8 @@ public class LearningSynchronizer {
 
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
+                new LearnerTreeExchanger(
+                        vmapLearner, new TopToBottomTraversalOrder(virtualMapConfig.chunkPrefetchDepth()), syncMetrics);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
                 new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), syncMetrics);
             case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
@@ -133,9 +134,21 @@ public class LearningSynchronizer {
             exchangeRootNode(exchanger, input, output);
 
             // FUTURE WORK: configurable number of tasks
-            for (int i = 0; i < 16; i++) {
-                workGroup.fork("reconnect-learner-receiver", new LearnerPullVirtualTreeReceiveTask(input, exchanger));
+            final int learnerReceiveTasks = 16;
+            final CountDownLatch receiveTasksDone = new CountDownLatch(learnerReceiveTasks);
+            for (int i = 0; i < learnerReceiveTasks; i++) {
+                workGroup.fork(
+                        "reconnect-learner-receiver",
+                        new LearnerPullVirtualTreeReceiveTask(input, exchanger, receiveTasksDone));
             }
+
+            // Dedicated ordered leaf-apply thread. The leaf hash-feed must stay in anticipatedLeafPaths
+            // FIFO order, but running that drain on a receiver thread lets a long contiguous backlog
+            // block that receiver from reading the socket — stalling the TCP receive window and
+            // throttling the teacher. This single thread performs the ordered drain continuously,
+            // overlapping transfer, while the receivers stay free to drain the socket. It exits once
+            // every receiver has finished (receiveTasksDone) and the FIFO is fully drained.
+            workGroup.fork("reconnect-learner-applier", () -> exchanger.applierLoop(receiveTasksDone));
 
             // FUTURE WORK: configurable number of tasks
             final int learnerSendTasks = 16;

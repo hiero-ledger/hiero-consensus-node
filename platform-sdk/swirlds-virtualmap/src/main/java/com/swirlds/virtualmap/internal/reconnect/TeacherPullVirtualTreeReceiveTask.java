@@ -2,6 +2,7 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -56,14 +57,22 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
      */
     @Override
     public void run() {
+        long readBlockedNanos = 0; // waiting for a request to arrive (teacher starved)
+        long produceNanos = 0; // findHash + isLeaf/findLeafRecord + metadata (teacher's MerkleDB data path)
+        long buildNanos = 0; // construct the response object (CPU)
+        long serializeNanos = 0; // PBJ serialize to byte[] (CPU)
+        long enqueueNanos = 0; // sendAsync — the WAIT on a full async-out queue (blocked/spinning)
         try {
             long requestCounter = 0;
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
+                final long t0 = System.nanoTime();
                 final byte[] requestBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (requestBytes == null) {
                     break;
                 }
+                readBlockedNanos += System.nanoTime() - t0;
+
                 final PullVirtualTreeRequest request =
                         PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
@@ -71,6 +80,7 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
                 if (request.path() < 0) {
                     throw new IllegalStateException("Invalid path received from learner: " + request.path());
                 }
+                final long t1 = System.nanoTime();
 
                 final long path = request.path();
                 final Hash learnerHash = request.hash();
@@ -86,18 +96,35 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
                         (!isClean && teacherView.isLeaf(path)) ? teacherView.findLeafRecord(path) : null;
                 final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();
                 final long lastLeafPath = teacherView.getMetadata().getLastLeafPath();
+                final long t2 = System.nanoTime();
+
                 final PullVirtualTreeResponse response =
                         new PullVirtualTreeResponse(path, isClean, firstLeafPath, lastLeafPath, leafData);
-                out.sendAsync(serializeMessage(response));
+                final long t3 = System.nanoTime();
+                final byte[] serialized = serializeMessage(response);
+                final long t4 = System.nanoTime();
+                out.sendAsync(serialized);
+                final long t5 = System.nanoTime();
+
+                produceNanos += (t2 - t1);
+                buildNanos += (t3 - t2);
+                serializeNanos += (t4 - t3);
+                enqueueNanos += (t5 - t4);
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);
             logger.info(
                     RECONNECT.getMarker(),
-                    "Teacher task: duration={}ms, requests={}, rate={}",
+                    "Teacher task: duration={}ms, requests={}, rate={}, readBlockedMs={}, produceMs={}, "
+                            + "buildMs={}, serializeMs={}, enqueueMs={}",
                     end - start,
                     requestCounter,
-                    requestRate);
+                    requestRate,
+                    NANOSECONDS.toMillis(readBlockedNanos),
+                    NANOSECONDS.toMillis(produceNanos),
+                    NANOSECONDS.toMillis(buildNanos),
+                    NANOSECONDS.toMillis(serializeNanos),
+                    NANOSECONDS.toMillis(enqueueNanos));
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();

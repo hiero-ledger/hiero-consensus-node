@@ -23,9 +23,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -82,6 +85,10 @@ public final class VirtualMapLearner {
 
     private final ConcurrentBlockingIterator<VirtualLeafBytes> reconnectIterator =
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
+
+    // Diagnostic: time each thread spends blocked in reconnectIterator.supply(), keyed by thread
+    // name. Large for the straggler if the single hashing thread is the bottleneck.
+    private final ConcurrentHashMap<String, LongAdder> supplyBlockedNanos = new ConcurrentHashMap<>();
 
     private volatile CompletableFuture<Hash> reconnectHashingFuture;
     private volatile FutureTask<Void> leafDeletionTask;
@@ -225,6 +232,48 @@ public final class VirtualMapLearner {
     }
 
     /**
+     * Order-independent half of dirty-leaf handling: stale-key delete tracking and the leaf store.
+     * Both go through the thread-safe {@link ReconnectHashLeafFlusher} (never the single-threaded
+     * hashing pipeline) and tolerate out-of-order calls, so this may be called eagerly from any
+     * receiver thread the moment a leaf arrives, in parallel. The companion ordered half is
+     * {@link #supplyDirtyLeaf(VirtualLeafBytes)}.
+     *
+     * @param leaf the leaf record received from the teacher; must not be null
+     */
+    public void storeDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        assert stage.get() == Stage.INITIALIZED : "reconnect is not initialized yet";
+        checkOldLeafToBeDeleted(leaf);
+        reconnectFlusher.updateLeaf(leaf);
+    }
+
+    /**
+     * Ordered half of dirty-leaf handling: feeds the leaf into the background hashing pipeline. The
+     * hasher requires leaves in ascending path order, so this MUST be called in the traversal
+     * (anticipated-leaf-path) FIFO order, by a single thread. May block if the hashing thread is
+     * slower than the incoming data rate. The companion order-independent half is
+     * {@link #storeDirtyLeaf(VirtualLeafBytes)}.
+     *
+     * @param leaf the leaf record received from the teacher; must not be null
+     */
+    public void supplyDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        try {
+            final long supplyStart = System.nanoTime();
+            reconnectIterator.supply(leaf);
+            supplyBlockedNanos
+                    .computeIfAbsent(Thread.currentThread().getName(), k -> new LongAdder())
+                    .add(System.nanoTime() - supplyStart);
+        } catch (final MerkleSynchronizationException e) {
+            throw e;
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException(
+                    "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
+        } catch (final Exception e) {
+            throw new MerkleSynchronizationException("Failed to handle a leaf during reconnect on the learner", e);
+        }
+    }
+
+    /**
      * Deletes an old leaf, if the new leaf node is in the same path position and leaf keys are different.
      *
      * @param newLeaf new leaf to be checked if
@@ -248,6 +297,11 @@ public final class VirtualMapLearner {
     public VirtualMap finish() {
         updateStage(Stage.INITIALIZED, Stage.FINISHING);
 
+        supplyBlockedNanos.forEach((thread, nanos) -> logger.info(
+                RECONNECT.getMarker(),
+                "supply blocked: thread={} ms={}",
+                thread,
+                TimeUnit.NANOSECONDS.toMillis(nanos.sum())));
         logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
         reconnectIterator.close();

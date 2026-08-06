@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.sync;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -13,7 +15,13 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.LockSupport;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
@@ -24,6 +32,8 @@ import org.hiero.base.crypto.Hash;
  * Responses from teacher should be handled via {@link #responseReceived(PullVirtualTreeResponse)}.
  */
 public final class LearnerTreeExchanger {
+
+    private static final Logger logger = LogManager.getLogger(LearnerTreeExchanger.class);
 
     /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
@@ -51,6 +61,15 @@ public final class LearnerTreeExchanger {
     private final Map<Long, PullVirtualTreeResponse> responses = new ConcurrentHashMap<>();
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
+
+    // Diagnostic: number of internal-node handleResponse() calls performed by each receiver thread
+    // (internal nodes are still handled inline on the receiver; leaves are handled on the applier).
+    private final ConcurrentHashMap<String, LongAdder> handleResponseCounts = new ConcurrentHashMap<>();
+
+    // Diagnostic: total time each receiver thread spends in the eager storeDirtyLeaf() call
+    // (checkOldLeafToBeDeleted + updateLeaf). Confirms the store cost is spread across the receivers
+    // rather than serialized on the ordered applier.
+    private final ConcurrentHashMap<String, LongAdder> storeNanos = new ConcurrentHashMap<>();
 
     private VirtualMap.Metadata teacherMetadata = new VirtualMap.Metadata();
 
@@ -95,6 +114,13 @@ public final class LearnerTreeExchanger {
     }
 
     VirtualMap onSuccessfulComplete() {
+        handleResponseCounts.forEach((thread, count) ->
+                logger.info(RECONNECT.getMarker(), "handleResponse count: thread={} count={}", thread, count.sum()));
+        storeNanos.forEach((thread, ns) -> logger.info(
+                RECONNECT.getMarker(),
+                "storeDirtyLeaf time: thread={} storeMs={}",
+                thread,
+                TimeUnit.NANOSECONDS.toMillis(ns.sum())));
         return vmapLearner.finish();
     }
 
@@ -149,9 +175,49 @@ public final class LearnerTreeExchanger {
         final long responsePath = response.path();
         if (!isLeafOnTeacher(responsePath)) {
             handleResponse(response);
+            handleResponseCounts
+                    .computeIfAbsent(Thread.currentThread().getName(), k -> new LongAdder())
+                    .increment();
         } else {
+            // Eager, order-independent store: stale-key tracking + leaf store, done in parallel on this
+            // receiver the moment the leaf arrives. Only the ordered hash-feed (supplyDirtyLeaf, on the
+            // applier) is deferred. nodeReceived is a no-op for leaf paths, so it is not needed here.
+            if (!response.isClean() && teacherMetadata.getLastLeafPath() > 0) {
+                final VirtualLeafBytes<?> leaf = response.leafData();
+                assert leaf != null && leaf.path() == responsePath;
+                final long storeStart = System.nanoTime();
+                vmapLearner.storeDirtyLeaf(leaf);
+                storeNanos
+                        .computeIfAbsent(Thread.currentThread().getName(), k -> new LongAdder())
+                        .add(System.nanoTime() - storeStart);
+            }
+            // The ordered hash-feed is performed by the dedicated applier thread (see applierLoop),
+            // which drains this map in anticipatedLeafPaths FIFO order. Receiver threads stay free to
+            // keep draining the socket instead of blocking on a long contiguous-backlog drain.
             responses.put(responsePath, response);
-            // Handle responses in the same order as the corresponding requests were sent to the teacher
+        }
+    }
+
+    /**
+     * Dedicated, single-threaded loop that feeds leaf responses to the hasher in
+     * {@link #anticipatedLeafPaths} FIFO order. Exactly one thread (this one) ever drains the FIFO,
+     * so leaf apply remains single-threaded — identical to the previous inline behaviour, just
+     * relocated off the receiver threads so a long contiguous-backlog drain can no longer block a
+     * receiver from reading the socket (which would stall the TCP window and throttle the teacher).
+     *
+     * @param receiveTasksDone latch counted down as each receiver task finishes; when it reaches zero
+     *                         no further responses will arrive, so once the FIFO is drained the loop exits
+     */
+    void applierLoop(final CountDownLatch receiveTasksDone) {
+        long handleNanos = 0;
+        long parkNanos = 0;
+        long drained = 0;
+        int maxResponsesMapSize = 0;
+        // Exit on interrupt: if any sibling task fails, StandardWorkGroup.shutdownNow() interrupts
+        // this thread. LockSupport.parkNanos returns (leaving the interrupt flag set) on interrupt, so
+        // this loop condition then tears the applier down and lets workGroup.close()/join() complete.
+        while (!Thread.currentThread().isInterrupted()) {
+            boolean drainedAny = false;
             while (true) {
                 final Long nextExpectedPath = anticipatedLeafPaths.peek();
                 if (nextExpectedPath == null) {
@@ -159,12 +225,48 @@ public final class LearnerTreeExchanger {
                 }
                 final PullVirtualTreeResponse r = responses.remove(nextExpectedPath);
                 if (r == null) {
+                    break; // FIFO head not yet received
+                }
+                final long handleStart = System.nanoTime();
+                handleResponse(r);
+                handleNanos += System.nanoTime() - handleStart;
+                anticipatedLeafPaths.remove();
+                drainedAny = true;
+                drained++;
+            }
+            final int mapSize = responses.size();
+            if (mapSize > maxResponsesMapSize) {
+                maxResponsesMapSize = mapSize;
+            }
+            if (!drainedAny) {
+                // When every receiver task has finished, no more responses will ever arrive. Each
+                // receiver publishes into the concurrent `responses` map before it counts the latch
+                // down, so once the count is zero every received leaf is already in the map; if the
+                // FIFO head is still missing here it genuinely never arrived (a protocol error) and we
+                // exit rather than hang. lastLeafSent additionally guards against an early exit before
+                // any leaf request has been sent.
+                if (lastLeafSent.get() && receiveTasksDone.getCount() == 0) {
+                    if (!anticipatedLeafPaths.isEmpty()) {
+                        logger.error(
+                                RECONNECT.getMarker(),
+                                "Applier exiting with {} undrained leaf path(s); head={}",
+                                anticipatedLeafPaths.size(),
+                                anticipatedLeafPaths.peek());
+                    }
                     break;
                 }
-                handleResponse(r);
-                anticipatedLeafPaths.remove();
+                final long parkStart = System.nanoTime();
+                LockSupport.parkNanos(50_000L); // head in flight; nothing to drain this pass
+                parkNanos += System.nanoTime() - parkStart;
             }
         }
+        logger.info(
+                RECONNECT.getMarker(),
+                "Applier summary: drained={} handleMs={} parkMs={} maxResponsesMapSize={}",
+                drained,
+                TimeUnit.NANOSECONDS.toMillis(handleNanos),
+                TimeUnit.NANOSECONDS.toMillis(parkNanos),
+                maxResponsesMapSize);
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
@@ -184,7 +286,10 @@ public final class LearnerTreeExchanger {
                 final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
+                // The store (stale-key tracking + updateLeaf) already ran eagerly in responseReceived.
+                // Here, on the applier in FIFO order, do only the ordered hash-feed. May block if
+                // hashing is slower than ingest.
+                vmapLearner.supplyDirtyLeaf(leaf);
             }
             stats.incrementLeafData(isClean);
         } else {
