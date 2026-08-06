@@ -1,6 +1,6 @@
 # Gossip
 
-Gossip is the process of exchanging events with other peers. There are currently two protocols implemented:
+Gossip is the process of exchanging events with other peers. There are currently two protocolFactories implemented:
 
 - [Sync](syncing/sync-protocol.md)
 - [RPC Sync](rpc/rpc-gossip.md)

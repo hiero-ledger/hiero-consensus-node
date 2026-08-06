@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl.network.protocol;
+package org.hiero.consensus.main.model;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * API for building network protocols
  */
-public interface Protocol {
+public interface ProtocolFactory {
 
     /**
      * Constructs an instance of a network protocol using the provided peerId
@@ -16,9 +14,4 @@ public interface Protocol {
      */
     PeerProtocol createPeerInstance(@NonNull final NodeId peerId);
 
-    /**
-     * Called from the wiring when platform status is changing
-     * @param status new platform status
-     */
-    void updatePlatformStatus(@NonNull final PlatformStatus status);
 }

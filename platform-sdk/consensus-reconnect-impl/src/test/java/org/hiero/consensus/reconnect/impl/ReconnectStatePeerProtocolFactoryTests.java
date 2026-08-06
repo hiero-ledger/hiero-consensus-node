@@ -32,9 +32,9 @@ import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -53,7 +53,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  */
-class ReconnectStatePeerProtocolTests {
+class ReconnectStatePeerProtocolFactoryTests {
     private static final NodeId PEER_ID = NodeId.of(1L);
 
     private ReconnectStateTeacherThrottle teacherThrottle;
@@ -148,7 +148,7 @@ class ReconnectStatePeerProtocolTests {
 
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -160,11 +160,11 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
 
         assertEquals(
                 params.shouldInitiate,
-                reconnectProtocol.createPeerInstance(PEER_ID).shouldInitiate(),
+                reconnectProtocolFactory.createPeerInstance(PEER_ID).shouldInitiate(),
                 "unexpected initiation result");
     }
 
@@ -191,7 +191,7 @@ class ReconnectStatePeerProtocolTests {
 
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -203,10 +203,10 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
         assertEquals(
                 params.shouldAccept(),
-                reconnectProtocol.createPeerInstance(PEER_ID).shouldAccept(),
+                reconnectProtocolFactory.createPeerInstance(PEER_ID).shouldAccept(),
                 "unexpected protocol acceptance");
     }
 
@@ -280,7 +280,7 @@ class ReconnectStatePeerProtocolTests {
             BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                     new BlockingResourceProvider<>();
 
-            final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+            final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                     new TestConfigBuilder().getOrCreateConfig(),
                     new NoOpMetrics(),
                     Time.getCurrent(),
@@ -292,7 +292,7 @@ class ReconnectStatePeerProtocolTests {
                     fallenBehindManager,
                     reservedSignedStateResultPromise,
                     mock(StateLifecycleManager.class));
-            reconnectProtocol.updatePlatformStatus(ACTIVE);
+            reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
             assertFalse(
                     reservedSignedStateResultPromise.acquireProvidePermit(),
                     "the while loop should have acquired the permit, so it should not be available");
@@ -308,7 +308,7 @@ class ReconnectStatePeerProtocolTests {
 
             Thread.sleep(500);
             assertFalse(
-                    reconnectProtocol.createPeerInstance(PEER_ID).shouldInitiate(),
+                    reconnectProtocolFactory.createPeerInstance(PEER_ID).shouldInitiate(),
                     "we expect that a reconnect should not be initiated because of FallenBehindMonitor");
             assertTrue(
                     reservedSignedStateResultPromise.acquireProvidePermit(),
@@ -338,7 +338,7 @@ class ReconnectStatePeerProtocolTests {
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
         when(fallenBehindManager.isBehindPeer(any())).thenReturn(true);
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -350,8 +350,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
-        final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
+        final PeerProtocol peerProtocol = reconnectProtocolFactory.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldInitiate());
         peerProtocol.initiateFailed();
 
@@ -380,7 +380,7 @@ class ReconnectStatePeerProtocolTests {
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -392,8 +392,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
-        final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
+        final PeerProtocol peerProtocol = reconnectProtocolFactory.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
         peerProtocol.acceptFailed();
 
@@ -415,7 +415,7 @@ class ReconnectStatePeerProtocolTests {
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
         when(fallenBehindManager.hasFallenBehind()).thenReturn(false);
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -427,8 +427,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
-        final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
+        final PeerProtocol peerProtocol = reconnectProtocolFactory.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
     }
 
@@ -443,7 +443,7 @@ class ReconnectStatePeerProtocolTests {
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -455,8 +455,8 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(CHECKING);
-        final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
+        reconnectProtocolFactory.updatePlatformStatus(CHECKING);
+        final PeerProtocol peerProtocol = reconnectProtocolFactory.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
     }
 
@@ -467,7 +467,7 @@ class ReconnectStatePeerProtocolTests {
         when(signedState.isComplete()).thenReturn(true);
         signedState.reserve("test");
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -479,8 +479,8 @@ class ReconnectStatePeerProtocolTests {
                 mock(FallenBehindMonitor.class),
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
-        final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
+        final PeerProtocol peerProtocol = reconnectProtocolFactory.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
 
         verify(reservedSignedStateResultPromise, times(1)).tryBlockProvidePermit();
@@ -511,7 +511,7 @@ class ReconnectStatePeerProtocolTests {
 
         when(reservedSignedStateResultPromise.tryBlockProvidePermit()).thenReturn(false);
 
-        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
+        final ProtocolFactory reconnectProtocolFactory = new ReconnectStateSyncProtocolFactory(
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
@@ -523,8 +523,8 @@ class ReconnectStatePeerProtocolTests {
                 mock(FallenBehindMonitor.class),
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class));
-        reconnectProtocol.updatePlatformStatus(ACTIVE);
-        final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
+        reconnectProtocolFactory.updatePlatformStatus(ACTIVE);
+        final PeerProtocol peerProtocol = reconnectProtocolFactory.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
 
         verify(reservedSignedStateResultPromise, times(1)).tryBlockProvidePermit();

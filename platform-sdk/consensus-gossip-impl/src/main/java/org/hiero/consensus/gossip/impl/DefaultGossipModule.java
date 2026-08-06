@@ -35,6 +35,7 @@ import org.hiero.consensus.gossip.impl.gossip.SyncGossipModular;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -90,7 +91,7 @@ public final class DefaultGossipModule implements GossipModule {
         final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
         final ReconnectProtocolFactory factory =
                 ServiceLoader.load(ReconnectProtocolFactory.class).findFirst().orElseThrow();
-        final Protocol reconnectProtocol = factory.createProtocol(
+        final ProtocolFactory reconnectProtocol = factory.createProtocol(
                 configuration,
                 metrics,
                 time,

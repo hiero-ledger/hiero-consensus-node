@@ -7,8 +7,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.states.InitialState;
 import org.hiero.consensus.gossip.impl.network.communication.states.NegotiationState;
 import org.hiero.consensus.gossip.impl.network.communication.states.ProtocolNegotiated;
@@ -17,6 +15,8 @@ import org.hiero.consensus.gossip.impl.network.communication.states.SentInitiate
 import org.hiero.consensus.gossip.impl.network.communication.states.SentKeepalive;
 import org.hiero.consensus.gossip.impl.network.communication.states.Sleep;
 import org.hiero.consensus.gossip.impl.network.communication.states.WaitForAcceptReject;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.NetworkProtocolException;
 
 /**
  * A state machine responsible for negotiating the protocol to run over the provided connection

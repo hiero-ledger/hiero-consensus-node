@@ -17,7 +17,7 @@ and remove the need of connections handoff.
 
 In a very simplistic explanation, the current reconnect logic is implemented in the following way:
 
-Gossip component initiates protocols, which are running continuously, interleaved, and are executed only when certain conditions apply. Protocols owns the lifecycle of the connections to other peers.
+Gossip component initiates protocolFactories, which are running continuously, interleaved, and are executed only when certain conditions apply. Protocols owns the lifecycle of the connections to other peers.
 SyncProtocol, which is one of our gossip implementations, compares the current hashgraph status against the peer's, and uses a mutable shared class (`FallenBehindManager`) to determine and keep track if the node has fallen behind.
 If it detects that the node has fallen behind it will submit a FallenBehindAction to the platform status machine which in turn will update Gossip's internal state with the new status.
 ReconnectProtocol contains part of the logic of syncing the state, the logic of the reconnect protocol is separated depending upon the node will act as a teacher or learner.
@@ -87,16 +87,16 @@ If anything on the process goes wrong the code will retry until a configured max
    This class can't be a component given that it will interact with other components (enabling and disabling them)
 
 3. Refactoring Gossip:
-   The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
+   The gossip implementation (SyncGossipModular) and protocolFactories will be simplified and decoupled from the reconnect orchestration.
    Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines.
-   It will work with the FallenBehindMonitor directly which will be shared with the protocols to be able to inform and query the status.
+   It will work with the FallenBehindMonitor directly which will be shared with the protocolFactories to be able to inform and query the status.
 
 4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class, and it blocks until it gets the value,
-   another client manifests its desire to provide a value, only one client at the time can provide a value, more than one are rejected. Given that the protocols cannot return a value to the outside world,
+   another client manifests its desire to provide a value, only one client at the time can provide a value, more than one are rejected. Given that the protocolFactories cannot return a value to the outside world,
    PlatformReconnecter will use an instance of this class and signal the need to obtain a ReservedSignedState, the state sync protocol will ack that signal and provide with a reservedSignedState once obtained from the first peer that is deemed able to provide an useful state.
 
 5. `ReconnectProtocol` Renaming:
-   Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
+   Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocolFactories, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
    StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through the shared ReservedSignedStatePromise object.
 
 6. `PlatformCoordinator` repurposing: This object currently only knows how to flush and clean the pipelines. IT will become the instance to hold all operations against the platform (e.g: start stop pause and resume gossip, submit a status action, push a roster update, etc. )

@@ -3,11 +3,11 @@ package org.hiero.consensus.gossip.impl.network.communication.states;
 
 import java.io.IOException;
 import java.io.InputStream;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.PeerProtocol;
 
 /**
  * A protocol initiate was sent, this state waits for and handles the byte sent by the peer in parallel
@@ -68,8 +68,7 @@ public class SentInitiate extends NegotiationStateWithDescription {
      * {@inheritDoc}
      */
     @Override
-    public NegotiationState transition()
-            throws NegotiationException, NetworkProtocolException, InterruptedException, IOException {
+    public NegotiationState transition() throws NegotiationException, InterruptedException, IOException {
         final int b = byteInput.read();
         NegotiatorBytes.checkByte(b);
         final NegotiationState next = transition(b);

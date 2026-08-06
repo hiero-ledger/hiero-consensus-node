@@ -40,15 +40,15 @@ import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncPhase;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.NetworkProtocolException;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.SyncInputStream;
+import org.hiero.consensus.main.model.SyncOutputStream;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

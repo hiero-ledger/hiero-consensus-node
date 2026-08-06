@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl.network.protocol;
+package org.hiero.consensus.main.model;
 
 import java.io.IOException;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 
 /**
  * Represents a method for running a network protocol

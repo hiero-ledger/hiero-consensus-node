@@ -9,7 +9,7 @@ import static org.hiero.consensus.gossip.impl.network.communication.NegotiatorTe
 import static org.hiero.consensus.gossip.impl.network.communication.NegotiatorTestSuite.PROTOCOL_3;
 
 import java.io.IOException;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.main.model.NetworkProtocolException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;

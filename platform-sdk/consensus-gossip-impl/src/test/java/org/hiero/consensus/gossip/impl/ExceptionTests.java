@@ -10,7 +10,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertion
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.main.model.NetworkProtocolException;
 import org.junit.jupiter.api.Test;
 
 class ExceptionTests {

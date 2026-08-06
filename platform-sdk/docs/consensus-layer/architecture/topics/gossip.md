@@ -12,8 +12,8 @@ Gossip is the subsystem that exchanges events with other peers. It owns the per-
 
 Gossip owns:
 
-- **Event propagation between peers** — RPC Sync protocols carry events across connections.
-- **The peer protocol stack** — Heartbeat, RPC, and Reconnect protocols sharing the same connection.
+- **Event propagation between peers** — RPC Sync protocolFactories carry events across connections.
+- **The peer protocol stack** — Heartbeat, RPC, and Reconnect protocolFactories sharing the same connection.
 - **Fair sync selection** — limiting concurrent syncs and rotating through peers so no peer is starved (currently disabled).
 - **Simple broadcast** — pushing self-events to all connected peers, layered on the RPC sync connection.
 
@@ -25,7 +25,7 @@ Gossip does **not** own:
 
 ## Protocol stack
 
-The legacy network layer negotiates one of three protocols on each connection. Once a protocol is selected, it holds the socket until it completes or yields to reconnect. RPC Sync is the workhorse; Heartbeat keeps idle connections alive; Reconnect transfers control to the reconnect mechanism when a peer falls behind.
+The legacy network layer negotiates one of three protocolFactories on each connection. Once a protocol is selected, it holds the socket until it completes or yields to reconnect. RPC Sync is the workhorse; Heartbeat keeps idle connections alive; Reconnect transfers control to the reconnect mechanism when a peer falls behind.
 
 ### Heartbeat
 

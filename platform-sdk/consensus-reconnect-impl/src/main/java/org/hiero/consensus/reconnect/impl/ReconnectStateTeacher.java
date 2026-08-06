@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.signed.SigSet;

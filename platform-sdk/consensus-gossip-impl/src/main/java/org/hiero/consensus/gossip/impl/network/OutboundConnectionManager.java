@@ -28,11 +28,12 @@ import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.gossip.config.SocketConfig;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.SyncInputStream;
+import org.hiero.consensus.main.model.SyncOutputStream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
 public class OutboundConnectionManager implements ConnectionManager {

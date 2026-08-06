@@ -12,7 +12,7 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
@@ -35,7 +35,7 @@ public interface ReconnectProtocolFactory {
      * @return the created protocol
      */
     @NonNull
-    Protocol createProtocol(
+    ProtocolFactory createProtocol(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,

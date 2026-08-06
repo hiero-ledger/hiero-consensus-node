@@ -18,7 +18,7 @@ resume from the new round.
 It does not own:
 
 - the gossip protocol stack itself — see [`gossip.md`](gossip.md), where
-  the reconnect protocol is one of three protocols on the shared
+  the reconnect protocol is one of three protocolFactories on the shared
   connection;
 - ISS recovery or PCES replay across restart — see
   [`restart-and-pces.md`](restart-and-pces.md);
@@ -140,7 +140,7 @@ state from a teacher.
 State transfer is a paired exchange. The node that has fallen behind
 acts as **learner**; a healthy peer acts as **teacher**. Both sides
 reuse the shared connection that gossip already maintains; the
-reconnect protocol is one of three protocols multiplexed on that
+reconnect protocol is one of three protocolFactories multiplexed on that
 connection (see [`gossip.md`](gossip.md) for the protocol-stack view).
 
 - [`ReconnectStateLearner`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectStateLearner.java)

@@ -3,11 +3,11 @@ package org.hiero.consensus.gossip.impl.network.communication.states;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.PeerProtocol;
 
 /**
  * Responds to a protocol initiation by the peer
@@ -58,8 +58,7 @@ public class ReceivedInitiate extends NegotiationStateWithDescription {
      * {@inheritDoc}
      */
     @Override
-    public NegotiationState transition()
-            throws NegotiationException, NetworkProtocolException, InterruptedException, IOException {
+    public NegotiationState transition() throws NegotiationException, InterruptedException, IOException {
         final PeerProtocol peerProtocol = protocols.getProtocol(protocolInitiated);
         if (peerProtocol.shouldAccept()) {
             try {

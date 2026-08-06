@@ -156,7 +156,7 @@ Both environments provide a consistent API while optimizing for different testin
 #### Key Features
 
 - 🐳 **Real Containers** - Actual Docker containers
-- 📡 **gRPC Communication** - Real network protocols
+- 📡 **gRPC Communication** - Real network protocolFactories
 - ⏰ **Real Time** - Actual time progression
 - 🔒 **Isolation** - True process isolation
 - 🧪 **Realistic Testing** - Closer to production

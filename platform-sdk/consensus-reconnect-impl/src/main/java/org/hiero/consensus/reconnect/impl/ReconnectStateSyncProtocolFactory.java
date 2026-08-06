@@ -14,16 +14,17 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.proxy.ReconnectProxyProtocol;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
  */
-public class ReconnectStateSyncProtocol implements Protocol {
+public class ReconnectStateSyncProtocolFactory implements ProtocolFactory {
 
     private final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle;
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
@@ -39,7 +40,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
 
-    public ReconnectStateSyncProtocol(
+    public ReconnectStateSyncProtocolFactory(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
@@ -68,7 +69,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
     @NonNull
     @Override
     public ReconnectStatePeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new ReconnectStatePeerProtocol(
+        return new ReconnectProxyProtocol(
                 configuration,
                 metrics,
                 time,

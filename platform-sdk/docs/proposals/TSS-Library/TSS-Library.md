@@ -249,7 +249,7 @@ Supports the following operations:
 
 ###### *`BillinearPairing`*
 
-Represents a bilinear pairing operation used in cryptographic protocols. A pairing is a map: e : G₁ × G₂ \-\> Gₜ which can satisfy these properties:
+Represents a bilinear pairing operation used in cryptographic protocolFactories. A pairing is a map: e : G₁ × G₂ \-\> Gₜ which can satisfy these properties:
 
 * Bilinearity: `a`, `b` member of `Fq` (Finite Field a.k.a. `Field`), `P` member of `G₁`, and `Q` member of `G₂`, then `e(a×P, b×Q) = e(ab×P, Q) = e(P, ab×Q) = e(P, Q)^(ab)`
 * Non-degeneracy: `e != 1`

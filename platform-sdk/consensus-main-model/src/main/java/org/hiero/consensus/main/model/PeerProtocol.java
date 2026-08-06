@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl.network.protocol;
-
-import org.hiero.consensus.gossip.impl.network.Connection;
+package org.hiero.consensus.main.model;
 
 /**
  * A network protocol that run over a provided connection. The decision to run the protocol is made outside it, it can

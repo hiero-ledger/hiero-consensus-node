@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl.network;
+package org.hiero.consensus.main.model;
 
 /**
  * Thrown whenever a non IO exception happens during a network protocol execution

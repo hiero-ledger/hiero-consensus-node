@@ -10,16 +10,16 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.io.IOException;
 import java.time.Duration;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
+import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocolFactory;
+import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.SyncInputStream;
+import org.hiero.consensus.main.model.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.ByteConstants;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.main.model.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatPeerProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.main.model.PeerProtocol;
 import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +30,7 @@ import org.mockito.Mockito;
  * Tests for {@link HeartbeatPeerProtocol}
  */
 @DisplayName("Heartbeat Protocol Tests")
-class HeartbeatPeerProtocolTests {
+class HeartbeatPeerProtocolFactoryTests {
     private NodeId peerId;
     private Duration heartbeatPeriod;
     private NetworkMetrics networkMetrics;
@@ -66,9 +66,9 @@ class HeartbeatPeerProtocolTests {
     @Test
     @DisplayName("Protocol runs successfully")
     void successfulRun() {
-        final Protocol heartbeatProtocol = new HeartbeatProtocol(heartbeatPeriod, networkMetrics, time);
+        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(heartbeatPeriod, networkMetrics, time);
 
-        assertDoesNotThrow(() -> heartbeatProtocol.createPeerInstance(peerId).runProtocol(heartbeatSendingConnection));
+        assertDoesNotThrow(() -> heartbeatProtocolFactory.createPeerInstance(peerId).runProtocol(heartbeatSendingConnection));
 
         // recorded roundtrip time should be the length of time the peer took to send an ACK
         Mockito.verify(networkMetrics)
@@ -78,8 +78,8 @@ class HeartbeatPeerProtocolTests {
     @Test
     @DisplayName("shouldInitiate respects the heartbeat period")
     void shouldInitiate() {
-        final Protocol heartbeatProtocol = new HeartbeatProtocol(heartbeatPeriod, networkMetrics, time);
-        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocol.createPeerInstance(peerId);
+        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(heartbeatPeriod, networkMetrics, time);
+        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocolFactory.createPeerInstance(peerId);
         // first shouldInitiate is always true, since we haven't sent a heartbeat to start the timer yet
         assertTrue(heartbeatPeerProtocol.shouldInitiate());
 
@@ -102,8 +102,8 @@ class HeartbeatPeerProtocolTests {
     @Test
     @DisplayName("shouldAccept always returns true")
     void shouldAccept() {
-        final Protocol heartbeatProtocol = new HeartbeatProtocol(heartbeatPeriod, networkMetrics, time);
-        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocol.createPeerInstance(peerId);
+        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(heartbeatPeriod, networkMetrics, time);
+        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocolFactory.createPeerInstance(peerId);
 
         assertTrue(heartbeatPeerProtocol.shouldAccept());
 
@@ -114,8 +114,8 @@ class HeartbeatPeerProtocolTests {
     @Test
     @DisplayName("Exception is thrown if the peer doesn't send a heartbeat byte")
     void peerSendsInvalidHeartbeat() {
-        final Protocol heartbeatProtocol = new HeartbeatProtocol(heartbeatPeriod, networkMetrics, time);
-        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocol.createPeerInstance(peerId);
+        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(heartbeatPeriod, networkMetrics, time);
+        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocolFactory.createPeerInstance(peerId);
 
         // reconfigure the heartbeatSendingConnection so that it sends an invalid byte at the beginning of the protocol
         final SyncInputStream badInputStream = mock(SyncInputStream.class);
@@ -135,8 +135,8 @@ class HeartbeatPeerProtocolTests {
     @Test
     @DisplayName("Exception is thrown if the peer sends an invalid ack")
     void peerSendsInvalidAcknowledgement() {
-        final Protocol heartbeatProtocol = new HeartbeatProtocol(heartbeatPeriod, networkMetrics, time);
-        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocol.createPeerInstance(peerId);
+        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(heartbeatPeriod, networkMetrics, time);
+        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocolFactory.createPeerInstance(peerId);
 
         // reconfigure the heartbeatSendingConnection so that it sends an invalid byte instead of an ack
         final SyncInputStream badInputStream = mock(SyncInputStream.class);
@@ -156,8 +156,8 @@ class HeartbeatPeerProtocolTests {
     @Test
     @DisplayName("acceptOnSimultaneousInitiate should return true")
     void acceptOnSimultaneousInitiate() {
-        final Protocol heartbeatProtocol = new HeartbeatProtocol(heartbeatPeriod, networkMetrics, time);
-        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocol.createPeerInstance(peerId);
+        final ProtocolFactory heartbeatProtocolFactory = new HeartbeatProtocolFactory(heartbeatPeriod, networkMetrics, time);
+        final PeerProtocol heartbeatPeerProtocol = heartbeatProtocolFactory.createPeerInstance(peerId);
 
         assertTrue(heartbeatPeerProtocol.acceptOnSimultaneousInitiate());
     }

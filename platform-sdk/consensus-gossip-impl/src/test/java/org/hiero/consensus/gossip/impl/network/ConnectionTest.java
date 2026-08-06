@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection;
+import org.hiero.consensus.main.model.Connection;
 import org.junit.jupiter.api.Test;
 
 class ConnectionTest {

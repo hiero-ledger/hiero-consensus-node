@@ -31,11 +31,11 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.gossip.impl.network.PeerCommunication;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.communication.handshake.VersionCompareHandshake;
-import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
-import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcProtocol;
+import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocolFactory;
+import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.ProtocolRunnable;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -53,8 +53,8 @@ public class SyncGossipModular implements Gossip {
     private static final Logger logger = LogManager.getLogger(SyncGossipModular.class);
 
     private final PeerCommunication network;
-    private final List<Protocol> protocols;
-    private final RpcProtocol rpcProtocol;
+    private final List<ProtocolFactory> protocols;
+    private final RpcProtocolFactory rpcProtocol;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final ShadowgraphSynchronizer synchronizer;
 
@@ -88,7 +88,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final Protocol reconnectProtocol) {
+            @NonNull final ProtocolFactory reconnectProtocol) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -127,7 +127,7 @@ public class SyncGossipModular implements Gossip {
 
         this.synchronizer = rpcSynchronizer;
 
-        this.rpcProtocol = new RpcProtocol(
+        this.rpcProtocol = new RpcProtocolFactory(
                 configuration,
                 metrics,
                 time,
@@ -142,7 +142,7 @@ public class SyncGossipModular implements Gossip {
                 event -> receivedEventHandler.accept(event));
 
         this.protocols = List.of(
-                HeartbeatProtocol.create(configuration, time, this.network.getNetworkMetrics()),
+                HeartbeatProtocolFactory.create(configuration, time, this.network.getNetworkMetrics()),
                 reconnectProtocol,
                 rpcProtocol);
 

@@ -7,11 +7,11 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
-import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.ProtocolRunnable;
 
 /**
  * Continuously runs protocol negotiation and protocols over connections supplied by the connection manager

@@ -3,10 +3,10 @@ package org.hiero.consensus.gossip.impl.test.fixtures.communication;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.ProtocolRunnable;
 import org.junit.jupiter.api.Assertions;
 
 public class TestPeerProtocol implements PeerProtocol {

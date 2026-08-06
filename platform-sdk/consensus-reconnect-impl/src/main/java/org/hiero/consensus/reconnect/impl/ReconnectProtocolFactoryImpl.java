@@ -12,20 +12,20 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
- * Factory for creating the {@link ReconnectStateSyncProtocol}.
+ * Factory for creating the {@link ReconnectStateSyncProtocolFactory}.
  */
 public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
 
     @Override
     @NonNull
-    public Protocol createProtocol(
+    public ProtocolFactory createProtocol(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
@@ -41,7 +41,7 @@ public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
 
         final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(metrics);
 
-        return new ReconnectStateSyncProtocol(
+        return new ReconnectStateSyncProtocolFactory(
                 configuration,
                 metrics,
                 time,

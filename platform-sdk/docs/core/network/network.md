@@ -8,7 +8,7 @@ network. The platform networking functionality aims to accomplish these goals:
 - be resilient to various attacks (this requires additional work)
 - re-establish connections transparently
 - ensure all unused connections are properly closed
-- allow different protocols to run over the same connection
+- allow different protocolFactories to run over the same connection
 - provide a smooth transition between gossip and chatter
 - adapt to changes in network topology at runtime (this requires additional work)
 - is designed with clear separation of concerns

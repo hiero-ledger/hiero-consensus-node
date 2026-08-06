@@ -4,11 +4,11 @@ package org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreade
 import com.swirlds.base.time.Time;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.ProtocolNegotiatorThread;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
+import org.hiero.consensus.main.model.Connection;
 
 /**
  * Used to run a negotiator in a separate thread and capture any exceptions it might throw

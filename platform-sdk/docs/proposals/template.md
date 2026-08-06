@@ -61,7 +61,7 @@ Remove this section if not applicable.
 
 ### Core Behaviors
 
-Describe any new or modified behavior. What are the new or modified algorithms and protocols? Include any diagrams that
+Describe any new or modified behavior. What are the new or modified algorithms and protocolFactories? Include any diagrams that
 help explain the behavior.
 
 Remove this section if not applicable.

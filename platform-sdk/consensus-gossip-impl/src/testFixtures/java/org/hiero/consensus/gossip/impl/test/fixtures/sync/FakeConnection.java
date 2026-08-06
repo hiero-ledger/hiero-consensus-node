@@ -3,10 +3,10 @@ package org.hiero.consensus.gossip.impl.test.fixtures.sync;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.SyncInputStream;
+import org.hiero.consensus.main.model.SyncOutputStream;
 
 public class FakeConnection implements Connection {
     public final CountDownLatch disconnect = new CountDownLatch(1);

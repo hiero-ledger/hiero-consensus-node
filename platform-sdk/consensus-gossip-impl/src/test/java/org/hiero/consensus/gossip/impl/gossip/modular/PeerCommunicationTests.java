@@ -25,9 +25,9 @@ import org.hiero.consensus.gossip.config.ProtocolConfig;
 import org.hiero.consensus.gossip.impl.network.PeerCommunication;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.communication.handshake.VersionCompareHandshake;
-import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
+import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocolFactory;
+import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.ProtocolRunnable;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -109,12 +109,12 @@ public class PeerCommunicationTests {
                     SemanticVersion.newBuilder().major(1).build(), !protocolConfig.tolerateMismatchedVersion());
             final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
-            List<Protocol> protocols = new ArrayList<>();
-            var testProtocol = new TestProtocol(selfPeer.nodeId(), events, protocolsForDebug);
-            protocols.add(testProtocol);
-            protocols.add(HeartbeatProtocol.create(configuration, Time.getCurrent(), pc.getNetworkMetrics()));
+            List<ProtocolFactory> protocolFactories = new ArrayList<>();
+            var testProtocol = new TestProtocolFactory(selfPeer.nodeId(), events, protocolsForDebug);
+            protocolFactories.add(testProtocol);
+            protocolFactories.add(HeartbeatProtocolFactory.create(configuration, Time.getCurrent(), pc.getNetworkMetrics()));
 
-            pc.initialize(threadManager, handshakeProtocols, protocols);
+            pc.initialize(threadManager, handshakeProtocols, protocolFactories);
 
             pc.start();
 

@@ -9,12 +9,13 @@ import java.util.Objects;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for heartbeat protocol
  */
-public class HeartbeatProtocol implements Protocol {
+public class HeartbeatProtocolFactory implements ProtocolFactory {
 
     /**
      * The period at which the heartbeat protocol should be executed
@@ -31,7 +32,7 @@ public class HeartbeatProtocol implements Protocol {
      */
     private final Time time;
 
-    public HeartbeatProtocol(
+    public HeartbeatProtocolFactory(
             @NonNull final Duration heartbeatPeriod,
             @NonNull final NetworkMetrics networkMetrics,
             @NonNull final Time time) {
@@ -48,12 +49,12 @@ public class HeartbeatProtocol implements Protocol {
      * @param networkMetrics Network metrics, for recording roundtrip heartbeat time
      * @return constructed HeartbeatProtocol
      */
-    public static HeartbeatProtocol create(
+    public static HeartbeatProtocolFactory create(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final NetworkMetrics networkMetrics) {
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
-        return new HeartbeatProtocol(Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, time);
+        return new HeartbeatProtocolFactory(Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, time);
     }
 
     /**

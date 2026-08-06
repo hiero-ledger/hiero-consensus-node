@@ -43,7 +43,7 @@ Run-through of the state diagram:
           both want to reconnect, that means that both have fallen behind and there is no point in proceeding. Also, it
           would not be known who the teacher and who the learner is. So on a simultaneous initiate, we either start the
           protocol, or the negotiation failed, depending on the protocol.
-        - Different ID - in case we initiated different protocols in parallel, then the priority of the protocol decides
+        - Different ID - in case we initiated different protocolFactories in parallel, then the priority of the protocol decides
           the next step.
             - If their protocol has a higher priority, we respond with accept or reject
             - If our protocol has a higher priority, we wait for them to respond with accept or reject

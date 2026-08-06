@@ -27,9 +27,9 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
-import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.PeerProtocol;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -52,15 +52,10 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
-    private final CountPerSecond reconnectRejectionMetrics;
     private InitiatedBy initiatedBy = InitiatedBy.NO_ONE;
     private final ThreadManager threadManager;
     private final FallenBehindMonitor fallenBehindMonitor;
 
-    /**
-     * Provides the platform status.
-     */
-    private final Supplier<PlatformStatus> platformStatusSupplier;
 
     private ReservedSignedState teacherState;
     /**
@@ -75,10 +70,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * A rate limited logger for when rejecting teacher role due to falling behind.
      */
     private final RateLimitedLogger fallenBehindLogger;
-    /**
-     * A rate limited logger for when rejecting teacher role due to not having a status of ACTIVE
-     */
-    private final RateLimitedLogger notActiveLogger;
 
     private final Configuration configuration;
     private final Metrics metrics;
@@ -98,7 +89,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param reconnectSocketTimeout the socket timeout to use when executing a reconnect
      * @param reconnectMetrics tracks reconnect metrics
      * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param platformStatusSupplier provides the platform status
      * @param reservedSignedStateResultProvider a mechanism to get a SignedState or block while it is not available
      * @param stateLifecycleManager the state lifecycle manager
      */
@@ -113,7 +103,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
@@ -126,7 +115,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = requireNonNull(reconnectMetrics);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
-        this.platformStatusSupplier = requireNonNull(platformStatusSupplier);
         this.reservedSignedStateResultProvider = requireNonNull(reservedSignedStateResultProvider);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
@@ -136,28 +124,11 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         stateNullLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         stateIncompleteLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         fallenBehindLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
-        notActiveLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
 
-        this.reconnectRejectionMetrics = new CountPerSecond(
-                reconnectMetrics.getMetrics(),
-                new CountPerSecond.Config(
-                                PLATFORM_CATEGORY, String.format("reconnectRejections_per_sec_%02d", peerId.id()))
-                        .withDescription(String.format(
-                                "number of reconnections rejected per second from node %02d", peerId.id()))
-                        .withUnit("rejectionsPerSec")
-                        .withFormat(FORMAT_10_0));
     }
 
     @Override
     public boolean shouldInitiate() {
-        // if this neighbor has not told me I have fallen behind, I will not reconnect with him
-        if (!fallenBehindMonitor.hasFallenBehind()) {
-            return false;
-        }
-        if (!fallenBehindMonitor.isBehindPeer(peerId)) {
-            return false;
-        }
-
         // if a permit is acquired, it will be released by either initiateFailed or runProtocol
         final boolean acquiredPermit = reservedSignedStateResultProvider.acquireProvidePermit();
         if (acquiredPermit) {
@@ -174,26 +145,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
     @Override
     public boolean shouldAccept() {
-        // we should not be the teacher if we have fallen behind
-        if (fallenBehindMonitor.hasFallenBehind()) {
-            fallenBehindLogger.info(
-                    RECONNECT.getMarker(),
-                    "Rejecting reconnect request from node {} because this node has fallen behind",
-                    peerId);
-            reconnectRejected();
-            return false;
-        }
-
-        // only teach if the platform is active
-        if (platformStatusSupplier.get() != PlatformStatus.ACTIVE) {
-            notActiveLogger.info(
-                    RECONNECT.getMarker(),
-                    "Rejecting reconnect request from node {} because this node isn't ACTIVE",
-                    peerId);
-            reconnectRejected();
-            return false;
-        }
-
         // Check if we have a state that is legal to send to a learner.
         teacherState = lastCompleteSignedState.get();
 
@@ -247,7 +198,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             teacherState.close();
             teacherState = null;
         }
-        reconnectRejectionMetrics.count();
     }
 
     @Override

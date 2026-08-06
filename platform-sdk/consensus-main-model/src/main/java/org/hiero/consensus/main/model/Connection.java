@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl.network;
+package org.hiero.consensus.main.model;
 
 import java.io.IOException;
 import java.net.SocketException;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.main.model.NodeId;
 
 /**

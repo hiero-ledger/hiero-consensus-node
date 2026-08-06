@@ -42,6 +42,7 @@ module com.swirlds.platform.core {
             org.hiero.consensus.pcli,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
+    exports org.hiero.consensus.reconnect.proxy;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

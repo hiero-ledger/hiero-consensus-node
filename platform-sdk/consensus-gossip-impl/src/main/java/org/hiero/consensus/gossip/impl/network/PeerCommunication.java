@@ -30,12 +30,13 @@ import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.ProtocolNegotiatorThread;
 import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHandler;
-import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
 import org.hiero.consensus.gossip.impl.network.topology.ConnectionManagerFactory;
 import org.hiero.consensus.gossip.impl.network.topology.DynamicConnectionManagers;
 import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.ProtocolRunnable;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
@@ -58,7 +59,7 @@ public class PeerCommunication implements ConnectionTracker {
     private ThreadManager threadManager;
     private final NodeId selfId;
     private List<ProtocolRunnable> handshakeProtocols;
-    private List<Protocol> protocolList;
+    private List<ProtocolFactory> protocolList;
     private PeerConnectionServer connectionServer;
 
     private final Map<Object, DedicatedStoppableThread<NodeId>> dedicatedThreads = new HashMap<>();
@@ -107,7 +108,7 @@ public class PeerCommunication implements ConnectionTracker {
     public void initialize(
             @NonNull final ThreadManager threadManager,
             @NonNull final List<ProtocolRunnable> handshakeProtocols,
-            @NonNull final List<Protocol> protocols) {
+            @NonNull final List<ProtocolFactory> protocols) {
 
         this.threadManager = threadManager;
         this.handshakeProtocols = handshakeProtocols;

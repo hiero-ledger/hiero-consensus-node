@@ -25,7 +25,7 @@ import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocol;
@@ -38,7 +38,7 @@ import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
-public class RpcPeerProtocolTests {
+public class RpcPeerProtocolFactoryTests {
 
     private long lastSentSync;
     private Throwable foundException;

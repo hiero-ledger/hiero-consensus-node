@@ -290,7 +290,7 @@ have to consider reconnect at all.
 The Gossip module is responsible for gossiping messages between neighbors. The actual gossip implementation is not
 described here, except to say that it will be possible to define and implement both event-aware and event-agnostic
 gossip implementations either to a fully connected network or where the set of neighbors is a subset of the whole. This
-document does not dictate whether raw TCP, UDP, HTTP2, gRPC, or other network protocols are used. This will be left to
+document does not dictate whether raw TCP, UDP, HTTP2, gRPC, or other network protocolFactories are used. This will be left to
 the design documents for Gossip.
 
 ![Gossip](gossip-module.png)

@@ -6,4 +6,6 @@ module org.hiero.consensus.main.model {
     requires transitive com.hedera.node.hapi;
     requires transitive org.hiero.base.crypto;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.gossip;
 }

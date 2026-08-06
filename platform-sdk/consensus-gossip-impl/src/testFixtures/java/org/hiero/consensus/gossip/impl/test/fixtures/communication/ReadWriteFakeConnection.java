@@ -7,9 +7,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import org.hiero.base.io.IOConsumer;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
+import org.hiero.consensus.main.model.SyncInputStream;
+import org.hiero.consensus.main.model.SyncOutputStream;
 
 public class ReadWriteFakeConnection extends FakeConnection {
     private final SyncInputStream in;

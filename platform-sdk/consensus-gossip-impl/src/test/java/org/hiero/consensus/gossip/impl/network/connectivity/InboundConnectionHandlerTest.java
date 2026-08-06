@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Random;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;

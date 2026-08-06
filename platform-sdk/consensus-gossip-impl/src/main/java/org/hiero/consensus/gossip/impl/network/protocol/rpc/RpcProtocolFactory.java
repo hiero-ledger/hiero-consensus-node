@@ -33,6 +33,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.ProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -40,9 +41,9 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 /**
  * Implementation of a factory for rpc protocol, encompassing new sync and broadcast atm
  */
-public class RpcProtocol implements Protocol, GossipController {
+public class RpcProtocolFactory implements ProtocolFactory, GossipController {
 
-    private static final Logger logger = LogManager.getLogger(RpcProtocol.class);
+    private static final Logger logger = LogManager.getLogger(RpcProtocolFactory.class);
 
     private final CachedPoolParallelExecutor executor;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
@@ -93,7 +94,7 @@ public class RpcProtocol implements Protocol, GossipController {
      * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
      */
-    public RpcProtocol(
+    public RpcProtocolFactory(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
