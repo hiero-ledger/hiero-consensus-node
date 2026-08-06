@@ -248,7 +248,12 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
-val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
+// hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
+val prCheckPlatformOverrides =
+    mapOf(
+        "hapiTestRestart" to
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
+    )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // Path to the extracted WRAPS proving-key artifacts (decider_pp.bin, decider_vp.bin,

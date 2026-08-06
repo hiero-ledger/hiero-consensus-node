@@ -7,10 +7,9 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,6 +22,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the

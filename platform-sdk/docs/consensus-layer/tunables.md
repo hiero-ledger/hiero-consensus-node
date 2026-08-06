@@ -42,7 +42,7 @@ Column conventions:
 
 ## `platform.wiring.*` — WiringConfig
 
-Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds-component-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
+Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
 
 |   ID    |                       Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
 |---------|--------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -228,7 +228,7 @@ The keys below come from `StateConfig` (SignedStateManager / SignedStateFileMana
 | TUN-080 | `state.saveStatePeriod`               | int      | `900`   | Period (seconds) between writes of a state to disk; `0` to never write.                                                                       |       | —         |
 | TUN-081 | `state.saveStateAsync`                | boolean  | `true`  | If true, periodic state snapshots are created asynchronously (perf optimization for high TPS / large state).                                  |       | —         |
 | TUN-082 | `state.asyncSnapshotTimeout`          | long     | `750`   | Maximum time (seconds) to wait for an async snapshot to complete; on timeout an error is logged. Only relevant when `saveStateAsync` is true. |       | —         |
-| TUN-083 | `state.signedStateDisk`               | int      | `5`     | Keep at least this many old complete signed states on disk (should be ≥ 2; `0` keeps none).                                                   |       | —         |
+| TUN-083 | `state.signedStateDisk`               | int      | `2`     | Keep at least this many old complete signed states on disk (should be ≥ 2; `0` keeps none).                                                   |       | —         |
 | TUN-084 | `state.haltOnAnyIss`                  | boolean  | `false` | Halt this node whenever any ISS in the network is detected (debug only — DoS vector in production).                                           |       | —         |
 | TUN-085 | `state.automatedSelfIssRecovery`      | boolean  | `false` | Attempt to recover automatically when a self ISS is detected.                                                                                 |       | —         |
 | TUN-086 | `state.haltOnCatastrophicIss`         | boolean  | `false` | Halt this node when a catastrophic ISS is detected.                                                                                           |       | —         |

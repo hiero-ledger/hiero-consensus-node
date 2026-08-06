@@ -57,11 +57,11 @@ import com.hedera.services.bdd.suites.utils.contracts.BoolResult;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.SHA384.Digest;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -303,7 +303,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -382,7 +383,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var signedBytes = Signing.signMessage(messageHash, privateKey);
 
@@ -422,7 +424,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
                                 .getEd25519PrivateKey(
