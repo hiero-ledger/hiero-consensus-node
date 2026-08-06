@@ -842,8 +842,9 @@ public final class HashgraphInfo {
             }
             final int numNodes = h.numNodes; // make the (possibly updated) value a local constant from here down
             // instantiate fields if they are null, or the array is the wrong size.
-            if (ancestorJudge == null || ancestorJudge.length != numNodes) {
-                ancestorJudge = new boolean[numNodes]; // only the first rp.prevJudges.length elements will be used
+            if (ancestorJudge == null || ancestorJudge.length != Math.max(numNodes, rp.prevJudges.length)) {
+                // only the first rp.prevJudges.length elements will be used
+                ancestorJudge = new boolean[Math.max(numNodes, rp.prevJudges.length)];
             }
             if (lastSee == null || lastSee.length != numNodes) {
                 lastSee = new EventInfo[numNodes];
