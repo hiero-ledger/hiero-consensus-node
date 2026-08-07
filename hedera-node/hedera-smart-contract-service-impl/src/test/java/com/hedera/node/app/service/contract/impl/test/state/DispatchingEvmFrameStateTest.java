@@ -60,6 +60,7 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -732,6 +733,57 @@ class DispatchingEvmFrameStateTest {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID)
                 .key(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
         assertTrue(subject.isHollowAccount(EVM_ADDRESS));
+    }
+
+    @Test
+    void isHollowAccountLooksUpTheConfiguredShardAndRealm() {
+        final var nonZeroShard = 1L;
+        final var nonZeroRealm = 2L;
+        final var nonZeroConfig = HederaTestConfigBuilder.create()
+                .withValue("hedera.shard", nonZeroShard)
+                .withValue("hedera.realm", nonZeroRealm)
+                .getOrCreateConfig();
+        final var shardedIdFactory = new FakeEntityIdFactoryImpl(nonZeroShard, nonZeroRealm);
+        final var shardedAccountId = shardedIdFactory.newAccountId(ACCOUNT_NUM);
+
+        given(nativeOperations.entityIdFactory()).willReturn(shardedIdFactory);
+        given(nativeOperations.configuration()).willReturn(nonZeroConfig);
+        given(nativeOperations.resolveAlias(
+                        nonZeroShard,
+                        nonZeroRealm,
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
+                .willReturn(ACCOUNT_NUM);
+        // The hollow account lives at 1.2.<num>; a lookup that assumed shard/realm 0 would miss it
+        givenWellKnownAccount(
+                shardedAccountId,
+                contractWith(shardedAccountId)
+                        .key(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
+
+        assertTrue(subject.isHollowAccount(EVM_ADDRESS));
+    }
+
+    @Test
+    void lazyCreationDetectsExistingAccountInTheConfiguredShardAndRealm() {
+        final var nonZeroShard = 1L;
+        final var nonZeroRealm = 2L;
+        final var nonZeroConfig = HederaTestConfigBuilder.create()
+                .withValue("hedera.shard", nonZeroShard)
+                .withValue("hedera.realm", nonZeroRealm)
+                .getOrCreateConfig();
+        final var shardedIdFactory = new FakeEntityIdFactoryImpl(nonZeroShard, nonZeroRealm);
+        final var shardedAccountId = shardedIdFactory.newAccountId(ACCOUNT_NUM);
+
+        given(nativeOperations.entityIdFactory()).willReturn(shardedIdFactory);
+        given(nativeOperations.configuration()).willReturn(nonZeroConfig);
+        given(nativeOperations.resolveAlias(
+                        nonZeroShard,
+                        nonZeroRealm,
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
+                .willReturn(ACCOUNT_NUM);
+        // An unexpired account already occupies 1.2.<num>, so lazy creation must be refused
+        givenWellKnownAccount(shardedAccountId, contractWith(shardedAccountId));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS));
     }
 
     @Test
