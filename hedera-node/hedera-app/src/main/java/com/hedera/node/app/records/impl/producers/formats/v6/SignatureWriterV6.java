@@ -7,8 +7,8 @@ import com.hedera.hapi.streams.HashObject;
 import com.hedera.hapi.streams.SignatureFile;
 import com.hedera.hapi.streams.SignatureObject;
 import com.hedera.hapi.streams.SignatureType;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -24,6 +24,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.base.crypto.Signer;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 /**
  * Simple stateless class with static methods to write signature files. It cleanly separates out the code for generating
@@ -65,34 +66,40 @@ final class SignatureWriterV6 {
         // write signature file
         final var sigFilePath = getSigFilePath(recordFilePath);
         try (final var fileOut = Files.newOutputStream(sigFilePath, StandardOpenOption.CREATE_NEW)) {
-            final var streamingData = new WritableStreamingData(fileOut);
-            Bytes metadataHash = null;
-            if (writeMetadataSignature) {
-                // create metadata hash
-                HashingOutputStream hashingOutputStream =
-                        new HashingOutputStream(MessageDigest.getInstance(DigestType.SHA_384.algorithmName()));
-                SerializableDataOutputStream dataOutputStream = new SerializableDataOutputStream(hashingOutputStream);
-                dataOutputStream.writeInt(recordFileVersion);
-                dataOutputStream.writeInt(hapiProtoVersion.major());
-                dataOutputStream.writeInt(hapiProtoVersion.minor());
-                dataOutputStream.writeInt(hapiProtoVersion.patch());
-                startRunningHash.writeTo(dataOutputStream);
-                endRunningHash.writeTo(dataOutputStream);
-                dataOutputStream.writeLong(blockNumber);
-                dataOutputStream.close();
-                metadataHash = Bytes.wrap(hashingOutputStream.getDigest());
+            PbjWriter streamingData = PbjUtils.takeTlsWriter();
+            try {
+                streamingData.resetWith(fileOut);
+                Bytes metadataHash = null;
+                if (writeMetadataSignature) {
+                    // create metadata hash
+                    HashingOutputStream hashingOutputStream =
+                            new HashingOutputStream(MessageDigest.getInstance(DigestType.SHA_384.algorithmName()));
+                    SerializableDataOutputStream dataOutputStream =
+                            new SerializableDataOutputStream(hashingOutputStream);
+                    dataOutputStream.writeInt(recordFileVersion);
+                    dataOutputStream.writeInt(hapiProtoVersion.major());
+                    dataOutputStream.writeInt(hapiProtoVersion.minor());
+                    dataOutputStream.writeInt(hapiProtoVersion.patch());
+                    startRunningHash.writeTo(dataOutputStream);
+                    endRunningHash.writeTo(dataOutputStream);
+                    dataOutputStream.writeLong(blockNumber);
+                    dataOutputStream.close();
+                    metadataHash = Bytes.wrap(hashingOutputStream.getDigest());
+                }
+                // create signature file
+                final var signatureFile = new SignatureFile(
+                        generateSignatureObject(signer, recordFileHash),
+                        writeMetadataSignature ? generateSignatureObject(signer, metadataHash) : null);
+                // write version in signature file. It is only 1 byte, compared to 4 in record files
+                streamingData.writeByte((byte) 6);
+                // write protobuf SignatureFile
+                SignatureFile.PROTOBUF.write(signatureFile, streamingData);
+                logger.debug("signature file saved: {}", sigFilePath);
+                // flush
+                streamingData.flush();
+            } finally {
+                PbjUtils.returnTlsWriter();
             }
-            // create signature file
-            final var signatureFile = new SignatureFile(
-                    generateSignatureObject(signer, recordFileHash),
-                    writeMetadataSignature ? generateSignatureObject(signer, metadataHash) : null);
-            // write version in signature file. It is only 1 byte, compared to 4 in record files
-            streamingData.writeByte((byte) 6);
-            // write protobuf SignatureFile
-            SignatureFile.PROTOBUF.write(signatureFile, streamingData);
-            logger.debug("signature file saved: {}", sigFilePath);
-            // flush
-            fileOut.flush();
         } catch (final FileAlreadyExistsException ignore) {
             // This is part of normal operations, as a reconnected node will very commonly
             // re-create an existing record stream file while REPLAYING_EVENTS

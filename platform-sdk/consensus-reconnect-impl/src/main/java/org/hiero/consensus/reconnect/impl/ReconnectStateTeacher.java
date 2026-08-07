@@ -7,7 +7,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString
 import static org.hiero.consensus.reconnect.impl.ReconnectStateLearner.endReconnectHandshake;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
@@ -23,6 +23,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
@@ -233,8 +234,14 @@ public class ReconnectStateTeacher {
                 .append(hash);
 
         logger.info(RECONNECT.getMarker(), sb);
-        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
-        signatures.serialize(wsd);
+        PbjWriter writer = PbjUtils.takeTlsWriter();
+        try {
+            writer.resetWith(connection.getDos());
+            signatures.serialize(writer);
+            writer.flush();
+        } finally {
+            PbjUtils.returnTlsWriter();
+        }
         connection.getDos().flush();
     }
 }

@@ -17,9 +17,9 @@ import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -41,6 +41,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 @SuppressWarnings({"DataFlowIssue", "removal"})
 public class RecordStreamV6Verifier {
@@ -279,10 +280,14 @@ public class RecordStreamV6Verifier {
             throws Exception {
         // read signature file
         SignatureFile signatureFile;
-        try (ReadableStreamingData in = new ReadableStreamingData(Files.newInputStream(recordFileSigPath))) {
+        PbjReader in = PbjUtils.takeTlsReader();
+        try {
+            in.resetWith(Files.newInputStream(recordFileSigPath));
             int version = in.readByte();
             assertEquals(recordStreamConfig.signatureFileVersion(), version);
             signatureFile = SignatureFile.PROTOBUF.parse(in);
+        } finally {
+            PbjUtils.returnTlsReader();
         }
         // compute hash of record file
         MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());

@@ -6,11 +6,10 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -46,7 +45,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
      */
     public static int extractStateIdFromStateValueOneOf(@NonNull final Bytes stateValue) {
         Objects.requireNonNull(stateValue, "Null state value");
-        return ProtoParserTools.readNextFieldNumber(stateValue.toReadableSequentialData());
+        return ProtoParserTools.readNextFieldNumber(stateValue.toPbjReader());
     }
 
     /**
@@ -100,8 +99,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          * {@inheritDoc}
          */
         @Override
-        public void write(@NonNull final StateValue<V> value, @NonNull final WritableSequentialData out)
-                throws IOException {
+        public void write(@NonNull final StateValue<V> value, @NonNull final PbjWriter out) {
             // Write tag
             final int stateId = value.stateId();
             out.writeVarInt(
@@ -122,7 +120,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
         @NonNull
         @Override
         public StateValue<V> parse(
-                @NonNull final ReadableSequentialData in,
+                @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
@@ -155,8 +153,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          * {@inheritDoc}
          */
         @Override
-        public boolean fastEquals(@NonNull StateValue<V> value, @NonNull ReadableSequentialData in)
-                throws ParseException {
+        public boolean fastEquals(@NonNull StateValue<V> value, @NonNull PbjReader in) throws ParseException {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
             if (fieldNum != stateId) {
@@ -183,7 +180,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          * {@inheritDoc}
          */
         @Override
-        public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
+        public int measure(@NonNull final PbjReader in) throws ParseException {
             // This implementation can be optimized a bit to avoid V parsing
             final var start = in.position();
             parse(in);

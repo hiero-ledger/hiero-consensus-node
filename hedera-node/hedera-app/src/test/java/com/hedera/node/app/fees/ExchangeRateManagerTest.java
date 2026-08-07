@@ -77,7 +77,7 @@ class ExchangeRateManagerTest {
         assertEquals(centEquiv * 2, next.centEquiv());
         assertEquals(expirationTime.seconds(), curr.expirationTimeOrThrow().seconds());
         assertEquals(expirationTime.seconds(), next.expirationTimeOrThrow().seconds());
-        assertEquals(PROTOBUF.parse(validRateBytes.toReadableSequentialData()), subject.exchangeRates());
+        assertEquals(PROTOBUF.parse(validRateBytes), subject.exchangeRates());
     }
 
     @Test

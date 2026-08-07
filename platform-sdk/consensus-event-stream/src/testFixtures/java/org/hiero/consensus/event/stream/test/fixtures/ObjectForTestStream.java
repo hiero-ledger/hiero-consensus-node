@@ -3,6 +3,8 @@ package org.hiero.consensus.event.stream.test.fixtures;
 
 import static org.hiero.base.utility.ByteUtils.intToByteArray;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -14,6 +16,7 @@ import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.crypto.SerializableHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
 
@@ -92,6 +95,12 @@ public class ObjectForTestStream extends AbstractHashable
     }
 
     @Override
+    public void serialize(PbjWriter out) throws IOException {
+        PbjUtils.writeByteArray(out, payload);
+        PbjUtils.writeInstant(out, consensusTimestamp);
+    }
+
+    @Override
     public void deserialize(SerializableDataInputStream in, int version) throws IOException {
         if (version == CLASS_VERSION_PAYLOAD) {
             payload = in.readByteArray(Integer.MAX_VALUE);
@@ -101,6 +110,18 @@ public class ObjectForTestStream extends AbstractHashable
             payload = intToByteArray(number);
         }
         consensusTimestamp = in.readInstant();
+    }
+
+    @Override
+    public void deserialize(PbjReader in, int version) throws IOException {
+        if (version == CLASS_VERSION_PAYLOAD) {
+            payload = PbjUtils.readByteArray(in, Integer.MAX_VALUE);
+        } else {
+            // read a int number
+            int number = in.readInt();
+            payload = intToByteArray(number);
+        }
+        consensusTimestamp = PbjUtils.readInstant(in);
     }
 
     @Override

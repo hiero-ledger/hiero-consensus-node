@@ -11,7 +11,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.JsonUtils;
 import com.hedera.statevalidation.util.StateUtils;
@@ -90,16 +90,16 @@ public class SortedJsonExporter {
             final Comparator<Pair<Long, Bytes>> comparator;
             if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
                 comparator = (key1, key2) -> {
-                    ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
+                    PbjReader keyData1 = key1.right().toPbjReader();
                     keyData1.readVarInt(false); // read tag
                     keyData1.readVarInt(false); // read value
 
-                    ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
+                    PbjReader keyData2 = key2.right().toPbjReader();
                     keyData2.readVarInt(false); // read tag
                     keyData2.readVarInt(false); // read value
 
-                    return keyData1.readBytes((int) keyData1.remaining())
-                            .compareTo(keyData2.readBytes((int) keyData2.remaining()));
+                    return keyData1.readBytes((int) (keyData1.limit() - keyData1.position()))
+                            .compareTo(keyData2.readBytes((int) (keyData2.limit() - keyData2.position())));
                 };
             } else {
                 comparator = (key1, key2) -> {
@@ -188,7 +188,7 @@ public class SortedJsonExporter {
                 return;
             }
             final Bytes keyBytes = leafRecord.keyBytes();
-            final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
+            final PbjReader keyData = keyBytes.toPbjReader();
             final int tag = keyData.readVarInt(false);
             final int actualStateId = tag >> TAG_FIELD_OFFSET;
             if (actualStateId == 1) {
@@ -237,11 +237,7 @@ public class SortedJsonExporter {
                 try {
                     stateKey = StateKey.PROTOBUF.parse(keyBytes);
                     stateValue = StateValue.PROTOBUF.parse(
-                            valueBytes.toReadableSequentialData(),
-                            false,
-                            false,
-                            Codec.DEFAULT_MAX_DEPTH,
-                            getVirtualMapValueParseMaxSizeBytes());
+                            valueBytes, false, false, Codec.DEFAULT_MAX_DEPTH, getVirtualMapValueParseMaxSizeBytes());
                     if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
                         JsonUtils.write(
                                 writer,

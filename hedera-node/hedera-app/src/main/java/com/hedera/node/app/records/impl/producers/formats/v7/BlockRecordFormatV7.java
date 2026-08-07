@@ -15,8 +15,9 @@ import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRec
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -187,7 +188,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         @NonNull
         @Override
         public RecordStreamItemV7 parse(
-                @NonNull final ReadableSequentialData readableSequentialData,
+                @NonNull final PbjReader readableSequentialData,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
@@ -201,7 +202,8 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
             return new RecordStreamItemV7(null, null, null, null, 0, 0);
         }
 
-        public void write(@NonNull RecordStreamItemV7 item, @NonNull WritableSequentialData output) {
+        @Override
+        public void write(@NonNull RecordStreamItemV7 item, @NonNull PbjWriter output) {
             // TBD
         }
 
@@ -213,7 +215,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
             return 0;
         }
 
-        public boolean fastEquals(@NonNull RecordStreamItemV7 item, @NonNull ReadableSequentialData input) {
+        public boolean fastEquals(@NonNull RecordStreamItemV7 item, @NonNull PbjReader input) {
             return false;
         }
     }

@@ -39,7 +39,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
@@ -72,7 +72,7 @@ class IngestWorkflowImplTest extends AppTestBase {
     private Bytes requestBuffer;
 
     /** The buffer to write responses into. */
-    private final BufferedData responseBuffer = BufferedData.allocate(1024 * 6);
+    private final PbjWriter responseBuffer = new PbjWriter(1024 * 6, false);
 
     /** The request transaction */
     private SignedTransaction signedTx;
@@ -350,8 +350,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         }
     }
 
-    private static TransactionResponse parseResponse(@NonNull final BufferedData responseBuffer) throws ParseException {
-        responseBuffer.flip();
-        return TransactionResponse.PROTOBUF.parse(responseBuffer);
+    private static TransactionResponse parseResponse(@NonNull final PbjWriter responseBuffer) throws ParseException {
+        return TransactionResponse.PROTOBUF.parse(responseBuffer.toPbjReader());
     }
 }

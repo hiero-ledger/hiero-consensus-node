@@ -50,7 +50,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
@@ -154,7 +154,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     }
 
     @Override
-    public void handleQuery(@NonNull final Bytes requestBuffer, @NonNull final BufferedData responseBuffer) {
+    public void handleQuery(@NonNull final Bytes requestBuffer, @NonNull final PbjWriter responseBuffer) {
         final long queryStart = System.nanoTime();
 
         requireNonNull(requestBuffer);
@@ -332,20 +332,15 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             throw new StatusRuntimeException(Status.INVALID_ARGUMENT);
         }
 
-        try {
-            Response.PROTOBUF.write(response, responseBuffer);
-            logger.debug("Finished handling a query request in Query workflow");
-        } catch (IOException e) {
-            logger.warn("Unexpected IO exception while writing protobuf", e);
-            throw new StatusRuntimeException(Status.INTERNAL);
-        }
+        Response.PROTOBUF.write(response, responseBuffer);
+        logger.debug("Finished handling a query request in Query workflow");
 
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
     }
 
     private Query parseQuery(Bytes requestBuffer) {
         try {
-            return queryParser.parseStrict(requestBuffer.toReadableSequentialData());
+            return queryParser.parseStrict(requestBuffer);
         } catch (ParseException e) {
             switch (e.getCause()) {
                 case MalformedProtobufException ignored:

@@ -3,6 +3,8 @@ package org.hiero.base.crypto;
 
 import static org.hiero.base.utility.CommonUtils.hex;
 
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.logging.legacy.LogMarker;
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.security.spec.X509EncodedKeySpec;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.PbjUtils;
 
 public class SerializablePublicKey implements SelfSerializable {
     private static final long CLASS_ID = 0x2554c14f4f61cd9L;
@@ -62,6 +65,12 @@ public class SerializablePublicKey implements SelfSerializable {
         out.writeByteArray(publicKey.getEncoded());
     }
 
+    @Override
+    public void serialize(PbjWriter out) throws IOException {
+        out.writeInt(keyType.getAlgorithmIdentifier());
+        PbjUtils.writeByteArray(out, publicKey.getEncoded());
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -74,6 +83,18 @@ public class SerializablePublicKey implements SelfSerializable {
             keyType = KeyType.getKeyType(in.readInt());
         }
         byte[] keyBytes = in.readByteArray(MAX_KEY_LENGTH);
+        publicKey = bytesToPublicKey(keyBytes, keyType.getAlgorithmName());
+    }
+
+    @Override
+    public void deserialize(PbjReader in, int version) throws IOException {
+        if (version == 1) {
+            String algorithm = PbjUtils.readNormalisedString(in, MAX_ALG_LENGTH);
+            keyType = KeyType.valueOf(algorithm);
+        } else {
+            keyType = KeyType.getKeyType(in.readInt());
+        }
+        byte[] keyBytes = PbjUtils.readByteArray(in, MAX_KEY_LENGTH);
         publicKey = bytesToPublicKey(keyBytes, keyType.getAlgorithmName());
     }
 

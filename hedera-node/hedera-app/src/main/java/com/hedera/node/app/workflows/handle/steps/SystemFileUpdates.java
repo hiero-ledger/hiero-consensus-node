@@ -165,7 +165,7 @@ public class SystemFileUpdates {
 
     private void logContentsOf(@NonNull final String configFileName, @NonNull final Bytes contents) {
         try {
-            final var configList = ServicesConfigurationList.PROTOBUF.parseStrict(contents.toReadableSequentialData());
+            final var configList = ServicesConfigurationList.PROTOBUF.parseStrict(contents);
             final var printableConfigList = configList.nameValue().stream()
                     .map(pair -> pair.name() + "=" + pair.value())
                     .collect(joining("\n\t"));

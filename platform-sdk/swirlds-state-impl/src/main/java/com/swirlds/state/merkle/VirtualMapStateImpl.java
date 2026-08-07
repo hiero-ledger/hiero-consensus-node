@@ -813,7 +813,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
                         try {
                             final QueueState queueState = queueStateCodec
                                     .parse(
-                                            leafBytes.valueBytes().toReadableSequentialData(),
+                                            leafBytes.valueBytes(),
                                             false,
                                             false,
                                             Codec.DEFAULT_MAX_DEPTH,

@@ -145,7 +145,7 @@ public final class AliasUtils {
         // a boolean instead of throwing an exception. Or maybe we can make sure the alias is a valid ECDSA key length
         // or ED25519 key length as a short circuit in case of very long aliases (no point parsing those).
         try {
-            final var key = Key.PROTOBUF.parseStrict(alias.toReadableSequentialData());
+            final var key = Key.PROTOBUF.parseStrict(alias);
             return (key.hasEcdsaSecp256k1() || key.hasEd25519()) /* && isValid(key)*/;
         } catch (final Exception e) {
             // There are many possible exceptions thrown here, both checked (IOException) and unchecked. See the
@@ -219,7 +219,7 @@ public final class AliasUtils {
             return def;
         }
         try {
-            return Key.PROTOBUF.parseStrict(alias.toReadableSequentialData());
+            return Key.PROTOBUF.parseStrict(alias);
         } catch (final Exception e) {
             // There are many possible exceptions, not just IOException. We want to catch all of them.
             return def;

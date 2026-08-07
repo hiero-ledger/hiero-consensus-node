@@ -13,6 +13,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
@@ -46,11 +48,7 @@ public final class IssStateProtoCodec implements Codec<IssState> {
 
     @Override
     public @NonNull IssState parse(
-            @NonNull final ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+            @NonNull final PbjReader input, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize)
             throws ParseException {
         return parse(input, strictMode, parseUnknownFields, maxDepth);
     }
@@ -188,6 +186,20 @@ public final class IssStateProtoCodec implements Codec<IssState> {
         }
     }
 
+    public void write(@NonNull IssState data, @NonNull PbjWriter out) {
+        // [1] - issState
+        writeLong(out, IssStateSchema.ISS_STATE, data.issState(), true);
+
+        // Check if not-empty to avoid creating a lambda if there's nothing to write.
+        if (!data.getUnknownFields().isEmpty()) {
+            data.getUnknownFields().forEach(uf -> {
+                final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                out.writeVarInt(tag, false);
+                uf.bytes().writeTo(out);
+            });
+        }
+    }
+
     /**
      * Reads from this data input the length of the data within the input. The implementation may
      * read all the data, or just some special serialized data, as needed to find out the length of
@@ -226,8 +238,7 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public boolean fastEquals(@NonNull IssState item, @NonNull final ReadableSequentialData input)
-            throws ParseException {
+    public boolean fastEquals(@NonNull IssState item, @NonNull final PbjReader input) throws ParseException {
         return item.equals(parse(input));
     }
 

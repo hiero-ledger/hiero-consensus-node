@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
@@ -59,7 +59,7 @@ public final class QueryMethod extends MethodBase {
 
     /** {@inheritDoc} */
     @Override
-    protected void handle(@NonNull final Bytes requestBuffer, @NonNull final BufferedData responseBuffer) {
+    protected void handle(@NonNull final Bytes requestBuffer, @NonNull final PbjWriter responseBuffer) {
         workflow.handleQuery(requestBuffer, responseBuffer);
         queriesAnsweredCounter.increment();
         queriesAnsweredSpeedometer.cycle();

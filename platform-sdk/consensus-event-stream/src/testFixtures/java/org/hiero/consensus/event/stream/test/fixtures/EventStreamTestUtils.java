@@ -164,7 +164,7 @@ public final class EventStreamTestUtils {
                         return null;
                     })
                     .when(wrappedEvent)
-                    .serialize(any());
+                    .serialize(any(com.hedera.pbj.runtime.io.PbjWriter.class));
 
             wrappedEvents.add(wrappedEvent);
         }
