@@ -178,12 +178,11 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     }
 
     private boolean isEventBirthRoundValid(@NonNull final PlatformEvent event) {
-        final long eventBirthRound = event.getDescriptor().eventDescriptor().birthRound();
+        final long eventBirthRound = event.getDescriptor().birthRound();
 
         long maxParentBirthRound = ROUND_NEGATIVE_INFINITY;
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            maxParentBirthRound =
-                    Math.max(maxParentBirthRound, parent.eventDescriptor().birthRound());
+            maxParentBirthRound = Math.max(maxParentBirthRound, parent.birthRound());
         }
 
         if (eventBirthRound < maxParentBirthRound) {
