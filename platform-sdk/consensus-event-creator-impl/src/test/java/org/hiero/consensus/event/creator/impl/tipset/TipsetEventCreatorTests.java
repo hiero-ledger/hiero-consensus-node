@@ -1092,8 +1092,7 @@ class TipsetEventCreatorTests {
      * have the self event with the highest sequence number as its self parent.
      * <p>
      * Replay runs in a single orphan buffer epoch, so the sequence number is a valid topological order across it and
-     * the highest sequence number identifies the graph-latest self event regardless of the order the creator sees them
-     * in.
+     * the highest sequence number identifies the graph-latest self event.
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
