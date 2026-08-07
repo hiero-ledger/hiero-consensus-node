@@ -82,6 +82,8 @@ on:
         value: ${{ jobs.create-allocation-request.outputs.network-id }}
       owner:
         value: ${{ jobs.create-allocation-request.outputs.owner }}
+      request-expiration:
+        value: ${{ jobs.create-allocation-request.outputs.expiration }}
 
 permissions:
   contents: read
@@ -294,6 +296,7 @@ jobs:
           AUX_ROLE="$(jq -r '."solo.hashgraph.io/role"' <<< "${AUX_LABELS}")"
           NETWORK_ID="$(jq -r '."solo.hashgraph.io/network-id"' <<< "${CN_LABELS}")"
           OWNER="$(jq -r '."solo.hashgraph.io/owner"' <<< "${CN_LABELS}")"
+          EXPIRATION=$(echo "${response}" | jq -r '.expires_at')
 
           # Set outputs
           echo "namespace=${NAMESPACE}" >> "${GITHUB_OUTPUT}"
@@ -308,3 +311,4 @@ jobs:
           echo "aux-role=${AUX_ROLE}" >> "${GITHUB_OUTPUT}"
           echo "network-id=${NETWORK_ID}" >> "${GITHUB_OUTPUT}"
           echo "owner=${OWNER}" >> "${GITHUB_OUTPUT}"
+          echo "expiration=${EXPIRATION} >> "${GITHUB_OUTPUT}"

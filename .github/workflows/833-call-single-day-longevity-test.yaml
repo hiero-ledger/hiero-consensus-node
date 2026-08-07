@@ -173,6 +173,7 @@ jobs:
       aux-role: ${{ steps.normalize.outputs.aux-role }}
       network-id: ${{ steps.normalize.outputs.network-id }}
       owner: ${{ steps.normalize.outputs.owner }}
+      request-expiration: ${{ steps.normalize.outputs.expiration }}
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -194,6 +195,7 @@ jobs:
           echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" | tee -a "${GITHUB_OUTPUT}"
           echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" | tee -a "${GITHUB_OUTPUT}"
           echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "expiration=${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration || needs.acquire-kubernetes-resources-legacy.outputs.request-expiration }}" | tee -a "${GITHUB_OUTPUT}"
           echo "::endgroup::
 
   print-allocation-details:
@@ -218,6 +220,7 @@ jobs:
           echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "::endgroup::
 
   longevity-tests-start:
