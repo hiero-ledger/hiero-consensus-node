@@ -765,25 +765,19 @@ public class EthereumSuite {
                     final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
-                            .has(contractWith()
-                                    .addressOrAlias(expectedParentContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()));
+                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+
                     final var firstChildContractInfo = getContractInfo(firstChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedFirstChildContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()));
+                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+
                     final var secondChildContractInfo = getContractInfo(secondChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedSecondChildContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()));
+                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+
                     final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedThirdChildContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()))
+                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(
