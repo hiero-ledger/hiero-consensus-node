@@ -31,10 +31,12 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.gossip.impl.network.PeerCommunication;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.communication.handshake.VersionCompareHandshake;
-import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocolFactory;
-import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcProtocolFactory;
+import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatPeerProtocolFactory;
+import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocolFactory;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProxyProtocol;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProxyProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.main.model.ProtocolRunnable;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
@@ -53,8 +55,8 @@ public class SyncGossipModular implements Gossip {
     private static final Logger logger = LogManager.getLogger(SyncGossipModular.class);
 
     private final PeerCommunication network;
-    private final List<ProtocolFactory> protocols;
-    private final RpcProtocolFactory rpcProtocol;
+    private final List<PeerProtocolFactory> protocolFactories;
+    private final RpcPeerProtocolFactory rpcProtocolFactory;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final ShadowgraphSynchronizer synchronizer;
 
@@ -75,7 +77,7 @@ public class SyncGossipModular implements Gossip {
      * @param appVersion the version of the app
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param reconnectProtocol the reconnect protocol to use
+     * @param reconnectProtocolFactory the reconnect protocol to use
      */
     public SyncGossipModular(
             @NonNull final Configuration configuration,
@@ -88,7 +90,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final ProtocolFactory reconnectProtocol) {
+            @NonNull final PeerProtocolFactory reconnectProtocolFactory) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -127,7 +129,7 @@ public class SyncGossipModular implements Gossip {
 
         this.synchronizer = rpcSynchronizer;
 
-        this.rpcProtocol = new RpcProtocolFactory(
+        this.rpcProtocolFactory = new RpcPeerProtocolFactory(
                 configuration,
                 metrics,
                 time,
@@ -141,16 +143,22 @@ public class SyncGossipModular implements Gossip {
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event));
 
-        this.protocols = List.of(
-                HeartbeatProtocolFactory.create(configuration, time, this.network.getNetworkMetrics()),
-                reconnectProtocol,
-                rpcProtocol);
+        final ReconnectProxyProtocolFactory proxyProtocolFactory = new ReconnectProxyProtocolFactory(
+                metrics,
+                time,
+                reconnectProtocolFactory,
+                fallenBehindMonitor);
+
+        this.protocolFactories = List.of(
+                HeartbeatPeerProtocolFactory.create(configuration, time, this.network.getNetworkMetrics()),
+                proxyProtocolFactory,
+                rpcProtocolFactory);
 
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
-        network.initialize(threadManager, handshakeProtocols, protocols);
+        network.initialize(threadManager, handshakeProtocols, protocolFactories);
     }
 
     /**
@@ -166,7 +174,7 @@ public class SyncGossipModular implements Gossip {
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         synchronized (this) {
             // if this is needed we should update fallenBehindMonitor
-            rpcProtocol.adjustTotalPermits(
+            rpcProtocolFactory.adjustTotalPermits(
                     added.size() - removed.size()); // Review, needs to make sure that the removed are part of the AB?
             network.addRemovePeers(added, removed);
         }
@@ -191,31 +199,31 @@ public class SyncGossipModular implements Gossip {
             @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
-            rpcProtocol.start();
+            rpcProtocolFactory.start();
             network.start();
         });
         stopInput.bindConsumer(ignored -> {
-            rpcProtocol.stop();
+            rpcProtocolFactory.stop();
             network.stop();
         });
 
-        clearInput.bindConsumer(ignored -> rpcProtocol.clear());
+        clearInput.bindConsumer(ignored -> rpcProtocolFactory.clear());
         eventInput.bindConsumer(event -> {
-            rpcProtocol.addEvent(event);
+            rpcProtocolFactory.addEvent(event);
             synchronizer.addEvent(event);
         });
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
-        systemHealthInput.bindConsumer(rpcProtocol::reportUnhealthyDuration);
+        systemHealthInput.bindConsumer(rpcProtocolFactory::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(status -> {
-            protocols.forEach(protocol -> protocol.updatePlatformStatus(status));
+            protocolFactories.forEach(protocolFactory -> protocolFactory.updatePlatformStatus(status));
         });
         pauseGossip.bindConsumer(ignored -> {
-            rpcProtocol.pause();
+            rpcProtocolFactory.pause();
             fallenBehindMonitor.notifySyncProtocolPaused();
         });
         resumeGossip.bindConsumer(ignored -> {
-            rpcProtocol.resume();
+            rpcProtocolFactory.resume();
         });
         this.receivedEventHandler = eventOutput::forward;
         this.syncProgressHandler = syncLagOutput::forward;

@@ -4,17 +4,17 @@ package org.hiero.consensus.gossip.impl.gossip.modular;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.main.model.PeerProtocol;
-import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
-public class TestProtocolFactory implements ProtocolFactory {
+public class TestPeerProtocolFactory implements PeerProtocolFactory {
 
     private final NodeId selfId;
     private final List<CommunicationEvent> events;
     private final List<TestPeerProtocol> peerProtocols;
 
-    public TestProtocolFactory(NodeId selfId, List<CommunicationEvent> events, List<TestPeerProtocol> peerProtocols) {
+    public TestPeerProtocolFactory(NodeId selfId, List<CommunicationEvent> events, List<TestPeerProtocol> peerProtocols) {
         this.selfId = selfId;
         this.events = events;
         this.peerProtocols = peerProtocols;

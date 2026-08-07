@@ -3,8 +3,6 @@ package org.hiero.consensus.reconnect.impl;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
-import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
@@ -31,7 +29,6 @@ import org.hiero.consensus.main.model.Connection;
 import org.hiero.consensus.main.model.NetworkProtocolException;
 import org.hiero.consensus.main.model.PeerProtocol;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
@@ -43,9 +40,9 @@ import org.hiero.consensus.state.signed.SignedState;
  * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
  * with one particular peer in the network.
  */
-public class ReconnectStatePeerProtocol implements PeerProtocol {
+public class ReconnectPeerProtocol implements PeerProtocol {
 
-    private static final Logger logger = LogManager.getLogger(ReconnectStatePeerProtocol.class);
+    private static final Logger logger = LogManager.getLogger(ReconnectPeerProtocol.class);
 
     private final NodeId peerId;
     private final ReconnectStateTeacherThrottle teacherThrottle;
@@ -66,15 +63,21 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * A rate limited logger for when rejecting teacher role due to state being incomplete.
      */
     private final RateLimitedLogger stateIncompleteLogger;
+
     /**
-     * A rate limited logger for when rejecting teacher role due to falling behind.
+     * A rate limited logger for when rejecting teacher role due to not having a status of ACTIVE
      */
-    private final RateLimitedLogger fallenBehindLogger;
+    private final RateLimitedLogger notActiveLogger;
 
     private final Configuration configuration;
     private final Metrics metrics;
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
+
+    /**
+     * Provides the platform status.
+     */
+    private final Supplier<PlatformStatus> platformStatusSupplier;
 
     /**
      * Creates a new reconnect protocol instance.
@@ -92,7 +95,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param reservedSignedStateResultProvider a mechanism to get a SignedState or block while it is not available
      * @param stateLifecycleManager the state lifecycle manager
      */
-    public ReconnectStatePeerProtocol(
+    public ReconnectPeerProtocol(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
@@ -104,7 +107,8 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier) {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
@@ -117,14 +121,14 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.reservedSignedStateResultProvider = requireNonNull(reservedSignedStateResultProvider);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
+        this.platformStatusSupplier = requireNonNull(platformStatusSupplier);
 
         final Duration minimumTimeBetweenReconnects =
                 configuration.getConfigData(ReconnectConfig.class).minimumTimeBetweenReconnects();
 
         stateNullLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         stateIncompleteLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
-        fallenBehindLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
-
+        notActiveLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
     }
 
     @Override
@@ -145,6 +149,16 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
     @Override
     public boolean shouldAccept() {
+        // only teach if the platform is active
+        if (platformStatusSupplier.get() != PlatformStatus.ACTIVE) {
+            notActiveLogger.info(
+                    RECONNECT.getMarker(),
+                    "Rejecting reconnect request from node {} because this node isn't ACTIVE",
+                    peerId);
+            reconnectRejected();
+            return false;
+        }
+
         // Check if we have a state that is legal to send to a learner.
         teacherState = lastCompleteSignedState.get();
 

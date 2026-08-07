@@ -33,9 +33,9 @@ import org.hiero.consensus.gossip.impl.gossip.Gossip;
 import org.hiero.consensus.gossip.impl.gossip.GossipWiring;
 import org.hiero.consensus.gossip.impl.gossip.SyncGossipModular;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
+import org.hiero.consensus.gossip.impl.reconnect.ReconnectProxyProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -74,6 +74,7 @@ public final class DefaultGossipModule implements GossipModule {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final PeerProtocolFactory reconnectPeerProtocolFactory,
             @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
@@ -89,17 +90,6 @@ public final class DefaultGossipModule implements GossipModule {
 
         // Create and bind components
         final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
-        final ReconnectProtocolFactory factory =
-                ServiceLoader.load(ReconnectProtocolFactory.class).findFirst().orElseThrow();
-        final ProtocolFactory reconnectProtocol = factory.createProtocol(
-                configuration,
-                metrics,
-                time,
-                threadManager,
-                latestCompleteState,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor,
-                stateLifecycleManager);
         final Gossip gossip = new SyncGossipModular(
                 configuration,
                 metrics,
@@ -111,7 +101,7 @@ public final class DefaultGossipModule implements GossipModule {
                 appVersion,
                 intakeEventCounter,
                 fallenBehindMonitor,
-                reconnectProtocol);
+                reconnectPeerProtocolFactory);
         gossipWiring.bind(gossip);
     }
 

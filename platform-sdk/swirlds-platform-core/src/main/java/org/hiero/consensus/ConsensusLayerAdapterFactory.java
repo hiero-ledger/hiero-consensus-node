@@ -267,6 +267,10 @@ public class ConsensusLayerAdapterFactory {
 
         final Instant freezeTime = getFreezeTime();
 
+        final ReconnectPeerProtocolFactory reconnectProtocolFactory = new ReconnectPeerProtocolFactory(
+
+        );
+
         final ConsensusLayerInputs consensusLayerInputs = new ConsensusLayerInputs(
                 configuration,
                 metrics,
@@ -283,6 +287,7 @@ public class ConsensusLayerAdapterFactory {
                 version,
                 transactionOffsetNanos,
                 executionLayer.getTransactionLimits(),
+                reconnectProtocolFactory,
                 freezeTime,
                 wiringModel,
                 secureRandom,

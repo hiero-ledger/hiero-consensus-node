@@ -82,6 +82,7 @@ module com.swirlds.platform.core {
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.jspecify;
 
     uses EventCreatorModule;
     uses EventIntakeModule;

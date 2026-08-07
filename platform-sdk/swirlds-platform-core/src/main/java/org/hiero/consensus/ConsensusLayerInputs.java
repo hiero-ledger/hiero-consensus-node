@@ -16,6 +16,7 @@ import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.roster.RosterHistory;
@@ -37,6 +38,7 @@ public record ConsensusLayerInputs(
         @NonNull SemanticVersion version,
         long transactionOffsetNanos,
         @NonNull TransactionLimits transactionLimits,
+        @NonNull PeerProtocolFactory reconnectProtocolFactory,
         @Nullable Instant freezeTime,
         // The fields below are for testing only.
         @Nullable WiringModel wiringModel,

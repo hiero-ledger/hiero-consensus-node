@@ -9,9 +9,9 @@ import java.io.IOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
-import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
+import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.ProtocolRunnable;
 
 /**
  * Exchanges software versions with the peer, either throws a {@link HandshakeException} or logs an error if the versions

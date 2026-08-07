@@ -38,7 +38,7 @@ import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
-public class RpcPeerProtocolFactoryTests {
+public class RpcPeerPeerProtocolFactoryTests {
 
     private long lastSentSync;
     private Throwable foundException;

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.impl.DefaultGossipModule;
-import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.gossip.impl {
@@ -47,9 +46,7 @@ module org.hiero.consensus.gossip.impl {
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
-    requires static transitive com.github.spotbugs.annotations; requires com.swirlds.platform.core;
-
-    uses ReconnectProtocolFactory;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides GossipModule with
             DefaultGossipModule;

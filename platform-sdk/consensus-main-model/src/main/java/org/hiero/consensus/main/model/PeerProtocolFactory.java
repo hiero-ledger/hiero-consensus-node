@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * API for building network protocols
  */
-public interface ProtocolFactory {
+public interface PeerProtocolFactory {
 
     /**
      * Constructs an instance of a network protocol using the provided peerId

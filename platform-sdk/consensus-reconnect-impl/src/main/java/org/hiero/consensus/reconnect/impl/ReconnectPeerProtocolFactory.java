@@ -9,38 +9,29 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.main.model.ProtocolFactory;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.reconnect.proxy.ReconnectProxyProtocol;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
  */
-public class ReconnectStateSyncProtocolFactory implements ProtocolFactory {
+public class ReconnectPeerProtocolFactory implements PeerProtocolFactory {
 
-    private final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle;
-    private final Supplier<ReservedSignedState> lastCompleteSignedState;
-    private final Duration reconnectSocketTimeout;
-    private final ReconnectMetrics reconnectMetrics;
-    private final ThreadManager threadManager;
     private final FallenBehindMonitor fallenBehindManager;
 
     private final Configuration configuration;
     private final Metrics metrics;
     private final Time time;
-    private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
-    private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final Supplier<PlatformStatus> platformStatusSupplier;
 
-    public ReconnectStateSyncProtocolFactory(
+    public ReconnectPeerProtocolFactory(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
@@ -51,7 +42,8 @@ public class ReconnectStateSyncProtocolFactory implements ProtocolFactory {
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier) {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
@@ -64,29 +56,19 @@ public class ReconnectStateSyncProtocolFactory implements ProtocolFactory {
         this.fallenBehindManager = requireNonNull(fallenBehindManager);
         this.reservedSignedStateResultPromise = requireNonNull(reservedSignedStateResultPromise);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
+        this.platformStatusSupplier = requireNonNull(platformStatusSupplier);
     }
 
     @NonNull
     @Override
-    public ReconnectStatePeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new ReconnectProxyProtocol(
+    public ReconnectPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
+        return new ReconnectPeerProtocol(
                 configuration,
                 metrics,
                 time,
-                threadManager,
                 requireNonNull(peerId),
-                reconnectStateTeacherThrottle,
-                lastCompleteSignedState,
-                reconnectSocketTimeout,
-                reconnectMetrics,
-                fallenBehindManager,
-                platformStatus::get,
-                reservedSignedStateResultPromise,
-                stateLifecycleManager);
-    }
-
-    @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
-        platformStatus.set(status);
+                executionProtocol,
+                platformStatusSupplier,
+                fallenBehindManager);
     }
 }
