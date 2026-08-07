@@ -32,7 +32,8 @@ import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -116,14 +117,15 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        simulatedNetwork.addNode(nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork, nodeId);
+        simulatedNetwork.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 randotron,
                 timeManager,
                 nodeId,
                 keysAndCerts,
-                simulatedNetwork,
+                simulatedGossip,
                 logging,
                 outputDir,
                 networkConfiguration,
@@ -137,14 +139,15 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        simulatedNetwork.addNode(nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork, nodeId);
+        simulatedNetwork.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 randotron,
                 timeManager,
                 nodeId,
                 keysAndCerts,
-                simulatedNetwork,
+                simulatedGossip,
                 logging,
                 outputDir,
                 networkConfiguration,

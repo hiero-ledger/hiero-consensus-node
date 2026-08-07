@@ -19,11 +19,13 @@ import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 
 /**
  * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetwork}.
  */
-public class SimulatedGossip implements Gossip {
+public class SimulatedGossip implements Gossip, EventReceiver {
 
     private final SimulatedNetwork network;
     private final NodeId selfId;
@@ -100,7 +102,7 @@ public class SimulatedGossip implements Gossip {
      *
      * @param event the event that was received
      */
-    void receiveEvent(@NonNull final PlatformEvent event) {
+    public void receiveEvent(@NonNull final PlatformEvent event) {
         if (deterministicWiringModel.isRunning()) {
             if (wasPreviouslyHalted) {
                 eventBuffer.forEach(this::forwardEvent);
