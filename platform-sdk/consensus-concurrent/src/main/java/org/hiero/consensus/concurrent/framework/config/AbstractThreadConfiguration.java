@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,7 +69,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      */
     private boolean immutable;
 
-    protected Supplier<String> threadNameProvider = UndefinedThreadNameProvider.instance();
+    protected Supplier<String> threadNameProvider = () -> "<unnamed>";
 
     /**
      * Build a new thread configuration with default values.
@@ -122,16 +123,15 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     }
 
     @SuppressWarnings("unchecked")
-    public C setSingleThreadName(final String threadName) {
-        throwIfImmutable();
-        this.threadNameProvider = () -> threadName;
-        return (C) this;
+    public C setSingleThreadName(@NonNull final String threadName) {
+        Objects.requireNonNull(threadName);
+        return setThreadNameProvider(() -> threadName);
     }
 
     @SuppressWarnings("unchecked")
-    public C setThreadNameProvider(final Supplier<String> threadNameProvider) {
+    public C setThreadNameProvider(@NonNull final Supplier<String> threadNameProvider) {
         throwIfImmutable();
-        this.threadNameProvider = threadNameProvider;
+        this.threadNameProvider = Objects.requireNonNull(threadNameProvider);
         return (C) this;
     }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream.internal;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -20,7 +21,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * @param threadManager responsible for managing thread lifecycles
      * @param queueName     name of the queue
      */
-    public QueueThreadObjectStreamConfiguration(final ThreadManager threadManager, final String queueName) {
+    public QueueThreadObjectStreamConfiguration(final ThreadManager threadManager, @NonNull final String queueName) {
         queueThreadConfiguration = new QueueThreadConfiguration<>(threadManager, queueName);
     }
 
@@ -181,7 +182,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
         return queueThreadConfiguration;
     }
 
-    public QueueThreadObjectStreamConfiguration<T> setThreadName(String name) {
+    public QueueThreadObjectStreamConfiguration<T> setThreadName(@NonNull final String name) {
         queueThreadConfiguration.setSingleThreadName(name);
         return this;
     }

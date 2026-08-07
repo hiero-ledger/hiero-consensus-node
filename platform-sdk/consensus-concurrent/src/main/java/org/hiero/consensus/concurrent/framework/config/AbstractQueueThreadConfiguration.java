@@ -67,12 +67,12 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      */
     private Duration waitForWorkDuration = Duration.ofMillis(10);
 
-    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager, String queueName) {
+    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager, @NonNull final String queueName) {
         super(threadManager);
 
         // Queue threads are not interruptable by default
         setStopBehavior(Stoppable.StopBehavior.BLOCKING);
-        this.queueName = queueName;
+        this.queueName = Objects.requireNonNull(queueName);
     }
 
     /**
@@ -118,7 +118,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      * Returns queue name
      * @return name of the queue
      */
-    public String getQueueName() {
+    public @NonNull String getQueueName() {
         return queueName;
     }
 

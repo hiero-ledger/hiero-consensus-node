@@ -121,15 +121,16 @@ public class PeerCommunication implements ConnectionTracker {
 
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
 
+        final NodeThreadNameProvider threadNaming = new NodeThreadNameProvider()
+                .setNodeId(selfId)
+                .setComponent(PLATFORM_THREAD_POOL_NAME)
+                .setThreadName("connectionServer");
+
         final StoppableThreadConfiguration<InterruptableRunnable> stc = new StoppableThreadConfiguration<>(
                         threadManager)
                 .setWork(connectionServer)
                 .setPriority(gossipConfig.connectionServerThreadPriority())
-                .setThreadNameProvider(new NodeThreadNameProvider()
-                        .setNodeId(selfId)
-                        .setComponent(PLATFORM_THREAD_POOL_NAME)
-                        .setThreadName("connectionServer")
-                        .supplier());
+                .setThreadNameProvider(threadNaming.supplier());
         this.connectionServerThread = stc.build();
 
         registerDedicatedThreads(buildProtocolThreads(topology.getNeighbors()));
