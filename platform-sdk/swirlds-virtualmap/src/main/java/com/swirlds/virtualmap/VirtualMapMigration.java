@@ -12,6 +12,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
@@ -29,12 +30,9 @@ public final class VirtualMapMigration {
     /**
      * Extract all key-value pairs from a virtual map and pass it to a handler in a deterministic order.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
-     * @param source
-     * 		a virtual map to read from, will not be modified by this method
-     * @param threadCount
-     * 		the number of threads used for reading from the original map
+     * @param threadManager responsible for creating and managing threads
+     * @param source        a virtual map to read from, will not be modified by this method
+     * @param threadCount   the number of threads used for reading from the original map
      */
     public static void extractVirtualMapData(
             final ThreadManager threadManager,
@@ -66,8 +64,7 @@ public final class VirtualMapMigration {
             final int index = threadIndex;
 
             threads.add(new ThreadConfiguration(threadManager)
-                    .setComponent(COMPONENT_NAME)
-                    .setThreadName("reader-" + threadCount)
+                    .setSingleThreadName(CompositeThreadNameProvider.create(COMPONENT_NAME, "reader-" + threadCount))
                     .setInterruptableRunnable(() -> {
                         for (long path = firstLeafPath + index; path <= lastLeafPath; path += threadCount) {
                             final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeafRecord(path);
@@ -117,12 +114,9 @@ public final class VirtualMapMigration {
     /**
      * Extract all key-value pairs from a virtual map and pass it to a handler concurrently.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
-     * @param source
-     * 		a virtual map to read from, will not be modified by this method
-     * @param threadCount
-     * 		the number of threads used for reading from the original map
+     * @param threadManager responsible for creating and managing threads
+     * @param source        a virtual map to read from, will not be modified by this method
+     * @param threadCount   the number of threads used for reading from the original map
      */
     public static void extractVirtualMapDataC(
             final ThreadManager threadManager,
@@ -148,8 +142,7 @@ public final class VirtualMapMigration {
             final long firstPath = firstLeafPath + threadIndex;
 
             threads.add(new ThreadConfiguration(threadManager)
-                    .setComponent(COMPONENT_NAME)
-                    .setThreadName("reader-" + threadCount)
+                    .setSingleThreadName(CompositeThreadNameProvider.create(COMPONENT_NAME, "reader-" + threadCount))
                     .setInterruptableRunnable(() -> {
                         try {
                             for (long path = firstPath; path <= lastLeafPath; path += threadCount) {
