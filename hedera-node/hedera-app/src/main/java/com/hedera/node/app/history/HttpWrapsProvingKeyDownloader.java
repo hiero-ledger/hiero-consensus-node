@@ -32,53 +32,45 @@ import org.apache.logging.log4j.Logger;
 public class HttpWrapsProvingKeyDownloader {
     private static final Logger log = LogManager.getLogger(HttpWrapsProvingKeyDownloader.class);
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
-
-    /**
-     * Bounds time-to-response-headers. {@link HttpRequest.Builder#timeout(Duration)} stops applying once the
-     * headers are in, so this covers connect plus a server that accepts the connection and then never replies; the
-     * JDK re-applies it to each of its up-to-five attempts. The body transfer after headers is bounded separately
-     * by {@link #STALL_TIMEOUT}. Deliberately shorter than the stall window so a silent server is reported as the
-     * request timing out rather than racing the stall check.
-     */
-    private static final Duration RESPONSE_HEADERS_TIMEOUT = Duration.ofMinutes(1);
-
-    /**
-     * How long the body may go without delivering a single byte before we give up on it. Nothing in the JDK client
-     * bounds the body once headers are in, so without this a server that answers and then stalls mid-body blocks
-     * the calling thread forever.
-     *
-     * <p>This measures lack of progress rather than elapsed time. An overall deadline would have to encode both the
-     * archive size and the node's link speed, so any value would either cut off a slow but healthy download -
-     * permanently, since a retry restarts from zero - or be too loose to bound anything. A stall window depends on
-     * neither.
-     *
-     * <p>The remaining gap is a server that dribbles just fast enough to keep resetting the window. Closing it would
-     * need a minimum-throughput floor, which is not worth having: the download URL is a network property pointing at
-     * our own artifact host, so anyone able to pace bytes that way already controls the source, while a floor would
-     * misfire on genuinely slow links.
-     */
-    private static final Duration STALL_TIMEOUT = Duration.ofMinutes(2);
-
     /** Progress-clock value before the body starts arriving, when a stall cannot yet be diagnosed. */
     private static final long BODY_NOT_STARTED = Long.MIN_VALUE;
 
-    public void download(@NonNull final String downloadUrl, @NonNull final Path targetPath) throws IOException {
-        download(downloadUrl, targetPath, RESPONSE_HEADERS_TIMEOUT, STALL_TIMEOUT);
+    private final Duration connectTimeout;
+    private final Duration responseHeadersTimeout;
+    private final Duration stallTimeout;
+
+    /**
+     * @param connectTimeout bound on establishing the connection
+     * @param responseHeadersTimeout bound on time-to-response-headers. {@link HttpRequest.Builder#timeout(Duration)}
+     *     stops applying once the headers are in, so this covers a server that accepts the connection and then
+     *     never replies; the JDK re-applies it to each of its up-to-five attempts. The body after headers is bounded
+     *     by {@code stallTimeout}. Keep it shorter than the stall window so a silent server is reported as the
+     *     request timing out rather than racing the stall check.
+     * @param stallTimeout how long the body may go without delivering a single byte before we give up. Nothing in
+     *     the JDK client bounds the body once headers are in, so without this a server that answers and then stalls
+     *     mid-body blocks the calling thread forever. This measures lack of progress rather than elapsed time: an
+     *     overall deadline would have to encode both the archive size and the node's link speed, so any value would
+     *     either cut off a slow but healthy download - permanently, since a retry restarts from zero - or be too
+     *     loose to bound anything. The one gap it leaves is a server dribbling just fast enough to keep resetting
+     *     the window; closing that needs a minimum-throughput floor, which is not worth having since the download
+     *     URL points at our own artifact host and a floor would misfire on genuinely slow links.
+     */
+    public HttpWrapsProvingKeyDownloader(
+            @NonNull final Duration connectTimeout,
+            @NonNull final Duration responseHeadersTimeout,
+            @NonNull final Duration stallTimeout) {
+        this.connectTimeout = requireNonNull(connectTimeout);
+        this.responseHeadersTimeout = requireNonNull(responseHeadersTimeout);
+        this.stallTimeout = requireNonNull(stallTimeout);
     }
 
-    void download(
-            @NonNull final String downloadUrl,
-            @NonNull final Path targetPath,
-            @NonNull final Duration headersTimeout,
-            @NonNull final Duration stallTimeout)
-            throws IOException {
+    public void download(@NonNull final String downloadUrl, @NonNull final Path targetPath) throws IOException {
         try (final var httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_2)
-                .connectTimeout(CONNECT_TIMEOUT)
+                .connectTimeout(connectTimeout)
                 .build()) {
             final var request = HttpRequest.newBuilder(URI.create(downloadUrl))
-                    .timeout(headersTimeout)
+                    .timeout(responseHeadersTimeout)
                     .GET()
                     .build();
             // Sentinel until the first onSubscribe: while the body has not started, the per-attempt headers
@@ -121,6 +113,11 @@ public class HttpWrapsProvingKeyDownloader {
             @NonNull final Duration stallTimeout,
             @NonNull final AtomicLong lastProgressNanos)
             throws IOException {
+        // Not a retry loop: the JDK client does its own (bounded) retries internally. Each iteration waits one
+        // stall window for the single in-flight request; a TimeoutException from get() just means "still going",
+        // so we re-check progress and wait again. It ends when the response arrives, a full window passes with no
+        // bytes (stall), or the exchange fails - so the only way to keep looping is a transfer that keeps
+        // delivering bytes.
         HttpResponse<Path> response = null;
         while (response == null) {
             try {

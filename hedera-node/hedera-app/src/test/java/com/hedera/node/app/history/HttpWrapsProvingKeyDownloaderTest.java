@@ -49,12 +49,18 @@ class HttpWrapsProvingKeyDownloaderTest {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.start();
         baseUrl = "http://localhost:" + server.getAddress().getPort();
-        subject = new HttpWrapsProvingKeyDownloader();
+        subject = downloaderWith(Duration.ofSeconds(30), Duration.ofSeconds(30));
     }
 
     @AfterEach
     void tearDown() {
         server.stop(0);
+    }
+
+    /** A downloader with a fixed connect timeout and the given response-headers and stall timeouts. */
+    private static HttpWrapsProvingKeyDownloader downloaderWith(
+            final Duration responseHeadersTimeout, final Duration stallTimeout) {
+        return new HttpWrapsProvingKeyDownloader(Duration.ofSeconds(30), responseHeadersTimeout, stallTimeout);
     }
 
     @Test
@@ -112,10 +118,9 @@ class HttpWrapsProvingKeyDownloaderTest {
 
         try {
             // The stall window is long, so only the headers timeout can end this
-            final var ex = assertThrows(
-                    IOException.class,
-                    () -> subject.download(
-                            baseUrl + "/silent", target, Duration.ofMillis(500), Duration.ofSeconds(30)));
+            final var ex =
+                    assertThrows(IOException.class, () -> downloaderWith(Duration.ofMillis(500), Duration.ofSeconds(30))
+                            .download(baseUrl + "/silent", target));
             // The URL belongs on the exception we raise; the JDK's own timeout carries neither it nor our frames
             assertTrue(ex.getMessage().contains(baseUrl + "/silent"), ex.getMessage());
             assertInstanceOf(HttpTimeoutException.class, ex.getCause());
@@ -148,9 +153,9 @@ class HttpWrapsProvingKeyDownloaderTest {
             // Generous headers timeout so it cannot fire (the body starts promptly); the short stall window is what
             // ends this. A TimeoutException cause - not HttpTimeoutException - is the witness that the body started
             // and then stalled, rather than the request never being answered.
-            final var ex = assertThrows(
-                    IOException.class,
-                    () -> subject.download(baseUrl + "/stalls", target, Duration.ofSeconds(10), Duration.ofSeconds(1)));
+            final var ex =
+                    assertThrows(IOException.class, () -> downloaderWith(Duration.ofSeconds(10), Duration.ofSeconds(1))
+                            .download(baseUrl + "/stalls", target));
             assertTrue(ex.getMessage().contains("stalled for more than"), ex.getMessage());
             assertInstanceOf(TimeoutException.class, ex.getCause());
             // The unusable partial download is cleaned up rather than left holding disk
@@ -182,7 +187,7 @@ class HttpWrapsProvingKeyDownloaderTest {
         });
         final var target = tempDir.resolve("slow.tar.gz");
 
-        subject.download(baseUrl + "/slow", target, Duration.ofSeconds(3), Duration.ofSeconds(1));
+        downloaderWith(Duration.ofSeconds(3), Duration.ofSeconds(1)).download(baseUrl + "/slow", target);
 
         assertArrayEquals(slowContent, Files.readAllBytes(target));
     }
@@ -199,9 +204,8 @@ class HttpWrapsProvingKeyDownloaderTest {
         });
         final var target = tempDir.resolve("truncated.tar.gz");
 
-        assertThrows(
-                IOException.class,
-                () -> subject.download(baseUrl + "/truncated", target, Duration.ofSeconds(10), Duration.ofSeconds(10)));
+        assertThrows(IOException.class, () -> downloaderWith(Duration.ofSeconds(10), Duration.ofSeconds(10))
+                .download(baseUrl + "/truncated", target));
         assertFalse(Files.exists(target), "a partially written body should be cleaned up on failure");
     }
 
