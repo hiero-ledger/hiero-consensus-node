@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.gossip;
+package org.hiero.otter.fixtures.network.simulation;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -12,13 +11,13 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.
@@ -26,7 +25,6 @@ import org.hiero.otter.fixtures.network.Topology.ConnectionState;
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
  */
-@SuppressWarnings("removal")
 public class SimulatedNetwork {
 
     /**
@@ -48,11 +46,11 @@ public class SimulatedNetwork {
     /**
      * The gossip "component" for each node in the network.
      */
-    private final Map<NodeId, SimulatedGossip> gossipInstances = new HashMap<>();
+    private final Map<NodeId, EventReceiver> eventReceivers = new HashMap<>();
 
-    private final Map<GossipConnectionKey, ConnectionState> connections = new HashMap<>();
+    private final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
 
-    private final Map<GossipConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
+    private final Map<ConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
 
     /**
      * Constructor.
@@ -69,11 +67,12 @@ public class SimulatedNetwork {
      * <p>Nodes have to be added in a deterministic order to ensure that the simulation is deterministic.
      *
      * @param nodeId the id of the node
+     * @param eventReceiver the event receiver for the node
      */
-    public void addNode(@NonNull final NodeId nodeId) {
+    public void addNode(@NonNull final NodeId nodeId, @NonNull final EventReceiver eventReceiver) {
         newlySubmittedEvents.put(nodeId, new ArrayList<>());
         eventsInTransit.put(nodeId, new PriorityQueue<>());
-        gossipInstances.put(nodeId, new SimulatedGossip(this, nodeId));
+        eventReceivers.put(nodeId, eventReceiver);
     }
 
     /**
@@ -83,19 +82,7 @@ public class SimulatedNetwork {
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         this.connections.clear();
-        this.connections.putAll(newConnections.entrySet().stream()
-                .collect(toMap(entry -> GossipConnectionKey.of(entry.getKey()), Entry::getValue)));
-    }
-
-    /**
-     * Get the gossip instance for a given node.
-     *
-     * @param nodeId the id of the node
-     * @return the gossip instance for the node
-     */
-    @NonNull
-    public SimulatedGossip getGossipInstance(@NonNull final NodeId nodeId) {
-        return gossipInstances.get(nodeId);
+        this.connections.putAll(newConnections);
     }
 
     /**
@@ -132,7 +119,7 @@ public class SimulatedNetwork {
             while (iterator.hasNext()) {
                 final EventInTransit event = iterator.next();
 
-                final GossipConnectionKey connectionKey = new GossipConnectionKey(event.sender(), nodeId);
+                final ConnectionKey connectionKey = new ConnectionKey(event.sender(), nodeId);
                 final ConnectionState connectionState = connections.get(connectionKey);
                 if (connectionState == null || !connectionState.connected()) {
                     // No connection between sender and receiver, so skip delivery of this event
@@ -145,7 +132,7 @@ public class SimulatedNetwork {
                 }
 
                 iterator.remove();
-                gossipInstances.get(nodeId).receiveEvent(event.event());
+                eventReceivers.get(nodeId).receiveEvent(event.event());
             }
         }
     }
@@ -173,7 +160,7 @@ public class SimulatedNetwork {
                         continue;
                     }
 
-                    final GossipConnectionKey connectionKey = new GossipConnectionKey(sender, receiver);
+                    final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
                     final ConnectionState connectionState = connections.get(connectionKey);
 
                     Instant deliveryTime;
@@ -207,16 +194,6 @@ public class SimulatedNetwork {
                 }
             }
             events.clear();
-        }
-    }
-
-    // Can be removed if we are able to clean up NodeId usage
-    // https://github.com/hiero-ledger/hiero-consensus-node/issues/20537
-    private record GossipConnectionKey(@NonNull NodeId sender, @NonNull NodeId receiver) {
-
-        static GossipConnectionKey of(@NonNull final ConnectionKey key) {
-            return new GossipConnectionKey(
-                    NodeId.of(key.sender().id()), NodeId.of(key.receiver().id()));
         }
     }
 }

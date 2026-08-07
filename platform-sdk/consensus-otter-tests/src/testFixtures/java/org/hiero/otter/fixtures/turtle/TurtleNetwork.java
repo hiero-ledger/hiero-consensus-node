@@ -28,6 +28,7 @@ import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -72,14 +73,15 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        simulatedNetwork().addNode(nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork(), nodeId);
+        simulatedNetwork().addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 random,
                 timeManager(),
                 nodeId,
                 keysAndCerts,
-                simulatedNetwork(),
+                simulatedGossip,
                 logging,
                 outputDir,
                 networkConfiguration,
@@ -93,14 +95,15 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        simulatedNetwork().addNode(nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork(), nodeId);
+        simulatedNetwork().addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 random,
                 timeManager(),
                 nodeId,
                 keysAndCerts,
-                simulatedNetwork(),
+                simulatedGossip,
                 logging,
                 outputDir,
                 networkConfiguration,
