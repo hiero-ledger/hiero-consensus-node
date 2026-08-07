@@ -82,14 +82,21 @@ If any field is an array, it is represented by its length followed by all elemen
     EventInfo[] consensusEvents
     Instant     roundTimestamp
     int32       voteD // either 1 or 2
+    boolean     usedCoin // were there any coin rounds while deciding this round?
+    
+  EventInfoConsensus (type 6)
+    int64       eventID
+    boolean     isConsensus
+    long        consensusOrder
+    Instant     consensusTimestamp    
 ```
 
 Compared to the paper, this format skips `roundInfoPrev` in `UpdateResults` (because it's a separate line), and skips `payload`, `parentBirthRounds`, `parentCreators`, and `signature` in `EventSigned` (because they don't affect consensus). It also adds fields for `EventID` and `PendingRound` to help identify the objects.
 
-Each round starts with a `NewHashgraph` line. If the reader ever sees another `NewHashgraph` line, then it should discard the current hashgraph and all the events and start over with a new hashgraph and an empty set of events. Every `NewHashgraph` is immediately followed by a `RoundInfoPrev` then a `RoundInfo`, both with the same pending round, which can be any positive integer (1 to simulate a genesis start, and >1 to simulate a reconnect).
+Each new hashgraph starts with a `NewHashgraph` row. If the reader ever sees another `NewHashgraph` row, then it should discard the current hashgraph and all the events and start over with a new hashgraph and an empty set of events. Every `NewHashgraph` is immediately followed by a `RoundInfoPrev` row then a `RoundInfo` row, both with the same pending round, which can be any positive integer (1 to simulate a genesis start, and >1 to simulate a reconnect).
 
-It then gives the `EventInfo` for many events. Whenever an event appears for the first time for this hashgraph, it gives its `EventSigned` just before its `EventInfo`. Each `EventInfo` is the state of the event immediately after it is updated with the most recent `RoundInfoPrev` and `RoundInfo`.
+It then gives the `EventInfo` rows for many events. Whenever an event appears for the first time for this hashgraph, it gives its `EventSigned` row just before its `EventInfo` row. Each `EventInfo` is the state of the event immediately after it is updated with the most recent `RoundInfoPrev` and `RoundInfo`.
 
-If an event reaches consensus (so the `update()` method returned a non-null result), then the next line will be the `UpdateResults` returned by that method. This is then followed by each of the `EventInfo`s that just reached consensus (in consensus order), then the new `RoundInfoPrev` and `RoundInfo` where the `pendingRound` is incremented by 1.
+If an event decides a round (so the `update()` method returned a non-null result), then the next row will be the `UpdateResults` returned by that method. This is then followed by a `EventInfoConsensus` row for each of the events that just reached consensus (in consensus order), then the new `RoundInfoPrev` row and `RoundInfo` row, where the `pendingRound` is incremented by 1 in both of them. It then continues as above, with `EventSigned` rows and `EventInfo` rows, until the next time an event reaches consensus.
 
 All events in every hashgraph will be valid events. So when an event is added to the hashgraph, its `parentsSigned` list has at most one parent for each creator, and lists the self-parent first (if there is one). Its `timeCreated` is greater than its self-parent. Its `birthRound` is greater than or equal to all its parents. Its `coin` will be a uniform random `int32` (rather than limited to the range 0 to n, for n nodes in the birth round). Nodes will always have nonnegative stake, with at least one node having positive stake.

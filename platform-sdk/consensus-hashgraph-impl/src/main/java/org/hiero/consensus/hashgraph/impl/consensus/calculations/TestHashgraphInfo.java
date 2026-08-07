@@ -79,6 +79,9 @@ public class TestHashgraphInfo {
     /** UpdateResults is a CSV row starting with this number */
     private static final int UPDATE_RESULTS_TYPE = 5;
 
+    /** EventInfo is a CSV row starting with this number */
+    private static final int EVENT_INFO_CONSENSUS_TYPE = 6;
+
     /**
      * Create random hashgraphs, and update the events repeatedly to reach consensus. Write all the results to
      * the CSV (Comma Separated Values) file. Then read it back in and check it. The main use case is to create
@@ -290,6 +293,23 @@ public class TestHashgraphInfo {
         out.println(line);
     }
 
+    /**
+     * Return one line of the CSV file with just the EventID field plus the EventInfo fields that changed because it just
+     * reached consensus.
+     */
+    private static void writeEventInfoConsensus(PrintWriter out, EventInfo eventInfo, RoundInfoPrev roundInfoPrev) {
+        StringBuilder line = new StringBuilder();
+        HashgraphInfo h = eventInfo.getHashgraph();
+        line.append(EVENT_INFO_CONSENSUS_TYPE);
+        line.append(",").append(eventID(eventInfo));
+        line.append(",").append(eventInfo.isConsensus() ? 1 : 0);
+        line.append(",").append(eventInfo.getConsensusOrder());
+        Instant t = eventInfo.getConsensusTimestamp();
+        line.append(",").append(t == null ? -1 : t.getEpochSecond());
+        line.append(",").append(t == null ? -1 : t.getNano());
+        out.println(line);
+    }
+
     /** return one line of the CSV file describing the given EventInfo with calculated memoized fields */
     private static void writeUpdateResults(PrintWriter out, UpdateResults updateResults) {
         StringBuilder line = new StringBuilder();
@@ -406,6 +426,7 @@ public class TestHashgraphInfo {
                             recentEvents.remove(i);
                         } else {
                             updateResults = event.update(roundInfo, roundInfoPrev);
+                            writeEventInfo(out,event,roundInfoPrev);
                             eventsWritten++;
                             if (updateResults != null) {
                                 newRound = true;
@@ -451,7 +472,7 @@ public class TestHashgraphInfo {
                     roundInfoPrev = updateResults.nextRoundInfoPrev();
                     newRound = true;
                     for (EventInfo event : updateResults.consensusEvents()) {
-                        writeEventInfo(out, event, roundInfoPrev);
+                        writeEventInfoConsensus(out, event, roundInfoPrev);
                         eventsWritten++;
                     }
                     writeRoundInfoPrev(out, roundInfoPrev);
