@@ -27,6 +27,8 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
@@ -52,12 +54,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
     /** Capabilities supported by the Turtle test environment */
     private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));
 
+    /** Default granularity of the simulation */
     static final Duration GRANULARITY = Duration.ofMillis(10);
 
     private final Path rootOutputDirectory;
     private final TurtleNetwork network;
-    private final TurtleTransactionGenerator transactionGenerator;
-    private final TurtleTimeManager timeManager;
+    private final SimulatorTransactionGenerator transactionGenerator;
+    private final SimulatorTimeManager timeManager;
 
     /**
      * Constructor with default values for using a random seed and random node-ids
@@ -113,9 +116,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
             throw new RuntimeException(e);
         }
 
-        timeManager = new TurtleTimeManager(time, GRANULARITY);
+        timeManager = new SimulatorTimeManager(time, GRANULARITY);
 
-        transactionGenerator = new TurtleTransactionGenerator(randotron);
+        transactionGenerator = new SimulatorTransactionGenerator(randotron);
         network = new TurtleNetwork(
                 randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 

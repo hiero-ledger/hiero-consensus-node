@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
@@ -19,6 +18,7 @@ import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -73,7 +73,7 @@ public class ContainerNetwork extends AbstractNetwork {
             final boolean proxyEnabled,
             final boolean gcLoggingEnabled,
             @NonNull final List<String> jvmArgs) {
-        super(new Random(), useRandomNodeIds);
+        super(Randotron.create(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);

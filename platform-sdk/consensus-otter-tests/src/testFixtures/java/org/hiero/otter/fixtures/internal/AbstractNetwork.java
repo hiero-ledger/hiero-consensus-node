@@ -123,7 +123,7 @@ public abstract class AbstractNetwork implements Network {
     /** The default timeout duration for network operations. */
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2L);
 
-    private final Random random;
+    protected final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
