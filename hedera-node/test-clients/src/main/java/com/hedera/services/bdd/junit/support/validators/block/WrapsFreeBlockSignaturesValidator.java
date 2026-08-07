@@ -282,7 +282,11 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
         var previousBlockHash = HASH_OF_ZERO;
+        // Seeded with the genesis HASH_OF_ZERO placeholder, mirroring BlockStreamManagerImpl#init. The node
+        // treats that placeholder as a real leaf of the all-previous-blocks tree, so branch 2 is present for
+        // block 0; starting empty here would make block 0's branch 2 absent and produce a different root hash.
         var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        incrementalBlockHashes.addNodeByHash(HASH_OF_ZERO.toByteArray());
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
             final var blocks = blockEpochs.get(epochIndex);

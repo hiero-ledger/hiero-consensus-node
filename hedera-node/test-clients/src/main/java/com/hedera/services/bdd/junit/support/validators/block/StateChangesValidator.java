@@ -369,7 +369,11 @@ public class StateChangesValidator implements BlockStreamValidator {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
         var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
+        // Seeded with the genesis HASH_OF_ZERO placeholder, mirroring BlockStreamManagerImpl#init. The node
+        // treats that placeholder as a real leaf of the all-previous-blocks tree, so branch 2 is present for
+        // block 0; starting empty here would make block 0's branch 2 absent and produce a different root hash.
         var incrementalBlockHashes = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        incrementalBlockHashes.addNodeByHash(BlockStreamManager.HASH_OF_ZERO.toByteArray());
 
         // If cutover is enabled, first process preview blocks for state changes and hash chain
         if (cutoverEnabled == CutoverEnabled.YES && preservedPreviewBlocksDir != null) {
