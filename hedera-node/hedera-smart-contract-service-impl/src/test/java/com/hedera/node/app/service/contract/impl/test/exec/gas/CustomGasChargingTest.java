@@ -120,11 +120,29 @@ class CustomGasChargingTest {
         final var context = new HederaEvmContext(
                 NETWORK_GAS_PRICE, false, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
         givenWellKnownIntrinsicGasCost();
+        given(sender.hederaId()).willReturn(SENDER_ID);
         final var chargingResult =
                 subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownRelayedHapiCall(0));
-        verifyNoInteractions(worldUpdater);
+        // A zero-amount charge event must still be recorded so a revert replays the nonce increment
+        verify(worldUpdater).collectGasFee(SENDER_ID, 0L, true);
+        verifyNoMoreInteractions(worldUpdater);
         verify(sender, never()).incrementNonce();
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+    }
+
+    @Test
+    void freeFeesEthCallRecordsZeroChargeWithNonceIncrementAndChargesNothing() {
+        final var context = new HederaEvmContext(
+                NETWORK_GAS_PRICE, false, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
+        givenWellKnownIntrinsicGasCost();
+        given(sender.hederaId()).willReturn(SENDER_ID);
+        final var chargingResult =
+                subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownRelayedHapiCall(0));
+        verify(worldUpdater).collectGasFee(SENDER_ID, 0L, true);
+        verifyNoMoreInteractions(worldUpdater);
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+        assertEquals(0L, chargingResult.minimumGasUsed());
+        assertEquals(0L, chargingResult.relayerAllowanceUsed());
     }
 
     @Test
