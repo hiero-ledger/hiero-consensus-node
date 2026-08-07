@@ -25,7 +25,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -128,14 +127,14 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void throwsOnUnreadableFile(final EnvironmentVariables environment) throws IOException {
+    void doesNotThrowOnUnreadableFile(final EnvironmentVariables environment) throws IOException {
         final var path = tempDir.resolve("unreadable");
         Files.createDirectory(path);
         final var hash = "aa".repeat(48);
         givenConfigWithHashAndPath(hash, path);
         setArtifactsEnvVar(environment);
 
-        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(configuration, downloader));
+        assertDoesNotThrow(() -> subject.ensureProvingKey(configuration, downloader));
     }
 
     @Test
