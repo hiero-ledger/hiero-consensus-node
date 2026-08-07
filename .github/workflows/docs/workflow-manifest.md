@@ -81,6 +81,10 @@
 | 855-call-extract-citr-vars.yaml              | 855: [CALL] Extract CITR Vars      | 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     |
 | 856-call-solo-ge044.yaml                     | 856: [CALL] Compute solo-ge-0440   | 857-call-solo-ge044.yaml                               | 857: [CALL] Compute solo-ge-0440 Gate                             |
 | 857-call-workflow-unit-tests.yaml            | 857: [CALL] Workflow Unit Tests    |                                                        |                                                                   |
+| 858-call-get-chewie-jwt.yaml                 | 858: [CALL] Get Chewie JWT         |                                                        |                                                                   |
+| 859-call-create-chewie-request.yaml          | 859: [CALL] Create Chewie Request  |                                                        |                                                                   |
+| 860-call-validate-chewie-jwt.yaml            | 860: [CALL] Validate Chewie JWT    |                                                        |                                                                   |
+| 861-call-get-test-config.yaml                | 861: [CALL] Get Test Config        |                                                        |                                                                   |
 |                                              |                                    |                                                        |                                                                   |
 | # CRON (900-999)                             |                                    |                                                        |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite    | zxcron-extended-test-suite.yaml                        | ZXCron: [CITR] Extended Test Suite                                |

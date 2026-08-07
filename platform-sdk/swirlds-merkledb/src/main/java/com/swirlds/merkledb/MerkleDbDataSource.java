@@ -28,6 +28,7 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -79,6 +80,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     private static final FieldDefinition FIELD_DSMETADATA_INITIALCAPACITY =
             new FieldDefinition("initialCapacity", FieldType.UINT64, false, true, false, 3);
+
+    // FUTURE WORK: this field can be removed completely in 0.79
+    @Deprecated
+    private static final FieldDefinition FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD =
+            new FieldDefinition("hashesRamToDiskThreshold", FieldType.UINT64, false, true, false, 4);
 
     private static final FieldDefinition FIELD_DSMETADATA_HASHCHUNKHEIGHT =
             new FieldDefinition("hashChunkHeight", FieldType.UINT32, false, true, false, 7);
@@ -360,7 +366,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
                 final long path = hashChunk.path();
                 // Old data files may contain entries with paths outside the current virtual node range
-                final long firstHashPath = com.swirlds.virtualmap.internal.Path.getRightChildPath(path);
+                final long firstHashPath = MerklePathUtils.getRightChildPath(path);
                 if (firstHashPath <= validLeafPathRange.getMaxValidKey()) {
                     final long chunkId = VirtualHashChunk.pathToChunkId(firstHashPath, hashChunkHeight);
                     idToDiskLocationHashChunks.put(chunkId, dataLocation);
@@ -775,7 +781,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
 
         final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
-        if (com.swirlds.virtualmap.internal.Path.getLeftChildPath(chunkPath) > getLastLeafPath()) {
+        if (MerklePathUtils.getLeftChildPath(chunkPath) > getLastLeafPath()) {
             return null;
         }
 
@@ -1002,6 +1008,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                         maxValidKey = in.readVarLong(false);
                     } else if (fieldNum == FIELD_DSMETADATA_INITIALCAPACITY.number()) {
                         initialCapacity = in.readVarLong(false);
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD.number()) {
+                        // Skip hashesRamToDiskThreshold field, it is no longer used
+                        in.readVarLong(false);
                     } else if (fieldNum == FIELD_DSMETADATA_HASHCHUNKHEIGHT.number()) {
                         final int hashChunkHeight = in.readVarInt(false);
                         if (this.hashChunkHeight != hashChunkHeight) {
