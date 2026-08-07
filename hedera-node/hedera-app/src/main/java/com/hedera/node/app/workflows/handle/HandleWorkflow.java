@@ -532,7 +532,7 @@ public class HandleWorkflow {
             Optional<Integer> parentHash = blockStreamManager.getEventIndex(parent.hash());
             if (parentHash.isEmpty()) {
                 parents.add(ParentEventReference.newBuilder()
-                        .eventDescriptor(parent.eventDescriptor())
+                        .eventDescriptor(parent.toPbj())
                         .build());
             } else {
                 parents.add(ParentEventReference.newBuilder()

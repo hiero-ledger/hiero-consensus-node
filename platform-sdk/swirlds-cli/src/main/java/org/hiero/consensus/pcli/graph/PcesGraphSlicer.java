@@ -4,7 +4,6 @@ package org.hiero.consensus.pcli.graph;
 import static org.hiero.consensus.pcli.PcesSliceCommand.generateSigners;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -49,7 +48,7 @@ import org.hiero.consensus.round.EventWindowUtils;
 public class PcesGraphSlicer {
 
     private final Path pcesOutputLocation;
-    private final Map<Bytes, EventDescriptor> migratedParents;
+    private final Map<Bytes, EventDescriptorWrapper> migratedParents;
     private final PbjStreamHasher eventHasher;
     private final Map<NodeId, PlatformSigner> signers;
     private final Configuration configuration;
@@ -230,7 +229,7 @@ public class PcesGraphSlicer {
         final EventCore newEventCore = eventCoreModifier.apply(event.getEventCore());
 
         // Get parent descriptors from previously migrated events
-        final List<EventDescriptor> parents = event.getAllParents().stream()
+        final List<EventDescriptorWrapper> parents = event.getAllParents().stream()
                 .map(parent -> migratedParents.get(parent.hash().getBytes()))
                 .filter(Objects::nonNull)
                 .toList();
@@ -239,9 +238,10 @@ public class PcesGraphSlicer {
                 .map(TransactionWrapper::getApplicationTransaction)
                 .toList();
 
-        final var unsignedEvent = new UnsignedEvent(
-                NodeId.of(newEventCore.creatorNodeId()),
-                parents.stream().map(EventDescriptorWrapper::new).toList(),
+        final NodeId creatorId = NodeId.of(newEventCore.creatorNodeId());
+        final UnsignedEvent unsignedEvent = new UnsignedEvent(
+                creatorId,
+                parents,
                 newEventCore.birthRound(),
                 HapiUtils.asInstant(newEventCore.timeCreated()),
                 transactions,
@@ -259,11 +259,8 @@ public class PcesGraphSlicer {
         final Signature signature = signer.sign(newHash.getBytes().toByteArray());
 
         // Create descriptor for this event so future events can reference it as parent
-        final EventDescriptor eventDescriptor = new EventDescriptor.Builder()
-                .hash(newHash.getBytes())
-                .creatorNodeId(newEventCore.creatorNodeId())
-                .birthRound(newEventCore.birthRound())
-                .build();
+        final EventDescriptorWrapper eventDescriptor =
+                new EventDescriptorWrapper(newHash, creatorId, newEventCore.birthRound());
 
         // Store for parent lookup by subsequent events
         migratedParents.put(event.getHash().getBytes(), eventDescriptor);

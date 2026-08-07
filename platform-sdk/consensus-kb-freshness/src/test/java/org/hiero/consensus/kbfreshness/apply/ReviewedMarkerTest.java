@@ -13,6 +13,7 @@ import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.resolve.Allowlist;
+import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -62,6 +63,31 @@ class ReviewedMarkerTest {
         assertThat(problems.problems().get(0)).contains("no scanned entry");
         assertThat(problems.problems().get(1)).contains("no `last_reviewed:` frontmatter line");
         assertThat(problems.problems().get(2)).contains("no ISO yyyy-MM-dd date");
+    }
+
+    @Test
+    void resolveDatePrefersExplicitThenAnchoredCommitThenDefault() {
+        final WorklistEntry anchored = new WorklistEntry(
+                "topic:x", "p.md", "2026-01-01", WorklistEntry.Status.REVIEW, null, List.of("s.java"), 1, "2026-05-06");
+        final WorklistEntry noAnchoredDate = new WorklistEntry(
+                "topic:y",
+                "q.md",
+                "2026-01-01",
+                WorklistEntry.Status.UNKNOWN,
+                "no anchored sources",
+                List.of(),
+                0,
+                null);
+
+        // An explicit =<date> always wins, whatever the topic anchors.
+        assertThat(ReviewedMarker.resolveDate("2026-07-11", anchored, "2026-07-12"))
+                .isEqualTo("2026-07-11");
+        // A bare spec on a code-anchored topic records that topic's newest anchored-source commit date.
+        assertThat(ReviewedMarker.resolveDate(null, anchored, "2026-07-12")).isEqualTo("2026-05-06");
+        // A bare spec with no derivable anchored date falls back to the default (e.g. --date).
+        assertThat(ReviewedMarker.resolveDate(null, noAnchoredDate, "2026-07-12"))
+                .isEqualTo("2026-07-12");
+        assertThat(ReviewedMarker.resolveDate(null, null, "2026-07-12")).isEqualTo("2026-07-12");
     }
 
     private static Path fixtureRepo() throws Exception {
