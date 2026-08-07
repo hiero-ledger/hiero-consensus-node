@@ -68,7 +68,9 @@ message StateProof {
  * internal node is represented by a `SiblingNode` carrying the hash of the
  * other child. A unary internal node -- one whose sibling subtree contained no
  * leaves and was therefore omitted from the tree rather than hashed in as a
- * placeholder value -- is represented by a `SiblingNode` whose `hash` is empty.
+ * placeholder value -- is represented by a `SiblingNode` carrying a null hash.
+ * A null hash is encoded on the wire as an unset (zero-length) `hash` field,
+ * since protobuf has no distinct null value for `bytes`.
  * Every level between the start of the path and its parent SHALL be
  * represented by exactly one `SiblingNode`, so that the position of a sibling
  * within `siblings` identifies the level it belongs to whether or not that
@@ -121,7 +123,7 @@ message SiblingNode {
      * True when this sibling is on the left of the merkle path, False if on
      * the right side of the merkle path.
      * <p>
-     * This field SHALL be ignored when `hash` is empty, as a unary internal
+     * This field SHALL be ignored when `hash` is null, as a unary internal
      * node has no sibling to position.
      */
     bool is_left = 1;
@@ -130,11 +132,12 @@ message SiblingNode {
      * The hash of the sibling node that can be combined with the merkle path
      * computed hashes as the proof is validated.
      * <p>
-     * If this field is empty, the parent at this level is a unary internal
-     * node: the sibling subtree contained no leaves and was omitted from the
-     * tree entirely. A verifier SHALL then compute the parent from the running
-     * path hash alone, using the single-child internal node hash, rather than
-     * combining it with a sibling value.
+     * A null hash -- encoded as an unset (zero-length) field, since protobuf
+     * has no distinct null value for `bytes` -- means the parent at this level
+     * is a unary internal node: the sibling subtree contained no leaves and
+     * was omitted from the tree entirely. A verifier SHALL then compute the
+     * parent from the running path hash alone, using the single-child internal
+     * node hash, rather than combining it with a sibling value.
      */
     bytes hash = 2;
 }
@@ -158,7 +161,7 @@ message MerkleSiblingHash {
      * If this is unset, then this sibling MUST be the second hash in the pair
      * of sibling hashes of a binary merkle tree.
      * <p>
-     * This field SHALL be ignored when `sibling_hash` is empty, as a unary
+     * This field SHALL be ignored when `sibling_hash` is null, as a unary
      * internal node has no sibling to position.
      */
     bool is_first = 1;
@@ -171,10 +174,12 @@ message MerkleSiblingHash {
      * contains this sibling.<br/>
      * This SHALL contain either the raw (e.g.) 384 bits (48 bytes) of the hash
      * value, or no bytes at all.<br/>
-     * If this field is empty, the parent at this level is a unary internal
-     * node: the sibling subtree contained no leaves and was omitted from the
-     * tree entirely. The parent SHALL then be computed from the child on the
-     * path alone, using the single-child internal node hash.
+     * A null hash -- encoded as an unset (zero-length) field, since protobuf
+     * has no distinct null value for `bytes` -- means the parent at this level
+     * is a unary internal node: the sibling subtree contained no leaves and
+     * was omitted from the tree entirely. The parent SHALL then be computed
+     * solely from this child's path, using the single-child internal node hash
+     * calculation.
      */
     bytes sibling_hash = 2;
 }

@@ -147,9 +147,9 @@ public class BlockStateProofGenerator {
                                         BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
             }
             for (final var s : block.siblingHashes()) {
-                // An empty siblingHash means this level's sibling branch was an empty subtree and was omitted
-                // from the tree entirely, so the verifier must apply a single-child wrap instead of combining
-                // with a real sibling here too.
+                // A null-hash sentinel (PBJ surfaces the null bytes field as zero-length) means this level's
+                // sibling branch was an empty subtree and was omitted from the tree entirely, so the verifier
+                // must apply a single-child wrap instead of combining with a real sibling here too.
                 siblings.add(
                         s.siblingHash().length() == 0
                                 ? SiblingNode.newBuilder().build()
@@ -158,9 +158,8 @@ public class BlockStateProofGenerator {
                                         .hash(s.siblingHash())
                                         .build());
             }
-            siblings.add(SiblingNode.newBuilder()
-                    .build()); // Add the single-child internal node (with null-hash sentinal) for loop's current block
-            // (s)
+            // Add the single-child internal node (a null-hash sentinel) for the loop's current block
+            siblings.add(SiblingNode.newBuilder().build());
             final var hashedTs = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
             siblings.add(SiblingNode.newBuilder().isLeft(true).hash(hashedTs).build());
         }

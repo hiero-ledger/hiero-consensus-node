@@ -243,10 +243,10 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 .orElseThrow()
                 .blockFooterOrThrow();
 
-        // Presence for each branch is determined from its hasher's actual leaf count, not by comparing the
-        // resulting hash to HASH_OF_ZERO: a subtree whose only leaf serializes to zero-length content would
-        // hash to exactly HASH_OF_ZERO too, so the hash value alone can't reliably distinguish "no leaves" from
-        // "one leaf with empty content".
+        // Presence for each branch is read from its hasher's actual leaf count rather than by comparing the
+        // resulting hash to HASH_OF_ZERO. Every hasher is in hand here, so the leaf count is available and
+        // exact; BlockImplUtils#presentSubtreeHash is the fallback for callers left with only a persisted root
+        // hash, and is not needed in this path.
         final var prevBlockRootsHash =
                 prevBlockHashesTree.isEmpty() ? null : Bytes.wrap(prevBlockHashesTree.computeRootHash());
         final var startOfBlockStateHash = footer.startOfBlockStateRootHash();

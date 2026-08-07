@@ -435,11 +435,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
         final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
-        // Branches 2 and 7 are rebuilt from a real IncrementalStreamingHasher here, so their presence can be
-        // read directly from its leaf count. Branches 4, 5, 6, and 8 are only available as persisted root-hash
-        // Bytes (BlockStreamInfo does not also persist a leaf count for them), so presence for those four must
-        // be inferred from whether the value equals HASH_OF_ZERO instead; see BlockImplUtils#presentSubtreeHash
-        // for why that inference is safe only when no real leaf could itself serialize to zero-length content.
+        // Branches 2 and 7 are rebuilt here from live IncrementalStreamingHasher instances ("live" meaning the
+        // hasher object itself is in hand, whatever its leaf count), so their presence can be read directly and
+        // exactly from that leaf count. Branches 4, 5, 6, and 8 are only available as persisted root-hash Bytes
+        // (BlockStreamInfo does not also persist a leaf count for them), so presence for those four has to be
+        // recovered from whether the value equals HASH_OF_ZERO instead; see BlockImplUtils#presentSubtreeHash
+        // for why that translation is unambiguous.
         return combine(
                         prevBlockHash,
                         prevBlocksHasher.isEmpty() ? null : allPrevBlocksHash,
@@ -794,10 +795,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
-            // Presence for each of these branches is determined from the hasher's actual leaf count, not by
-            // comparing the resulting hash to HASH_OF_ZERO: a subtree whose only leaf serializes to zero-length
-            // content would hash to exactly HASH_OF_ZERO too, so the hash value alone can't reliably distinguish
-            // "no leaves" from "one leaf with empty content".
+            // Presence for each of these branches is read from the hasher's actual leaf count rather than by
+            // comparing the resulting hash to HASH_OF_ZERO. Every hasher is in hand here, so the leaf count is
+            // available and exact; BlockImplUtils#presentSubtreeHash is the fallback for callers left with only
+            // a persisted root hash, and is not needed in this path.
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
                     previousBlockHashes.isEmpty() ? null : prevBlockRootsHash,
@@ -1678,11 +1679,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * authenticated by the root hash for those blocks.
      * <p>
      * Presence for those six branches is a caller-supplied {@code @Nullable} value rather than something this
-     * method infers from the hash bytes themselves: a subtree whose only leaf happens to serialize to
-     * zero-length content would hash to exactly {@code HASH_OF_ZERO} too (since that sentinel is itself just
-     * {@code SHA384(0x00)}, the same value {@code hashLeaf} would produce for an empty leaf), so inferring
-     * "empty" from the hash value alone is not reliable. Callers that have the originating
-     * {@link IncrementalStreamingHasher} should instead pass {@code hasher.isEmpty() ? null : hash}.
+     * method derives from the hash bytes themselves. Callers that hold the originating
+     * {@link IncrementalStreamingHasher} should pass {@code hasher.isEmpty() ? null : hash}, which reads
+     * presence exactly from the leaf count; only callers left with a bare persisted root hash should fall back
+     * to {@link BlockImplUtils#presentSubtreeHash(Bytes)}.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
      */
@@ -1732,15 +1732,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Compute the block's root hash (depth 1)
         final var rootHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
 
+        // A null sibling hash below denotes a unary internal node: that level's sibling branch had no leaves and
+        // was omitted from the tree, so the parent was single-child-hashed from the path child alone. PBJ stores
+        // a null bytes field as Bytes.EMPTY, which is how the sentinel is encoded on the wire.
         return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
-            // Level 6 first sibling (right child); an empty siblingHash means branch 2 had no leaves, and the
-            // level below was single-child-hashed from prevBlockHash alone
-            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(branch2)),
+            // Level 6 first sibling (right child); null means branch 2 had no leaves, and the level below was
+            // single-child-hashed from prevBlockHash alone
+            new MerkleSiblingHash(false, branch2),
             // Level 5 first sibling (right child); always present, since branch 3 always is
             new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
-            // Level 4 first sibling (right child); an empty siblingHash means depth5Node3 and depth5Node4 were
-            // both absent, and depth3Node1 was single-child-hashed from depth4Node1 alone
-            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(depth4Node2))
+            // Level 4 first sibling (right child); null means depth5Node3 and depth5Node4 were both absent, and
+            // depth3Node1 was single-child-hashed from depth4Node1 alone
+            new MerkleSiblingHash(false, depth4Node2)
             // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
             // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
             // tree, this level's hash will need to be re-added as an internal node here.

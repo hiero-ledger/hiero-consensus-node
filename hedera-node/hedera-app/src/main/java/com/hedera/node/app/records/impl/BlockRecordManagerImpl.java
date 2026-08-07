@@ -621,10 +621,24 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * Unlike the block stream block-production path, {@code allPrevBlocksRootHash} and
      * {@code entry.outputItemsTreeRootHash()} here are already-finalized hashes with no accompanying leaf count
      * ({@link WrappedRecordFileBlockHashes} carries only the root hash), so presence for those two branches
-     * must be inferred with {@link BlockImplUtils#presentSubtreeHash(Bytes)} rather than a precise
-     * {@code IncrementalStreamingHasher.isEmpty()} check. See that method's javadoc for the (currently
-     * unreachable, since real record files always contain actual transaction records) edge case this leaves
-     * open.
+     * must be recovered with {@link BlockImplUtils#presentSubtreeHash(Bytes)} rather than a precise
+     * {@code IncrementalStreamingHasher.isEmpty()} check. Both branches really can be absent&mdash;branch 2 for
+     * the very first wrapped record block, branch 6 for a record file with no output items&mdash;and both cases
+     * are handled below. What {@code presentSubtreeHash} cannot distinguish is an absent subtree from a
+     * one-leaf subtree built over zero-length content, and that ambiguity is ruled out at the source, since
+     * {@code IncrementalStreamingHasher.addLeaf} rejects empty leaf data.
+     * <p>
+     * Note the deliberate asymmetry at branch 1: unlike every other branch, {@code
+     * previousWrappedRecordBlockRootHash} is <b>never</b> omitted. For the very first wrapped record block it is
+     * literally {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, and that value is hashed into
+     * the tree as a real child rather than collapsing depth5Node1 to a unary node. In other words:
+     * <pre>
+     * previousWrappedRecordBlockRootHash = blockNumber == 0 ? HASH_OF_ZERO : rootHash(block - 1)
+     * </pre>
+     * This mirrors branches 1 and 3 of a block stream block (see
+     * {@code BlockStreamManagerImpl#combine}), which are likewise always present even when their genesis value
+     * happens to be {@code HASH_OF_ZERO}. Keeping branch 1 unconditionally present is what makes the depth-5
+     * node above it binary for every block, so block numbering can never shift the tree's shape.
      *
      * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
      * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
@@ -636,9 +650,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        // Branch 1: previousWrappedRecordBlockRootHash (always present, even if literally HASH_OF_ZERO for the
-        // very first wrapped record block)
-        // Branch 2: allPrevBlocksRootHash (absent if this is the first wrapped record block)
+        // Branch 1: previousWrappedRecordBlockRootHash. Never omitted, even for the very first wrapped record
+        // block, where it is literally HASH_OF_ZERO and is still hashed in as a real child (see the javadoc).
+        // Branch 2: allPrevBlocksRootHash. Genuinely absent for that same first block, and omitted when it is,
+        // which is what makes depth5Node1 unary there while branch 1 stays present.
         final var depth5Node1 = BlockImplUtils.combineChildren(
                 previousWrappedRecordBlockRootHash, BlockImplUtils.presentSubtreeHash(allPrevBlocksRootHash));
 

@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -47,5 +48,18 @@ class IncrementalStreamingHasherTest {
         final var expectedLeaf2 = BlockImplUtils.hashLeaf("second".getBytes());
         final var expectedRoot = BlockImplUtils.hashInternalNode(expectedLeaf1, expectedLeaf2);
         assertArrayEquals(expectedRoot, hasher.computeRootHash());
+    }
+
+    @Test
+    void rejectsEmptyLeafDataThatWouldCollideWithTheHashOfZeroSentinel() {
+        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+
+        // A single zero-length leaf would hash to SHA384(0x00), i.e. exactly the sentinel computeRootHash()
+        // returns for a leafless tree, making the two indistinguishable to presentSubtreeHash().
+        assertArrayEquals(HASH_OF_ZERO_BYTES, BlockImplUtils.hashLeaf(new byte[0]));
+
+        assertThrows(IllegalArgumentException.class, () -> hasher.addLeaf(new byte[0]));
+        assertThrows(IllegalArgumentException.class, () -> hasher.addLeaf(null));
+        assertTrue(hasher.isEmpty());
     }
 }

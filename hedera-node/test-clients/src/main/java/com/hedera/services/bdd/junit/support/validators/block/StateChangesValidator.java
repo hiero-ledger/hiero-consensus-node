@@ -842,11 +842,10 @@ public class StateChangesValidator implements BlockStreamValidator {
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
     /**
-     * Presence for each branch is determined from its hasher's actual leaf count, not by comparing the
-     * resulting hash to {@link BlockStreamManager#HASH_OF_ZERO}: a subtree whose only leaf serializes to
-     * zero-length content would hash to exactly {@code HASH_OF_ZERO} too (since that sentinel is itself just
-     * {@code SHA384(0x00)}), so the hash value alone can't reliably distinguish "no leaves" from "one leaf with
-     * empty content".
+     * Presence for each branch is read from its hasher's actual leaf count rather than by comparing the
+     * resulting hash to {@link BlockStreamManager#HASH_OF_ZERO}. Every hasher is in hand here, so the leaf
+     * count is available and exact; {@code BlockImplUtils.presentSubtreeHash} is the fallback for callers left
+     * with only a persisted root hash, and is not needed in this path.
      */
     private RootAndSiblingHashes computeBlockHash(
             final Timestamp blockTimestamp,
@@ -892,10 +891,12 @@ public class StateChangesValidator implements BlockStreamValidator {
         // Compute the block's root hash (depth 1)
         final var root = hashInternalNode(depth2Node1, depth2Node2);
 
+        // A null sibling hash denotes a unary internal node at that level; PBJ stores a null bytes field as
+        // Bytes.EMPTY, which is how the sentinel is encoded on the wire.
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
-            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(prevBlocksRootHash)),
+            new MerkleSiblingHash(false, prevBlocksRootHash),
             new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
-            new MerkleSiblingHash(false, BlockImplUtils.orEmpty(depth4Node2)),
+            new MerkleSiblingHash(false, depth4Node2),
         });
     }
 

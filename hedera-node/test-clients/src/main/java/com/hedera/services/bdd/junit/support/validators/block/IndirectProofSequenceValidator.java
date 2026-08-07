@@ -329,8 +329,9 @@ class IndirectProofSequenceValidator {
         for (int i = 0; i < numIntermediateBlocks; i++) {
             final var currentBlockPaths = partialPathsByBlock.get(currentBlockNum++);
             for (final var s : currentBlockPaths.right().siblingHashes()) {
-                // An empty siblingHash means this level's sibling branch was an empty subtree and was omitted
-                // from the tree entirely, so a single-child wrap sentinel is used instead of a real sibling.
+                // A null-hash sentinel (PBJ surfaces the null bytes field as zero-length) means this level's
+                // sibling branch was an empty subtree and was omitted from the tree entirely, so a single-child
+                // wrap is used instead of a real sibling.
                 allSiblingHashes.add(
                         s.siblingHash().length() == 0
                                 ? SiblingNode.newBuilder().build()

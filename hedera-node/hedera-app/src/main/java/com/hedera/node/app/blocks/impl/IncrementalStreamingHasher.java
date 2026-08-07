@@ -14,7 +14,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * /**
  * A memory-efficient Merkle tree hasher that computes root hashes in a streaming fashion.
  *
  * <p>This implementation follows the Streaming Binary Merkle Tree algorithm from the Block &amp; State
@@ -87,9 +86,21 @@ public class IncrementalStreamingHasher {
      *
      * <p>Time complexity: O(log n) hash operations in the worst case, O(1) amortized.
      *
+     * <p>Zero-length leaf data is rejected. A single such leaf would hash to {@code SHA384(0x00)}, i.e.
+     * exactly the {@link BlockStreamManager#HASH_OF_ZERO} sentinel {@link #computeRootHash()} returns for a
+     * leafless tree, making a one-leaf subtree indistinguishable from an empty one wherever presence has to be
+     * recovered from a persisted root hash alone (see {@link BlockImplUtils#presentSubtreeHash(Bytes)}).
+     * Every real leaf is a serialized protobuf message with at least one field set, so this rejects nothing
+     * legitimate.
+     *
      * @param data the raw data for the new leaf
+     * @throws IllegalArgumentException if {@code data} is null or zero-length
      */
     public void addLeaf(final byte[] data) {
+        if (data == null || data.length == 0) {
+            throw new IllegalArgumentException("Leaf data must be non-empty; an empty leaf would hash to the "
+                    + "HASH_OF_ZERO sentinel used to denote a leafless subtree");
+        }
         addNodeByHash(hashLeaf(digest, data));
     }
 
@@ -120,7 +131,15 @@ public class IncrementalStreamingHasher {
      * <p>Time complexity: O(log n) where n is the leaf count.
      *
      * <p>For an empty tree (no leaves added), this method returns the predefined
-     * {@link BlockStreamManager#HASH_OF_ZERO} which is {@code sha384Hash(new byte[]{0x00})}.
+     * {@link BlockStreamManager#HASH_OF_ZERO} which is {@code sha384Hash(new byte[]{0x00})}. This is the
+     * encoding of "leafless subtree" for the persisted/on-the-wire root hashes that carry no accompanying leaf
+     * count (e.g. {@code BlockStreamInfo}'s per-tree root hashes, {@code BlockFooter}); readers translate it
+     * back with {@link BlockImplUtils#presentSubtreeHash(Bytes)}. It is unambiguous only because
+     * {@link #addLeaf(byte[])} rejects zero-length leaf data, which is the one input that could otherwise
+     * produce this same value from a real one-leaf tree.
+     *
+     * <p>Callers that still hold this hasher should prefer {@link #isEmpty()} over comparing the returned
+     * hash to the sentinel, since the leaf count is exact.
      *
      * @return the 48-byte SHA-384 Merkle tree root hash, or {@link BlockStreamManager#HASH_OF_ZERO_BYTES}
      *         if no leaves have been added

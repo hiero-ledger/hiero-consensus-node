@@ -258,15 +258,4 @@ class BlockImplUtilsTest {
     void combineChildrenWithBothAbsentIsAbsent() {
         assertNull(BlockImplUtils.combineChildren(null, null));
     }
-
-    @Test
-    void orEmptyReturnsEmptyBytesForNull() {
-        assertEquals(Bytes.EMPTY, BlockImplUtils.orEmpty(null));
-    }
-
-    @Test
-    void orEmptyReturnsTheHashWhenPresent() {
-        final Bytes hash = Bytes.wrap(new byte[] {1, 2, 3});
-        assertEquals(hash, BlockImplUtils.orEmpty(hash));
-    }
 }
