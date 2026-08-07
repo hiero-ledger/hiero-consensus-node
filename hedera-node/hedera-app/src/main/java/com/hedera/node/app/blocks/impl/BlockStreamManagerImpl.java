@@ -376,7 +376,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo);
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+        if (!previousBlockHashesUpdated) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
@@ -412,9 +412,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .map(Bytes::toByteArray)
                         .toList(),
                 blockStreamInfo.intermediateBlockRootsLeafCount());
-        if (blockStreamInfo.blockNumber() == 0L) {
-            prevBlocksHasher.addNodeByHash(prevBlockHash.toByteArray());
-        }
+        // Not seeded with prevBlockHash here, at block 0 or otherwise. init() already seeds the genesis
+        // HASH_OF_ZERO placeholder into this tree, so block 0 persists an intermediateBlockRootsLeafCount of 1
+        // and the rebuild above recovers that leaf from state. Seeding it again would count the placeholder
+        // twice and make this reconstruction disagree with the root hash the network published for block 0,
+        // diverging any node that restarts from a block-0 boundary snapshot.
         final var allPrevBlocksHash = prevBlocksHasher.computeRootHash();
 
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
@@ -439,10 +441,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Non-null: a leaf was just added above, so this subtree is never empty here.
         final var lastBlockFinalStateChangesHash = requireNonNull(stateChangesHasher.computeRootHash());
 
-        // Branches 2 and 7 are rebuilt here from live IncrementalStreamingHasher instances, so their root
-        // hashes (null when leafless) come straight off the hasher. Branches 4, 5, 6, and 8 are only available
-        // as persisted Bytes, where an absent subtree was written as a zero-length field, so those are read
-        // back through presentSubtreeHash.
+        // Branches 2 and 7 are recomputed here rather than read back: this method rebuilds a hasher for each
+        // one -- branch 2 from the persisted intermediate block roots, branch 7 from the persisted penultimate
+        // roots plus the final state change reconstructed above -- so their root hashes come straight off
+        // computeRootHash(), which is null when a subtree has no leaves.
+        //
+        // Branches 4, 5, 6 and 8 have no hasher state to rebuild from; BlockStreamInfo keeps only their
+        // finished root hash. An absent subtree therefore arrives as the zero-length field it was written as,
+        // and presentSubtreeHash turns that back into null.
         return combine(
                         prevBlockHash,
                         allPrevBlocksHash,

@@ -1771,7 +1771,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void zeroHashNotAddedOnInit() {
+    void zeroHashSeededIntoPreviousBlockHashesOnInit() {
         // Given a 2-second block period
         givenSubjectWith(
                 1,
@@ -1810,10 +1810,15 @@ class BlockStreamManagerImplTest {
 
         // Verify the block was closed
         verify(aWriter).closeCompleteBlock();
-        // And that no zero hash was added to the BlockStreamInfo
+        // At genesis the HASH_OF_ZERO placeholder is seeded into the all-previous-block-hashes tree, exactly as
+        // it is used for branch 1, so block 0 carries a single-leaf tree rather than an empty one. Block 0's own
+        // root hash is only folded in afterwards, for block 1.
+        //
+        // This is what reconstructLastBlockHash rebuilds from on a restart at the block-0 boundary; if the two
+        // disagree, a restarting node re-derives a different hash for block 0 and diverges from the network.
         final var actualBlockInfo = infoRef.get();
-        assertEquals(Collections.emptyList(), actualBlockInfo.intermediatePreviousBlockRootHashes());
-        assertEquals(0, actualBlockInfo.intermediateBlockRootsLeafCount());
+        assertEquals(List.of(HASH_OF_ZERO), actualBlockInfo.intermediatePreviousBlockRootHashes());
+        assertEquals(1, actualBlockInfo.intermediateBlockRootsLeafCount());
     }
 
     @Test
