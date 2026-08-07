@@ -193,8 +193,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
                 final QueryContext context;
-                TransactionBody txBody;
+                TransactionBody txBody = null;
                 AccountID payerID = null;
+                // Payment submission is deferred until the node has validated the query and passed the query
+                // throttle (steps 4 and 5), so a query that is rejected or throttled is never charged.
+                Bytes deferredPayment = null;
+                IngestChecker.Result paidCheckerResult = null;
                 if (shouldCharge && paymentRequired) {
                     final var configuration = configProvider.getConfiguration();
                     final Bytes paymentBytes;
@@ -205,6 +209,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     }
 
                     final var checkerResult = new IngestChecker.Result();
+                    paidCheckerResult = checkerResult;
                     try {
                         // 3.i Ingest checks
                         ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
@@ -268,8 +273,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
+                            // 3.vi Capture the payment; it is submitted below only after the query is validated
+                            // and passes the throttle check, i.e. once the node has committed to answering it.
+                            deferredPayment = txInfo.serializedSignedTxOrThrow();
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
@@ -290,13 +296,29 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             null);
                 }
 
-                // 4. Check validity of query
-                handler.validate(context);
+                // Validate and throttle-check the query before submitting the payment, so the payer is charged
+                // only once the node has committed to answering. If any check fails, reclaim the throttle capacity
+                // the payment consumed at ingest, since no payment transaction will be submitted.
+                try {
+                    // 4. Check validity of query
+                    handler.validate(context);
 
-                // 5. Check query throttles
-                if (shouldCharge && synchronizedThrottleAccumulator.shouldThrottle(function, query, state, payerID)) {
-                    workflowMetrics.incrementThrottled(function);
-                    throw new PreCheckException(BUSY);
+                    // 5. Check query throttles
+                    if (shouldCharge
+                            && synchronizedThrottleAccumulator.shouldThrottle(function, query, state, payerID)) {
+                        workflowMetrics.incrementThrottled(function);
+                        throw new PreCheckException(BUSY);
+                    }
+
+                    // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
+                    if (deferredPayment != null) {
+                        submissionManager.submit(txBody, deferredPayment, false);
+                    }
+                } catch (Exception e) {
+                    if (paidCheckerResult != null) {
+                        paidCheckerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
+                    }
+                    throw e;
                 }
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
