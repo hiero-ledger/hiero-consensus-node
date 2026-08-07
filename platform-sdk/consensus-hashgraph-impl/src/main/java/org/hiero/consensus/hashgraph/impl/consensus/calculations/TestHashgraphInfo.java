@@ -2,6 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -85,7 +86,7 @@ public class TestHashgraphInfo {
      * proof that the Hashgraph consensus algorithm is ABFT.
      *
      */
-     static void main() {
+     static void main() throws IOException {
         if (!OUTPUT_FILENAME.isEmpty()) {
             createLogFile(OUTPUT_FILENAME);
         }
@@ -340,7 +341,7 @@ public class TestHashgraphInfo {
      * hiero-consensus-node/platform-sdk/consensus-hashgraph-impl/src/main/java/
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
-    static void createLogFile(String outputFilename) {
+    static void createLogFile(String outputFilename) throws IOException {
         final int MAX_NODE_ID = 999;
         final int NUM_NODES = 4;
         final int MIN_OTHER_PARENTS = 1;
@@ -425,19 +426,7 @@ public class TestHashgraphInfo {
                     writeRoundInfoPrev(out, roundInfoPrev);
                 }
             }
-
-        } catch (Exception e) {
-            StringBuilder err = new StringBuilder("ERROR: while writing " + outputFile + "\n - " + e + "\n");
-            //System.out.println("ERROR: while writing " + outputFile + "\n - " + e);
-            for (StackTraceElement line : e.getStackTrace()) {
-                err.append(line.getLineNumber()).append(" ").append(line.toString()).append("\n");
-                //System.out.println(line.getLineNumber() + " " + line.toString());
-            }
-            String str = err.toString();
-            System.out.println(str);
-            return;
         }
-
         System.out.println("wrote " + outputFile);
     }
 }
