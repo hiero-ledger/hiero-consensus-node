@@ -8,7 +8,8 @@ module org.hiero.consensus.hashgraph.impl {
             org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures,
             org.hiero.consensus.network.simulation,
-            org.hiero.consensus.network.simulation.test.fixtures;
+            org.hiero.consensus.network.simulation.test.fixtures,
+            org.hiero.otter.fixtures;
     exports org.hiero.consensus.hashgraph.impl.consensus to
             org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures,

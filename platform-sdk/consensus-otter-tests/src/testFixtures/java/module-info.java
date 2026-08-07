@@ -78,8 +78,10 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
+    requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
@@ -100,6 +102,7 @@ module org.hiero.otter.fixtures {
     requires java.net.http;
     requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;
+    requires org.jspecify;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
