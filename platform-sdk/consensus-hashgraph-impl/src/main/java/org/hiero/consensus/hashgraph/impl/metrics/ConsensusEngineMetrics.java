@@ -22,6 +22,7 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.AverageStat;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -143,7 +144,7 @@ public class ConsensusEngineMetrics {
             if (!event.getBaseEvent().getOtherParents().isEmpty()) {
                 averageOtherParentAgeDiff.update(event.getBirthRound()
                         - event.getBaseEvent().getOtherParents().stream()
-                                .map(ed -> ed.eventDescriptor().birthRound())
+                                .map(EventDescriptorWrapper::birthRound)
                                 .max(Long::compareTo)
                                 .orElse(0L));
             }
