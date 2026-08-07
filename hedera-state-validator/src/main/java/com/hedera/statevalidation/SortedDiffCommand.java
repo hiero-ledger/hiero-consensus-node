@@ -68,8 +68,7 @@ public class SortedDiffCommand implements Runnable {
         log.info("Second state has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         final SortedDiffExporter exporter = (serviceName == null)
-                ? new SortedDiffExporter(
-                        outputDirectory, state1, state2, SortedExportCommand.prepareServiceNamesAndStateKeys())
+                ? new SortedDiffExporter(outputDirectory, state1, state2, StateUtils.prepareServiceNamesAndStateKeys())
                 : new SortedDiffExporter(outputDirectory, state1, state2, serviceName, stateKey);
         exporter.export();
     }

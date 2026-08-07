@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import com.hedera.hapi.platform.state.SingletonType;
-import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.statevalidation.exporter.SortedJsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.base.utility.Pair;
 import com.swirlds.state.merkle.VirtualMapState;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
@@ -74,7 +68,7 @@ public class SortedExportCommand implements Runnable {
         if (serviceName == null) {
             // processing all
             final SortedJsonExporter exporter = new SortedJsonExporter(
-                    outputDir, state, prepareServiceNamesAndStateKeys(), firstLeafPath, lastLeafPath);
+                    outputDir, state, StateUtils.prepareServiceNamesAndStateKeys(), firstLeafPath, lastLeafPath);
             exporter.export();
         } else {
             final SortedJsonExporter exporter =
@@ -82,25 +76,5 @@ public class SortedExportCommand implements Runnable {
             exporter.export();
         }
         log.info("Total time is {} seconds.", (System.currentTimeMillis() - start) / 1000);
-    }
-
-    public static List<Pair<String, String>> prepareServiceNamesAndStateKeys() {
-        final List<Pair<String, String>> serviceNamesAndStateKeys = new ArrayList<>();
-        for (final StateKey.KeyOneOfType value : StateKey.KeyOneOfType.values()) {
-            extractStateName(value.protoName(), serviceNamesAndStateKeys);
-        }
-        for (final SingletonType singletonType : SingletonType.values()) {
-            extractStateName(singletonType.protoName(), serviceNamesAndStateKeys);
-        }
-
-        return serviceNamesAndStateKeys;
-    }
-
-    private static void extractStateName(
-            @NonNull final String value, @NonNull final List<Pair<String, String>> serviceNamesAndStateKeys) {
-        final String[] serviceNameStateKey = value.split("_I_");
-        if (serviceNameStateKey.length == 2) {
-            serviceNamesAndStateKeys.add(Pair.of(serviceNameStateKey[0], serviceNameStateKey[1]));
-        }
     }
 }
