@@ -526,7 +526,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
     }
 
-    public VirtualNodeCache getCache() {
+    // Test only
+    VirtualNodeCache getCache() {
         return cache;
     }
 
