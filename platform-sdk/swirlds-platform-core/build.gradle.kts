@@ -67,6 +67,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.platform.core")
     requires("com.swirlds.state.impl")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.junit.jupiter.api")
