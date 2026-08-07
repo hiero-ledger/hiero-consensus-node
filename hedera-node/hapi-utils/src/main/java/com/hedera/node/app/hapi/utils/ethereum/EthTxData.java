@@ -10,6 +10,7 @@ import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -21,7 +22,6 @@ import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
 
 public record EthTxData(
@@ -299,7 +299,7 @@ public record EthTxData(
     }
 
     public byte[] getEthereumHash() {
-        return new Keccak.Digest256().digest(rawTx == null ? encodeTx() : rawTx);
+        return MiscCryptoUtils.keccak256DigestOf(rawTx == null ? encodeTx() : rawTx);
     }
 
     public enum EthTransactionType {
