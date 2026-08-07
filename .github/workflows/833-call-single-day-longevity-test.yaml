@@ -183,6 +183,7 @@ jobs:
       - name: Normalize Outputs
         id: normalize
         run: |
+          echo "::group::Set Outputs"
           echo "namespace=${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}" | tee -a "${GITHUB_OUTPUT}"
           echo "fqdn=${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}" | tee -a "${GITHUB_OUTPUT}"
           echo "cn-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}" | tee -a "${GITHUB_OUTPUT}"
@@ -193,6 +194,31 @@ jobs:
           echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" | tee -a "${GITHUB_OUTPUT}"
           echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" | tee -a "${GITHUB_OUTPUT}"
           echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "::endgroup::
+
+  print-allocation-details:
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - acquire-kubernetes-resources
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Output Allocation Details
+        run: |
+          echo "::group::Output Step Summary"
+          echo "## Allocation Details" > "${GITHUB_STEP_SUMMARY}"
+          echo "- **Namespace**: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **FQDN**: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" | tee -a  "${GITHUB_STEP_SUMMARY}"
+          echo "- **CN Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "::endgroup::
 
   longevity-tests-start:
     name: Start
