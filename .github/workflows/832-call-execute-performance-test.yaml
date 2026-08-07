@@ -54,10 +54,10 @@ on:
         default: ""
         description: "Kubernetes cluster to run the test on"
         type: string
-      java-version:
-        required: false
-        description: "Java JDK Version"
-        type: string
+      #java-version:
+      #  required: false
+      #  description: "Java JDK Version"
+      #  type: string
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
@@ -68,6 +68,7 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
   NLG_VERSION: 0.14.3
+  java-version: "25.0.2"
 
 defaults:
   run:
@@ -91,7 +92,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Validate Input Parameters
@@ -167,7 +168,15 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.35.0
+
+      - name: kubectl wrapper
+        run: |
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
+          which kubectl
 
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
@@ -202,7 +211,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ inputs.java-version }}"
+          java-version: "${{ env.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -265,6 +274,12 @@ jobs:
           kubectl -n "${K8S_NAMESPACE}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${NLG_TEST} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
+
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ inputs.k8s-namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
 
       - name: Wait for test completion
         env:
