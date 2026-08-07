@@ -311,4 +311,4 @@ jobs:
           echo "aux-role=${AUX_ROLE}" >> "${GITHUB_OUTPUT}"
           echo "network-id=${NETWORK_ID}" >> "${GITHUB_OUTPUT}"
           echo "owner=${OWNER}" >> "${GITHUB_OUTPUT}"
-          echo "expiration=${EXPIRATION} >> "${GITHUB_OUTPUT}"
+          echo "expiration=${EXPIRATION}" >> "${GITHUB_OUTPUT}"
