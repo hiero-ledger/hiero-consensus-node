@@ -38,6 +38,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -311,6 +312,34 @@ public class TipsetEventCreatorTestUtils {
                 .setNGen(nGen)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
+                .build();
+    }
+
+    /**
+     * Create a test event with a self parent and a specific origin. The sequence number is auto-assigned in creation
+     * order, so events created later carry a higher sequence number.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the event
+     * @param birthRound the birth round of the event
+     * @param origin     how the event entered the system
+     * @return the new event
+     */
+    @NonNull
+    public static PlatformEvent createTestEventWithParent(
+            @NonNull final Random random,
+            @Nullable final NodeId creator,
+            final long birthRound,
+            @NonNull final EventOrigin origin) {
+
+        final PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(creator).build();
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .setOrigin(origin)
                 .build();
     }
 

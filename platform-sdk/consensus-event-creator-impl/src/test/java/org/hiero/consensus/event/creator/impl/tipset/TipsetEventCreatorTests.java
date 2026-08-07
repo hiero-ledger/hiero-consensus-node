@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -1087,8 +1088,11 @@ class TipsetEventCreatorTests {
 
     /**
      * During PCES replay, the node will learn of self events it created in the past. This test creates a single node
-     * network, sends the event creator self events (with nGen values assigned), then creates a new event. The new event
-     * should have the proper self parent.
+     * network, sends the event creator self events read from storage, then creates a new event. The new event should
+     * have the self event with the highest sequence number as its self parent.
+     * <p>
+     * Replay runs in a single orphan buffer epoch, so the sequence number is a valid topological order across it and
+     * the highest sequence number identifies the graph-latest self event.
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1098,7 +1102,7 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Self event with highest nGen is used as latest self event on startup")
+    @DisplayName("Self event with highest sequence number is used as latest self event on startup")
     void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
@@ -1111,11 +1115,12 @@ class TipsetEventCreatorTests {
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
-        PlatformEvent eventWithHighestNGen = null;
+        PlatformEvent eventWithHighestSequenceNumber = null;
         for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEventWithParent(random, selfId, i + 1, ROUND_FIRST);
-            if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
-                eventWithHighestNGen = event;
+            final PlatformEvent event = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
+            if (eventWithHighestSequenceNumber == null
+                    || event.getSequenceNumber() > eventWithHighestSequenceNumber.getSequenceNumber()) {
+                eventWithHighestSequenceNumber = event;
             }
             pcesEvents.add(event);
         }
@@ -1124,12 +1129,10 @@ class TipsetEventCreatorTests {
         Collections.shuffle(pcesEvents, random);
         pcesEvents.forEach(eventCreator::registerEvent);
 
-        // Verify that the new event created uses a self parent that is the event with the highest nGen.
-        // This new event should not have an nGen assigned.
+        // Verify that the new event created uses a self parent that is the event with the highest sequence number.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(eventWithHighestNGen.getDescriptor(), newEvent.getSelfParent());
-        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
+        assertEquals(eventWithHighestSequenceNumber.getDescriptor(), newEvent.getSelfParent());
     }
 
     /**
@@ -1179,13 +1182,11 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * When the event creator learns of a self event, it only adopts it as the latest self event if the event is
-     * actually higher in the hashgraph. Height is measured by nGen, not by sequence number: a sequence number is
-     * assigned in the order events are received and says nothing about a self event's position in the graph. This test
-     * registers a self event with a high nGen, then a second self event that is received later - and therefore has a
-     * higher, auto-assigned sequence number - but a lower nGen. The creator must keep the higher-nGen event as its self
-     * parent and ignore the later, lower-nGen one. Under the previous sequence-number comparison the later event would
-     * have wrongly replaced it.
+     * A self event learned through gossip must not displace a self event learned from storage. Every self event this
+     * node gossiped is on disk, so PCES replay establishes the latest self event before gossip starts; anything gossip
+     * subsequently returns is a self-ancestor of it. After a reconnect clears the orphan buffer such a self-ancestor is
+     * re-numbered above the replayed event, so a comparison on sequence number alone would adopt it and the node would
+     * build on an older self parent - a branch (SCN-003).
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1197,8 +1198,8 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Latest self event is chosen by nGen, not sequence number")
-    void lastSelfEventChosenByNGenNotSequenceNumber(@ParamName("random") final Random random) {
+    @DisplayName("A gossiped self event does not displace a self event read from storage")
+    void gossipedSelfEventDoesNotDisplaceReplayedSelfEvent(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -1208,22 +1209,65 @@ class TipsetEventCreatorTests {
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-        // Register a self event with a high nGen. With no prior self event, it becomes the latest self event.
-        final PlatformEvent highNGenEvent = createTestEventWithParent(random, selfId, 10, ROUND_FIRST);
-        eventCreator.registerEvent(highNGenEvent);
+        // Replay a self event from PCES. With no prior self event, it becomes the latest self event.
+        final PlatformEvent replayedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
+        eventCreator.registerEvent(replayedEvent);
 
-        // Register a self event created later - and therefore with a higher, auto-assigned sequence number - but with a
-        // lower nGen. Because it is lower in the graph, it must not replace the higher-nGen event.
-        final PlatformEvent lowNGenEvent = createTestEventWithParent(random, selfId, 5, ROUND_FIRST);
+        // A self-ancestor received again through gossip is re-numbered by the orphan buffer, so it carries a higher
+        // sequence number than the replayed event even though it is lower in the hashgraph.
+        final PlatformEvent gossipedAncestor =
+                createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
         assertTrue(
-                lowNGenEvent.getSequenceNumber() > highNGenEvent.getSequenceNumber(),
+                gossipedAncestor.getSequenceNumber() > replayedEvent.getSequenceNumber(),
                 "the later event must have a higher sequence number for this test to be meaningful");
-        eventCreator.registerEvent(lowNGenEvent);
+        eventCreator.registerEvent(gossipedAncestor);
 
-        // The new event must build on the higher-nGen self event, not the later, lower-nGen one.
+        // The new event must build on the replayed self event, not the later, gossiped one.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(highNGenEvent.getDescriptor(), newEvent.getSelfParent());
+        assertEquals(replayedEvent.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
+     * When PCES is lost from disk, the node has no self event to replay and must relearn its own events through gossip
+     * during the OBSERVING window. The orphan buffer releases a parent before its child, so self events arrive in
+     * hashgraph order and the creator advances to the last one it learns.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Self events relearned through gossip advance the latest self event")
+    void lastSelfEventUpdatedWhileRelearningThroughGossip(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final int numEvents = 10;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        // No self event is replayed from disk. Self events arrive through gossip in hashgraph order, which is the order
+        // the orphan buffer releases them and therefore the order their sequence numbers are assigned in.
+        PlatformEvent lastRelearnedEvent = null;
+        for (int i = 0; i < numEvents; i++) {
+            lastRelearnedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
+            eventCreator.registerEvent(lastRelearnedEvent);
+        }
+
+        // The new event must build on the last self event relearned, not the first one.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertNotNull(lastRelearnedEvent);
+        assertEquals(lastRelearnedEvent.getDescriptor(), newEvent.getSelfParent());
     }
 
     /**

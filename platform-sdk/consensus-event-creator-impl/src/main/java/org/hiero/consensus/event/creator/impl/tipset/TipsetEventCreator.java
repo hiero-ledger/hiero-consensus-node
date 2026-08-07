@@ -2,6 +2,8 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
+import static org.hiero.consensus.model.event.EventOrigin.GOSSIP;
+import static org.hiero.consensus.model.event.EventOrigin.STORAGE;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -170,25 +172,38 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
-                // Normally we will ingest self events before we get to this point, but it's possible
-                // to learn of self events for the first time here if we are loading from a restart (via PCES)
-                // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen number value assigned by the orphan buffer. We use nGen and not sequence
-                // number because nGen tells us which is higher in the graph - sequence number does not.
-                lastSelfEvent = event;
-                childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
-                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
-            } else {
-                // We already ingested this self event (when it was created),
-                // or it is older than the event we are already tracking.
+            if (lastSelfEvent == null) {
+                updateLastSelfEvent(event);
                 return;
+            }
+
+            final EventOrigin lastSelfEventOrigin = lastSelfEvent.getOrigin();
+            final EventOrigin newSelfEventOrigin = event.getOrigin();
+            if (lastSelfEventOrigin == STORAGE
+                    && newSelfEventOrigin == STORAGE
+                    && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
+                // We have restarted and are learning our latest self event from PCES on disk. All
+                // PCES events are flushed through the system prior to starting event creation, so
+                // there is no risk of branching.
+                updateLastSelfEvent(event);
+            } else if (lastSelfEventOrigin == GOSSIP
+                    && newSelfEventOrigin == GOSSIP
+                    && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
+                // We are recovering from a loss of PCES on disk (last held event came from gossip)
+                // and are learning our own events through gossip. If we do not learn of our latest
+                // events during the OBSERVING window, we could create a branch.
+                updateLastSelfEvent(event);
             }
         } else {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
         }
+    }
+
+    private void updateLastSelfEvent(@NonNull final PlatformEvent selfEvent) {
+        lastSelfEvent = selfEvent;
+        childlessOtherEventTracker.registerSelfEventParents(selfEvent.getOtherParents());
+        tipsetTracker.addSelfEvent(selfEvent.getDescriptor(), selfEvent.getAllParents());
     }
 
     /**
@@ -350,7 +365,8 @@ public class TipsetEventCreator implements EventCreator {
 
     /**
      * Check if given element is present inside the array
-     * @param array collection to check
+     *
+     * @param array   collection to check
      * @param element element to look for
      * @return true if element is contained in array, false otherwise
      */

@@ -85,10 +85,11 @@ fundamental need for a graph height:
 - **Event creator `lastSelfEvent` → a branch (SCN-003).** After a fast
   reconnect a re-received self-ancestor got a higher *new* sequence number than
   the maintained latest self event and overwrote it, so the node built on an older
-  self-parent. The `lastSelfEvent` tracking can be reworked
+  self-parent. The `lastSelfEvent` tracking was reworked
   ([#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)) so
   a re-received self-ancestor can never displace the latest self event, after
-  which the sequence number is safe here too.
+  which the sequence number is safe here too (see [Why `lastSelfEvent` is
+  safe](#why-lastselfevent-is-safe-on-the-sequence-number)).
 
 Separately, the name "sequence" was already taken: `EventImpl.sequence`, assigned
 by `Sequencer` in the order events are **added to consensus**, is used only for
@@ -99,18 +100,18 @@ metrics. The new field had to be disambiguated from it.
 **Adopt the orphan-buffer sequence number as the canonical local ordering key and
 remove `nGen`.** Every consumer that still reads `nGen` moves to the sequence
 number; once all have, `NonDeterministicGeneration` is deleted. The migration is
-staged only by readiness — two conversions are gated on a prerequisite fix, the
+staged only by readiness — one conversion is gated on a prerequisite fix, the
 other two are unblocked:
 
-|               Consumer                |                Anchor                 | Current key |                    Prerequisite to convert                     |
-|---------------------------------------|---------------------------------------|-------------|----------------------------------------------------------------|
-| Consensus-relevant threshold          | RUL-005                               | `nGen`      | #26529 (restores INV-015)                                      |
-| Event creator `lastSelfEvent` recency | `TipsetEventCreator.registerEvent`    | `nGen`      | #26530 (rework `lastSelfEvent` tracking)                       |
-| `cGen` topological sort               | `LocalConsensusGeneration.assignCGen` | `nGen`      | none — a topological order of an already-agreed round suffices |
-| Developer tools (GUI, CLI)            | `PictureMetadata`, `HashgraphPicture` | `nGen`      | none — a rendering choice, not an ordering requirement         |
+|           Consumer           |                Anchor                 | Current key |                    Prerequisite to convert                     |
+|------------------------------|---------------------------------------|-------------|----------------------------------------------------------------|
+| Consensus-relevant threshold | RUL-005                               | `nGen`      | #26529 (restores INV-015)                                      |
+| `cGen` topological sort      | `LocalConsensusGeneration.assignCGen` | `nGen`      | none — a topological order of an already-agreed round suffices |
+| Developer tools (GUI, CLI)   | `PictureMetadata`, `HashgraphPicture` | `nGen`      | none — a rendering choice, not an ordering requirement         |
 
 Already migrated and stable: event creation's advancement scoring and
-`ChildlessEventTracker` (#24991), and the sync send-list order (#24843).
+`ChildlessEventTracker` (#24991), the sync send-list order (#24843), and the event
+creator's `lastSelfEvent` recency (#26530).
 
 **Assignment (current code).** `PlatformEvent` carries a `sequenceNumber`,
 defaulting to `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
@@ -146,6 +147,33 @@ inherit terminal from, so it fell to the no-parent branch and was assigned
 — terminal, not round 1, whenever the pending round is greater than 1 — makes the
 frontier correct on either key.
 
+### Why `lastSelfEvent` is safe on the sequence number
+
+The rework gates the comparison on `EventOrigin`
+(`consensus-model/.../event/EventOrigin.java`), so two events are only ever ranked
+by sequence number when both were numbered in the same orphan-buffer epoch
+(`TipsetEventCreator.registerEvent`). Three cases, one per origin of the held
+event:
+
+- **`STORAGE`** — both events came from PCES replay. `STORAGE` is stamped only by
+  `PcesFileIterator` (`consensus-pces-impl/.../common/PcesFileIterator.java`), and
+  replay is flushed through the pipeline before gossip starts (RUL-002,
+  `PcesReplayer.replayPces`), so replay is a single epoch and the highest sequence
+  number is the graph-latest self event.
+- **`RUNTIME`** — the node created the held event, so nothing observed can be
+  higher in the graph. It is never displaced; `maybeCreateEvent` advances it
+  directly.
+- **`GOSSIP`** — reachable only when PCES was lost from disk, since every gossiped
+  self event is persisted first and therefore replayed. The node relearns its own
+  events through gossip during `OBSERVING` (ADR-004); the orphan buffer releases a
+  parent before its child, so within the epoch the sequence number climbs to the
+  last self event learned.
+
+A self event returned by gossip is therefore never ranked against a replayed or
+created one, which is what closes SCN-003: the re-received self-ancestor that
+carried a higher post-clear sequence number is now rejected on origin before its
+sequence number is consulted.
+
 ## Limitations
 
 The sequence number is **local to a node and non-deterministic across the
@@ -160,9 +188,15 @@ order, **not** a graph height: a structurally-low event received late gets a hig
 number. In particular the per-creator monotonicity does **not** survive a buffer
 clear — `clear()` (on reconnect) empties the parent maps but leaves the `AtomicLong`
 untouched, so a re-ingested older event is re-numbered *above* the copy released
-before the clear. This is why the `lastSelfEvent` conversion is gated on #26530
-(SCN-003): until that rework lands, a re-received self-ancestor would out-rank the
-latest self event and cause a branch.
+before the clear. A consumer that compares across a clear must establish that the
+two events share an epoch by some other means; `lastSelfEvent` does so with
+`EventOrigin`.
+
+The `lastSelfEvent` conversion carries one residual, inherited from ADR-004 rather
+than introduced here: a node that lost PCES from disk relearns its self events
+through gossip, and if a reconnect clears the buffer mid-relearn, a re-numbered
+self-ancestor can displace the held event. Disk-loss recovery is best-effort by
+decision (ADR-004), so this is bounded by that decision, not by this one.
 
 ## Consequences
 
@@ -178,10 +212,15 @@ latest self event and cause a branch.
 
 ### Negative
 
-- **Two conversions are gated on external fixes.** Until #26529 (threshold) and #26530 (`lastSelfEvent`) land, those
-  consumers stay on `nGen`, so `nGen` and the
+- **One conversion is gated on an external fix.** Until #26529 (threshold) lands,
+  that consumer stays on `nGen`, so `nGen` and the
   sequence number coexist in the meantime and a consumer that reads the wrong one,
   or compares the two, is a live hazard.
+- **`lastSelfEvent` now depends on `EventOrigin` carrying epoch information.** The
+  comparison is correct because `STORAGE` implies replay and replay is fenced off
+  from gossip by the flush (RUL-002) — a non-local argument that nothing in the
+  event creator enforces. A change to where an origin is stamped, or to the replay
+  ordering, would break the guarantee without touching `TipsetEventCreator`.
 
 ### Neutral
 
@@ -247,8 +286,13 @@ See **Decision** above.
   `ChildlessEventTracker.java` — advancement scoring, on the sequence number
   (#24991).
 - `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java` —
-  `registerEvent` keys `lastSelfEvent` recency on `nGen` today; converts to the
-  sequence number once #26530 reworks the tracking (SCN-003).
+  `registerEvent` keys `lastSelfEvent` recency on the sequence number, gated on
+  `EventOrigin` so the comparison never crosses an orphan-buffer epoch (#26530,
+  SCN-003).
+- `consensus-model/.../event/EventOrigin.java` — `GOSSIP` / `STORAGE` / `RUNTIME`,
+  the epoch discriminator the `lastSelfEvent` comparison relies on.
+- `consensus-pces-impl/.../common/PcesFileIterator.java` — stamps `STORAGE` on
+  replayed events; the only producer of that origin.
 - `consensus-hashgraph-impl/.../consensus/ConsensusImpl.java` — `round(x)` and its
   short-circuits; the no-parent branch that assigns `ROUND_FIRST` regardless of the
   pending round is the #26529 bug behind SCN-002. `ConsensusRounds`, `RoundElections` hold the threshold
@@ -264,10 +308,16 @@ See **Decision** above.
   pre-existing consensus-order `sequence`, renamed `consensusSequence`.
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, phrased in
   terms of sequence numbers.
-- Regression guards for the two reverted stages, kept until the prerequisites land:
+- Regression guards:
   `swirlds-cli/.../pcli/MinConsensusRelevantThresholdTest.java` (threshold, #26319,
-  SCN-002) and `consensus-otter-tests/.../otter/test/ReconnectTest.java`
-  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003).
+  SCN-002), kept until #26529 lands;
+  `consensus-otter-tests/.../otter/test/ReconnectTest.java`
+  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003); and
+  `consensus-event-creator-impl/.../tipset/TipsetEventCreatorTests.java`
+  (`gossipedSelfEventDoesNotDisplaceReplayedSelfEvent`,
+  `lastSelfEventUpdatedDuringPCESReplay`,
+  `lastSelfEventUpdatedWhileRelearningThroughGossip`, `lastSelfEventNotOverwritten`
+  — one per origin case of the `lastSelfEvent` comparison).
 - Issues:
   [#24618](https://github.com/hiero-ledger/hiero-consensus-node/issues/24618)
   (umbrella rationale and staged plan),
@@ -284,7 +334,7 @@ See **Decision** above.
   [#26529](https://github.com/hiero-ledger/hiero-consensus-node/issues/26529)
   (the `roundCreated` bug; prerequisite for the threshold conversion), and
   [#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)
-  (`lastSelfEvent` rework; prerequisite for the event-creator conversion).
+  (`lastSelfEvent` rework; the event-creator conversion, landed).
 
 ## Notes
 
@@ -301,3 +351,8 @@ See **Decision** above.
   the threshold-safety argument and INV-015; corrected the GUI claim (`nGen` is a
   rendering choice and value label, not a required graph height) — Kelly Greco
   (@poulok).
+- 2026-08-07 — the `lastSelfEvent` conversion landed (#26530). Moved that consumer
+  out of the migration table into the already-migrated list; added the
+  `lastSelfEvent` safety argument; recorded the `EventOrigin` dependency under
+  Negative consequences and the disk-loss residual under Limitations. The decision
+  itself is unchanged — one staged conversion completed — Kelly Greco (@poulok).
