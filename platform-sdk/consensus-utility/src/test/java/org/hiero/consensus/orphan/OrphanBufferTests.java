@@ -27,6 +27,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -249,7 +250,7 @@ class OrphanBufferTests {
                             "Invalid sequence number value {} assigned to event {}",
                             unorphanedEvent.getNGen(),
                             unorphanedEvent.getHash())
-                    .isGreaterThan(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
+                    .isGreaterThan(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
         }
     }
 

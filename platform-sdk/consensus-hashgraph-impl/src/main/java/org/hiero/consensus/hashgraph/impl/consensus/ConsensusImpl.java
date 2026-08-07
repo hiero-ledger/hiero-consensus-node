@@ -41,6 +41,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.roster.RosterLookup;
 
 /**
@@ -224,14 +225,18 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
-                .map(judge -> new Hash(judge.judgeHash()))
-                .collect(toSet());
+        // This if-check supports use of the GenesisPlatformStateCommand
+        // See ticket #26603 to rework this
+        if (!GenesisSnapshotFactory.newGenesisSnapshot().equals(snapshot)) {
+            final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
+                    .map(judge -> new Hash(judge.judgeHash()))
+                    .collect(toSet());
 
-        initJudges = new InitJudges(snapshot.round(), judgeHashes);
-        rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
-        numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
+            initJudges = new InitJudges(snapshot.round(), judgeHashes);
+            rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
+            numConsensus = snapshot.nextConsensusNumber();
+            lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
+        }
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -1144,11 +1149,19 @@ public class ConsensusImpl implements Consensus {
         }
 
         //
-        // if this event has no parents, then it's the first round
+        // if this event has no parents and we are deciding the first round even, this
+        // is a genesis event and has a round created of 1. if this event has no parents
+        // and we are deciding a later round, then it is not a descendant of any judge
+        // in the latest decided round and have a round of -infinity.
         //
         if (x.getAllParents().isEmpty()) {
-            x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
-            return x.getRoundCreated();
+            if (getFameDecidedBelow() == ConsensusConstants.ROUND_FIRST) {
+                x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
+                return x.getRoundCreated();
+            } else {
+                x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
+                return ConsensusConstants.ROUND_NEGATIVE_INFINITY;
+            }
         }
 
         long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;

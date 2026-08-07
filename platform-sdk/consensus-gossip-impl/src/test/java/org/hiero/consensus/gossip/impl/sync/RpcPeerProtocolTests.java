@@ -207,9 +207,11 @@ public class RpcPeerProtocolTests {
             // this time should be few times bigger than sum of all the delays in the methods above, to allow few syncs
             // to happen between disconnections
             Thread.sleep(100);
-            if (lastConnection != null) {
-                lastConnection.disconnect();
-                otherConnection.disconnect();
+            synchronized (this) {
+                if (lastConnection != null) {
+                    lastConnection.disconnect();
+                    otherConnection.disconnect();
+                }
             }
             if (foundException != null) {
                 throw foundException;
@@ -218,8 +220,10 @@ public class RpcPeerProtocolTests {
 
         running.set(false);
         if (lastConnection != null) {
-            lastConnection.disconnect();
-            otherConnection.disconnect();
+            synchronized (this) {
+                lastConnection.disconnect();
+                otherConnection.disconnect();
+            }
         }
         Thread.sleep(100);
         final long noSyncTime = time.currentTimeMillis() - lastSentSync;
