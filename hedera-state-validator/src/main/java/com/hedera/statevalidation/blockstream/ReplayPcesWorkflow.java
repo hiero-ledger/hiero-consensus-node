@@ -27,8 +27,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -243,6 +245,12 @@ public final class ReplayPcesWorkflow {
             //     capturedFinalState with the final hashed round. ---
             buildingBlocks.pipelineFlusher().flushPrimaryPipeline();
 
+            // The last block(s) are finalized asynchronously: block proofs (and the .mf completion markers) are
+            // written from the signing callback, which flushPrimaryPipeline() does NOT wait for. Before we write
+            // the state and destroy the platform, wait until every complete block file has its .mf marker and no
+            // pending-proof (.pnd.json) files remain, so the block-stream output is valid for comparison.
+            awaitBlockFinalization(outDir.resolve("blockStreams"), BLOCK_FINALIZE_TIMEOUT);
+
             // --- Write the exact final replayed state, synchronously, to the output directory ---
             final long resultRound = writeFinalState(
                     capturedFinalState.getAndSet(null),
@@ -318,8 +326,8 @@ public final class ReplayPcesWorkflow {
             final Path destination = outDir.resolve(Long.toString(round));
             log.info("Writing final replayed state for round {} to {}", round, destination);
 
-            // writeSignedStateToDisk creates the target directory (through a temp dir + atomic rename),
-            // deriving the round subdirectory under the given base directory, and marks the reason.
+            // writeSignedStateToDisk atomically creates the exact destination directory; `destination` already
+            // includes the selected round (<out>/<round>).
             SignedStateFileWriter.writeSignedStateToDisk(
                     platformConfig,
                     fileSystemManager,
@@ -404,6 +412,80 @@ public final class ReplayPcesWorkflow {
     private static boolean containsPcesFiles(@NonNull final Path dir) throws IOException {
         try (final Stream<Path> files = Files.list(dir)) {
             return files.anyMatch(p -> p.getFileName().toString().endsWith(".pces"));
+        }
+    }
+
+    private static final Duration BLOCK_FINALIZE_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration BLOCK_FINALIZE_POLL = Duration.ofMillis(200);
+
+    /**
+     * Waits until all block files under {@code blockStreamsDir} are finalized: every {@code .blk.gz}
+     * (or {@code .blk}) has a sibling {@code .mf} marker and no {@code .pnd.json} pending-proof files
+     * remain. Block proofs and their markers are written asynchronously from the signing callback after
+     * the wiring pipeline is flushed, so this closes the race before the state is written and the platform
+     * is destroyed. Times out (rather than hanging) if a signature never completes.
+     */
+    private static void awaitBlockFinalization(@NonNull final Path blockStreamsDir, @NonNull final Duration timeout) {
+        final long deadline = System.nanoTime() + timeout.toNanos();
+        while (true) {
+            final Optional<String> pending = firstUnfinalized(blockStreamsDir);
+            if (pending.isEmpty()) {
+                log.info("All block files finalized under {}", blockStreamsDir);
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                log.warn(
+                        "Timed out after {} waiting for block finalization under {}; first unfinalized: {}. "
+                                + "The final block stream may be incomplete (missing proof/.mf marker).",
+                        timeout,
+                        blockStreamsDir,
+                        pending.get());
+                return;
+            }
+            try {
+                Thread.sleep(BLOCK_FINALIZE_POLL.toMillis());
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while awaiting block finalization", e);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Returns a description of the first block file that is not yet finalized (a .blk/.blk.gz without a
+     * sibling .mf, or a leftover .pnd.json), or empty if all blocks are finalized. Searches the
+     * node-scoped subdirectory tree under blockStreamsDir.
+     */
+    private static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
+        if (!Files.isDirectory(blockStreamsDir)) {
+            // No block output produced yet (e.g. nothing replayed) — nothing to wait for.
+            return Optional.empty();
+        }
+        try (final Stream<Path> files = Files.walk(blockStreamsDir)) {
+            return files.filter(Files::isRegularFile)
+                    .map(Path::toString)
+                    .filter(name -> {
+                        // A pending-proof json means a block is still awaiting its proof.
+                        if (name.endsWith(".pnd.json") || name.endsWith(".pnd.gz") || name.endsWith(".pnd")) {
+                            return true;
+                        }
+                        // A complete block file without its .mf marker is not finalized yet.
+                        if (name.endsWith(".blk.gz")) {
+                            return !Files.exists(
+                                    Path.of(name.substring(0, name.length() - ".blk.gz".length()) + ".mf"));
+                        }
+                        if (name.endsWith(".blk")) {
+                            return !Files.exists(Path.of(name.substring(0, name.length() - ".blk".length()) + ".mf"));
+                        }
+                        return false;
+                    })
+                    .findFirst();
+        } catch (final IOException e) {
+            log.warn("Error scanning block output for finalization under {}", blockStreamsDir, e);
+            // On scan error, don't block forever — treat as "can't confirm"; caller's timeout still applies
+            // on subsequent iterations. Return empty to avoid a tight error loop.
+            return Optional.empty();
         }
     }
 }

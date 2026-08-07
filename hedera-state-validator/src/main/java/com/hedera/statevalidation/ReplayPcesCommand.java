@@ -77,7 +77,8 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     @Option(
             names = {"-es", "--event-stream-name"},
-            description = "Consensus event stream name (e.g. 0.0.3). Names an output directory only. Default = 0.0.3")
+            description = "Consensus event stream name (e.g. 0.0.3). Internal platform label only; does not "
+                    + "affect replay correctness or the output state path. Default = 0.0.3")
     private void setConsensusEventStreamName(final String name) {
         this.consensusEventStreamName = name;
     }
@@ -92,10 +93,9 @@ public class ReplayPcesCommand implements Callable<Integer> {
     @Option(
             names = {"-t", "--target-round"},
             required = true,
-            description = "The round whose resulting state is written as the output snapshot. The full PCES "
+            description = "The round whose resulting state is retained as the output snapshot. The full PCES "
                     + "stream is still replayed (decision-margin events past this round are required to bring "
-                    + "this round to consensus), but only this round's state is retained. Default = write the "
-                    + "latest round reached.")
+                    + "this round to consensus), and blocks for later rounds may still be generated. Required.")
     private void setTargetRound(final long targetRound) {
         this.targetRound = targetRound;
     }

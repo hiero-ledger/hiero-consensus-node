@@ -678,22 +678,25 @@ the resulting state and block hashes against the originals.
 ### Usage
 
 ```shell
-java -jar ./validator-<version>.jar <path-to-state-round> replay-pces \
-  --pces-dir <path-to-pces-files> \
-  --target-round <round> \
-  [--out <output-dir>] \
-  [--self-id <id>] \
-  [--event-stream-name <name>] \
-  [--force-mock-signatures=<true|false>]
+java -jar ./validator-<version>.jar replay-pces \
+     --state-dir <path-to-state-round> \
+     --pces-dir <path-to-pces-files> \
+     --target-round <round> \
+     [--out <output-dir>] \
+     [--self-id <id>] \
+     [--event-stream-name <name>] \
+     [--force-mock-signatures=<true|false>]
 ```
 
 #### Example
 
 ```shell
-java -jar ./validator-<version>.jar  ./211155071 replay-pces \
-  --pces-dir ./out/pces-211155071-211422945 \
-  --out ./replay-out \
-  --self-id 0
+java -jar ./validator-<version>.jar replay-pces \
+      --state-dir ./211155071 \
+      --pces-dir ./out/pces-211155071-211422945 \
+      --target-round 211422945 \
+      --out ./replay-out \
+      --self-id 0
 ```
 
 ### Options
@@ -706,23 +709,27 @@ java -jar ./validator-<version>.jar  ./211155071 replay-pces \
   node-id-subdirectory layout produced by `blocks-to-pces` — the command locates the files
   automatically and stages them into the database directory the platform scans at startup.
 - `--out` (or `-o`) — Output directory for the resulting state snapshot. The snapshot is written
-  to `<out>/<round>/`, where `<round>` is the resulting state's round number. This directory can
-  be passed directly as `--state-dir` to a subsequent `replay-pces` run. Default = `./replay-out`.
+  to `<out>/<round>/`, where `<round>` is the retained round. This directory can be passed directly
+  as `--state-dir` to a subsequent `replay-pces` run, or to `diff` / `sorted-diff`. Default = `./replay-out`.
 - `--self-id` (or `-id`) — Node id to run as. Must match the node id the PCES files were
   generated for (default 0 in `blocks-to-pces`). Default = 0.
 - `--event-stream-name` (or `-es`) — Consensus event stream name (e.g. `0.0.3`). Internal platform
   label only; does not affect replay correctness or the output path. Default = `0.0.3`.
 - `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
   real hinTS. No live TSS network required. Default = `true`.
-- `--target-round` (or `-t`) — The round to advance the state to. Must be less than or equal
-  to the last round in the PCES stream. Required.
+- `--target-round` (or `-t`) — The round whose state is retained as the output snapshot (required).
+  The full PCES stream is still replayed and may generate blocks for later rounds; only this round's
+  state is kept. A freeze within the replayed range halts the platform at the freeze round — if the
+  target is before the freeze it is captured when reached; if the target is at or after the freeze it
+  is never reached (replay to the freeze round and resume from the freeze state).
 
 ### Output
 
-The resulting state snapshot is written to `<out>/<round>/` (e.g. `./replay-out/211422945/`), where
-`<round>` is the round of the resulting state. The directory contents are a standard saved-state
-snapshot and can be used directly as the `--state-dir` of a later `replay-pces` or as input to
-`diff` / `sorted-diff`.
+The output snapshot contains the state produced at `--target-round`, written to `<out>/<round>/`.
+Replay continues through the remaining PCES events so the complete expected block set is generated
+(block files land under `<out>/blockStreams/block-<nodeAccount>/`). To validate, compare the output
+snapshot against the original production state from the same target round (e.g. `diff` /
+`sorted-diff`, or compare `hashInfo.txt`).
 
 ### Notes
 
