@@ -108,12 +108,6 @@ public final class Tc01OrdinaryPayerDeletedTargetCreateTest {
                         .isEqualTo(WHALE_STAKE)));
     }
 
-    private static com.hedera.services.bdd.spec.HapiSpecOperation triggerBoundary(@NonNull final String payer) {
-        return cryptoTransfer(tinyBarsFromTo(payer, FUNDING, 1L))
-                .payingWith(payer)
-                .signedBy(payer);
-    }
-
     private static StakingNodeInfo nodeInfo(@NonNull final HapiSpec spec) {
         final var info = spec.embeddedStakingInfosOrThrow()
                 .get(EntityNumber.newBuilder().number(NODE).build());
