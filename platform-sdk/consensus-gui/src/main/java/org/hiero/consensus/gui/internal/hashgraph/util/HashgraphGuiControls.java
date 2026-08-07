@@ -183,7 +183,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n               hashgraphInfoID  "
                         + eventInfo.getHashgraph().getHashgraphInfoID();
                 str += "\n                   timeCreated  " + eventInfo.getTimeCreated();
-                str += "\n                       creator  " + eventInfo.getCreator();
+                str += "\n                       creator  " + eventInfo.getCreatorIndex();
                 str += "\n                    birthRound  " + eventInfo.getBirthRound();
                 str += "\n                          coin  " + eventInfo.getCoin();
                 str += "\n                 parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());

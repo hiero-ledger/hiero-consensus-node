@@ -247,7 +247,7 @@ public class TestHashgraphInfo {
         // payload skipped because it doesn't affect consensus and has no simple way to put in a CSV
         line.append(",").append(eventInfo.getTimeCreated().getEpochSecond());
         line.append(",").append(eventInfo.getTimeCreated().getNano());
-        line.append(",").append(eventInfo.getCreator());
+        line.append(",").append(eventInfo.getCreatorNodeID());
         line.append(",").append(eventInfo.getBirthRound());
         line.append(",").append(eventInfo.getCoin());
         appendEvents(line, eventInfo.getParentsSigned());
@@ -264,6 +264,7 @@ public class TestHashgraphInfo {
         HashgraphInfo h = eventInfo.getHashgraph();
         line.append(EVENT_INFO_TYPE);
         line.append(",").append(eventID(eventInfo));
+        line.append(",").append(eventInfo.getCreatorIndex());
         line.append(",").append(eventID(eventInfo.getSelfParent()));
         line.append(",").append(eventInfo.getMaxJudgeRound());
         appendEvents(line, h.getParents().toArray(EventInfo[]::new));
@@ -405,7 +406,7 @@ public class TestHashgraphInfo {
                         random.nextInt(), // int coin
                         parents, // EventInfo[] parents
                         null); // Object payload
-                lastEvent[(int)roundInfo.nodes()[eventInfo.getCreator()]] = eventInfo;
+                //lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
                 mapIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEvents.add(eventInfo);
                 writeEventSigned(out, eventInfo);
@@ -426,10 +427,14 @@ public class TestHashgraphInfo {
             }
 
         } catch (Exception e) {
-            System.out.println("ERROR: while writing " + outputFile + " - " + e);
+            StringBuilder err = new StringBuilder("ERROR: while writing " + outputFile + "\n - " + e + "\n");
+            //System.out.println("ERROR: while writing " + outputFile + "\n - " + e);
             for (StackTraceElement line : e.getStackTrace()) {
-                System.out.println(line.toString());
+                err.append(line.getLineNumber()).append(" ").append(line.toString()).append("\n");
+                //System.out.println(line.getLineNumber() + " " + line.toString());
             }
+            String str = err.toString();
+            System.out.println(str);
             return;
         }
 
