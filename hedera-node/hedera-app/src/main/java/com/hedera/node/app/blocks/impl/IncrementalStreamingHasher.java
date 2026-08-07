@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.nio.file.Files;
@@ -14,7 +14,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * /**
  * A memory-efficient Merkle tree hasher that computes root hashes in a streaming fashion.
  *
  * <p>This implementation follows the Streaming Binary Merkle Tree algorithm from the Block &amp; State
@@ -119,27 +118,28 @@ public class IncrementalStreamingHasher {
      *
      * <p>Time complexity: O(log n) where n is the leaf count.
      *
-     * <p>For an empty tree (no leaves added), this method returns the predefined
-     * {@link BlockStreamManager#HASH_OF_ZERO} which is {@code sha384Hash(new byte[]{0x00})}.
+     * <p>A tree with no leaves has no root hash, and this method returns {@code null} to say so. That is the
+     * representation callers actually want: an empty subtree is omitted from the block merkle tree entirely
+     * rather than hashed in as a placeholder, and it is encoded as an absent (zero-length) {@code bytes} field
+     * wherever a root hash is persisted or streamed. Returning a real-looking 48-byte value here would only
+     * force every caller to recognize and undo it.
      *
-     * @return the 48-byte SHA-384 Merkle tree root hash, or {@link BlockStreamManager#HASH_OF_ZERO_BYTES}
-     *         if no leaves have been added
+     * @return the 48-byte SHA-384 Merkle tree root hash, or {@code null} if no leaves have been added
      */
-    public byte[] computeRootHash() {
+    public @Nullable Bytes computeRootHash() {
         if (hashList.isEmpty()) {
-            // This value is precomputed as the hash of an empty tree; therefore it should _not_ be hashed as a leaf
-            return BlockStreamManager.HASH_OF_ZERO_BYTES;
+            return null;
         }
         if (hashList.size() == 1) {
             // This value should already have been hashed as a leaf, and therefore should _not_ be re-hashed
-            return hashList.getFirst();
+            return Bytes.wrap(hashList.getFirst());
         }
 
         byte[] merkleRootHash = hashList.getLast();
         for (int i = hashList.size() - 2; i >= 0; i--) {
             merkleRootHash = hashInternalNode(hashList.get(i), merkleRootHash);
         }
-        return merkleRootHash;
+        return Bytes.wrap(merkleRootHash);
     }
 
     /**
@@ -161,6 +161,15 @@ public class IncrementalStreamingHasher {
      */
     public long leafCount() {
         return leafCount;
+    }
+
+    /**
+     * Returns whether no leaves have been added to the tree yet.
+     *
+     * @return true if the tree has no leaves
+     */
+    public boolean isEmpty() {
+        return leafCount == 0;
     }
 
     /**

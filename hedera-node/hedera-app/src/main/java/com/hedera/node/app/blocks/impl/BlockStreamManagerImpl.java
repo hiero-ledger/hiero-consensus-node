@@ -376,7 +376,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo);
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+        if (!previousBlockHashesUpdated) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
@@ -412,7 +412,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .map(Bytes::toByteArray)
                         .toList(),
                 blockStreamInfo.intermediateBlockRootsLeafCount());
-        final var allPrevBlocksHash = Bytes.wrap(prevBlocksHasher.computeRootHash());
+        // Not seeded with prevBlockHash here, at block 0 or otherwise. init() already seeds the genesis
+        // HASH_OF_ZERO placeholder into this tree, so block 0 persists an intermediateBlockRootsLeafCount of 1
+        // and the rebuild above recovers that leaf from state. Seeding it again would count the placeholder
+        // twice and make this reconstruction disagree with the root hash the network published for block 0,
+        // diverging any node that restarts from a block-0 boundary snapshot.
+        final var allPrevBlocksHash = prevBlocksHasher.computeRootHash();
 
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
         // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
@@ -433,17 +438,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
                 .build();
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
-        final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
+        // Non-null: a leaf was just added above, so this subtree is never empty here.
+        final var lastBlockFinalStateChangesHash = requireNonNull(stateChangesHasher.computeRootHash());
 
+        // Branches 2 and 7 are recomputed here rather than read back: this method rebuilds a hasher for each
+        // one -- branch 2 from the persisted intermediate block roots, branch 7 from the persisted penultimate
+        // roots plus the final state change reconstructed above -- so their root hashes come straight off
+        // computeRootHash(), which is null when a subtree has no leaves.
+        //
+        // Branches 4, 5, 6 and 8 have no hasher state to rebuild from; BlockStreamInfo keeps only their
+        // finished root hash. An absent subtree therefore arrives as the zero-length field it was written as,
+        // and presentSubtreeHash turns that back into null.
         return combine(
                         prevBlockHash,
                         allPrevBlocksHash,
                         blockStreamInfo.startOfBlockStateHash(),
-                        blockStreamInfo.consensusHeaderRootHash(),
-                        blockStreamInfo.inputTreeRootHash(),
-                        blockStreamInfo.outputItemRootHash(),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.consensusHeaderRootHash()),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.inputTreeRootHash()),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.outputItemRootHash()),
                         lastBlockFinalStateChangesHash,
-                        blockStreamInfo.traceDataRootHash(),
+                        BlockImplUtils.presentSubtreeHash(blockStreamInfo.traceDataRootHash()),
                         blockStreamInfo.blockTimeOrThrow())
                 .blockRootHash();
     }
@@ -743,18 +757,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Branch 1: lastBlockHash
             // Branch 2: previous block hashes root hash
             // Branch 3: blockStartStateHash
+            // Branches 4, 5, 6 and 8 are each null if that subtree had no leaves at all this block. They are
+            // both persisted into BlockStreamInfo below and fed into the block root hash; in the tree a null
+            // branch is omitted, and in state PBJ writes it as a zero-length field.
             // Branch 4 final hash:
-            final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
+            final var consensusHeaderHash = consensusHeaderHasher.computeRootHash();
             // Branch 5 final hash:
-            final var inputsHash = Bytes.wrap(inputTreeHasher.computeRootHash());
+            final var inputsHash = inputTreeHasher.computeRootHash();
             // Branch 6 final hash:
-            final var outputsHash = Bytes.wrap(outputTreeHasher.computeRootHash());
+            final var outputsHash = outputTreeHasher.computeRootHash();
             // Branch 7 (penultimate status only because there will be one more state change when the block stream info
             // object is stored)
             final var interimStateChanges = stateChangesHasher.intermediateHashingState();
             final var interimStateChangeLeaves = stateChangesHasher.leafCount();
             // Branch 8 final hash:
-            final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+            final var traceDataHash = traceDataHasher.computeRootHash();
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
@@ -785,9 +802,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
-            final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
+            final var stateChangesHash = stateChangesHasher.computeRootHash();
 
-            final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+            // Null for block 0 and for the first block after the wrapped-record cutover, where no earlier block
+            // root has been folded in yet. Omitted from the tree, and written to the footer as absent.
+            final var prevBlockRootsHash = previousBlockHashes.computeRootHash();
 
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
@@ -1646,34 +1665,71 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
      * in the case of the genesis block, this value should be {@link BlockStreamManager#HASH_OF_ZERO}. For
      * all other blocks, it should be the actual previous block's root hash.
+     * <p>
+     * Branches 1 and 3 ({@code prevBlockHash}, {@code startingStateHash}) always represent a real value, even
+     * at genesis when that value happens to be {@link BlockStreamManager#HASH_OF_ZERO}, so they are never
+     * omitted from the tree. The other six branches are roots of subtrees that may have no leaves at all (e.g.
+     * a block with no trace data); such a branch is omitted from the tree entirely&mdash;rather than hashed in
+     * as a placeholder value&mdash;and the internal node above it is hashed with only its remaining child, the
+     * same "incrementally collapsed" treatment already used for the reserved roots 9-16 below.
+     * <p>
+     * This describes the shape of a <i>block stream block</i> only. Wrapped record blocks are assembled by
+     * {@code BlockRecordManagerImpl#computeWrappedRecordBlockRootHash} and use a different shape: they carry no
+     * start-of-block state hash, consensus header, inputs, state changes, or trace data, so branches 3, 4, 5, 7,
+     * and 8 are all omitted and only branches 1, 2, and 6 can be present. That branch 3 is <b>always</b> present
+     * here and <b>never</b> present there is load-bearing, not incidental: it makes depth4Node1 a binary node for
+     * every block stream block and a single-child node for every wrapped record block, so the two kinds of block
+     * can never produce a colliding root hash.
+     * <p>
+     * One consequence of omitting a branch is that any {@code BlockFooter} field carrying that branch's value is
+     * no longer committed to by the block root hash&mdash;{@code startOfBlockStateRootHash} for every wrapped
+     * record block, and {@code rootHashOfAllBlockHashesTree} whenever branch 2 is empty (block 0, and the first
+     * wrapped record block). Those fields remain independently recomputable by a verifier, but they are not
+     * authenticated by the root hash for those blocks.
+     * <p>
+     * Presence for those six branches is a caller-supplied {@code @Nullable} value rather than something this
+     * method derives from the hash bytes themselves. Callers that hold the originating
+     * {@link IncrementalStreamingHasher} get that null straight from
+     * {@link IncrementalStreamingHasher#computeRootHash()}; only callers left with a bare persisted root
+     * hash need {@link BlockImplUtils#presentSubtreeHash(Bytes)} to recover it.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
      */
     private static RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
-            @NonNull final Bytes prevBlockRootsHash,
+            @Nullable final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
-            @NonNull final Bytes consensusHeaderHash,
-            @NonNull final Bytes inputsHash,
-            @NonNull final Bytes outputsHash,
-            @NonNull final Bytes stateChangesHash,
-            @NonNull final Bytes traceDataHash,
+            @Nullable final Bytes consensusHeaderHash,
+            @Nullable final Bytes inputsHash,
+            @Nullable final Bytes outputsHash,
+            @Nullable final Bytes stateChangesHash,
+            @Nullable final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
 
-        // Compute depth five hashes
-        final var depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, prevBlockRootsHash);
-        final var depth5Node2 = BlockImplUtils.hashInternalNode(startingStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var depth5Node4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
+        final var branch2 = prevBlockRootsHash;
+        final var branch4 = consensusHeaderHash;
+        final var branch5 = inputsHash;
+        final var branch6 = outputsHash;
+        final var branch7 = stateChangesHash;
+        final var branch8 = traceDataHash;
 
-        // Compute depth four hashes
-        final var depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+        // Compute depth five hashes. Depth5Node1 and depth5Node2 are never absent, since branches 1 and 3 are
+        // always present; depth5Node3 and depth5Node4 may each collapse to a single child, or be entirely
+        // absent if both of their branches are empty.
+        final var depth5Node1 = BlockImplUtils.combineChildren(prevBlockHash, branch2);
+        final var depth5Node2 = BlockImplUtils.combineChildren(startingStateHash, branch4);
+        final var depth5Node3 = BlockImplUtils.combineChildren(branch5, branch6);
+        final var depth5Node4 = BlockImplUtils.combineChildren(branch7, branch8);
+
+        // Compute depth four hashes. Depth4Node1 is never absent (depth5Node1 never is); depth4Node2 may be
+        // absent if both depth5Node3 and depth5Node4 are.
+        final var depth4Node1 = BlockImplUtils.combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = BlockImplUtils.combineChildren(depth5Node3, depth5Node4);
 
         // Compute depth three hash (there's no node 2 hash as the reserved subroots aren't encoded anywhere in the
-        // tree)
-        final var depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+        // tree). Never absent, since depth4Node1 never is.
+        final var depth3Node1 = requireNonNull(BlockImplUtils.combineChildren(depth4Node1, depth4Node2));
 
         // Compute depth two hashes (timestamp + last right sibling)
         final var tsBytes = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
@@ -1685,12 +1741,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Compute the block's root hash (depth 1)
         final var rootHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
 
+        // A null sibling hash below denotes a unary internal node: that level's sibling branch had no leaves and
+        // was omitted from the tree, so the parent was single-child-hashed from the path child alone. PBJ stores
+        // a null bytes field as Bytes.EMPTY, which is how the sentinel is encoded on the wire.
         return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
-            // Level 6 first sibling (right child)
-            new MerkleSiblingHash(false, prevBlockRootsHash),
-            // Level 5 first sibling (right child)
-            new MerkleSiblingHash(false, depth5Node2),
-            // Level 4 first sibling (right child)
+            // Level 6 first sibling (right child); null means branch 2 had no leaves, and the level below was
+            // single-child-hashed from prevBlockHash alone
+            new MerkleSiblingHash(false, branch2),
+            // Level 5 first sibling (right child); always present, since branch 3 always is
+            new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
+            // Level 4 first sibling (right child); null means depth5Node3 and depth5Node4 were both absent, and
+            // depth3Node1 was single-child-hashed from depth4Node1 alone
             new MerkleSiblingHash(false, depth4Node2)
             // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
             // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -214,5 +216,53 @@ class BlockImplUtilsTest {
         final var actualInternalMixedPrefix = BlockImplUtils.hashInternalNode(data, data.toByteArray());
         // Only equality check needed, as previous checks already guarantee the no prefix case is different
         assertEquals(computedInternalNodePrefix, actualInternalMixedPrefix);
+    }
+
+    @Test
+    void presentSubtreeHashTreatsAnAbsentFieldAsAbsent() {
+        assertNull(BlockImplUtils.presentSubtreeHash(Bytes.EMPTY));
+    }
+
+    @Test
+    void presentSubtreeHashTreatsHashOfZeroAsAPresentRealHash() {
+        // HASH_OF_ZERO is a real 48-byte hash and no longer doubles as the empty-subtree sentinel, so it must
+        // round-trip as present. It is still hashed in as a real value for branches 1 and 3 at genesis.
+        assertEquals(HASH_OF_ZERO, BlockImplUtils.presentSubtreeHash(HASH_OF_ZERO));
+    }
+
+    @Test
+    void presentSubtreeHashTreatsOtherValuesAsPresent() {
+        final Bytes realHash = Bytes.wrap(new byte[] {1, 2, 3});
+        assertEquals(realHash, BlockImplUtils.presentSubtreeHash(realHash));
+    }
+
+    @Test
+    void combineChildrenWithBothPresentHashesNormally() {
+        final Bytes left = Bytes.wrap(new byte[] {1});
+        final Bytes right = Bytes.wrap(new byte[] {2});
+        final var expected = BlockImplUtils.hashInternalNode(left, right);
+
+        assertEquals(expected, BlockImplUtils.combineChildren(left, right));
+    }
+
+    @Test
+    void combineChildrenWithOnlyLeftPresentUsesSingleChildWrap() {
+        final Bytes left = Bytes.wrap(new byte[] {1});
+        final var expected = BlockImplUtils.hashInternalNodeSingleChild(left);
+
+        assertEquals(expected, BlockImplUtils.combineChildren(left, null));
+    }
+
+    @Test
+    void combineChildrenWithOnlyRightPresentUsesSingleChildWrap() {
+        final Bytes right = Bytes.wrap(new byte[] {2});
+        final var expected = BlockImplUtils.hashInternalNodeSingleChild(right);
+
+        assertEquals(expected, BlockImplUtils.combineChildren(null, right));
+    }
+
+    @Test
+    void combineChildrenWithBothAbsentIsAbsent() {
+        assertNull(BlockImplUtils.combineChildren(null, null));
     }
 }

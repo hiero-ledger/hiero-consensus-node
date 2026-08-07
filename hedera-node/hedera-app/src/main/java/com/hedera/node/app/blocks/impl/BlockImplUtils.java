@@ -143,4 +143,46 @@ public class BlockImplUtils {
             @NonNull final MessageDigest digest, @NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
         return hashOfAll(digest, INTERNAL_NODE_PREFIX, leftHash, rightHash);
     }
+
+    /**
+     * Reads a persisted subtree root hash back into the {@code null}-means-absent form the hashing code works
+     * in, treating an absent (zero-length) field as a subtree that had no leaves.
+     * <p>
+     * A subtree with no leaves has no root hash, and {@link IncrementalStreamingHasher#computeRootHash()}
+     * returns {@code null} to say so; PBJ then stores that null {@code bytes} field as {@link Bytes#EMPTY}.
+     * This method is the inverse of that round trip, for the paths that read a bare persisted root hash with
+     * no accompanying leaf count (e.g. {@code BlockStreamInfo}'s per-tree root hashes,
+     * {@code WrappedRecordFileBlockHashes}). Wherever the originating hasher is still available, call
+     * {@link IncrementalStreamingHasher#computeRootHash()} instead and skip the round trip entirely.
+     * <p>
+     * Zero-length is not in the codomain of SHA-384, so no real root hash can collide with the absent
+     * encoding, and this translation is exact.
+     *
+     * @param subtreeRootHash the persisted subtree root hash, possibly absent
+     * @return the hash, or null if the subtree had no leaves
+     */
+    public static @Nullable Bytes presentSubtreeHash(@NonNull final Bytes subtreeRootHash) {
+        return subtreeRootHash.length() == 0 ? null : subtreeRootHash;
+    }
+
+    /**
+     * Combines two potentially-absent child hashes into their parent's hash, omitting either child that
+     * represents an empty subtree instead of hashing it in as a real value. If both children are absent, the
+     * parent itself is absent, and the pair it belongs to should in turn omit it.
+     *
+     * @param left the left child's hash, or null if that subtree has no leaves
+     * @param right the right child's hash, or null if that subtree has no leaves
+     * @return the parent's hash, or null if both children are absent
+     */
+    public static @Nullable Bytes combineChildren(@Nullable final Bytes left, @Nullable final Bytes right) {
+        if (left != null && right != null) {
+            return hashInternalNode(left, right);
+        } else if (left != null) {
+            return hashInternalNodeSingleChild(left);
+        } else if (right != null) {
+            return hashInternalNodeSingleChild(right);
+        } else {
+            return null;
+        }
+    }
 }

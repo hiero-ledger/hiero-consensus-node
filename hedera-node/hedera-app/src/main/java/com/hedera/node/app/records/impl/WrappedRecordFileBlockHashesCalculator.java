@@ -88,7 +88,8 @@ public final class WrappedRecordFileBlockHashesCalculator {
         final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
         hasher.addLeaf(headerItemBytes.toByteArray());
         hasher.addLeaf(recordFileItemBytes.toByteArray());
-        final Bytes outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
+        // Non-null: two leaves were added above (an empty recordStreamItems is rejected at the top of this method).
+        final Bytes outputItemsTreeRootHash = requireNonNull(hasher.computeRootHash());
 
         final var hashes =
                 new WrappedRecordFileBlockHashes(in.blockNumber(), consensusTimestampHash, outputItemsTreeRootHash);

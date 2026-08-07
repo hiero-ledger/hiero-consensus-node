@@ -36,6 +36,10 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
 
     /*
      * Typically there are four siblings per block, but in our case the right penultimate root (i.e. the right child of a block's root hash) is merely a composition of its left child hash, requiring no other inputs. <b>This must change if we ever use one of the reserved roots for anything.</b>
+     *
+     * This is a count of fixed sibling <i>slots</i>, not a count of real sibling hashes: any individual slot may
+     * itself carry a null-hash sentinel (rather than a real hash) if that level's sibling branch was an empty
+     * subtree omitted from the tree for a given block, in addition to the fixed reserved-roots omission above.
      */
     int NUM_SIBLINGS_PER_BLOCK = 3;
 

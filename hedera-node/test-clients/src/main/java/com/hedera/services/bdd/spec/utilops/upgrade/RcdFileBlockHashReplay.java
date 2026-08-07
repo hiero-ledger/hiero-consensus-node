@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.combineChildren;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNodeSingleChild;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.presentSubtreeHash;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -21,6 +22,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,7 +45,6 @@ public final class RcdFileBlockHashReplay {
     private static final Logger log = LogManager.getLogger(RcdFileBlockHashReplay.class);
 
     private static final int DEFAULT_MAX_SIDECAR_SIZE_BYTES = 256 * 1024 * 1024;
-    private static final Bytes EMPTY_INT_NODE = hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     private RcdFileBlockHashReplay() {}
 
@@ -158,7 +159,7 @@ public final class RcdFileBlockHashReplay {
             entriesByBlock.put(blockNumber, entry);
 
             // Compute block root hash via Merkle tree (independent of production code)
-            final var allPrevBlocksRootHash = Bytes.wrap(initialHasher.computeRootHash());
+            final var allPrevBlocksRootHash = initialHasher.computeRootHash();
             final var blockRootHash = computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry);
 
             // Update chain
@@ -180,19 +181,34 @@ public final class RcdFileBlockHashReplay {
     /**
      * Computes the wrapped record block root hash for a single block using the Merkle tree,
      * independent of the production implementation in {@code BlockRecordManagerImpl}.
+     * <p>
+     * Branch 2 ({@code allPrevBlocksRootHash}) arrives as a {@code @Nullable} value straight from its hasher,
+     * while branch 6 ({@code entry.outputItemsTreeRootHash()}) comes off a persisted
+     * {@code WrappedRecordFileBlockHashes} and so is read back through {@code presentSubtreeHash}, which maps
+     * the zero-length field an absent subtree was written as back to null.
      */
     static Bytes computeBlockRootHash(
             @NonNull final Bytes prevWrappedBlockHash,
-            @NonNull final Bytes allPrevBlocksRootHash,
+            @Nullable final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        final Bytes depth5Node1 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
-        final Bytes depth5Node2 = EMPTY_INT_NODE;
-        final Bytes depth5Node3 = hashInternalNode(HASH_OF_ZERO, entry.outputItemsTreeRootHash());
-        final Bytes depth5Node4 = EMPTY_INT_NODE;
+        // Branch 1 (prevWrappedBlockHash) is always present, even if literally HASH_OF_ZERO for the very first
+        // wrapped record block; branch 2 (allPrevBlocksRootHash) is absent if this is the first such block.
+        final var depth5Node1 = combineChildren(prevWrappedBlockHash, allPrevBlocksRootHash);
+        // Branches 3/4: wrapped record blocks carry no state hash or consensus header at all, so this pair is
+        // always fully absent from the tree.
+        final Bytes depth5Node2 = null;
+        // Branch 5: wrapped record blocks carry no input tree, so it's always absent. Branch 6 is absent only
+        // if the record file had no output items.
+        final var depth5Node3 = combineChildren(null, presentSubtreeHash(entry.outputItemsTreeRootHash()));
+        // Branches 7/8: wrapped record blocks carry no state changes or trace data, so this pair is always
+        // fully absent from the tree.
+        final Bytes depth5Node4 = null;
 
-        final Bytes depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final Bytes depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
-        final Bytes depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
+        // Depth4Node1 is never absent (depth5Node1 never is); depth4Node2 may be absent if the record file had
+        // no output items.
+        final var depth4Node1 = combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = combineChildren(depth5Node3, depth5Node4);
+        final Bytes depth3Node1 = requireNonNull(combineChildren(depth4Node1, depth4Node2));
 
         final Bytes depth2Node1 = entry.consensusTimestampHash();
         final Bytes depth2Node2 = hashInternalNodeSingleChild(depth3Node1);

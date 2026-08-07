@@ -134,13 +134,13 @@ class BlockStreamManagerImplTest {
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
     private static final Bytes FAKE_PATCH_RESTART_HASH = Bytes.fromHex(
-            "8a9b0805563ed5dd88091b8d923fc5c8f76c61077685420ac34bb0d4e8c842eb198f855b183c93d62e05b25cef3384f4");
+            "958f08433903dd638b36f8ffeddda9a8379fa585590cb824b01569e1dacf54cacbfd47036e61a41179d0ca258a6d8296");
     // Effective last block hash computed by the restart path from blockStreamInfoWith(resultHashes, CREATION_VERSION)
     private static final Bytes FAKE_NON_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
-            "b223b5f8979cf1baf604069566ae2342dad59cd3ad39671cbc443ff454f085b8016eec56a625d62ea5fe8712a32bb21d");
+            "0fb0f204f5232dcaffd67825a71f47b108c72dda1ee5c99a2e978f67cd5accaed1f2dd8427f2256f82d0c8639bea19ae");
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
     private static final Bytes FAKE_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
-            "817533f6ffc53bb220740b443aa5b8c0b00160a6028c152bbe1d9a8db0674fb86918349cfc423de388f0fa6286f7f675");
+            "a0c2ab3e3bb083acfdf81d269a4ba39a6f8cd3b9b371d93f424d4d6ddea23aeb1bf71ba2bea995325b61fbaeadb1c4e5");
     private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
     private static final Bytes NONZERO_PREV_BLOCK_HASH =
             BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
@@ -563,10 +563,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 Bytes.fromHex(
                         "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
 
@@ -1002,10 +1002,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 Bytes.fromHex(
                         "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);
         final var actualBlockInfo = infoRef.get();
@@ -1771,7 +1771,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void zeroHashNotAddedOnInit() {
+    void zeroHashSeededIntoPreviousBlockHashesOnInit() {
         // Given a 2-second block period
         givenSubjectWith(
                 1,
@@ -1810,10 +1810,15 @@ class BlockStreamManagerImplTest {
 
         // Verify the block was closed
         verify(aWriter).closeCompleteBlock();
-        // And that no zero hash was added to the BlockStreamInfo
+        // At genesis the HASH_OF_ZERO placeholder is seeded into the all-previous-block-hashes tree, exactly as
+        // it is used for branch 1, so block 0 carries a single-leaf tree rather than an empty one. Block 0's own
+        // root hash is only folded in afterwards, for block 1.
+        //
+        // This is what reconstructLastBlockHash rebuilds from on a restart at the block-0 boundary; if the two
+        // disagree, a restarting node re-derives a different hash for block 0 and diverges from the network.
         final var actualBlockInfo = infoRef.get();
-        assertEquals(Collections.emptyList(), actualBlockInfo.intermediatePreviousBlockRootHashes());
-        assertEquals(0, actualBlockInfo.intermediateBlockRootsLeafCount());
+        assertEquals(List.of(HASH_OF_ZERO), actualBlockInfo.intermediatePreviousBlockRootHashes());
+        assertEquals(1, actualBlockInfo.intermediateBlockRootsLeafCount());
     }
 
     @Test

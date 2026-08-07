@@ -379,7 +379,7 @@ public class WrappedRecordBlockHashMigration {
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
         for (final var recentWrappedRecordHashes : neededRecentWrappedRecords) {
-            final Bytes allPrevBlocksHash = Bytes.wrap(allPrevBlocksHasher.computeRootHash());
+            final Bytes allPrevBlocksHash = allPrevBlocksHasher.computeRootHash();
             final Bytes finalBlockHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
                     prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {

@@ -135,7 +135,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                         .toList(),
                 op.wrappedIntermediateBlockRootsLeafCount());
         for (final var queuedHashes : store.wrappedHashesInOrder()) {
-            final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
+            final var allPrevBlocksRootHash = hasher.computeRootHash();
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
                     previousWrappedRecordBlockRootHash,
                     allPrevBlocksRootHash,
@@ -149,7 +149,8 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                     queuedHashes.blockNumber(),
                     queuedHashes.consensusTimestampHash().toHex(),
                     queuedHashes.outputItemsTreeRootHash().toHex(),
-                    allPrevBlocksRootHash.toHex(),
+                    // Null for the very first wrapped record block, where no earlier block root exists yet
+                    allPrevBlocksRootHash == null ? "<absent>" : allPrevBlocksRootHash.toHex(),
                     blockRootHash.toHex());
             hasher.addNodeByHash(blockRootHash.toByteArray());
             previousWrappedRecordBlockRootHash = blockRootHash;

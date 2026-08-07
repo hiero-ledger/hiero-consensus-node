@@ -282,7 +282,11 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
         var previousBlockHash = HASH_OF_ZERO;
+        // Seeded with the genesis HASH_OF_ZERO placeholder, mirroring BlockStreamManagerImpl#init. The node
+        // treats that placeholder as a real leaf of the all-previous-blocks tree, so branch 2 is present for
+        // block 0; starting empty here would make block 0's branch 2 absent and produce a different root hash.
         var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        incrementalBlockHashes.addNodeByHash(HASH_OF_ZERO.toByteArray());
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
             final var blocks = blockEpochs.get(epochIndex);
@@ -404,7 +408,6 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         footer.startOfBlockStateRootHash(),
                         "Wrong start of block state hash for block #" + blockNumber);
 
-                final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
                 final var expectedRootAndSiblings = computeBlockHash(
                         firstConsensusTimestamp,
                         previousBlockHash,
@@ -413,7 +416,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         inputTreeHasher,
                         outputTreeHasher,
                         consensusHeaderHasher,
-                        finalStateChangesHash,
+                        stateChangesHasher,
                         traceDataHasher);
                 final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
                 final var persistedBlockHash = persistedBlockHashFrom(block);
@@ -1297,6 +1300,11 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
+    /**
+     * A null branch hash means that subtree had no leaves and is omitted from the tree rather than hashed in
+     * as a placeholder; {@link IncrementalStreamingHasher#computeRootHash()} returns null directly for
+     * that case, so no sentinel comparison is involved anywhere in this path.
+     */
     private static RootAndSiblingHashes computeBlockHash(
             @NonNull final Timestamp blockTimestamp,
             @NonNull final Bytes previousBlockHash,
@@ -1305,28 +1313,34 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             @NonNull final IncrementalStreamingHasher inputTreeHasher,
             @NonNull final IncrementalStreamingHasher outputTreeHasher,
             @NonNull final IncrementalStreamingHasher consensusHeaderHasher,
-            @NonNull final Bytes finalStateChangesHash,
+            @NonNull final IncrementalStreamingHasher stateChangesHasher,
             @NonNull final IncrementalStreamingHasher traceDataHasher) {
-        final var prevBlocksRootHash = Bytes.wrap(prevBlockRootsHasher.computeRootHash());
-        final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputTreeHash = Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+        final var prevBlocksRootHash = prevBlockRootsHasher.computeRootHash();
+        final var consensusHeaderHash = consensusHeaderHasher.computeRootHash();
+        final var inputTreeHash = inputTreeHasher.computeRootHash();
+        final var outputTreeHash = outputTreeHasher.computeRootHash();
+        final var traceDataHash = traceDataHasher.computeRootHash();
+        final var stateChangesHash = stateChangesHasher.computeRootHash();
 
-        final var depth5Node1 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
-        final var depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-        final var depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+        // Depth5Node1 and depth5Node2 are never absent, since previousBlockHash and startOfBlockStateHash are
+        // always present; depth5Node3 and depth5Node4 may each collapse to a single child, or be entirely
+        // absent if both of their branches are empty.
+        final var depth5Node1 = BlockImplUtils.combineChildren(previousBlockHash, prevBlocksRootHash);
+        final var depth5Node2 = BlockImplUtils.combineChildren(startOfBlockStateHash, consensusHeaderHash);
+        final var depth5Node3 = BlockImplUtils.combineChildren(inputTreeHash, outputTreeHash);
+        final var depth5Node4 = BlockImplUtils.combineChildren(stateChangesHash, traceDataHash);
+        final var depth4Node1 = BlockImplUtils.combineChildren(depth5Node1, depth5Node2);
+        final var depth4Node2 = BlockImplUtils.combineChildren(depth5Node3, depth5Node4);
+        final var depth3Node1 = requireNonNull(BlockImplUtils.combineChildren(depth4Node1, depth4Node2));
         final var depth2Node1 = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
         final var depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
         final var root = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
 
+        // A null sibling hash denotes a unary internal node at that level; PBJ stores a null bytes field as
+        // Bytes.EMPTY, which is how the sentinel is encoded on the wire.
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, depth5Node2),
+            new MerkleSiblingHash(false, requireNonNull(depth5Node2)),
             new MerkleSiblingHash(false, depth4Node2),
         });
     }

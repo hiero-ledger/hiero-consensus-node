@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
@@ -62,7 +63,7 @@ public class HashingBenchmark {
             final var hash = BlockImplUtils.hashLeaf(BlockItem.PROTOBUF.toBytes(item));
             leafHashes.add(hash.toByteArray());
         }
-        expectedAnswer = Bytes.wrap(
+        expectedAnswer = requireNonNull(
                 new IncrementalStreamingHasher(sha384DigestOrThrow(), leafHashes, numLeafHashes).computeRootHash());
     }
 
@@ -75,7 +76,7 @@ public class HashingBenchmark {
         for (final var hash : leafHashes) {
             subject.addLeaf(hash);
         }
-        final var rootHash = Bytes.wrap(subject.computeRootHash());
+        final var rootHash = requireNonNull(subject.computeRootHash());
         if (!rootHash.equals(expectedAnswer)) {
             throw new IllegalStateException("Expected " + expectedAnswer + " but got " + rootHash);
         }

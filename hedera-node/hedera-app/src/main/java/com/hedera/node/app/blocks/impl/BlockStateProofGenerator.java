@@ -23,21 +23,26 @@ import org.apache.commons.lang3.stream.Streams;
 public class BlockStateProofGenerator {
 
     /**
-     * Each intermediate block contributes: its Merkle siblings, a null-hash sentinel for the
-     * single-child internal node wrap, and its timestamp leaf hash
+     * Each intermediate block contributes: its {@code NUM_SIBLINGS_PER_BLOCK} Merkle sibling slots (any of which
+     * may itself already be a null-hash sentinel, if that level's branch was an empty subtree omitted from the
+     * tree), a trailing null-hash sentinel for the fixed depth3-to-depth2 single-child wrap, and its timestamp
+     * leaf hash
      */
     public static final int UNSIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 2;
     /**
-     * The signed block contributes: its Merkle siblings and a null-hash sentinel for the
-     * single-child internal node wrap (the timestamp lives in Merkle Path 1, not here)
+     * The signed block contributes: its {@code NUM_SIBLINGS_PER_BLOCK} Merkle sibling slots (any of which may
+     * itself already be a null-hash sentinel, per the same rule as {@link #UNSIGNED_BLOCK_SIBLING_COUNT}) and a
+     * trailing null-hash sentinel for the fixed depth3-to-depth2 single-child wrap (the timestamp lives in
+     * Merkle Path 1, not here)
      */
     public static final int SIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1;
 
     /**
      * Each block's state proof consists of exactly three Merkle paths: the timestamp of the signed block,
      * the block root hash + sibling hashes forming the path to the single-child internal node at the same
-     * level as the signed block's timestamp (encoded as a null-hash SiblingNode sentinel), and a trivial
-     * final parent path for the signed block's root
+     * level as the signed block's timestamp (encoded as a trailing null-hash SiblingNode sentinel, alongside
+     * any other sentinels among the sibling slots themselves), and a trivial final parent path for the signed
+     * block's root
      */
     public static final int EXPECTED_MERKLE_PATH_COUNT = 3;
 
@@ -116,8 +121,10 @@ public class BlockStateProofGenerator {
         final var mp1 = MerklePath.newBuilder().timestampLeaf(tsBytes).nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
 
         // Merkle Path 2: starting from the block-to-prove's root hash, enumerate sibling hashes for all
-        // subsequent blocks up through the signed block. A null-hash SiblingNode sentinel at the end encodes
-        // the single-child internal node wrapping (depth2Node2) for the signed block.
+        // subsequent blocks up through the signed block. A trailing null-hash SiblingNode sentinel encodes the
+        // fixed single-child internal node wrapping (depth2Node2) for the signed block; any of the enumerated
+        // sibling hashes themselves may also already be null-hash sentinels, if that level's branch was an
+        // empty subtree omitted from the tree for that particular block.
         MerklePath.Builder mp2 = MerklePath.newBuilder()
                 .hash(currentPendingBlock.blockHash())
                 .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
@@ -140,14 +147,19 @@ public class BlockStateProofGenerator {
                                         BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
             }
             for (final var s : block.siblingHashes()) {
-                siblings.add(SiblingNode.newBuilder()
-                        .isLeft(s.isFirst())
-                        .hash(s.siblingHash())
-                        .build());
+                // A null-hash sentinel (PBJ surfaces the null bytes field as zero-length) means this level's
+                // sibling branch was an empty subtree and was omitted from the tree entirely, so the verifier
+                // must apply a single-child wrap instead of combining with a real sibling here too.
+                siblings.add(
+                        s.siblingHash().length() == 0
+                                ? SiblingNode.newBuilder().build()
+                                : SiblingNode.newBuilder()
+                                        .isLeft(s.isFirst())
+                                        .hash(s.siblingHash())
+                                        .build());
             }
-            siblings.add(SiblingNode.newBuilder()
-                    .build()); // Add the single-child internal node (with null-hash sentinal) for loop's current block
-            // (s)
+            // Add the single-child internal node (a null-hash sentinel) for the loop's current block
+            siblings.add(SiblingNode.newBuilder().build());
             final var hashedTs = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
             siblings.add(SiblingNode.newBuilder().isLeft(true).hash(hashedTs).build());
         }
@@ -165,10 +177,13 @@ public class BlockStateProofGenerator {
                             BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
         }
         for (final var s : signedBlock.siblingHashes()) {
-            siblings.add(SiblingNode.newBuilder()
-                    .isLeft(s.isFirst())
-                    .hash(s.siblingHash())
-                    .build());
+            siblings.add(
+                    s.siblingHash().length() == 0
+                            ? SiblingNode.newBuilder().build()
+                            : SiblingNode.newBuilder()
+                                    .isLeft(s.isFirst())
+                                    .hash(s.siblingHash())
+                                    .build());
         }
         siblings.add(SiblingNode.newBuilder().build()); // null-hash sentinel
         mp2.siblings(siblings);

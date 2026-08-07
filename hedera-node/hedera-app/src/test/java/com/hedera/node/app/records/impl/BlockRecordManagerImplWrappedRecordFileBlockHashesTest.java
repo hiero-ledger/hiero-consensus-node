@@ -304,7 +304,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
             hasher.addLeaf(BlockItem.PROTOBUF.toBytes(headerItem).toByteArray());
             hasher.addLeaf(BlockItem.PROTOBUF.toBytes(recordFileBlockItem).toByteArray());
-            final Bytes expectedOutputRoot = Bytes.wrap(hasher.computeRootHash());
+            final Bytes expectedOutputRoot = requireNonNull(hasher.computeRootHash());
 
             assertArrayEquals(
                     expectedOutputRoot.toByteArray(),
