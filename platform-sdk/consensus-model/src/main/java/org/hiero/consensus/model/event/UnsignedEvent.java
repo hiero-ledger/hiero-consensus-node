@@ -2,13 +2,13 @@
 package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
@@ -36,7 +36,7 @@ public class UnsignedEvent implements Hashable {
     private final EventMetadata metadata;
 
     /** The parents of the event. */
-    private final List<EventDescriptor> parents;
+    private final List<EventDescriptorWrapper> parents;
 
     /**
      * Create a UnsignedEvent object
@@ -57,8 +57,7 @@ public class UnsignedEvent implements Hashable {
             final long coin) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
         this.metadata = new EventMetadata(creatorId, allParents, timeCreated, transactions, birthRound);
-        this.parents =
-                allParents.stream().map(EventDescriptorWrapper::eventDescriptor).toList();
+        this.parents = new ArrayList<>(allParents);
         this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), coin);
     }
 
@@ -110,7 +109,7 @@ public class UnsignedEvent implements Hashable {
      * @return list of parents
      */
     @NonNull
-    public List<EventDescriptor> getParents() {
+    public List<EventDescriptorWrapper> getParents() {
         return parents;
     }
 
