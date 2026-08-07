@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsStrin
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.FEES;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountForSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.isEthereumAccountCreatedForSpec;
@@ -76,7 +75,6 @@ import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
@@ -201,12 +199,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * on its {@link LeakyHapiTest#throttles()} attribute.
      */
     public static final ThreadLocal<String> THROTTLES_OVERRIDE = new ThreadLocal<>();
-    /**
-     * If set, a resource to load fee schedules from for this thread's next {@link HapiSpec} instance. Typically the
-     * {@link NetworkTargetingExtension} will bind this value to the thread prior to executing a test factory based
-     * on its {@link LeakyHapiTest#fees()} ()} attribute.
-     */
-    public static final ThreadLocal<String> FEES_OVERRIDE = new ThreadLocal<>();
 
     public static final ThreadLocal<TestLifecycle> TEST_LIFECYCLE = new ThreadLocal<>();
     public static final ThreadLocal<String> SPEC_NAME = new ThreadLocal<>();
@@ -262,7 +254,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private TxnFactory txnFactory;
     private KeyFactory keyFactory;
     private KeyGenerator keyGenerator = DEFAULT_KEY_GEN;
-    private FeeCalculator feeCalculator;
     private HapiSpecRegistry hapiRegistry;
     private FeesAndRatesProvider ratesProvider;
     private ThreadPoolExecutor finalizingExecutor;
@@ -313,8 +304,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * contents of the 0.0.111 system file after the spec completes.
      */
     @Nullable
-    private String feeResource;
-
     boolean quietMode;
 
     /**
@@ -844,7 +833,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         while (secsWait >= 0) {
             try {
                 ratesProvider.init();
-                feeCalculator.init();
                 return true;
             } catch (final IOException t) {
                 secsWait--;
@@ -922,10 +910,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             }
             txnFactory =
                     (nextValidStart == null) ? new TxnFactory(hapiSetup) : new TxnFactory(hapiSetup, nextValidStart);
-            FeesAndRatesProvider scheduleProvider =
+            this.ratesProvider =
                     new FeesAndRatesProvider(txnFactory, keyFactory, hapiSetup, hapiRegistry, targetNetwork);
-            feeCalculator = new FeeCalculator(hapiSetup, scheduleProvider);
-            this.ratesProvider = scheduleProvider;
         } catch (Throwable t) {
             log.error("Initialization failed for spec '{}'!", name, t);
             status = ERROR;
@@ -987,10 +973,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         if (throttleResource != null) {
             ops.addFirst(new SysFileOverrideOp(
                     THROTTLES, () -> throttleResource.isBlank() ? null : resourceAsString(throttleResource)));
-        }
-        if (feeResource != null) {
-            ops.addFirst(
-                    new SysFileOverrideOp(FEES, () -> feeResource.isBlank() ? null : resourceAsString(feeResource)));
         }
         @Nullable List<AbstractEventualStreamAssertion> streamAssertions = null;
         for (var op : ops) {
@@ -1167,10 +1149,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @SuppressWarnings({"java:S899", "ResultOfMethodCallIgnored"})
     public void offerFinisher(HapiSpecOpFinisher finisher) {
         pendingOps.offer(finisher);
-    }
-
-    public FeeCalculator fees() {
-        return feeCalculator;
     }
 
     public TxnFactory txns() {
@@ -1377,7 +1355,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .map(List::copyOf)
                 .ifPresent(spec::setSharedStates);
         spec.throttleResource = THROTTLES_OVERRIDE.get();
-        spec.feeResource = FEES_OVERRIDE.get();
         return spec;
     }
 
@@ -1518,7 +1495,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private void nullOutInfrastructure() {
         txnFactory = null;
         keyFactory = null;
-        feeCalculator = null;
         ratesProvider = null;
         hapiRegistry = null;
     }
