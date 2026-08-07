@@ -2,6 +2,8 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
+import static org.hiero.consensus.model.event.EventOrigin.GOSSIP;
+import static org.hiero.consensus.model.event.EventOrigin.STORAGE;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -170,17 +172,38 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (lastSelfEvent == null ||
-                    (lastSelfEvent.getOrigin() == EventOrigin.STORAGE && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber())) {
-                // The node has restarted, and we need to keep track of our latest self event to prevent branching
-                lastSelfEvent = event;
-                childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
-                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
+            if (lastSelfEvent == null) {
+                updateLastSelfEvent(event);
+                return;
+            }
+
+            final EventOrigin lastSelfEventOrigin = lastSelfEvent.getOrigin();
+            final EventOrigin newSelfEventOrigin = event.getOrigin();
+            if (lastSelfEventOrigin == STORAGE
+                    && newSelfEventOrigin == STORAGE
+                    && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
+                // We have restarted and are learning our latest self event from PCES on disk. All
+                // PCES events are flushed through the system prior to starting event creation, so
+                // there is no risk of branching.
+                updateLastSelfEvent(event);
+            } else if (lastSelfEventOrigin == GOSSIP
+                    && newSelfEventOrigin == GOSSIP
+                    && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
+                // We are recovering from a loss of PCES on disk (last held event came from gossip)
+                // and are learning our own events through gossip. If we do not learn of our latest
+                // events during the OBSERVING window, we could create a branch.
+                updateLastSelfEvent(event);
             }
         } else {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
         }
+    }
+
+    private void updateLastSelfEvent(@NonNull final PlatformEvent selfEvent) {
+        lastSelfEvent = selfEvent;
+        childlessOtherEventTracker.registerSelfEventParents(selfEvent.getOtherParents());
+        tipsetTracker.addSelfEvent(selfEvent.getDescriptor(), selfEvent.getAllParents());
     }
 
     /**
