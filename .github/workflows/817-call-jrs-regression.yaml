@@ -341,6 +341,7 @@ jobs:
 
       - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
         id: run-jrs-regression
+        timeout-minutes: 180
         env:
           HEDERA_TESTS_ENABLED: ${{ inputs.hedera-tests-enabled }}
           REGRESSION_PATH: ${{ inputs.regression-path }}
@@ -360,91 +361,7 @@ jobs:
           GH_ACTOR: ${{ github.actor }}
           GH_JOB: ${{ github.job }}
         working-directory: ${{ github.workspace }}/platform-sdk/${{ inputs.regression-path }}
-        run: |
-          set -x
-
-          readonly BRANCH_VERSION_REGEX="([A-Za-z]+)/?[0-9]+\.([0-9]+)\.?[0-9]*-?[A-Za-z]*\.?[0-9]*"
-
-          if [[ -z "${GH_ACTOR}" ]]; then
-            JRS_USER="swirlds-automation"
-          else
-            JRS_USER="${GH_ACTOR}"
-          fi
-
-          [[ -n "${JRS_BRANCH}" ]] || JRS_BRANCH="${GH_JOB}"
-
-          JRS_ARGUMENTS="-po"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -u ${JRS_USER}"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -b ${JRS_BRANCH}"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -sl ${JRS_SSH_USER_NAME}"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -sk ${HOME}/.ssh/jrs-ssh-keyfile"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -wh ${JRS_WEB_HOSTNAME}"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -wp ${JRS_WEB_PORT}"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} -fr"
-          JRS_ARGUMENTS="${JRS_ARGUMENTS} --slack-api-token=${SLACK_API_TOKEN}"
-
-          if [[ -n "${GENERATE_SLACK_CHANNEL}" && "${GENERATE_SLACK_CHANNEL}" = true ]]; then
-            SLACK_BRANCH="${JRS_BRANCH}"
-            if [[ -n "${JRS_BRANCH}" ]]; then
-              if [[ "${JRS_BRANCH}" =~ ${BRANCH_VERSION_REGEX} ]]; then
-                SLACK_BRANCH="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
-              fi
-            fi
-
-            if [[ -n "${HEDERA_TESTS_ENABLED}" && "${HEDERA_TESTS_ENABLED}" = true ]]; then
-              # Override for the main branch
-              if [[ "${SLACK_BRANCH}" != "main" ]]; then
-                SLACK_SUMMARY="hedera-gcp-${SLACK_BRANCH}-summary"
-                SLACK_RESULTS="hedera-gcp-${SLACK_BRANCH}-regression"
-              else
-                SLACK_SUMMARY="hedera-regression-summary"
-                SLACK_RESULTS="hedera-regression"
-              fi
-            else
-              SLACK_SUMMARY="platform-gcp-${SLACK_BRANCH}-summary"
-              SLACK_RESULTS="platform-gcp-${SLACK_BRANCH}-regression"
-            fi
-          fi
-
-          if [[ -n "${SLACK_SUMMARY}" ]]; then
-            JRS_ARGUMENTS="${JRS_ARGUMENTS} -sc ${SLACK_SUMMARY}"
-          fi
-
-          if [[ -n "${SLACK_RESULTS}" ]]; then
-            JRS_ARGUMENTS="${JRS_ARGUMENTS} -rc ${SLACK_RESULTS}"
-          fi
-
-          if [[ -n "${JAVA_VERSION}" ]]; then
-            JRS_ARGUMENTS="${JRS_ARGUMENTS} -jv ${JAVA_VERSION}"
-          fi
-
-          if [[ -n "${PLATFORM_REPO_PATH}" ]]; then
-            JRS_ARGUMENTS="${JRS_ARGUMENTS} -pr ${PLATFORM_REPO_PATH}"
-          fi
-
-          if [[ -n "${HEDERA_TESTS_ENABLED}" && "${HEDERA_TESTS_ENABLED}" = true ]]; then
-            JRS_ARGUMENTS="${JRS_ARGUMENTS} -r ${{ github.workspace }}"
-            JRS_ARGUMENTS="${JRS_ARGUMENTS} -ci ${JRS_USER}_${ACTIONS_RUN_URL}"
-          fi
-
-          if [[ ! -f "${CONFIG_PATH}" ]]; then
-            echo
-            echo "Configuration File '${CONFIG_PATH}' does not exist......"
-            echo
-            exit 20
-          fi
-
-          if [[ -z "${JAVA_OPTS}" ]]; then
-            JAVA_OPTS="-Xmx8g"
-          fi
-
-          ${CG_EXEC} java ${JAVA_OPTS} \
-          -cp "lib/*:regression.jar" \
-          -Dlog4j.configurationFile="log4j2-fsts-enhanced.xml" \
-          -Dspring.output.ansi.enabled=ALWAYS \
-          com.swirlds.fsts.Main ${JRS_ARGUMENTS} -en "Github Actions" "${CONFIG_PATH}"
-          # echo exit code
-          echo "Test Exit Code: $?"
+        run: bash "${GITHUB_WORKSPACE}/.github/workflows/support/scripts/execute-jrs-regression.sh"
       - name: Show JRS Folder Structures
         if: ${{ inputs.enable-workflow-debug && always() }}
         env:
