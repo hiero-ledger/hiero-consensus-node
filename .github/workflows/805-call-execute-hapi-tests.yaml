@@ -586,6 +586,7 @@ jobs:
           run_subtask hapiTestSmartContract
           run_subtask hapiTestSmartContractSerial
           run_subtask hapiTestIss
+          run_subtask hapiTestIssGrpc
           exit $status
 
       - name: Publish HAPI Test (Smart Contracts & ISS) Reports
