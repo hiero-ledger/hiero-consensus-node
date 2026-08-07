@@ -103,7 +103,7 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                         + "claimed birth round: {}, actual birth round: {}",
                 child,
                 candidateParent,
-                parentDescriptor.eventDescriptor().birthRound(),
+                parentDescriptor.birthRound(),
                 candidateParent.getBirthRound());
         birthRoundMismatchAccumulator.update(1);
     }

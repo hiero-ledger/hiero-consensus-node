@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import static org.hiero.consensus.pcli.PcesSliceCommand.createDefaultPlatformContext;
 import static org.hiero.consensus.pcli.PcesSliceCommand.generateSigners;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +25,8 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -46,10 +48,11 @@ import org.hiero.consensus.round.EventWindowUtils;
 public class PcesGraphSlicer {
 
     private final Path pcesOutputLocation;
-    private final Map<Bytes, EventDescriptor> migratedParents;
+    private final Map<Bytes, EventDescriptorWrapper> migratedParents;
     private final PbjStreamHasher eventHasher;
     private final Map<NodeId, PlatformSigner> signers;
-    private final PlatformContext context;
+    private final Configuration configuration;
+    private final Metrics metrics;
     private final Function<EventCore, EventCore> eventCoreModifier;
     private final EventGraphPipeline graphPipeline;
 
@@ -76,21 +79,20 @@ public class PcesGraphSlicer {
         this.pcesOutputLocation = builder.exportPcesFileLocation;
         this.migratedParents = new HashMap<>();
         this.eventHasher = new PbjStreamHasher();
+        this.metrics = new NoOpMetrics();
         this.signers = generateSigners(builder.keysAndCertsMap, PlatformSigner::new);
-        this.context = builder.context != null ? builder.context : createDefaultPlatformContext();
+        this.configuration = builder.configuration;
         this.eventCoreModifier = builder.graphEventCoreModifier;
 
-        final PcesEventGraphSource rawSource = new PcesEventGraphSource(
-                builder.existingPcesFilesLocation, context.getConfiguration(), context.getRecycleBin());
+        final PcesEventGraphSource rawSource =
+                new PcesEventGraphSource(builder.existingPcesFilesLocation, configuration, new NoOpRecycleBin());
         // Use OrphanBufferEventGraphSource to process events through hasher and orphan buffer
         // This computes ngen and links parents without the overhead of running consensus
-        final OrphanBufferEventGraphSource orphanBufferSource =
-                new OrphanBufferEventGraphSource(rawSource, this.context);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         if (builder.consensusSnapshot != null) {
-            final int roundsNonAncient = context.getConfiguration()
-                    .getConfigData(ConsensusConfig.class)
-                    .roundsNonAncient();
+            final int roundsNonAncient =
+                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
             final EventWindow eventWindow =
                     EventWindowUtils.createEventWindow(builder.consensusSnapshot, roundsNonAncient);
             orphanBufferSource.setEventWindow(eventWindow);
@@ -105,7 +107,7 @@ public class PcesGraphSlicer {
      * Builder for {@link PcesGraphSlicer}.
      */
     public static class Builder {
-        private PlatformContext context;
+        private Configuration configuration;
         private Map<NodeId, KeysAndCerts> keysAndCertsMap;
         private Function<EventCore, EventCore> graphEventCoreModifier;
         private Predicate<PlatformEvent> graphEventFilter;
@@ -116,14 +118,14 @@ public class PcesGraphSlicer {
         private Builder() {}
 
         /**
-         * Sets the platform context for configuration.
+         * Sets the platform configuration.
          *
-         * @param context the platform context
+         * @param configuration the platform configuration
          * @return this builder
          */
         @NonNull
-        public Builder context(@NonNull final PlatformContext context) {
-            this.context = Objects.requireNonNull(context);
+        public Builder configuration(@NonNull final Configuration configuration) {
+            this.configuration = Objects.requireNonNull(configuration);
             return this;
         }
 
@@ -227,7 +229,7 @@ public class PcesGraphSlicer {
         final EventCore newEventCore = eventCoreModifier.apply(event.getEventCore());
 
         // Get parent descriptors from previously migrated events
-        final List<EventDescriptor> parents = event.getAllParents().stream()
+        final List<EventDescriptorWrapper> parents = event.getAllParents().stream()
                 .map(parent -> migratedParents.get(parent.hash().getBytes()))
                 .filter(Objects::nonNull)
                 .toList();
@@ -236,9 +238,10 @@ public class PcesGraphSlicer {
                 .map(TransactionWrapper::getApplicationTransaction)
                 .toList();
 
-        final var unsignedEvent = new UnsignedEvent(
-                NodeId.of(newEventCore.creatorNodeId()),
-                parents.stream().map(EventDescriptorWrapper::new).toList(),
+        final NodeId creatorId = NodeId.of(newEventCore.creatorNodeId());
+        final UnsignedEvent unsignedEvent = new UnsignedEvent(
+                creatorId,
+                parents,
                 newEventCore.birthRound(),
                 HapiUtils.asInstant(newEventCore.timeCreated()),
                 transactions,
@@ -256,11 +259,8 @@ public class PcesGraphSlicer {
         final Signature signature = signer.sign(newHash.getBytes().toByteArray());
 
         // Create descriptor for this event so future events can reference it as parent
-        final EventDescriptor eventDescriptor = new EventDescriptor.Builder()
-                .hash(newHash.getBytes())
-                .creatorNodeId(newEventCore.creatorNodeId())
-                .birthRound(newEventCore.birthRound())
-                .build();
+        final EventDescriptorWrapper eventDescriptor =
+                new EventDescriptorWrapper(newHash, creatorId, newEventCore.birthRound());
 
         // Store for parent lookup by subsequent events
         migratedParents.put(event.getHash().getBytes(), eventDescriptor);
@@ -276,14 +276,9 @@ public class PcesGraphSlicer {
         try {
             Files.createDirectories(pcesOutputLocation);
             pcesWriter = new CommonPcesWriter(
-                    context.getConfiguration(),
+                    configuration,
                     new PcesFileManager(
-                            context.getConfiguration(),
-                            context.getMetrics(),
-                            context.getTime(),
-                            new PcesFileTracker(),
-                            pcesOutputLocation,
-                            0));
+                            configuration, metrics, Time.getCurrent(), new PcesFileTracker(), pcesOutputLocation, 0));
             pcesWriter.beginStreamingNewEvents();
         } catch (final IOException e) {
             throw new RuntimeException("Failed to initialize PCES writer", e);
