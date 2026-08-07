@@ -221,7 +221,7 @@ jobs:
           echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "::endgroup::
+          echo "::endgroup::"
 
   longevity-tests-start:
     name: Start
