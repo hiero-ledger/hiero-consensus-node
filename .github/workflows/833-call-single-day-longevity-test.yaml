@@ -196,7 +196,7 @@ jobs:
           echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" | tee -a "${GITHUB_OUTPUT}"
           echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" | tee -a "${GITHUB_OUTPUT}"
           echo "expiration=${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration || needs.acquire-kubernetes-resources-legacy.outputs.request-expiration }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "::endgroup::
+          echo "::endgroup::"
 
   print-allocation-details:
     runs-on: hl-cn-default-lin-sm
