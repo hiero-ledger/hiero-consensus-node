@@ -260,15 +260,11 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
-        try {
-            final List<NodeId> nodeIds =
-                    IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds).entrySet().stream()
-                    .map(e -> doCreateNode(e.getKey(), e.getValue()))
-                    .toList();
-        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException("Exception while generating KeysAndCerts", e);
-        }
+        final List<NodeId> nodeIds =
+                IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
+        return createKeysAndCerts(nodeIds).entrySet().stream()
+                .map(e -> doCreateNode(e.getKey(), e.getValue()))
+                .toList();
     }
 
     /**
@@ -286,11 +282,21 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
+        final NodeId nodeId = getNextNodeId();
+        final KeysAndCerts keysAndCerts = createKeysAndCerts(List.of(nodeId)).get(nodeId);
+        return doCreateInstrumentedNode(nodeId, keysAndCerts);
+    }
+
+    /**
+     * Creates a map of node IDs to their corresponding keys and certificates.
+     *
+     * @param nodeIds the list of node IDs for which to generate keys and certificates
+     * @return a map of node IDs to their corresponding keys and certificates
+     */
+    @NonNull
+    protected Map<NodeId, KeysAndCerts> createKeysAndCerts(@NonNull final List<NodeId> nodeIds) {
         try {
-            final NodeId nodeId = getNextNodeId();
-            final KeysAndCerts keysAndCerts =
-                    KeysAndCertsGenerator.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
-            return doCreateInstrumentedNode(nodeId, keysAndCerts);
+            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
