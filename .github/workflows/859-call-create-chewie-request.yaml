@@ -119,6 +119,7 @@ jobs:
       aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
       network-id: ${{ steps.read-chewie-response.outputs.network-id }}
       owner: ${{ steps.read-chewie-response.outputs.owner }}
+      expiration: ${{ steps.read-chewie-response.outputs.expiration }}
     steps:
       - name: Initialize Github Job
         uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
