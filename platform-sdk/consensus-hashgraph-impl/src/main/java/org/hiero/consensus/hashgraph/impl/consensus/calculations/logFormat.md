@@ -17,71 +17,71 @@ If any field is an array, it is represented by its length followed by all elemen
 
 ```
   NewHashgraph (type 0)
-    int64 softwareVersion
-    int64 randomSeed
-    int32 year // UTC time that this file was created (7 fields)
-    int32 month
-    int32 day
-    int32 hour
-    int32 min
-    int32 sec
-    int32 nano
+    int64       softwareVersion
+    int64       randomSeed
+    int32       year // UTC time that this file was created (7 fields)
+    int32       month
+    int32       day
+    int32       hour
+    int32       min
+    int32       sec
+    int32       nano
     
   RoundInfoPrev (type 1)
-    int64 pendingRound
-    boolean prevJudgeCon1
+    int64       pendingRound
+    boolean     prevJudgeCon1
     EventInfo[] prevJudges
-    boolean prevJudgesCopied
-    int64 prevMinNonAncientRound
-    int64 prevNumCons
-    int64 prevMinJudgeBirthRound
+    boolean     prevJudgesCopied
+    int64       prevMinNonAncientRound
+    int64       prevNumCons
+    int64       prevMinJudgeBirthRound
 
   RoundInfo (type 2)
-    int64 pendingRound
-    int64[] nodes // each of these is a nodeID, not an index
-    int64[] stake
-    int32 seeNum
-    int32 seeDen
-    boolean judgeCon1
-    int32 coinInterval
-    int32 targetNumRoundsNonAncient
-    int32 numRoundsAddressBook
+    int64       pendingRound
+    int64[]     nodes // each of these is a nodeID, not an index
+    int64[]     stake
+    int32       seeNum
+    int32       seeDen
+    boolean     judgeCon1
+    int32       coinInterval
+    int32       targetNumRoundsNonAncient
+    int32       numRoundsAddressBook
 
   EventSigned (type 3)
-    int64 eventID
-    Instant timeCreated
-    int64 creatorNodeID
-    int64 birthRound
-    int32 coin // this is a uniform random int32, not limited to [0,numNodes]
+    int64       eventID
+    Instant     timeCreated
+    int64       creatorNodeID
+    int64       birthRound
+    int32       coin // this is a uniform random int32, not limited to [0,numNodes]
     EventInfo[] parentsSigned
 
   EventInfo (type 4)
-    int64 eventID
-    int32 creatorIndex // index into RoundInfo.nodes[] from birth round (-1 if not there)
-    EventInfo selfParent
-    int64 maxJudgeRound
+    int64       eventID
+    int32       creatorIndex // index into RoundInfo.nodes[] from birth round (-1 if not there)
+    EventInfo   selfParent
+    int64       maxJudgeRound
     EventInfo[] parents
-    int64 totalStake
-    long minNonAncientRound
-    int32 voteD // either 1 or 2
-    boolean[] ancestorJudge
-    long gen
+    int64       totalStake
+    long        minNonAncientRound
+    int32       voteD // either 1 or 2
+    boolean[]   ancestorJudge
+    long        gen
     EventInfo[] lastSee
     EventInfo[] stronglySeeP
-    long votingRound
-    EventInfo firstSelfWitnessS
-    EventInfo firstWitnessS
+    long        votingRound
+    EventInfo   firstSelfWitnessS
+    EventInfo   firstWitnessS
     EventInfo[] stronglySeeS1
     EventInfo[] voteE (EventInfo part of the vote() pair)
-    boolean[] voteB (boolean part of the vote() pair)
-    boolean isConsensus
-    long consensusOrder
-    Instant consensusTimestamp
+    boolean[]   voteB (boolean part of the vote() pair)
+    boolean     isConsensus
+    long        consensusOrder
+    Instant     consensusTimestamp
 
   UpdateResults (type 5)
     EventInfo[] consensusEvents
-    Instant roundTimestamp
-    int32 voteD // either 1 or 2
+    Instant     roundTimestamp
+    int32       voteD // either 1 or 2
 ```
 
 Compared to the paper, this format skips `roundInfoPrev` in `UpdateResults` (because it's a separate line), and skips `payload`, `parentBirthRounds`, `parentCreators`, and `signature` in `EventSigned` (because they don't affect consensus). It also adds fields for `EventID` and `PendingRound` to help identify the objects.
