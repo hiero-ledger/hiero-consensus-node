@@ -81,8 +81,7 @@ class EventDeduplicatorTests {
             @NonNull final Set<Bytes> emittedEvents) {
         if (event != null) {
             assertFalse(
-                    event.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient,
-                    "Ancient events shouldn't be emitted");
+                    event.getDescriptor().birthRound() < minimumRoundNonAncient, "Ancient events shouldn't be emitted");
             assertTrue(
                     emittedEvents.add(GossipEvent.PROTOBUF.toBytes(event.getGossipEvent())), "Event was emitted twice");
         }
@@ -150,7 +149,7 @@ class EventDeduplicatorTests {
                         platformEvent.getOrigin());
                 duplicateEvent.setHash(platformEvent.getHash());
 
-                if (duplicateEvent.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient) {
+                if (duplicateEvent.getDescriptor().birthRound() < minimumRoundNonAncient) {
                     ancientEventCount++;
                 }
 

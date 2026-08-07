@@ -155,7 +155,7 @@ class TipsetTrackerTests {
             tracker.setEventWindow(eventWindow);
             assertEquals(eventWindow, tracker.getEventWindow());
             for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {
-                if (descriptor.eventDescriptor().birthRound() < ancientThreshold) {
+                if (descriptor.birthRound() < ancientThreshold) {
                     assertNull(tracker.getTipset(descriptor));
                 } else {
                     assertTipsetEquality(roster, expectedTipsets.get(descriptor), tracker.getTipset(descriptor));
