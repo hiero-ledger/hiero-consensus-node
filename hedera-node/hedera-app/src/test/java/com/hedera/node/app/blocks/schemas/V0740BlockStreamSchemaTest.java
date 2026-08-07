@@ -218,10 +218,11 @@ class V0740BlockStreamSchemaTest {
         final var expectedTrailing = Bytes.wrap(fullHashes, 0, fullHashes.length - HASH_SIZE);
         assertEquals(expectedTrailing, written.trailingBlockHashes());
 
-        // Tree hashes should be zeroed
-        assertEquals(BlockStreamManager.HASH_OF_ZERO, written.inputTreeRootHash());
-        assertEquals(BlockStreamManager.HASH_OF_ZERO, written.consensusHeaderRootHash());
-        assertEquals(BlockStreamManager.HASH_OF_ZERO, written.traceDataRootHash());
+        // The cutover block has no input, consensus-header or trace-data subtree, and an absent subtree is
+        // encoded as a zero-length root hash so reconstructLastBlockHash omits those branches
+        assertEquals(Bytes.EMPTY, written.inputTreeRootHash());
+        assertEquals(Bytes.EMPTY, written.consensusHeaderRootHash());
+        assertEquals(Bytes.EMPTY, written.traceDataRootHash());
         assertEquals(0, written.numPrecedingStateChangesItems());
         assertEquals(List.of(), written.rightmostPrecedingStateChangesTreeHashes());
     }

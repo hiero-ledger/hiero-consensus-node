@@ -412,7 +412,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .map(Bytes::toByteArray)
                         .toList(),
                 blockStreamInfo.intermediateBlockRootsLeafCount());
-        final var allPrevBlocksHash = Bytes.wrap(prevBlocksHasher.computeRootHash());
+        if (blockStreamInfo.blockNumber() == 0L) {
+            prevBlocksHasher.addNodeByHash(prevBlockHash.toByteArray());
+        }
+        final var allPrevBlocksHash = prevBlocksHasher.computeRootHash();
 
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
         // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
@@ -433,22 +436,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
                 .build();
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
-        final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
+        // Non-null: a leaf was just added above, so this subtree is never empty here.
+        final var lastBlockFinalStateChangesHash = requireNonNull(stateChangesHasher.computeRootHash());
 
-        // Branches 2 and 7 are rebuilt here from live IncrementalStreamingHasher instances ("live" meaning the
-        // hasher object itself is in hand, whatever its leaf count), so their presence can be read directly and
-        // exactly from that leaf count. Branches 4, 5, 6, and 8 are only available as persisted root-hash Bytes
-        // (BlockStreamInfo does not also persist a leaf count for them), so presence for those four has to be
-        // recovered from whether the value equals HASH_OF_ZERO instead; see BlockImplUtils#presentSubtreeHash
-        // for why that translation is unambiguous.
+        // Branches 2 and 7 are rebuilt here from live IncrementalStreamingHasher instances, so their root
+        // hashes (null when leafless) come straight off the hasher. Branches 4, 5, 6, and 8 are only available
+        // as persisted Bytes, where an absent subtree was written as a zero-length field, so those are read
+        // back through presentSubtreeHash.
         return combine(
                         prevBlockHash,
-                        prevBlocksHasher.isEmpty() ? null : allPrevBlocksHash,
+                        allPrevBlocksHash,
                         blockStreamInfo.startOfBlockStateHash(),
                         BlockImplUtils.presentSubtreeHash(blockStreamInfo.consensusHeaderRootHash()),
                         BlockImplUtils.presentSubtreeHash(blockStreamInfo.inputTreeRootHash()),
                         BlockImplUtils.presentSubtreeHash(blockStreamInfo.outputItemRootHash()),
-                        stateChangesHasher.isEmpty() ? null : lastBlockFinalStateChangesHash,
+                        lastBlockFinalStateChangesHash,
                         BlockImplUtils.presentSubtreeHash(blockStreamInfo.traceDataRootHash()),
                         blockStreamInfo.blockTimeOrThrow())
                 .blockRootHash();
@@ -749,18 +751,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Branch 1: lastBlockHash
             // Branch 2: previous block hashes root hash
             // Branch 3: blockStartStateHash
+            // Branches 4, 5, 6 and 8 are each null if that subtree had no leaves at all this block. They are
+            // both persisted into BlockStreamInfo below and fed into the block root hash; in the tree a null
+            // branch is omitted, and in state PBJ writes it as a zero-length field.
             // Branch 4 final hash:
-            final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
+            final var consensusHeaderHash = consensusHeaderHasher.computeRootHash();
             // Branch 5 final hash:
-            final var inputsHash = Bytes.wrap(inputTreeHasher.computeRootHash());
+            final var inputsHash = inputTreeHasher.computeRootHash();
             // Branch 6 final hash:
-            final var outputsHash = Bytes.wrap(outputTreeHasher.computeRootHash());
+            final var outputsHash = outputTreeHasher.computeRootHash();
             // Branch 7 (penultimate status only because there will be one more state change when the block stream info
             // object is stored)
             final var interimStateChanges = stateChangesHasher.intermediateHashingState();
             final var interimStateChangeLeaves = stateChangesHasher.leafCount();
             // Branch 8 final hash:
-            final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
+            final var traceDataHash = traceDataHasher.computeRootHash();
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
@@ -791,23 +796,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
-            final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
+            final var stateChangesHash = stateChangesHasher.computeRootHash();
 
-            final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+            // Null for block 0 and for the first block after the wrapped-record cutover, where no earlier block
+            // root has been folded in yet. Omitted from the tree, and written to the footer as absent.
+            final var prevBlockRootsHash = previousBlockHashes.computeRootHash();
 
-            // Presence for each of these branches is read from the hasher's actual leaf count rather than by
-            // comparing the resulting hash to HASH_OF_ZERO. Every hasher is in hand here, so the leaf count is
-            // available and exact; BlockImplUtils#presentSubtreeHash is the fallback for callers left with only
-            // a persisted root hash, and is not needed in this path.
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
-                    previousBlockHashes.isEmpty() ? null : prevBlockRootsHash,
+                    prevBlockRootsHash,
                     blockStartStateHash,
-                    consensusHeaderHasher.isEmpty() ? null : consensusHeaderHash,
-                    inputTreeHasher.isEmpty() ? null : inputsHash,
-                    outputTreeHasher.isEmpty() ? null : outputsHash,
-                    stateChangesHasher.isEmpty() ? null : stateChangesHash,
-                    traceDataHasher.isEmpty() ? null : traceDataHash,
+                    consensusHeaderHash,
+                    inputsHash,
+                    outputsHash,
+                    stateChangesHash,
+                    traceDataHash,
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
 
@@ -1661,7 +1664,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * at genesis when that value happens to be {@link BlockStreamManager#HASH_OF_ZERO}, so they are never
      * omitted from the tree. The other six branches are roots of subtrees that may have no leaves at all (e.g.
      * a block with no trace data); such a branch is omitted from the tree entirely&mdash;rather than hashed in
-     * as {@code HASH_OF_ZERO}&mdash;and the internal node above it is hashed with only its remaining child, the
+     * as a placeholder value&mdash;and the internal node above it is hashed with only its remaining child, the
      * same "incrementally collapsed" treatment already used for the reserved roots 9-16 below.
      * <p>
      * This describes the shape of a <i>block stream block</i> only. Wrapped record blocks are assembled by
@@ -1680,9 +1683,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * <p>
      * Presence for those six branches is a caller-supplied {@code @Nullable} value rather than something this
      * method derives from the hash bytes themselves. Callers that hold the originating
-     * {@link IncrementalStreamingHasher} should pass {@code hasher.isEmpty() ? null : hash}, which reads
-     * presence exactly from the leaf count; only callers left with a bare persisted root hash should fall back
-     * to {@link BlockImplUtils#presentSubtreeHash(Bytes)}.
+     * {@link IncrementalStreamingHasher} get that null straight from
+     * {@link IncrementalStreamingHasher#computeRootHash()}; only callers left with a bare persisted root
+     * hash need {@link BlockImplUtils#presentSubtreeHash(Bytes)} to recover it.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
      */

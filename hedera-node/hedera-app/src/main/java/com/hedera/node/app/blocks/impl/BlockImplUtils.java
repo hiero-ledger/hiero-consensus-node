@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
 
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -146,26 +145,24 @@ public class BlockImplUtils {
     }
 
     /**
-     * Interprets a subtree root hash as computed by {@link IncrementalStreamingHasher#computeRootHash()},
-     * translating the {@link BlockStreamManager#HASH_OF_ZERO} sentinel it returns for a leafless subtree into
-     * {@code null} rather than a real value to be hashed into the tree.
+     * Reads a persisted subtree root hash back into the {@code null}-means-absent form the hashing code works
+     * in, treating an absent (zero-length) field as a subtree that had no leaves.
      * <p>
-     * This inference is sound only because a real leaf can never itself hash to {@code HASH_OF_ZERO}:
-     * {@code HASH_OF_ZERO} is just {@code SHA384(0x00)}, which is exactly what {@link #hashLeaf(Bytes) hashLeaf}
-     * would produce for a leaf whose serialized content is zero-length, so a one-leaf subtree built from an
-     * empty leaf would otherwise be indistinguishable from a leafless one. That collision is ruled out at the
-     * source: {@link IncrementalStreamingHasher#addLeaf(byte[])} rejects zero-length leaf data outright.
+     * A subtree with no leaves has no root hash, and {@link IncrementalStreamingHasher#computeRootHash()}
+     * returns {@code null} to say so; PBJ then stores that null {@code bytes} field as {@link Bytes#EMPTY}.
+     * This method is the inverse of that round trip, for the paths that read a bare persisted root hash with
+     * no accompanying leaf count (e.g. {@code BlockStreamInfo}'s per-tree root hashes,
+     * {@code WrappedRecordFileBlockHashes}). Wherever the originating hasher is still available, call
+     * {@link IncrementalStreamingHasher#computeRootHash()} instead and skip the round trip entirely.
      * <p>
-     * Even so, prefer calling {@code hasher.isEmpty() ? null : hash} directly wherever the originating
-     * {@link IncrementalStreamingHasher} is available, since that reads presence from the leaf count instead of
-     * relying on the sentinel at all. Reserve this method for contexts where only the already-computed root
-     * hash is available (e.g. a persisted or replayed value with no accompanying leaf count).
+     * Zero-length is not in the codomain of SHA-384, so no real root hash can collide with the absent
+     * encoding, and this translation is exact.
      *
-     * @param subtreeRootHash the subtree's root hash
+     * @param subtreeRootHash the persisted subtree root hash, possibly absent
      * @return the hash, or null if the subtree had no leaves
      */
     public static @Nullable Bytes presentSubtreeHash(@NonNull final Bytes subtreeRootHash) {
-        return BlockStreamManager.HASH_OF_ZERO.equals(subtreeRootHash) ? null : subtreeRootHash;
+        return subtreeRootHash.length() == 0 ? null : subtreeRootHash;
     }
 
     /**

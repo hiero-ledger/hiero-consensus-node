@@ -134,13 +134,13 @@ class BlockStreamManagerImplTest {
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
     private static final Bytes FAKE_PATCH_RESTART_HASH = Bytes.fromHex(
-            "1c153546215ddb7f194b1c8e31550860a8eddd1e98b1085d4e6ed6f39ac653cf850b4130cac24d725824abbe3629f339");
+            "958f08433903dd638b36f8ffeddda9a8379fa585590cb824b01569e1dacf54cacbfd47036e61a41179d0ca258a6d8296");
     // Effective last block hash computed by the restart path from blockStreamInfoWith(resultHashes, CREATION_VERSION)
     private static final Bytes FAKE_NON_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
-            "2f846676b1634fc97e3d40206504c7e0a2b10bb59182a06a4e1215e851176be2685705ff6d2cfe82967915b0e6d51fc5");
+            "0fb0f204f5232dcaffd67825a71f47b108c72dda1ee5c99a2e978f67cd5accaed1f2dd8427f2256f82d0c8639bea19ae");
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
     private static final Bytes FAKE_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
-            "8b652f074916617b205fd04d15aedf7817e86a347454d3743c93c34614b22b158a7a9c239e58fe053135baa7be636428");
+            "a0c2ab3e3bb083acfdf81d269a4ba39a6f8cd3b9b371d93f424d4d6ddea23aeb1bf71ba2bea995325b61fbaeadb1c4e5");
     private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
     private static final Bytes NONZERO_PREV_BLOCK_HASH =
             BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
@@ -563,10 +563,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 Bytes.fromHex(
                         "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
 
@@ -1002,10 +1002,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 Bytes.fromHex(
                         "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
-                HASH_OF_ZERO,
+                Bytes.EMPTY,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);
         final var actualBlockInfo = infoRef.get();

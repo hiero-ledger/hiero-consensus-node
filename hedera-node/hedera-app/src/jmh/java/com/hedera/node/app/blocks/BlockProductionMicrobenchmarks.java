@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -201,7 +202,7 @@ public class BlockProductionMicrobenchmarks {
         }
 
         // Compute root hash (parallel computation)
-        Bytes rootHash = Bytes.wrap(hasher.computeRootHash());
+        Bytes rootHash = requireNonNull(hasher.computeRootHash());
         bh.consume(rootHash);
     }
 
@@ -266,8 +267,8 @@ public class BlockProductionMicrobenchmarks {
             hasher.addLeaf(blockHash);
         }
 
-        byte[] rootHash = hasher.computeRootHash();
-        bh.consume(rootHash.length);
+        final Bytes rootHash = requireNonNull(hasher.computeRootHash());
+        bh.consume(rootHash.length());
     }
 
     @State(Scope.Thread)

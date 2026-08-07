@@ -842,10 +842,9 @@ public class StateChangesValidator implements BlockStreamValidator {
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
     /**
-     * Presence for each branch is read from its hasher's actual leaf count rather than by comparing the
-     * resulting hash to {@link BlockStreamManager#HASH_OF_ZERO}. Every hasher is in hand here, so the leaf
-     * count is available and exact; {@code BlockImplUtils.presentSubtreeHash} is the fallback for callers left
-     * with only a persisted root hash, and is not needed in this path.
+     * A null branch hash means that subtree had no leaves and is omitted from the tree rather than hashed in
+     * as a placeholder; {@link IncrementalStreamingHasher#computeRootHash()} returns null directly for
+     * that case, so no sentinel comparison is involved anywhere in this path.
      */
     private RootAndSiblingHashes computeBlockHash(
             final Timestamp blockTimestamp,
@@ -857,15 +856,12 @@ public class StateChangesValidator implements BlockStreamValidator {
             final IncrementalStreamingHasher consensusHeaderHasher,
             final IncrementalStreamingHasher stateChangesHasher,
             final IncrementalStreamingHasher traceDataHasher) {
-        final var prevBlocksRootHash =
-                prevBlockRootsHasher.isEmpty() ? null : Bytes.wrap(prevBlockRootsHasher.computeRootHash());
-        final var consensusHeaderHash =
-                consensusHeaderHasher.isEmpty() ? null : Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputTreeHash = inputTreeHasher.isEmpty() ? null : Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputTreeHash = outputTreeHasher.isEmpty() ? null : Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var traceDataHash = traceDataHasher.isEmpty() ? null : Bytes.wrap(traceDataHasher.computeRootHash());
-        final var finalStateChanges =
-                stateChangesHasher.isEmpty() ? null : Bytes.wrap(stateChangesHasher.computeRootHash());
+        final var prevBlocksRootHash = prevBlockRootsHasher.computeRootHash();
+        final var consensusHeaderHash = consensusHeaderHasher.computeRootHash();
+        final var inputTreeHash = inputTreeHasher.computeRootHash();
+        final var outputTreeHash = outputTreeHasher.computeRootHash();
+        final var traceDataHash = traceDataHasher.computeRootHash();
+        final var finalStateChanges = stateChangesHasher.computeRootHash();
 
         // Compute depth five hashes. Depth5Node1 and depth5Node2 are never absent, since previousBlockHash and
         // startOfBlockStateHash are always present; depth5Node3 and depth5Node4 may each collapse to a single

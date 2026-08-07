@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.nio.file.Files;
@@ -86,21 +86,9 @@ public class IncrementalStreamingHasher {
      *
      * <p>Time complexity: O(log n) hash operations in the worst case, O(1) amortized.
      *
-     * <p>Zero-length leaf data is rejected. A single such leaf would hash to {@code SHA384(0x00)}, i.e.
-     * exactly the {@link BlockStreamManager#HASH_OF_ZERO} sentinel {@link #computeRootHash()} returns for a
-     * leafless tree, making a one-leaf subtree indistinguishable from an empty one wherever presence has to be
-     * recovered from a persisted root hash alone (see {@link BlockImplUtils#presentSubtreeHash(Bytes)}).
-     * Every real leaf is a serialized protobuf message with at least one field set, so this rejects nothing
-     * legitimate.
-     *
      * @param data the raw data for the new leaf
-     * @throws IllegalArgumentException if {@code data} is null or zero-length
      */
     public void addLeaf(final byte[] data) {
-        if (data == null || data.length == 0) {
-            throw new IllegalArgumentException("Leaf data must be non-empty; an empty leaf would hash to the "
-                    + "HASH_OF_ZERO sentinel used to denote a leafless subtree");
-        }
         addNodeByHash(hashLeaf(digest, data));
     }
 
@@ -130,35 +118,28 @@ public class IncrementalStreamingHasher {
      *
      * <p>Time complexity: O(log n) where n is the leaf count.
      *
-     * <p>For an empty tree (no leaves added), this method returns the predefined
-     * {@link BlockStreamManager#HASH_OF_ZERO} which is {@code sha384Hash(new byte[]{0x00})}. This is the
-     * encoding of "leafless subtree" for the persisted/on-the-wire root hashes that carry no accompanying leaf
-     * count (e.g. {@code BlockStreamInfo}'s per-tree root hashes, {@code BlockFooter}); readers translate it
-     * back with {@link BlockImplUtils#presentSubtreeHash(Bytes)}. It is unambiguous only because
-     * {@link #addLeaf(byte[])} rejects zero-length leaf data, which is the one input that could otherwise
-     * produce this same value from a real one-leaf tree.
+     * <p>A tree with no leaves has no root hash, and this method returns {@code null} to say so. That is the
+     * representation callers actually want: an empty subtree is omitted from the block merkle tree entirely
+     * rather than hashed in as a placeholder, and it is encoded as an absent (zero-length) {@code bytes} field
+     * wherever a root hash is persisted or streamed. Returning a real-looking 48-byte value here would only
+     * force every caller to recognize and undo it.
      *
-     * <p>Callers that still hold this hasher should prefer {@link #isEmpty()} over comparing the returned
-     * hash to the sentinel, since the leaf count is exact.
-     *
-     * @return the 48-byte SHA-384 Merkle tree root hash, or {@link BlockStreamManager#HASH_OF_ZERO_BYTES}
-     *         if no leaves have been added
+     * @return the 48-byte SHA-384 Merkle tree root hash, or {@code null} if no leaves have been added
      */
-    public byte[] computeRootHash() {
+    public @Nullable Bytes computeRootHash() {
         if (hashList.isEmpty()) {
-            // This value is precomputed as the hash of an empty tree; therefore it should _not_ be hashed as a leaf
-            return BlockStreamManager.HASH_OF_ZERO_BYTES;
+            return null;
         }
         if (hashList.size() == 1) {
             // This value should already have been hashed as a leaf, and therefore should _not_ be re-hashed
-            return hashList.getFirst();
+            return Bytes.wrap(hashList.getFirst());
         }
 
         byte[] merkleRootHash = hashList.getLast();
         for (int i = hashList.size() - 2; i >= 0; i--) {
             merkleRootHash = hashInternalNode(hashList.get(i), merkleRootHash);
         }
-        return merkleRootHash;
+        return Bytes.wrap(merkleRootHash);
     }
 
     /**

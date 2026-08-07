@@ -367,7 +367,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var queuedHashes = this.lastBlockInfo.migrationWrappedHashes();
             if (seededFromMigration && !queuedHashes.isEmpty()) {
                 for (final MigrationWrappedHashes queued : queuedHashes) {
-                    final var allPrevBlocksRootHash = Bytes.wrap(this.prevWrappedRecordBlockHashes.computeRootHash());
+                    final var allPrevBlocksRootHash = this.prevWrappedRecordBlockHashes.computeRootHash();
                     final var blockRootHash = computeWrappedRecordBlockRootHash(
                             this.previousWrappedRecordBlockRootHash,
                             allPrevBlocksRootHash,
@@ -618,15 +618,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     /**
      * Computes the wrapped record block root hash for a single block from its constituent hashes.
      * <p>
-     * Unlike the block stream block-production path, {@code allPrevBlocksRootHash} and
-     * {@code entry.outputItemsTreeRootHash()} here are already-finalized hashes with no accompanying leaf count
-     * ({@link WrappedRecordFileBlockHashes} carries only the root hash), so presence for those two branches
-     * must be recovered with {@link BlockImplUtils#presentSubtreeHash(Bytes)} rather than a precise
-     * {@code IncrementalStreamingHasher.isEmpty()} check. Both branches really can be absent&mdash;branch 2 for
-     * the very first wrapped record block, branch 6 for a record file with no output items&mdash;and both cases
-     * are handled below. What {@code presentSubtreeHash} cannot distinguish is an absent subtree from a
-     * one-leaf subtree built over zero-length content, and that ambiguity is ruled out at the source, since
-     * {@code IncrementalStreamingHasher.addLeaf} rejects empty leaf data.
+     * Two branches here can legitimately be absent: branch 2 for the very first wrapped record block, and
+     * branch 6 for a record file with no output items. Branch 2 arrives as a {@code @Nullable} value straight
+     * from its hasher, while branch 6 comes off a persisted {@link WrappedRecordFileBlockHashes} and so is read
+     * back through {@link BlockImplUtils#presentSubtreeHash(Bytes)}, which maps the zero-length field an absent
+     * subtree was written as back to null.
      * <p>
      * Note the deliberate asymmetry at branch 1: unlike every other branch, {@code
      * previousWrappedRecordBlockRootHash} is <b>never</b> omitted. For the very first wrapped record block it is
@@ -641,24 +637,24 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * node above it binary for every block, so block numbering can never shift the tree's shape.
      *
      * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
-     * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
+     * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes, or null if there are none
      * @param entry the wrapped record file block hashes for the current block
      * @return the computed block root hash
      */
     @VisibleForTesting
     public static Bytes computeWrappedRecordBlockRootHash(
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
-            @NonNull final Bytes allPrevBlocksRootHash,
+            @Nullable final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
         // Branch 1: previousWrappedRecordBlockRootHash. Never omitted, even for the very first wrapped record
         // block, where it is literally HASH_OF_ZERO and is still hashed in as a real child (see the javadoc).
         // Branch 2: allPrevBlocksRootHash. Genuinely absent for that same first block, and omitted when it is,
         // which is what makes depth5Node1 unary there while branch 1 stays present.
-        final var depth5Node1 = BlockImplUtils.combineChildren(
-                previousWrappedRecordBlockRootHash, BlockImplUtils.presentSubtreeHash(allPrevBlocksRootHash));
+        final var depth5Node1 =
+                BlockImplUtils.combineChildren(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash);
 
         // Branches 3/4: wrapped record blocks carry no state hash or consensus header at all, so this pair is
-        // always fully absent from the tree, rather than hashed in as HASH_OF_ZERO
+        // always fully absent from the tree
         final Bytes depth5Node2 = null;
 
         // Branch 5: wrapped record blocks carry no input tree, so it's always absent
@@ -845,7 +841,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         final Bytes previousBlockRootHash = requireNonNull(previousWrappedRecordBlockRootHash);
         // Compute the all-previous-blocks root hash from the hasher BEFORE adding this block
-        final Bytes allPrevBlocksRootHash = Bytes.wrap(prevWrappedRecordBlockHashes.computeRootHash());
+        final Bytes allPrevBlocksRootHash = prevWrappedRecordBlockHashes.computeRootHash();
 
         // Compute the wrapped record block root hash for this block
         final Bytes blockRootHash =
@@ -884,10 +880,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final long blockNumber,
             @NonNull final Bytes blockRootHash,
             @NonNull final Bytes previousBlockRootHash,
-            @NonNull final Bytes allPrevBlocksRootHash) {
+            // Null for the very first wrapped record block, where no earlier block root exists yet
+            @Nullable final Bytes allPrevBlocksRootHash) {
         requireNonNull(blockRootHash);
         requireNonNull(previousBlockRootHash);
-        requireNonNull(allPrevBlocksRootHash);
         final var recordFileHashFuture =
                 recordFileHashFutures.computeIfAbsent(blockNumber, ignore -> new CompletableFuture<>());
         final var signingAttemptFuture = recordFileHashFuture
@@ -947,7 +943,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final long blockNumber,
             @NonNull final Bytes blockRootHash,
             @NonNull final Bytes previousBlockRootHash,
-            @NonNull final Bytes allPrevBlocksRootHash,
+            // Null for the very first wrapped record block; written to the footer as an absent field, matching
+            // how the block stream path handles an empty all-previous-blocks tree at block 0
+            @Nullable final Bytes allPrevBlocksRootHash,
             @NonNull final Bytes serializedRosterSignatures) {
         final var writer = openWrbWriters.get(blockNumber);
         if (writer == null) {

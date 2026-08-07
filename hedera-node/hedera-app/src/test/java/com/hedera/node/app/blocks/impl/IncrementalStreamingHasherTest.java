@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_BYTES;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class IncrementalStreamingHasherTest {
     @Test
-    void emptyTreeIsEmptyAndRootHashesToHashOfZeroSentinel() {
+    void emptyTreeHasNoRootHash() {
         final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
 
         assertTrue(hasher.isEmpty());
         assertEquals(0, hasher.leafCount());
-        assertArrayEquals(HASH_OF_ZERO_BYTES, hasher.computeRootHash());
+        // A tree with no leaves has no root hash. Callers rely on this null to omit the subtree from the block
+        // merkle tree, and to persist it as an absent (zero-length) field.
+        assertNull(hasher.computeRootHash());
     }
 
     @Test
@@ -32,7 +33,7 @@ class IncrementalStreamingHasherTest {
         // The single pending hash is already a properly-prefixed leaf hash, so the root is that leaf hash
         // itself, not re-hashed as an internal node.
         final var expectedLeafHash = BlockImplUtils.hashLeaf("leaf".getBytes());
-        assertArrayEquals(expectedLeafHash, hasher.computeRootHash());
+        assertEquals(Bytes.wrap(expectedLeafHash), hasher.computeRootHash());
     }
 
     @Test
@@ -47,19 +48,21 @@ class IncrementalStreamingHasherTest {
         final var expectedLeaf1 = BlockImplUtils.hashLeaf("first".getBytes());
         final var expectedLeaf2 = BlockImplUtils.hashLeaf("second".getBytes());
         final var expectedRoot = BlockImplUtils.hashInternalNode(expectedLeaf1, expectedLeaf2);
-        assertArrayEquals(expectedRoot, hasher.computeRootHash());
+        assertEquals(Bytes.wrap(expectedRoot), hasher.computeRootHash());
     }
 
     @Test
-    void rejectsEmptyLeafDataThatWouldCollideWithTheHashOfZeroSentinel() {
+    void aZeroLengthLeafIsStillDistinguishableFromAnEmptyTree() {
+        // Zero-length is not in the codomain of SHA-384, so the absent-subtree encoding can never collide with
+        // a real root hash -- not even for the one input that used to be a problem, a single empty leaf.
         final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        hasher.addLeaf(new byte[0]);
 
-        // A single zero-length leaf would hash to SHA384(0x00), i.e. exactly the sentinel computeRootHash()
-        // returns for a leafless tree, making the two indistinguishable to presentSubtreeHash().
-        assertArrayEquals(HASH_OF_ZERO_BYTES, BlockImplUtils.hashLeaf(new byte[0]));
-
-        assertThrows(IllegalArgumentException.class, () -> hasher.addLeaf(new byte[0]));
-        assertThrows(IllegalArgumentException.class, () -> hasher.addLeaf(null));
-        assertTrue(hasher.isEmpty());
+        assertFalse(hasher.isEmpty());
+        final var rootHash = hasher.computeRootHash();
+        assertEquals(Bytes.wrap(BlockImplUtils.hashLeaf(new byte[0])), rootHash);
+        // The distinction the old HASH_OF_ZERO sentinel could not make.
+        assertEquals(rootHash, BlockImplUtils.presentSubtreeHash(rootHash));
+        assertNull(BlockImplUtils.presentSubtreeHash(Bytes.EMPTY));
     }
 }

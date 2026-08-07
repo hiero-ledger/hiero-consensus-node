@@ -219,8 +219,15 @@ class BlockImplUtilsTest {
     }
 
     @Test
-    void presentSubtreeHashTreatsHashOfZeroAsAbsent() {
-        assertNull(BlockImplUtils.presentSubtreeHash(HASH_OF_ZERO));
+    void presentSubtreeHashTreatsAnAbsentFieldAsAbsent() {
+        assertNull(BlockImplUtils.presentSubtreeHash(Bytes.EMPTY));
+    }
+
+    @Test
+    void presentSubtreeHashTreatsHashOfZeroAsAPresentRealHash() {
+        // HASH_OF_ZERO is a real 48-byte hash and no longer doubles as the empty-subtree sentinel, so it must
+        // round-trip as present. It is still hashed in as a real value for branches 1 and 3 at genesis.
+        assertEquals(HASH_OF_ZERO, BlockImplUtils.presentSubtreeHash(HASH_OF_ZERO));
     }
 
     @Test

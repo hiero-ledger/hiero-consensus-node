@@ -186,7 +186,10 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                     "Block #" + blockNum + " footer.previousBlockRootHash"
                             + " should match computed hash of previous block");
 
-            final var expectedTreeHash = Bytes.wrap(prevBlockHashesTree.computeRootHash());
+            // An empty all-previous-blocks tree has no root hash and is written to the footer as an absent
+            // field, so compare against Bytes.EMPTY in that case.
+            final var computedTreeHash = prevBlockHashesTree.computeRootHash();
+            final var expectedTreeHash = computedTreeHash == null ? Bytes.EMPTY : computedTreeHash;
             assertEquals(
                     expectedTreeHash,
                     footer.rootHashOfAllBlockHashesTree(),
@@ -243,20 +246,16 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 .orElseThrow()
                 .blockFooterOrThrow();
 
-        // Presence for each branch is read from its hasher's actual leaf count rather than by comparing the
-        // resulting hash to HASH_OF_ZERO. Every hasher is in hand here, so the leaf count is available and
-        // exact; BlockImplUtils#presentSubtreeHash is the fallback for callers left with only a persisted root
-        // hash, and is not needed in this path.
-        final var prevBlockRootsHash =
-                prevBlockHashesTree.isEmpty() ? null : Bytes.wrap(prevBlockHashesTree.computeRootHash());
+        // A null branch hash means that subtree had no leaves and is omitted from the tree rather than hashed
+        // in as a placeholder; computeRootHash() returns null directly for that case, so no sentinel
+        // comparison is involved anywhere in this path.
+        final var prevBlockRootsHash = prevBlockHashesTree.computeRootHash();
         final var startOfBlockStateHash = footer.startOfBlockStateRootHash();
-        final var consensusHeaderHash =
-                consensusHeaderHasher.isEmpty() ? null : Bytes.wrap(consensusHeaderHasher.computeRootHash());
-        final var inputsHash = inputTreeHasher.isEmpty() ? null : Bytes.wrap(inputTreeHasher.computeRootHash());
-        final var outputsHash = outputTreeHasher.isEmpty() ? null : Bytes.wrap(outputTreeHasher.computeRootHash());
-        final var stateChangesHash =
-                stateChangesHasher.isEmpty() ? null : Bytes.wrap(stateChangesHasher.computeRootHash());
-        final var traceDataHash = traceDataHasher.isEmpty() ? null : Bytes.wrap(traceDataHasher.computeRootHash());
+        final var consensusHeaderHash = consensusHeaderHasher.computeRootHash();
+        final var inputsHash = inputTreeHasher.computeRootHash();
+        final var outputsHash = outputTreeHasher.computeRootHash();
+        final var stateChangesHash = stateChangesHasher.computeRootHash();
+        final var traceDataHash = traceDataHasher.computeRootHash();
 
         // d5n1 and d5n2 are never absent, since previousBlockHash and startOfBlockStateHash are always present;
         // d5n3 and d5n4 may each collapse to a single child, or be entirely absent if both of their branches

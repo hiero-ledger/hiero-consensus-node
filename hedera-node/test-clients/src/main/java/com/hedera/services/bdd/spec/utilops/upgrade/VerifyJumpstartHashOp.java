@@ -79,7 +79,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
         Bytes fileChainHash = prevHash;
         int index = 0;
         for (final var entry : neededEntries) {
-            final var allPrevBlocksRootHash = Bytes.wrap(hasher1.computeRootHash());
+            final var allPrevBlocksRootHash = hasher1.computeRootHash();
             final var blockRootHash =
                     RcdFileBlockHashReplay.computeBlockRootHash(fileChainHash, allPrevBlocksRootHash, entry);
 

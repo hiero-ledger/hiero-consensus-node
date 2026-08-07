@@ -22,6 +22,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -158,7 +159,7 @@ public final class RcdFileBlockHashReplay {
             entriesByBlock.put(blockNumber, entry);
 
             // Compute block root hash via Merkle tree (independent of production code)
-            final var allPrevBlocksRootHash = Bytes.wrap(initialHasher.computeRootHash());
+            final var allPrevBlocksRootHash = initialHasher.computeRootHash();
             final var blockRootHash = computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry);
 
             // Update chain
@@ -181,20 +182,20 @@ public final class RcdFileBlockHashReplay {
      * Computes the wrapped record block root hash for a single block using the Merkle tree,
      * independent of the production implementation in {@code BlockRecordManagerImpl}.
      * <p>
-     * {@code allPrevBlocksRootHash} and {@code entry.outputItemsTreeRootHash()} are already-finalized hashes
-     * with no accompanying leaf count, so presence for those two branches is inferred with
-     * {@code presentSubtreeHash} rather than a precise {@code isEmpty()} check; see
-     * {@code BlockImplUtils#presentSubtreeHash} for the (currently unreachable) edge case this leaves open.
+     * Branch 2 ({@code allPrevBlocksRootHash}) arrives as a {@code @Nullable} value straight from its hasher,
+     * while branch 6 ({@code entry.outputItemsTreeRootHash()}) comes off a persisted
+     * {@code WrappedRecordFileBlockHashes} and so is read back through {@code presentSubtreeHash}, which maps
+     * the zero-length field an absent subtree was written as back to null.
      */
     static Bytes computeBlockRootHash(
             @NonNull final Bytes prevWrappedBlockHash,
-            @NonNull final Bytes allPrevBlocksRootHash,
+            @Nullable final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
         // Branch 1 (prevWrappedBlockHash) is always present, even if literally HASH_OF_ZERO for the very first
         // wrapped record block; branch 2 (allPrevBlocksRootHash) is absent if this is the first such block.
-        final var depth5Node1 = combineChildren(prevWrappedBlockHash, presentSubtreeHash(allPrevBlocksRootHash));
+        final var depth5Node1 = combineChildren(prevWrappedBlockHash, allPrevBlocksRootHash);
         // Branches 3/4: wrapped record blocks carry no state hash or consensus header at all, so this pair is
-        // always fully absent from the tree, rather than hashed in as HASH_OF_ZERO.
+        // always fully absent from the tree.
         final Bytes depth5Node2 = null;
         // Branch 5: wrapped record blocks carry no input tree, so it's always absent. Branch 6 is absent only
         // if the record file had no output items.
