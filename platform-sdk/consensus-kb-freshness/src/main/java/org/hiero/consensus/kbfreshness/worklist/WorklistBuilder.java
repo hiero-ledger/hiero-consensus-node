@@ -5,22 +5,24 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 import org.hiero.consensus.kbfreshness.extract.AnchorExtractor;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.Anchor;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
-import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.resolve.SourceCandidates;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.Patterns;
 
 /**
- * Builds the semantic worklist: for each architecture topic/interface, whether any anchored source
- * file changed since the topic's {@code last_reviewed} date, decided purely from committed git
- * history. The result scopes the Tier-3 semantic pass so it re-reads only topics whose code moved.
+ * Builds the semantic worklist: for every scanned KB document, whether any anchored source file changed
+ * since its {@code last_reviewed} date, decided purely from committed git history. The result scopes the
+ * Tier-3 semantic pass so it re-reads only documents whose code moved (a document that anchors no code is
+ * reported {@code UNKNOWN} — there is nothing to date its prose against).
  */
 public final class WorklistBuilder {
 
@@ -53,19 +55,14 @@ public final class WorklistBuilder {
     }
 
     /**
-     * Builds the semantic worklist for the architecture topics and interfaces among the documents, sorted
-     * by entry key.
+     * Builds the semantic worklist for every scanned document, sorted by entry key.
      *
      * @param docs the KB documents to evaluate.
-     * @return one worklist entry per architecture topic/interface.
+     * @return one worklist entry per document.
      */
     public List<WorklistEntry> build(final List<KbDocument> docs) {
         final List<WorklistEntry> entries = new ArrayList<>();
         for (final KbDocument doc : docs) {
-            final EntryType type = doc.entry().type();
-            if (type != EntryType.ARCHITECTURE_TOPIC && type != EntryType.ARCHITECTURE_INTERFACE) {
-                continue;
-            }
             entries.add(evaluate(doc));
         }
         entries.sort(Comparator.comparing(WorklistEntry::entryKey));
@@ -73,17 +70,17 @@ public final class WorklistBuilder {
     }
 
     /**
-     * Evaluates one topic's freshness: {@code REVIEW} when the marker is missing/non-date or an anchored
-     * source was last committed on or after it, {@code FRESH} when every anchored source predates it,
-     * {@code UNKNOWN} — with a note naming the reason — when the topic anchors no sources, git is
-     * unavailable, or no commit date could be determined. The comparison is inclusive because commit
-     * dates are day-granular: a source touched on the {@code last_reviewed} day itself counts as changed,
-     * so a change merged later that same day is never skipped (at the cost of not clearing a topic until
-     * the day after its last change). The doc-intrinsic no-sources reason is checked before git
-     * availability so it reports the same way in every environment.
+     * Evaluates one document's freshness. A document that anchors no code is {@code UNKNOWN} (no anchored
+     * sources) regardless of its marker — there is no code to date its prose against, so this is checked
+     * first. Otherwise: {@code REVIEW} when the marker is missing/non-date or an anchored source was last
+     * committed on or after it, {@code FRESH} when every anchored source predates it, and {@code UNKNOWN}
+     * — with a note naming the reason — when git is unavailable or no commit date could be determined. The
+     * comparison is inclusive because commit dates are day-granular: a source touched on the
+     * {@code last_reviewed} day itself counts as changed, so a change merged later that same day is never
+     * skipped.
      *
      * @param doc the KB document to evaluate.
-     * @return the topic's worklist entry.
+     * @return the document's worklist entry.
      */
     private WorklistEntry evaluate(final KbDocument doc) {
         final String key = doc.entry().key();
@@ -92,40 +89,46 @@ public final class WorklistBuilder {
 
         final List<String> sourcePaths = anchoredSourcePaths(doc);
         final int anchorCount = sourcePaths.size();
-        if (lastReviewed == null
-                || !Patterns.ISO_DATE.matcher(lastReviewed.strip()).matches()) {
-            // No usable freshness marker — always route to review.
-            return new WorklistEntry(
-                    key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of(), anchorCount, null);
-        }
         if (sourcePaths.isEmpty()) {
+            // Anchors no code — no freshness signal exists, whatever the marker says.
             return unknown(key, path, lastReviewed, "no anchored sources", anchorCount);
         }
         if (!git.available()) {
             return unknown(key, path, lastReviewed, "git unavailable", anchorCount);
         }
 
-        final String reviewedDate = lastReviewed.strip();
-        final List<String> changed = new ArrayList<>();
+        // Scan each anchored source's last-commit date once. The newest is the reviewed-state date the
+        // marker records (via --mark-reviewed) — computed for every anchored document, even one still
+        // marked TBD — while the individual dates decide freshness against an existing marker below.
+        final Map<String, String> datedSources = new LinkedHashMap<>();
         String newest = null;
-        boolean anyDateKnown = false;
         for (final String src : sourcePaths) {
             final String commitDate = git.lastCommitDate(src);
             if (commitDate != null) {
-                anyDateKnown = true;
+                datedSources.put(src, commitDate);
                 if (newest == null || commitDate.compareTo(newest) > 0) {
                     newest = commitDate;
                 }
-                // Inclusive boundary: commit dates are day-granular, so a source last committed on the
-                // last_reviewed day itself counts as changed — a change merged later that same day is
-                // never skipped.
-                if (commitDate.compareTo(reviewedDate) >= 0) {
-                    changed.add(src);
-                }
             }
         }
-        if (!anyDateKnown) {
+        if (newest == null) {
             return unknown(key, path, lastReviewed, "no commit dates for anchored sources", anchorCount);
+        }
+        if (lastReviewed == null
+                || !Patterns.ISO_DATE.matcher(lastReviewed.strip()).matches()) {
+            // Anchored, but no usable freshness marker — route to review (newest known for --mark-reviewed).
+            return new WorklistEntry(
+                    key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of(), anchorCount, newest);
+        }
+        final String reviewedDate = lastReviewed.strip();
+        final List<String> changed = new ArrayList<>();
+        for (final Map.Entry<String, String> src : datedSources.entrySet()) {
+            // Inclusive boundary: commit dates are day-granular, so a source last committed on the
+            // last_reviewed day itself counts as changed — a change merged later that same day is never
+            // skipped.
+            if (src.getValue().compareTo(reviewedDate) >= 0) {
+                changed.add(src.getKey());
+            }
         }
         changed.sort(Comparator.naturalOrder());
         final WorklistEntry.Status status =
