@@ -236,7 +236,8 @@ public class SortedDiffExporter {
                         log.error("Unexpected error while finding leaf record by path in source", e);
                     }
                     if (sourceLeaf == null) {
-                        return;
+                        throw new IllegalStateException(
+                                "Expected to find a leaf record at path " + path + " in source virtual map");
                     }
 
                     final Bytes keyBytes = sourceLeaf.keyBytes();
