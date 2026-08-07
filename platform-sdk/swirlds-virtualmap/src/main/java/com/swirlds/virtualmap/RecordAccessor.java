@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal;
+package com.swirlds.virtualmap;
 
-import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.virtualmap.MerkleHasher;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;

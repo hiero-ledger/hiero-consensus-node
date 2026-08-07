@@ -9,17 +9,6 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.sync;
     exports com.swirlds.virtualmap.sync.streams;
 
-    // Testing-only exports
-    exports com.swirlds.virtualmap.internal to
-            com.swirlds.merkledb,
-            com.swirlds.merkledb.test.fixtures,
-            com.swirlds.virtualmap.test.fixtures,
-            com.swirlds.state.impl,
-            com.hedera.state.validator,
-            com.hedera.node.app;
-    exports com.swirlds.virtualmap.internal.cache to
-            com.swirlds.virtualmap.test.fixtures;
-
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
