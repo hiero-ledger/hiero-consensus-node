@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.metrics.noop.internal;
+package org.hiero.consensus.fakes.noop.internal;
 
 import static com.swirlds.metrics.api.Metric.DataType.INT;
 
