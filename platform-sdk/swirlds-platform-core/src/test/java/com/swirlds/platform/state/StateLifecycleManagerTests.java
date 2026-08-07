@@ -29,7 +29,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
