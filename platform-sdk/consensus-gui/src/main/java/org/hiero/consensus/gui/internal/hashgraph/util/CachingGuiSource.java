@@ -9,6 +9,7 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 
 /**
  * A {@link HashgraphGuiSource} that wraps another source but caches the results until {@link #refresh()} is called
@@ -18,7 +19,7 @@ public class CachingGuiSource implements HashgraphGuiSource {
     private List<EventImpl> events = null;
     private Roster roster = null;
     private final GuiEventStorage eventStorage;
-    private long maxGeneration = EventConstants.GENERATION_UNDEFINED;
+    private long maxGeneration = NonDeterministicGeneration.GENERATION_UNDEFINED;
     private long startGeneration = EventConstants.FIRST_GENERATION;
     private int numGenerations = HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
 
@@ -48,7 +49,7 @@ public class CachingGuiSource implements HashgraphGuiSource {
 
     @Override
     public boolean isReady() {
-        return events != null && roster != null && maxGeneration != EventConstants.GENERATION_UNDEFINED;
+        return events != null && roster != null && maxGeneration != NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**
