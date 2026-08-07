@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal;
+package com.swirlds.virtualmap;
 
 /**
  * A utility class with static methods for working with paths in the virtual tree. A path in the virtual tree
@@ -8,7 +8,7 @@ package com.swirlds.virtualmap.internal;
  * the virtual tree is strictly binary. Encoding the path as a long is critical to the overall performance
  * of the system.
  */
-public final class Path {
+public final class MerklePathUtils {
 
     /**
      * A special constant that represents the Path of a root node. It isn't necessary
@@ -50,7 +50,7 @@ public final class Path {
     /**
      * Disable creation of Path instances
      */
-    private Path() {}
+    private MerklePathUtils() {}
 
     // Gets the rank part of the pathId
 
