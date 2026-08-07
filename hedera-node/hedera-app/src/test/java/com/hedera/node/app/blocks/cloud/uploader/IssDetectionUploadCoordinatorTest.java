@@ -16,6 +16,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -74,6 +77,12 @@ class IssDetectionUploadCoordinatorTest {
     @Mock
     private SelfNodeAccountIdManager selfNodeAccountIdManager;
 
+    @Mock
+    private BlockBufferService blockBufferService;
+
+    @Mock
+    private BlockNodeConnectionManager blockNodeConnectionManager;
+
     @Captor
     private ArgumentCaptor<List<Path>> filesCaptor;
 
@@ -109,6 +118,8 @@ class IssDetectionUploadCoordinatorTest {
                 selfNodeAccountIdManager,
                 FileSystems.getDefault(),
                 instantSource,
+                blockBufferService,
+                blockNodeConnectionManager,
                 Runnable::run);
     }
 
@@ -133,6 +144,8 @@ class IssDetectionUploadCoordinatorTest {
                 selfNodeAccountIdManager,
                 FileSystems.getDefault(),
                 instantSource,
+                blockBufferService,
+                blockNodeConnectionManager,
                 deferred::add);
 
         asyncSubject.captureAndUpload(IssType.SELF_ISS, 9);
@@ -224,14 +237,17 @@ class IssDetectionUploadCoordinatorTest {
     }
 
     @Test
-    void skipsUploadWhenBlockNotLocatable() {
+    void fileModeDoesNotWriteMarkerWhenBlockNotLocatable() {
         when(issConfig.issBlockUploadEnabled()).thenReturn(true);
-        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
-        when(bufferReader.captureToDir(anyLong(), anyInt(), any())).thenReturn(List.of());
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(issConfig.captureTimeout()).thenReturn(Duration.ofMillis(50));
+        when(diskResolver.resolve(IssType.SELF_ISS, 9, 0)).thenReturn(List.of());
 
         subject.captureAndUpload(IssType.SELF_ISS, 9);
 
+        // The .txt pointer fallback is GRPC-only; FILE mode with no resolvable block uploads nothing.
         verify(uploader, never()).uploadBlockFiles(any(), anyString(), any());
+        verifyNoInteractions(bufferReader);
     }
 
     @Test
@@ -308,10 +324,16 @@ class IssDetectionUploadCoordinatorTest {
     void uploadDetectedIssOnFailureCapturesFromBufferInGrpcMode() {
         when(issConfig.issBlockUploadEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
-        // Detection records the ISS but captures nothing yet (buffer read empty for this attempt).
+        // Detection records the ISS but the block is not in the buffer, so it only uploads a pointer marker; left to
+        // fail (Mockito default empty result) so the round stays unmarked and the failure path still runs.
         when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
         subject.captureAndUpload(IssType.SELF_ISS, 9);
-        verify(uploader, never()).uploadBlockFiles(any(), anyString(), any());
+        final Path detectMarker = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("detect")
+                .resolve("iss-round-9.txt");
+        verify(uploader).uploadBlockFiles(UploadCategory.ISS, EXPECTED_FOLDER, List.of(detectMarker));
 
         // On CATASTROPHIC_FAILURE the failure path must capture the closed gRPC ISS block from the BUFFER (a closed
         // gRPC block is never written to disk), and must never consult the disk resolver.
@@ -501,5 +523,93 @@ class IssDetectionUploadCoordinatorTest {
 
         verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(gzA)));
         verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(gzB)));
+    }
+
+    @Test
+    void grpcModeWritesAndUploadsPointerMarkerWhenBlockNotInBuffer() throws IOException {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
+        when(blockNodeConnectionManager.activeConnectionSnapshot())
+                .thenReturn(Optional.of(
+                        new BlockNodeConnectionManager.ActiveBlockNodeSnapshot("bn-host", 8080, 0, 538L, 535L)));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of("uri"));
+
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+
+        // The missing block falls back to a .txt pointer, staged in the detection subdir and uploaded to iss/.
+        verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
+        final Path marker = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("detect")
+                .resolve("iss-round-9.txt");
+        assertThat(filesCaptor.getValue()).containsExactly(marker);
+        assertThat(marker).exists();
+        assertThat(Files.readString(marker))
+                .contains("issRound=9")
+                .contains("writerMode=GRPC")
+                .contains("activeBlockNode=bn-host:8080");
+        verifyNoInteractions(diskResolver);
+    }
+
+    @Test
+    void detectionMarkerSuccessMakesFailurePathSkip() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of("uri"));
+
+        // The detection marker upload succeeds and marks the round, so the failure path must de-duplicate and skip.
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+        subject.uploadDetectedIssOnFailure();
+
+        verify(uploader, times(1)).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any());
+    }
+
+    @Test
+    void markerUploadFailureLeavesRoundUnmarkedSoFailurePathUploadsItsOwnMarker() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
+        // The detection marker upload fails (empty), then the failure path's own marker upload succeeds.
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of())
+                .thenReturn(List.of("uri"));
+
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+        subject.uploadDetectedIssOnFailure();
+
+        // Detection staged its marker under detect/ and failure under failure/; both were uploaded (round only marked
+        // once the failure upload succeeded).
+        verify(uploader, times(2)).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
+        final Path detectMarker = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("detect")
+                .resolve("iss-round-9.txt");
+        final Path failureMarker = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("failure")
+                .resolve("iss-round-9.txt");
+        assertThat(filesCaptor.getAllValues()).containsExactly(List.of(detectMarker), List.of(failureMarker));
+        assertThat(failureMarker).exists();
+    }
+
+    @Test
+    void markerWriteIoErrorIsSwallowedAndUploadsNothing() throws IOException {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
+        // Point issBlockDir at a regular file so the marker's staging dir cannot be created.
+        final Path notADir = Files.write(tempDir.resolve("not-a-dir"), new byte[] {1});
+        when(issConfig.issBlockDir()).thenReturn(notADir.toString());
+
+        assertThatCode(() -> subject.captureAndUpload(IssType.SELF_ISS, 9)).doesNotThrowAnyException();
+
+        verify(uploader, never()).uploadBlockFiles(any(), anyString(), any());
     }
 }

@@ -124,6 +124,19 @@ class BuckyBlockUploaderTest {
     }
 
     @Test
+    void pointerMarkerTxtStripsToBaseNameAndUsesTextPlain() throws Exception {
+        final Path marker = tempDir.resolve("iss-round-9.txt");
+        Files.writeString(marker, "issRound=9\n");
+
+        final var uploader = new BuckyBlockUploader(config, "0.0.3", credentialsFile(), (c, cr) -> s3);
+        uploader.uploadBlockFiles(UploadCategory.ISS, INCIDENT, List.of(marker));
+
+        // The .txt extension is stripped to form the key folder, and the pointer is uploaded as text/plain.
+        final String key = "iss-blocks/0.0.3/iss/" + INCIDENT + "/iss-round-9/iss-round-9.txt";
+        verify(s3).uploadFile(eq(key), eq("STANDARD"), any(), eq("text/plain"));
+    }
+
+    @Test
     void skipsFileWhenUploadUltimatelyFails() throws Exception {
         // Retry now lives inside bucky's S3Client (the RetryPolicy); when uploadFile still throws after bucky has
         // exhausted it, the uploader issues exactly one call, logs, and skips the file — no hand-rolled retry loop.

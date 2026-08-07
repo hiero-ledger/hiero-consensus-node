@@ -50,7 +50,8 @@ class BuckyBlockUploader implements BlockUploader {
     /** Upper cap on bucky's retry backoff. */
     private static final long MAX_BACKOFF_MS = 20_000;
     /** Block-file extensions, longest first, stripped to recover the padded block number used as the key folder. */
-    private static final List<String> EXTENSIONS = List.of(".pnd.json", ".open.gz", ".iss.gz", ".pnd.gz", ".blk.gz");
+    private static final List<String> EXTENSIONS =
+            List.of(".pnd.json", ".open.gz", ".iss.gz", ".pnd.gz", ".blk.gz", ".txt");
 
     /** Seam so tests can supply a stub {@link S3Client} instead of constructing a real one. */
     @FunctionalInterface
@@ -199,6 +200,9 @@ class BuckyBlockUploader implements BlockUploader {
         }
         if (name.endsWith(".json")) {
             return "application/json";
+        }
+        if (name.endsWith(".txt")) {
+            return "text/plain";
         }
         return "application/octet-stream";
     }

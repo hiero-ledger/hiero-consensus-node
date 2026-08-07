@@ -4,10 +4,13 @@ package com.hedera.node.app.blocks.cloud.uploader;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.FailureBlockUploadConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.FileSystem;
@@ -21,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,6 +98,8 @@ public class IssDetectionUploadCoordinator {
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final FileSystem fileSystem;
     private final InstantSource instantSource;
+    private final BlockBufferService blockBufferService;
+    private final BlockNodeConnectionManager blockNodeConnectionManager;
     /** Runs the detection-time capture off the ISS-notification dispatcher (a virtual thread per ISS in production). */
     private final Executor captureExecutor;
 
@@ -121,7 +127,9 @@ public class IssDetectionUploadCoordinator {
             @NonNull final IssBufferBlockReader bufferReader,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
-            @NonNull final InstantSource instantSource) {
+            @NonNull final InstantSource instantSource,
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         // Detection-time capture runs on a virtual thread per ISS so the ORDERED async ISS-notification dispatcher
         // (which calls captureAndUpload) is never blocked by the bounded disk poll and upload.
         this(
@@ -132,6 +140,8 @@ public class IssDetectionUploadCoordinator {
                 selfNodeAccountIdManager,
                 fileSystem,
                 instantSource,
+                blockBufferService,
+                blockNodeConnectionManager,
                 Executors.newThreadPerTaskExecutor(
                         Thread.ofVirtual().name("iss-block-capture-", 0).factory()));
     }
@@ -145,6 +155,8 @@ public class IssDetectionUploadCoordinator {
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
             @NonNull final InstantSource instantSource,
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final Executor captureExecutor) {
         this.configProvider = requireNonNull(configProvider);
         this.uploader = requireNonNull(uploader);
@@ -153,6 +165,8 @@ public class IssDetectionUploadCoordinator {
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
         this.fileSystem = requireNonNull(fileSystem);
         this.instantSource = requireNonNull(instantSource);
+        this.blockBufferService = requireNonNull(blockBufferService);
+        this.blockNodeConnectionManager = requireNonNull(blockNodeConnectionManager);
         this.captureExecutor = requireNonNull(captureExecutor);
     }
 
@@ -203,7 +217,7 @@ public class IssDetectionUploadCoordinator {
                     .getConfigData(BlockStreamConfig.class)
                     .writerMode();
             final Path incidentDir = incidentDirFor(config, incidentFolder).resolve(STAGE_DETECTION);
-            final List<Path> files =
+            List<Path> files =
                     switch (writerMode) {
                         // The ISS-round block may still be the open block at detection (not yet a finished file on
                         // disk); wait until it becomes durable (it closes as rounds continue, or is flushed as a
@@ -212,10 +226,16 @@ public class IssDetectionUploadCoordinator {
                             materializeFromDisk(
                                     resolveWithWait(issType, round, config.precedingBlocks(), config.captureTimeout()),
                                     incidentDir);
-                        // The in-memory buffer already holds the ISS-round block (retained by
-                        // minAckedBlocksToBuffer), so no wait is needed.
+                        // Best-effort: the ISS block is expected to still be buffered (the block node does not
+                        // acknowledge it, and unacknowledged blocks are not pruned) but that is not guaranteed;
+                        // capture it if present, else fall through to the pointer marker below.
                         case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
                     };
+            // GRPC best-effort fallback: if the ISS block is no longer in the buffer, upload a pointer marker to iss/
+            // (with the data needed to find it on the block node) instead of preserving nothing.
+            if (writerMode == BlockStreamWriterMode.GRPC && files.isEmpty()) {
+                files = markerFilesFor(config, issType, round, writerMode, incidentDir);
+            }
             uploadAndMark(config, round, incidentFolder, files, false);
         } catch (final Throwable t) {
             log.error("ISS detection-time block capture/upload failed for round {}", round, t);
@@ -250,7 +270,7 @@ public class IssDetectionUploadCoordinator {
                     .writerMode();
             final Path incidentDir =
                     incidentDirFor(config, iss.incidentFolder()).resolve(STAGE_FAILURE);
-            final List<Path> files =
+            List<Path> files =
                     switch (writerMode) {
                         // FILE / FILE_AND_GRPC: closed blocks are durable .blk.gz on disk and awaitFatalShutdown has
                         // already flushed the open/pending set, so resolve from disk once (no polling).
@@ -258,21 +278,34 @@ public class IssDetectionUploadCoordinator {
                             materializeFromDisk(
                                     diskResolver.resolve(iss.issType(), iss.round(), config.precedingBlocks()),
                                     incidentDir);
-                        // GRPC: a closed ISS block is never on disk; capture it from the in-memory buffer. This is why
-                        // the call must precede blockNodeConnectionManager.shutdown() (which clears the buffer).
+                        // GRPC: best-effort capture from the in-memory buffer (a closed ISS block is never on disk).
+                        // Must precede blockNodeConnectionManager.shutdown() so the buffer still holds the block and
+                        // the active-connection snapshot (used by the pointer marker) is still available.
                         case GRPC -> bufferReader.captureToDir(iss.round(), config.precedingBlocks(), incidentDir);
                     };
+            // GRPC best-effort fallback: if the block is no longer in the buffer, upload a pointer marker to iss/ so
+            // triage still gets the data needed to locate it on the block node.
+            final boolean grpcMarker = writerMode == BlockStreamWriterMode.GRPC && files.isEmpty();
+            if (grpcMarker) {
+                files = markerFilesFor(config, iss.issType(), iss.round(), writerMode, incidentDir);
+            }
             final boolean preserved = uploadAndMark(config, iss.round(), iss.incidentFolder(), files, true);
-            // This is the authoritative, last-chance capture for a halting ISS. If the round is still not preserved
-            // (neither this path nor an awaited in-flight detection attempt uploaded it), surface it as ONE distinct
-            // high-severity signal an operator can alert on — instead of only the routine-looking WARNs emitted by
-            // the individual steps.
+            // This is the authoritative, last-chance capture for a halting ISS. If nothing was preserved — not the
+            // exact block, and (in GRPC) not even a pointer marker — surface ONE distinct high-severity signal an
+            // operator can alert on, instead of only the routine-looking WARNs emitted by the individual steps.
             if (!preserved) {
-                log.fatal(
-                        "ISS block for round {} was NOT preserved to iss/ (writerMode={}); the exact ISS block may be "
-                                + "unavailable for triage",
-                        iss.round(),
-                        writerMode);
+                if (grpcMarker) {
+                    log.fatal(
+                            "ISS round {} block was not in the buffer AND its pointer marker could not be uploaded to "
+                                    + "iss/; nothing was preserved for triage",
+                            iss.round());
+                } else {
+                    log.fatal(
+                            "ISS block for round {} was NOT preserved to iss/ (writerMode={}); the exact ISS block may "
+                                    + "be unavailable for triage",
+                            iss.round(),
+                            writerMode);
+                }
             }
         } catch (final Throwable t) {
             log.error("ISS block upload on catastrophic failure failed", t);
@@ -351,6 +384,89 @@ public class IssDetectionUploadCoordinator {
                 .getPath(config.issBlockDir())
                 .resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()))
                 .resolve(incidentFolder);
+    }
+
+    /** The pointer-marker file name for an ISS round whose block is no longer in the buffer. */
+    private static String markerFileName(final long round) {
+        return "iss-round-" + round + ".txt";
+    }
+
+    /**
+     * GRPC best-effort fallback: writes a plain-text pointer marker for an ISS round whose block is no longer in the
+     * buffer into {@code stageDir} (the same dir the block would have used), and returns it as the single file to
+     * upload to {@code iss/}. The marker records where the block was streamed and how far the block node has
+     * acknowledged, so an operator can fetch it from the block node. Returns an empty list if the marker cannot be
+     * written; best-effort, never throws.
+     */
+    private List<Path> markerFilesFor(
+            @NonNull final FailureBlockUploadConfig config,
+            @NonNull final IssType issType,
+            final long round,
+            @NonNull final BlockStreamWriterMode writerMode,
+            @NonNull final Path stageDir) {
+        log.warn(
+                "ISS round {} block is not in the block buffer; writing a pointer marker to iss/ (with the data to "
+                        + "locate it on the block node) instead of the block",
+                round);
+        try {
+            Files.createDirectories(stageDir);
+            final Path marker = stageDir.resolve(markerFileName(round));
+            Files.writeString(marker, buildMarkerContent(issType, round, writerMode));
+            return List.of(marker);
+        } catch (final Exception e) {
+            log.warn("Could not write ISS pointer marker for round {} into {}", round, stageDir, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Builds the plain-text {@code key=value} body of a pointer marker. Defensive: it reads only non-throwing buffer
+     * and connection-manager snapshots and renders a placeholder when there is no active connection, so it does not
+     * throw on the ISS/halt path.
+     */
+    private String buildMarkerContent(
+            @NonNull final IssType issType, final long round, @NonNull final BlockStreamWriterMode writerMode) {
+        final StringBuilder sb = new StringBuilder(512);
+        sb.append("# ISS block pointer - the ISS-round block was NOT in the in-memory buffer at capture time.\n");
+        sb.append("# Written best-effort so the block can still be located on the block node.\n\n");
+        sb.append("issType=").append(issType).append('\n');
+        sb.append("issRound=").append(round).append('\n');
+        sb.append("writerMode=").append(writerMode).append('\n');
+        sb.append("selfNodeAccount=")
+                .append(asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()))
+                .append('\n');
+        sb.append("capturedAt=").append(instantSource.instant()).append("\n\n");
+        sb.append("# Local in-memory block-buffer state on this node at capture time.\n");
+        sb.append("# The block containing the ISS round is older than the earliest buffered block (already pruned "
+                + "locally).\n");
+        sb.append("bufferEarliestBlock=")
+                .append(blockBufferService.getEarliestAvailableBlockNumber())
+                .append('\n');
+        sb.append("bufferLastProducedBlock=")
+                .append(blockBufferService.getLastBlockNumberProduced())
+                .append('\n');
+        sb.append("highestAckedBlock=")
+                .append(blockBufferService.getHighestAckedBlockNumber())
+                .append("\n\n");
+        sb.append("# Active block-node connection at capture time (where blocks were streamed / persisted).\n");
+        sb.append("# Blocks <= lastBlockAckedByBlockNode are persisted and verified by this block node - fetch the "
+                + "ISS-round block from it.\n");
+        final Optional<BlockNodeConnectionManager.ActiveBlockNodeSnapshot> snapshot =
+                blockNodeConnectionManager.activeConnectionSnapshot();
+        if (snapshot.isPresent()) {
+            final BlockNodeConnectionManager.ActiveBlockNodeSnapshot s = snapshot.get();
+            sb.append("activeBlockNode=")
+                    .append(s.host())
+                    .append(':')
+                    .append(s.port())
+                    .append('\n');
+            sb.append("activeBlockNodePriority=").append(s.priority()).append('\n');
+            sb.append("lastBlockSentToBlockNode=").append(s.lastBlockSent()).append('\n');
+            sb.append("lastBlockAckedByBlockNode=").append(s.lastBlockAcked()).append('\n');
+        } else {
+            sb.append("activeBlockNode=<none: no active block-node connection at capture time>\n");
+        }
+        return sb.toString();
     }
 
     /**
@@ -470,9 +586,9 @@ public class IssDetectionUploadCoordinator {
                 // positive.
                 issBlockUploaded.set(!issUris.isEmpty());
                 if (issUris.isEmpty()) {
-                    log.warn("ISS block {} was NOT uploaded to iss/; see prior errors", issBlock.getFileName());
+                    log.warn("iss/ upload of {} did NOT complete; see prior errors", issBlock.getFileName());
                 } else {
-                    log.warn("ISS block upload complete: {}", issUris);
+                    log.warn("iss/ upload complete: {}", issUris);
                 }
                 if (!precedingContext.isEmpty()) {
                     final List<String> contextUris =

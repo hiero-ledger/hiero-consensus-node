@@ -15,11 +15,10 @@ import java.time.Duration;
  * {@code iss/} folder; {@link #triageUploadEnabled} uploads the open/pending blocks flushed at catastrophic failure
  * under the {@code triage/} folder.
  *
- * <p>In {@code blockStream.writerMode=GRPC} the ISS-round block lives only in the in-memory block buffer at detection
- * time, so {@link #issBlockUploadEnabled} depends on {@code blockStream.buffer.minAckedBlocksToBuffer} retaining it
- * through the ISS-detection lag. That default (27) is sized for the default {@code consensus.roundsNonAncient} (26);
- * if that platform property is raised, raise {@code minAckedBlocksToBuffer} to at least {@code roundsNonAncient + 1}
- * or the block can be pruned before it is captured.
+ * <p>In {@code blockStream.writerMode=GRPC} the ISS-round block lives only in the in-memory block buffer, so its
+ * detection-time capture is best-effort: it is uploaded if still buffered (a block node does not acknowledge the ISS
+ * block, and unacknowledged blocks are not pruned, so it is normally still present), otherwise a small pointer
+ * {@code .txt} — with the data needed to find the block on the block node — is uploaded to {@code iss/} instead.
  *
  * <p>All properties are {@link NodeProperty per-node} operational concerns. The bucket access key and secret are
  * deliberately <b>not</b> configured here (they would leak through configuration logging); they are loaded from the

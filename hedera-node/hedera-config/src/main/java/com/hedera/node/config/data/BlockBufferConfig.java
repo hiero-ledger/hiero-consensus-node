@@ -46,7 +46,5 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "85.0") @Min(0) @NetworkProperty double recoveryThreshold,
         @ConfigProperty(defaultValue = "false") @NodeProperty boolean isBufferPersistenceEnabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
-        // = consensus.roundsNonAncient (26 — max ISS-detection lag in rounds) + 1 round margin for async
-        // ISS-notification dispatch lag; keeps the ISS round's block buffered in pure-gRPC mode when notify() runs.
-        @ConfigProperty(defaultValue = "27") @Min(0) @NetworkProperty int minAckedBlocksToBuffer) {}
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int minAckedBlocksToBuffer) {}
 // spotless:on
