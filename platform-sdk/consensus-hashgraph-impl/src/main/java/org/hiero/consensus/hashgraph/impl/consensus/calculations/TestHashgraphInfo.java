@@ -384,15 +384,15 @@ public class TestHashgraphInfo {
                     newHashgraph = false;
                 }
                 if (newRound) {
-                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order of nodes and stake
-                        int p = random.nextInt(i+1);
-                        long t1 = roundInfoNodes[i];
-                        long t2 = roundInfoStake[i];
-                        roundInfoNodes[i] = roundInfoNodes[p];
-                        roundInfoStake[i] = roundInfoStake[p];
-                        roundInfoNodes[p] = t1;
-                        roundInfoStake[p] = t2;
-                    }
+//                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order of nodes and stake
+//                        int p = random.nextInt(i+1);
+//                        long t1 = roundInfoNodes[i];
+//                        long t2 = roundInfoStake[i];
+//                        roundInfoNodes[i] = roundInfoNodes[p];
+//                        roundInfoStake[i] = roundInfoStake[p];
+//                        roundInfoNodes[p] = t1;
+//                        roundInfoStake[p] = t2;
+//                    }
                     roundInfo = new RoundInfo(roundInfoPrev.pendingRound(),
                             roundInfoNodes, roundInfoStake, roundInfoCoinInterval, roundInfoSeeNum,
                             roundInfoSeeDen, roundInfoJudgeCon1, roundInfoTargetNumRoundsNonAncient,
