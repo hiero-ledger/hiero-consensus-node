@@ -342,7 +342,7 @@ public class TestHashgraphInfo {
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
     static void createLogFile(String outputFilename) throws IOException {
-        final int MAX_NODE_ID = 999;
+        //final int MAX_NODE_ID = 999;
         final int NUM_NODES = 4;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
@@ -354,11 +354,11 @@ public class TestHashgraphInfo {
             final EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEvents = new LinkedList<>();
-            HashMap<Long, EventInfo> mapIdToEventInfo = new HashMap<Long, EventInfo>();
-            HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<Long, HashMap<Long, Integer>>();
-            HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<Long, HashMap<Integer, Long>>();
-            HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
-            HashMap<Integer, Long> mapCurrNodeIndexToNodeId; // = new HashMap<Integer, Long>();
+            HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
+            //HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<>();
+            //HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<>();
+            //HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
+            //HashMap<Integer, Long> mapCurrNodeIndexToNodeId; // = new HashMap<Integer, Long>();
             UpdateResults updateResults;
             long nextEventID  = 1;
             long eventsWritten = 0; //number of times an EventInfo row has been written so far
@@ -383,7 +383,8 @@ public class TestHashgraphInfo {
                     writeNewHashgraphRow(out, new NewHashgraphRow(SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
                     newHashgraph = false;
                 }
-                if (newRound) {
+                while (newRound) { // start new round, update old events, if one of them reaches consensus, loop
+                    newRound = false;
 //                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order of nodes and stake
 //                        int p = random.nextInt(i+1);
 //                        long t1 = roundInfoNodes[i];
@@ -394,16 +395,28 @@ public class TestHashgraphInfo {
 //                        roundInfoStake[p] = t2;
 //                    }
                     roundInfo = new RoundInfo(roundInfoPrev.pendingRound(),
-                            roundInfoNodes, roundInfoStake, roundInfoCoinInterval, roundInfoSeeNum,
+                            roundInfoNodes.clone(), roundInfoStake.clone(), roundInfoCoinInterval, roundInfoSeeNum,
                             roundInfoSeeDen, roundInfoJudgeCon1, roundInfoTargetNumRoundsNonAncient,
                             roundInfoNumRoundsAddressBook);
                     writeRoundInfoPrev(out, roundInfoPrev);
                     writeRoundInfo(out, roundInfo);
-                    newRound = false;
+                    for (int i=0; i<recentEvents.size(); i++) {
+                        EventInfo event = recentEvents.get(i);
+                        if (event.getBirthRound() < roundInfoPrev.prevMinJudgeBirthRound()) {
+                            recentEvents.remove(i);
+                        } else {
+                            updateResults = event.update(roundInfo, roundInfoPrev);
+                            eventsWritten++;
+                            if (updateResults != null) {
+                                newRound = true;
+                            }
+                            break;
+                        }
+                    }
                 }
                 int creatorIndex = random.nextInt(roundInfo.nodes().length);
                 ArrayList<EventInfo> possibleOtherParents = new ArrayList<>();
-                ArrayList<EventInfo> parents = new ArrayList<EventInfo>();
+                ArrayList<EventInfo> parents = new ArrayList<>();
                 if (lastEvent[creatorIndex] != null) {
                     parents.add(lastEvent[creatorIndex]);
                 }
@@ -422,10 +435,10 @@ public class TestHashgraphInfo {
                         Instant.now(), // Instant timeCreated
                         roundInfo.pendingRound(), // long birthRound
                         random.nextInt(), // int coin
-                        parents.toArray(new EventInfo[0]), // EventInfo[] parents
+                        parents.toArray(new EventInfo[0]).clone(), // EventInfo[] parents
                         null); // Object payload
                 //lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
-                mapIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
+                mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEvents.add(eventInfo);
                 writeEventSigned(out, eventInfo);
                 lastEvent[creatorIndex] = eventInfo;
