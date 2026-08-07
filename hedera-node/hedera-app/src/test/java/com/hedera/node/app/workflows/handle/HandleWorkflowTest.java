@@ -422,7 +422,7 @@ class HandleWorkflowTest {
         EventDescriptor parentDescriptor = EventDescriptor.newBuilder().build();
         EventDescriptorWrapper parent = mock(EventDescriptorWrapper.class);
         given(parent.hash()).willReturn(parentHash);
-        given(parent.eventDescriptor()).willReturn(parentDescriptor);
+        given(parent.toPbj()).willReturn(parentDescriptor);
 
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
@@ -486,7 +486,7 @@ class HandleWorkflowTest {
 
         EventDescriptorWrapper parentNotInBlock = mock(EventDescriptorWrapper.class);
         given(parentNotInBlock.hash()).willReturn(parentNotInBlockHash);
-        given(parentNotInBlock.eventDescriptor()).willReturn(notInBlockDescriptor);
+        given(parentNotInBlock.toPbj()).willReturn(notInBlockDescriptor);
 
         // Setup event with two parents
         given(event.getHash()).willReturn(eventHash);

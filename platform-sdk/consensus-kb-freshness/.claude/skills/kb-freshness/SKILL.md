@@ -120,8 +120,11 @@ Close with a short, concrete action list derived from this run (skip lines that 
    topic slugs with no document).
 4. **Close the review loop**: for each worklisted topic whose semantic pass found every claim
    `supported` (or whose contradictions have since been fixed), suggest bumping its `last_reviewed`
-   date — mechanically, via `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; a spec without
-   a date uses `--date`). Without the bump, every future run re-worklists the same topics. Never
+   via `--mark-reviewed <entry-key>` (repeatable). A bare spec records the topic's newest
+   anchored-source commit date — the state this run reviewed, shown as `newestAnchoredCommit` in
+   `worklist.json` — derived from the scanned checkout, never the wall clock (so a run against a stale
+   `main` never marks commits it did not review as reviewed). Without the bump, every
+   future run re-worklists the same topics. Never
    suggest bumping a topic that still has an unresolved contradiction (which now includes a dangling
    reference to a renamed or removed symbol).
 5. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
