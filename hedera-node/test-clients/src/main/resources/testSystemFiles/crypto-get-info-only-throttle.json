@@ -1,0 +1,90 @@
+{
+  "buckets": [
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ThroughputLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10500000,
+          "operations": [
+            "NodeCreate",
+            "NodeDelete",
+            "NodeUpdate",
+            "ScheduleCreate",
+            "CryptoCreate",
+            "CryptoTransfer",
+            "CryptoUpdate",
+            "CryptoDelete",
+            "CryptoGetAccountRecords",
+            "ConsensusCreateTopic",
+            "ConsensusSubmitMessage",
+            "ConsensusUpdateTopic",
+            "ConsensusDeleteTopic",
+            "ConsensusGetTopicInfo",
+            "TokenGetNftInfo",
+            "TokenGetInfo",
+            "ScheduleDelete",
+            "ScheduleGetInfo",
+            "FileGetContents",
+            "FileGetInfo",
+            "ContractUpdate",
+            "ContractDelete",
+            "ContractGetInfo",
+            "ContractGetBytecode",
+            "ContractGetRecords",
+            "ContractCallLocal",
+            "TransactionGetRecord",
+            "GetVersionInfo",
+            "TokenGetAccountNftInfos",
+            "TokenGetNftInfos",
+            "CryptoApproveAllowance",
+            "CryptoDeleteAllowance",
+            "UtilPrng",
+            "AtomicBatch"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 13000,
+          "operations": [
+            "FileCreate",
+            "FileUpdate",
+            "FileAppend",
+            "FileDelete"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "CryptoGetInfoLimit",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 1,
+          "operations": [
+            "CryptoGetInfo"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "FreeQueryLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000000,
+          "milliOpsPerSec": 0,
+          "operations": [
+            "TransactionGetReceipt",
+            "CryptoGetAccountBalance"
+          ]
+        }
+      ]
+    }
+  ]
+}
