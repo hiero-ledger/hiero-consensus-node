@@ -344,8 +344,7 @@ public class TestHashgraphInfo {
     static void createLogFile(String outputFilename) throws IOException {
         final int MAX_NODE_ID = 999;
         final int NUM_NODES = 4;
-        final int MIN_OTHER_PARENTS = 1;
-        final int MAX_OTHER_PARENTS = 3;
+        final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
         if (outputFile == null) {
             return;
@@ -385,6 +384,15 @@ public class TestHashgraphInfo {
                     newHashgraph = false;
                 }
                 if (newRound) {
+                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order of nodes and stake
+                        int p = random.nextInt(i+1);
+                        long t1 = roundInfoNodes[i];
+                        long t2 = roundInfoStake[i];
+                        roundInfoNodes[i] = roundInfoNodes[p];
+                        roundInfoStake[i] = roundInfoStake[p];
+                        roundInfoNodes[p] = t1;
+                        roundInfoStake[p] = t2;
+                    }
                     roundInfo = new RoundInfo(roundInfoPrev.pendingRound(),
                             roundInfoNodes, roundInfoStake, roundInfoCoinInterval, roundInfoSeeNum,
                             roundInfoSeeDen, roundInfoJudgeCon1, roundInfoTargetNumRoundsNonAncient,
@@ -394,23 +402,33 @@ public class TestHashgraphInfo {
                     newRound = false;
                 }
                 int creatorIndex = random.nextInt(roundInfo.nodes().length);
-                ArrayList<EventInfo> possibleParents = new ArrayList<>();
-                int numParents = 0;
-                EventInfo selfParent = null;
-                EventInfo[] parents = new EventInfo[numParents];
+                ArrayList<EventInfo> possibleOtherParents = new ArrayList<>();
+                ArrayList<EventInfo> parents = new ArrayList<EventInfo>();
+                if (lastEvent[creatorIndex] != null) {
+                    parents.add(lastEvent[creatorIndex]);
+                }
+                for (int i=0; i<lastEvent.length; i++) {
+                    if (lastEvent[i] != null && i != creatorIndex) {
+                        possibleOtherParents.add(lastEvent[i]);
+                    }
+                }
+                Collections.shuffle(possibleOtherParents, random);
+                parents.addAll(possibleOtherParents.subList(0, Math.min(possibleOtherParents.size(), MAX_OTHER_PARENTS)));
+
                 EventInfo eventInfo = new EventInfo(
                         hashgraphInfo, // HashgraphInfo hashgraphInfo
                         nextEventID++, // long eventID
-                        creatorIndex, // int creator
+                        roundInfoNodes[creatorIndex], // int creatorNodeID
                         Instant.now(), // Instant timeCreated
                         roundInfo.pendingRound(), // long birthRound
                         random.nextInt(), // int coin
-                        parents, // EventInfo[] parents
+                        parents.toArray(new EventInfo[0]), // EventInfo[] parents
                         null); // Object payload
                 //lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
                 mapIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEvents.add(eventInfo);
                 writeEventSigned(out, eventInfo);
+                lastEvent[creatorIndex] = eventInfo;
 
                 updateResults = eventInfo.update(roundInfo, roundInfoPrev);
                 writeEventInfo(out, eventInfo, roundInfoPrev);
