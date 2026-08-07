@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LongSummaryStatistics;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -392,10 +393,27 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** {@inheritDoc} */
     public void snapshot(final Path snapshotDirectory) throws IOException {
+        snapshot(snapshotDirectory, Runnable::run, 1);
+    }
+
+    /**
+     * Writes a snapshot, using the supplied executor to write the bucket index with the requested number of threads.
+     *
+     * <p>The caller owns the executor. A thread count of one does not submit a task; higher values are the total writer
+     * count for the bucket index. This method waits for all bucket-index writer tasks before returning.
+     *
+     * @param snapshotDirectory directory to write the snapshot to
+     * @param executor executor for bucket-index writer tasks
+     * @param threadCount total number of bucket-index writer threads, at least one
+     * @throws IOException if the snapshot cannot be written
+     */
+    public void snapshot(final Path snapshotDirectory, final Executor executor, final int threadCount)
+            throws IOException {
         // create snapshot directory if needed
         Files.createDirectories(snapshotDirectory);
         // write index to file
-        bucketIndexToBucketLocation.writeToFile(snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX));
+        bucketIndexToBucketLocation.writeToFile(
+                snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), executor, threadCount);
         // snapshot files
         fileCollection.snapshot(snapshotDirectory);
         // write metadata

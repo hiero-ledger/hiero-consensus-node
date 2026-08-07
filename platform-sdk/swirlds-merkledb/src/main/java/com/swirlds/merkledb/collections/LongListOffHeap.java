@@ -143,17 +143,12 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
         return MemoryUtils.compareAndSwapLong(chunk, subIndexBytes, oldValue, newValue);
     }
 
-    /**
-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
-     *
-     * @param fc The file channel to write to
-     * @throws IOException if there was a problem writing longs
-     */
+    /** {@inheritDoc} */
     @Override
-    protected void writeLongsData(final FileChannel fc) throws IOException {
-        final int totalNumOfChunks = calculateNumberOfChunks(size());
-        final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+    protected void writeLongsData(final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
+            throws IOException {
+        final int totalNumOfChunks = calculateNumberOfChunks(endIndex);
+        final int firstChunkWithDataIndex = toIntExact(startIndex / longsPerChunk);
         // write data
         final ByteBuffer emptyBuffer = createChunk();
         try {
@@ -165,7 +160,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
                 final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.limit());
                 if (i == firstChunkWithDataIndex) {
                     // writing starts from the first valid index in the first valid chunk
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+                    final int firstValidIndexInChunk = toIntExact(startIndex % longsPerChunk);
                     buf.position(firstValidIndexInChunk * Long.BYTES);
                 } else {
                     buf.position(0);
@@ -173,12 +168,12 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
                 if (i == (totalNumOfChunks - 1)) {
                     // last array, so set limit to only the data needed
                     final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                    final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+                    final long remainingBytes = endIndex * Long.BYTES - bytesWrittenSoFar;
                     buf.limit(toIntExact(remainingBytes));
                 } else {
                     buf.limit(buf.capacity());
                 }
-                MerkleDbFileUtils.completelyWrite(fc, buf);
+                fileOffset += MerkleDbFileUtils.completelyWrite(fc, buf, fileOffset);
             }
         } finally {
             // releasing memory allocated

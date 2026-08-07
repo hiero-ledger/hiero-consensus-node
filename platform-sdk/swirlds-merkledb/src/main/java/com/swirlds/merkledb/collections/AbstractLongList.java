@@ -13,6 +13,7 @@ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -21,6 +22,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
@@ -500,9 +504,86 @@ public abstract class AbstractLongList<C> implements LongList {
             writeHeader(fc);
             if (size() > 0) {
                 // write data
-                writeLongsData(fc);
+                writeLongsData(fc, minValidIndex.get(), size(), FILE_HEADER_SIZE_V3);
             }
             fc.force(true);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void writeToFile(final Path file, final Executor executor, final int threadCount) throws IOException {
+        if (threadCount == 1) {
+            writeToFile(file);
+            return;
+        }
+
+        try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            writeHeader(fc);
+            if (size() > 0) {
+                writeLongsDataInParallel(fc, executor, threadCount);
+            }
+            fc.force(true);
+        }
+    }
+
+    private void writeLongsDataInParallel(final FileChannel fc, final Executor executor, final int threadCount)
+            throws IOException {
+        // First chunk containing list data, used as the partition's inclusive lower bound.
+        final int firstChunkWithDataIndex = toIntExact(minValidIndex.get() / longsPerChunk);
+        // Total chunks containing list data, used as the partition's exclusive upper bound.
+        final int totalNumOfChunks = calculateNumberOfChunks(size());
+        // Number of chunks to write, used to bound and balance the writer ranges.
+        final int activeChunkCount = totalNumOfChunks - firstChunkWithDataIndex;
+        if (activeChunkCount <= 0) {
+            return;
+        }
+        // Number of writer tasks, capped so every task owns at least one chunk.
+        final int taskCount = min(threadCount, activeChunkCount);
+        // Minimum chunks per range, used as the base size of the balanced partition.
+        final int chunksPerRange = activeChunkCount / taskCount;
+        // Leading ranges with one extra chunk, used to distribute the partition remainder.
+        final int rangesWithOneMoreChunk = activeChunkCount % taskCount;
+
+        // Submitted writer tasks, retained so all workers can be joined before closing the file.
+        final List<CompletableFuture<Void>> tasks = new ArrayList<>(taskCount);
+
+        // Start of the next range, advanced as writer ranges are assigned.
+        int rangeFirstChunkInclusive = firstChunkWithDataIndex;
+        try {
+            // Contiguous ranges keep each writer moving forward through the target file.
+            for (int rangeIndex = 0; rangeIndex < taskCount; rangeIndex++) {
+                // Chunks in this writer range, including one remainder chunk when applicable.
+                final int rangeChunkCount = chunksPerRange + (rangeIndex < rangesWithOneMoreChunk ? 1 : 0);
+                // End of this writer range, used as the start of the following range.
+                final int rangeLastChunkExclusive = rangeFirstChunkInclusive + rangeChunkCount;
+                // First list index in this range, used as the source lower bound.
+                final long startIndex = max(minValidIndex.get(), (long) rangeFirstChunkInclusive * longsPerChunk);
+                // Exclusive last list index in this range, used as the source upper bound.
+                final long endIndex = min(size(), (long) rangeLastChunkExclusive * longsPerChunk);
+                // Absolute target position for this range, used by positional writes.
+                final long fileOffset = FILE_HEADER_SIZE_V3 + (startIndex - minValidIndex.get()) * Long.BYTES;
+                tasks.add(CompletableFuture.runAsync(
+                        () -> {
+                            try {
+                                writeLongsData(fc, startIndex, endIndex, fileOffset);
+                            } catch (final IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        },
+                        executor));
+                rangeFirstChunkInclusive = rangeLastChunkExclusive;
+            }
+        } finally {
+            try {
+                CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+            } catch (final CompletionException e) {
+                // Restore the checked IOException contract after crossing the CompletableFuture boundary.
+                if (e.getCause() instanceof UncheckedIOException ioException) {
+                    throw ioException.getCause();
+                }
+                throw e;
+            }
         }
     }
 
@@ -528,12 +609,17 @@ public abstract class AbstractLongList<C> implements LongList {
     }
 
     /**
-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
+     * Writes the specified index range using positional writes.
      *
-     * @param fc The file channel to write to
-     * @throws IOException if there was a problem writing longs
+     * @param fc target file channel
+     * @param startIndex first list index to write, inclusive
+     * @param endIndex last list index to write, exclusive
+     * @param fileOffset absolute target offset for {@code startIndex}
+     * @throws IOException if the range cannot be written
      */
-    protected abstract void writeLongsData(@NonNull final FileChannel fc) throws IOException;
+    protected abstract void writeLongsData(
+            @NonNull final FileChannel fc, final long startIndex, final long endIndex, final long fileOffset)
+            throws IOException;
 
     /**
      * Lookup a long in data

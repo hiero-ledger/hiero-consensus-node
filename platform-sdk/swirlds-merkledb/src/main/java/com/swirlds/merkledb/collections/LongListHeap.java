@@ -150,24 +150,20 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         return chunk.compareAndSet(subIndex, oldValue, newValue);
     }
 
-    /**
-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
-     *
-     * @param fc The file channel to write to
-     * @throws IOException if there was a problem writing longs
-     */
+    /** {@inheritDoc} */
     @Override
-    protected void writeLongsData(final FileChannel fc) throws IOException {
+    protected void writeLongsData(final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
+            throws IOException {
         // write data
         final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
         try {
             tempBuffer.order(ByteOrder.LITTLE_ENDIAN);
             final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
-            for (long i = minValidIndex.get(); i < size(); i++) {
+            for (long i = startIndex; i < endIndex; i++) {
                 // if buffer is full then write
                 if (!tempLongBuffer.hasRemaining()) {
                     tempBuffer.clear();
-                    MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+                    fileOffset += MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
                     tempLongBuffer.clear();
                 }
                 // add value to buffer
@@ -177,7 +173,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
             if (tempLongBuffer.position() > 0) {
                 tempBuffer.position(0);
                 tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
-                MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+                MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
             }
         } finally {
             MemoryUtils.closeDirectByteBuffer(tempBuffer);
