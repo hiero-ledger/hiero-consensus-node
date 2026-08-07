@@ -5,7 +5,7 @@ updates:
     directory: "/" # for 'plugins { }' in 'settings.gradle.kts'
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 11
   - package-ecosystem: "gradle"
     directory: "/hiero-dependency-versions"
     schedule:
