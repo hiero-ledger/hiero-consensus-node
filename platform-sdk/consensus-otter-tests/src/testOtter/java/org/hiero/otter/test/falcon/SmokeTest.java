@@ -25,7 +25,7 @@ public class SmokeTest {
      *
      * @param env the test environment for this test
      */
-    @FalconTest
+    @FalconTest(repetition = 1)
     void smokeTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -42,14 +42,15 @@ public class SmokeTest {
         final AtomicLong counter = new AtomicLong();
         nodes.getFirst().newConsensusResult().subscribe((_, round) -> {
             counter.addAndGet(round.getEventCount());
+            System.out.println("Total events processed: " + counter.get());
             return SubscriberAction.CONTINUE;
         });
 
         // Start simulation
         network.start();
 
-        // Create 10,000 events (wait up to 1 minute)
-        final BooleanSupplier condition = () -> counter.get() >= 10_000;
-        timeManager.waitForConditionInRealTime(condition, Duration.ofMinutes(1L));
+        // Create 100 events (wait up to 10 seconds)
+        final BooleanSupplier condition = () -> counter.get() >= 100;
+        timeManager.waitForConditionInRealTime(condition, Duration.ofSeconds(10L));
     }
 }

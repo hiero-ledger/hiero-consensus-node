@@ -89,7 +89,7 @@ public class SimulatorTransactionGenerator implements TransactionGenerator {
                     // Generate a random transaction and submit it to the node.
                     final OtterTransaction transaction =
                             TransactionFactory.createEmptyTransaction(randotron.nextLong());
-                    ((TurtleNode) node).submitTransaction(transaction);
+                    node.submitTransaction(transaction);
                 }
             }
         }

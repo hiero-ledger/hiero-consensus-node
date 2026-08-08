@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.falcon;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -30,6 +32,7 @@ import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -62,10 +65,17 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.network = requireNonNull(network);
+        this.network.addNode(selfId, this::forwardEvent);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+    }
+
+    private void forwardEvent(@NonNull final PlatformEvent event) {
+        if (wiring != null) {
+            wiring.receivedGossipEventsInputWire().put(event);
+        }
     }
 
     /**
@@ -100,13 +110,15 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         secureRandom.setSeed(random.nextLong());
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
+        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> network.submitEvent(selfId, event));
         wiring.consensusOutputWire()
                 .buildTransformer(
-                        "Falcon_ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
-                .<ConsensusRound>buildSplitter("Falcon_ConsensusResultSplitter", "consensus rounds")
-                .solderTo("", "", resultsCollector::addConsensusRound);
+                        "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
+                .<ConsensusRound>buildSplitter("ConsensusResultSplitter", "consensus rounds")
+                .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
+        wiring.start();
 
-        platformStatus = PlatformStatus.STARTING_UP;
+        platformStatus = PlatformStatus.ACTIVE;
         lifeCycle = RUNNING;
     }
 
@@ -116,6 +128,13 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         wiring = null;
+        lifeCycle = SHUTDOWN;
+        platformStatus = null;
+
+        // Wait a bit to allow a simulated gossip cycle to pass.
+        // This is important to ensure that the node receives all
+        // necessary events when/if it is restarted.
+        timeManager.waitFor(Duration.ofSeconds(1));
     }
 
     /**
@@ -147,7 +166,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
      */
     @Override
     public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
-        throw new UnsupportedOperationException("Transaction submission is not supported in FalconNode.");
+        // Do nothing. We ignore transactions in Falcon entirely.
     }
 
     /**

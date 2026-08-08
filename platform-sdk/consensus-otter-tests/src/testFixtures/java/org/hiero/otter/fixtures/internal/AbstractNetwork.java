@@ -326,9 +326,11 @@ public abstract class AbstractNetwork implements Network {
      * <p>Subclasses can override this method to add custom behavior before the network starts, such as initializing
      * resources or performing setup tasks. They can also modify the roster if needed.
      *
+     * <p>The default implementation is empty.
+     *
      * @param roster the preliminary roster generated for the network
      */
-    protected abstract void preStartHook(@NonNull final Roster roster);
+    protected void preStartHook(@NonNull final Roster roster) {}
 
     private void doStart(@NonNull final Duration timeout) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");

@@ -41,7 +41,6 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
 
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
-    private final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     private ExecutorService executorService;
 
@@ -73,15 +72,13 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork(), nodeId);
-        simulatedNetwork().addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 random,
-                timeManager(),
+                timeManager,
                 nodeId,
                 keysAndCerts,
-                simulatedGossip,
+                simulatedNetwork,
                 logging,
                 outputDir,
                 networkConfiguration,
@@ -95,15 +92,13 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork(), nodeId);
-        simulatedNetwork().addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 random,
-                timeManager(),
+                timeManager,
                 nodeId,
                 keysAndCerts,
-                simulatedGossip,
+                simulatedNetwork,
                 logging,
                 outputDir,
                 networkConfiguration,
@@ -135,12 +130,12 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
         try {
             final Instant requiredTime = OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory)
                     .plus(Duration.ofHours(1));
-            final Instant currentTime = timeManager().now();
+            final Instant currentTime = timeManager.now();
 
             if (currentTime.isBefore(requiredTime)) {
                 final Duration timeAdvance = Duration.between(currentTime, requiredTime);
                 log.info("Advancing TimeManager instantaneously by {} to match saved state time", timeAdvance);
-                timeManager().advanceTime(timeAdvance);
+                timeManager.advanceTime(timeAdvance);
             }
         } catch (final IOException e) {
             fail("Failed to synchronize TimeManager with saved state", e);

@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -10,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.crypto.BytesSigner;
@@ -17,6 +19,7 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
@@ -33,6 +36,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -103,7 +107,7 @@ public class FalconWiring implements TimeTickReceiver {
         hasherWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
         final OutputWire<PlatformEvent> orphanBufferOutput = orphanBufferWiring.getSplitOutput();
         orphanBufferOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
-        orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent));
+        orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
         final OutputWire<ConsensusEngineOutput> consensusOutput = consensusEngineWiring.getOutputWire();
         final OutputWire<ConsensusRound> consensusRoundOutput = consensusOutput
@@ -114,7 +118,15 @@ public class FalconWiring implements TimeTickReceiver {
         eventWindowOutputWire.solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow));
         eventWindowOutputWire.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::setEventWindow));
 
+        final Duration eventCreationHeartbeat = configuration.getConfigData(EventCreationConfig.class).period();
+        model.buildHeartbeatWire(eventCreationHeartbeat)
+                .solderTo(
+                        eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
+                        OFFER);
         eventCreationManagerWiring.getOutputWire().solderTo(hasherWiring.getInputWire(EventHasher::hashEvent));
+
+        consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus);
+        eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus);
     }
 
     @NonNull
@@ -130,6 +142,12 @@ public class FalconWiring implements TimeTickReceiver {
     @NonNull
     public OutputWire<ConsensusEngineOutput> consensusOutputWire() {
         return consensusEngineWiring.getOutputWire();
+    }
+
+    public void start() {
+        model.start();
+        consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus).inject(PlatformStatus.ACTIVE);
+        eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus).inject(PlatformStatus.ACTIVE);
     }
 
     @Override

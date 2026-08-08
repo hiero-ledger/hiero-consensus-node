@@ -12,14 +12,16 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 
 public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTickReceiver {
 
-    private final SimulatorTimeManager timeManager;
-    private final SimulatorTransactionGenerator transactionGenerator;
-    private final SimulatedNetwork simulatedNetwork;
+    protected final SimulatorTimeManager timeManager;
+    protected final SimulatorTransactionGenerator transactionGenerator;
+    protected final SimulatedNetwork simulatedNetwork;
+    protected final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     protected SimulatorNetwork(
             @NonNull final Random random,
@@ -48,14 +50,6 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
     @NonNull
     protected SimulatorTransactionGenerator transactionGenerator() {
         return transactionGenerator;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    protected SimulatedNetwork simulatedNetwork() {
-        return simulatedNetwork;
     }
 
     /**
@@ -91,8 +85,8 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
             return;
         }
 
-        simulatedNetwork().tick(now);
-        transactionGenerator().tick(now, nodes());
+        simulatedNetwork.tick(now);
+        transactionGenerator.tick(now, nodes());
     }
 
     /**
