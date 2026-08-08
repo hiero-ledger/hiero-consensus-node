@@ -373,7 +373,7 @@ public class TestHashgraphInfo {
             final Random random = new Random(RANDOM_SEED);
             final EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
-            List<EventInfo> recentEvents = new LinkedList<>();
+            List<EventInfo> recentEventsToRecalculate = new LinkedList<>();
             HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
             //HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<>();
             //HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<>();
@@ -420,10 +420,10 @@ public class TestHashgraphInfo {
                             roundInfoNumRoundsAddressBook);
                     writeRoundInfoPrev(out, roundInfoPrev);
                     writeRoundInfo(out, roundInfo);
-                    for (int i=0; i<recentEvents.size(); i++) {
-                        EventInfo event = recentEvents.get(i);
+                    for (int i=0; i<recentEventsToRecalculate.size(); i++) {
+                        EventInfo event = recentEventsToRecalculate.get(i);
                         if (event.getBirthRound() < roundInfoPrev.prevMinJudgeBirthRound()) {
-                            recentEvents.remove(i);
+                            recentEventsToRecalculate.remove(i);
                         } else {
                             updateResults = event.update(roundInfo, roundInfoPrev);
                             writeEventInfo(out,event,roundInfoPrev);
@@ -449,18 +449,28 @@ public class TestHashgraphInfo {
                 Collections.shuffle(possibleOtherParents, random);
                 parents.addAll(possibleOtherParents.subList(0, Math.min(possibleOtherParents.size(), MAX_OTHER_PARENTS)));
 
+                // create a random time, greater than self parent, and greater than a randomly-chosen potential parent
+                Instant timeCreated = Instant.EPOCH;
+                if (!parents.isEmpty() && timeCreated.isBefore(parents.getFirst().getTimeCreated())) {
+                    timeCreated = parents.getFirst().getTimeCreated();
+                }
+                if (!parents.isEmpty() && timeCreated.isBefore(parents.getLast().getTimeCreated())) {
+                    timeCreated = parents.getLast().getTimeCreated();
+                }
+                timeCreated = timeCreated.plusNanos(random.nextInt(2_000_000_000));
+
                 EventInfo eventInfo = new EventInfo(
                         hashgraphInfo, // HashgraphInfo hashgraphInfo
                         nextEventID++, // long eventID
-                        roundInfoNodes[creatorIndex], // int creatorNodeID
-                        Instant.now(), // Instant timeCreated
+                        roundInfoNodes[creatorIndex], // long creatorNodeID
+                        timeCreated, // Instant timeCreated
                         roundInfo.pendingRound(), // long birthRound
                         random.nextInt(), // int coin
                         parents.toArray(new EventInfo[0]).clone(), // EventInfo[] parents
                         null); // Object payload
                 //lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
                 mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
-                recentEvents.add(eventInfo);
+                recentEventsToRecalculate.add(eventInfo);
                 writeEventSigned(out, eventInfo);
                 lastEvent[creatorIndex] = eventInfo;
 

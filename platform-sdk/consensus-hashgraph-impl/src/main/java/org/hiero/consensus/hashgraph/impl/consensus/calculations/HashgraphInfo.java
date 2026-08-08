@@ -1177,16 +1177,20 @@ public final class HashgraphInfo {
                 return null;
             }
             h.benchmarks[HashgraphInfo.BENCHMARK_LOOP9] -= System.nanoTime(); // second half of top vote
-            long s = 0; // total stake of all the elected judges
+            long totalJudgeStake = 0; // total stake of all the elected judges
             for (int m = 0; m < numNodes; m++) {
                 if (voteE[m] != null) {
-                    s += r.stake[m];
+                    totalJudgeStake += r.stake[m];
                 }
             }
             h.judges.clear();
-            prevJudgesCopied = (s <= h.supermajorityThreshold);
+            prevJudgesCopied = (totalJudgeStake <= h.supermajorityThreshold);
             if (prevJudgesCopied) { // if not a supermajority, copy previous judges. This is VERY rare.
                 Collections.addAll(h.judges, rp.prevJudges); // Some might not be in the current address book.
+                totalJudgeStake = 0;
+                for (EventInfo judge : h.judges) {
+                    totalJudgeStake += r.stake[judge.creatorIndex];
+                }
             } else {
                 for (int m = 0; m < numNodes; m++) {
                     if (voteE[m] != null) {
@@ -1213,7 +1217,7 @@ public final class HashgraphInfo {
                 for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                     int creator = judgesArray[h.sortInd[medianPos]].creatorIndex;
                     stake += creator < 0 ? 0 : r.stake[creator];
-                    if (2 * stake >= h.totalStake) {
+                    if (2 * stake >= totalJudgeStake) {
                         break;
                     }
                 }
@@ -1262,7 +1266,7 @@ public final class HashgraphInfo {
                     for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                         int creator = judgesArray[h.sortInd[medianPos]].creatorIndex;
                         stake += creator < 0 ? 0 : r.stake[creator];
-                        if (2 * stake >= h.totalStake) {
+                        if (2 * stake >= totalJudgeStake) {
                             break;
                         }
                     }
@@ -1286,12 +1290,10 @@ public final class HashgraphInfo {
                 judge.isPrevJudge = true;
             }
             minJudgeBirthRound = Long.MAX_VALUE;
-            long judgeStake = 0;
             for (EventInfo judge : h.judges) {
                 minJudgeBirthRound = Math.min(minJudgeBirthRound, judge.birthRound);
-                judgeStake += judge.creatorIndex < 0 ? 0 : r.stake[judge.creatorIndex];
             }
-            if (judgeStake * 3 <= 2 * h.totalStake) {
+            if (totalJudgeStake * 3 <= 2 * h.totalStake) {
                 // math theorem in the paper: this can never happen
                 throw new IllegalStateException("The total stake of judges is less than 2/3 of the total stake");
             }
