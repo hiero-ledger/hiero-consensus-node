@@ -36,7 +36,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -780,9 +779,7 @@ public class CodeDelegationAtomicBatchTest {
                             successSenderDelta,
                             "Success sender charge must equal gasUsed * gasPriceTinybars");
 
-                    // TODO: Ethereum transaction rollback charges are currently broken
-                    // within atomic batch (refund isn't applied). Change to assertEquals once fixed.
-                    assertNotEquals(
+                    assertEquals(
                             expectedRollbackCharge,
                             rollbackSenderDelta,
                             "Rollback sender charge must equal gasUsed * gasPriceTinybars");
@@ -912,9 +909,8 @@ public class CodeDelegationAtomicBatchTest {
                     assertEquals(expectedGasCharge, recorderType4Fee);
                     assertEquals(expectedGasChargeOnRollback, recordedType4FeeOnRollback);
 
-                    // TODO: Ethereum transaction rollback charges are currently broken
-                    // within atomic batch - refund isn't applied - and this isn't correctly
-                    // reflected in the result.
+                    // TODO: the lazy creation performed during the rollback replay is not yet added to the
+                    // charged gas amount or the result (see the TODO in EthereumTransactionRollbackHandler).
                     // Change these assertions to `>` (strictly greater than) once that's fixed.
                     assertTrue(
                             gasUsedOnRollback >= gasUsed,
