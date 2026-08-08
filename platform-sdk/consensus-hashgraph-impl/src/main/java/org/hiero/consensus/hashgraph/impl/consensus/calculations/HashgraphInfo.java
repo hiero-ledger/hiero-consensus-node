@@ -1242,7 +1242,7 @@ public final class HashgraphInfo {
                                 .thenComparingInt((EventInfo e) -> e.searchOrder)); // tiebreaker is searchOrder
                 //                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
                 for (int i = 0; i < consensusEventsArray.length; i++) {
-                    consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
+                    consensusEventsArray[i].consensusOrder = 1 + i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(i);
                 }
             } else if (consensusEventsArray.length > 0) { // each new consensus event is an ancestor of all judges
@@ -1274,15 +1274,8 @@ public final class HashgraphInfo {
                                 .thenComparingLong(
                                         (EventInfo e) -> e.gen) // sort by gen. Then tiebreaker is searchOrder
                                 .thenComparingInt((EventInfo e) -> e.searchOrder));
-                Arrays.sort(
-                        consensusEventsArray,
-                        Comparator.comparing((EventInfo e) -> e.consensusTimestamp)
-                                // .thenComparingLong((EventInfo e) -> e.gen) // sort by gen. Then tiebreaker is
-                                // searchOrder
-                                .thenComparingLong((EventInfo e) -> e.searchOrder)); /**/
-                //                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
                 for (int i = 0; i < consensusEventsArray.length; i++) {
-                    consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
+                    consensusEventsArray[i].consensusOrder = 1 + i + rp.prevNumCons;
                 }
             } // end of timeCon, before, consensusOrder, consensusTimestamp
             // the round reached consensus, so set the old judges to false and the new to true
