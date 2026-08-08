@@ -74,9 +74,6 @@ If any field is an array, it is represented by its length followed by all elemen
     EventInfo[] stronglySeeS1
     EventInfo[] voteE (EventInfo part of the vote() pair)
     boolean[]   voteB (boolean part of the vote() pair)
-    boolean     isConsensus
-    long        consensusOrder
-    Instant     consensusTimestamp
 
   UpdateResults (type 5)
     EventInfo[] consensusEvents
@@ -91,7 +88,7 @@ If any field is an array, it is represented by its length followed by all elemen
     Instant     consensusTimestamp    
 ```
 
-Compared to the paper, this format skips `roundInfoPrev` in `UpdateResults` (because it's a separate line), and skips `payload`, `parentBirthRounds`, `parentCreators`, and `signature` in `EventSigned` (because they don't affect consensus). It also adds fields for `EventID` and `PendingRound` to help identify the objects.
+Compared to the paper, this format skips `roundInfoPrev` in `UpdateResults` (because it's a separate line). It also takes the `EventInfo` from the paper (and Java implementation) and splits it into 3 kinds of rows: `EventSigned` for the immutable fields, `EventInfoConsensus` for the fields set when it reaches consensus, and `EventInfo` for all the other mutable fields. It skips `payload`, `parentBirthRounds`, `parentCreators`, and `signature` in `EventSigned`, because they don't affect consensus). It also adds fields for `EventID` and `PendingRound` to several of the row types to help identify the objects.
 
 Each new hashgraph starts with a `NewHashgraph` row. If the reader ever sees another `NewHashgraph` row, then it should discard the current hashgraph and all the events and start over with a new hashgraph and an empty set of events. Every `NewHashgraph` is immediately followed by a `RoundInfoPrev` row then a `RoundInfo` row, both with the same pending round, which can be any positive integer (1 to simulate a genesis start, and >1 to simulate a reconnect).
 

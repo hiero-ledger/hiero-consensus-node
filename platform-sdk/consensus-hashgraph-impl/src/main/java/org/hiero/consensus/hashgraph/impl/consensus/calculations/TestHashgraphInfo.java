@@ -285,11 +285,6 @@ public class TestHashgraphInfo {
         appendEvents(line, eventInfo.getStronglySeeS1());
         appendEvents(line, eventInfo.getVoteE());
         appendBooleans(line, eventInfo.getVoteB(), eventInfo.getVoteB().length);
-        line.append(",").append(eventInfo.isConsensus() ? 1 : 0);
-        line.append(",").append(eventInfo.getConsensusOrder());
-        Instant t = eventInfo.getConsensusTimestamp();
-        line.append(",").append(t == null ? -1 : t.getEpochSecond());
-        line.append(",").append(t == null ? -1 : t.getNano());
         out.println(line);
     }
 
