@@ -1222,7 +1222,7 @@ public final class HashgraphInfo {
                         break;
                     }
                 }
-                roundTimestamp = judgesArray[medianPos].timeCreated;
+                roundTimestamp = judgesArray[h.sortInd[[medianPos]].timeCreated;
             }
             // function receivedEvent /--------------------------------------------------------------------------
             // function isReceived /------------------------------------------------------------------------------
