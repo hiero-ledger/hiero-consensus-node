@@ -485,7 +485,6 @@ public class TestHashgraphInfo {
                         writeEventInfoConsensus(out, event, roundInfoPrev);
                         eventsWritten++;
                     }
-                    writeRoundInfoPrev(out, roundInfoPrev);
                 }
             }
         }
