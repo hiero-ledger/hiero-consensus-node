@@ -1271,7 +1271,7 @@ public final class HashgraphInfo {
                             break;
                         }
                     }
-                    event.consensusTimestamp = event.receivedTime[medianPos];
+                    event.consensusTimestamp = event.receivedTime[h.sortInd[medianPos]];
                 }
                 Arrays.sort(
                         consensusEventsArray, // sort by weighted median time received
