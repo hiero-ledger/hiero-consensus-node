@@ -636,8 +636,8 @@ public final class HashgraphInfo {
                                     || nextX.searchMark == hashgraphInfo.currMark
                                     || nextX.isConsensus)) {
                         while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
-                            x.searchMark = hashgraphInfo
-                                    .currMark; // backtrack up from x to its child, so mark x as fully explored
+                            // backtrack up from x to its child, so mark x as fully explored
+                            x.searchMark = hashgraphInfo.currMark; // mark x after done exploring all its parents
                             x = x.searchChild; // backtrack up until an event is found with an unexplored parent
                             if (x != null && x.searchJudgeSelfAncestor) {
                                 lowestTime = x.timeCreated;
@@ -652,7 +652,8 @@ public final class HashgraphInfo {
                     }
                     if (nextX != null) {
                         nextX.searchChild = x;
-                        nextX.searchJudgeSelfAncestor = x.searchJudgeSelfAncestor && x.searchParent == 0;
+                        nextX.searchJudgeSelfAncestor =
+                                x.searchJudgeSelfAncestor && x.creatorNodeID == nextX.creatorNodeID;
                     }
                     x = nextX; // move to the new event that was good (or null if done searching from this judge)
                     if (x != null && x.searchJudgeSelfAncestor) {
