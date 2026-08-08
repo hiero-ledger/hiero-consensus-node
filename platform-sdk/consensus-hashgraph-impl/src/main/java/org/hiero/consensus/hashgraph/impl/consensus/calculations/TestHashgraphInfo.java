@@ -369,7 +369,7 @@ public class TestHashgraphInfo {
             final EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEventsToRecalculate = new LinkedList<>();
-            HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
+            //HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
             //HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<>();
             //HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<>();
             //HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
@@ -415,18 +415,20 @@ public class TestHashgraphInfo {
                             roundInfoNumRoundsAddressBook);
                     writeRoundInfoPrev(out, roundInfoPrev);
                     writeRoundInfo(out, roundInfo);
-                    for (int i=0; i<recentEventsToRecalculate.size(); i++) {
-                        EventInfo event = recentEventsToRecalculate.get(i);
-                        if (event.getBirthRound() < roundInfoPrev.prevMinJudgeBirthRound()) {
-                            recentEventsToRecalculate.remove(i);
+                    Iterator<EventInfo> iterator = recentEventsToRecalculate.iterator();
+                    while (iterator.hasNext()) {
+                         EventInfo event = iterator.next();
+                         if (event.getBirthRound() < roundInfoPrev.prevMinJudgeBirthRound()) {
+                            iterator.remove();
                         } else {
                             updateResults = event.update(roundInfo, roundInfoPrev);
                             writeEventInfo(out,event,roundInfoPrev);
                             eventsWritten++;
                             if (updateResults != null) {
                                 newRound = true;
+                                roundInfoPrev = updateResults.nextRoundInfoPrev();
+                                break;
                             }
-                            break;
                         }
                     }
                 }
@@ -464,7 +466,7 @@ public class TestHashgraphInfo {
                         parents.toArray(new EventInfo[0]).clone(), // EventInfo[] parents
                         null); // Object payload
                 //lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
-                mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
+                //mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEventsToRecalculate.add(eventInfo);
                 writeEventSigned(out, eventInfo);
                 lastEvent[creatorIndex] = eventInfo;
