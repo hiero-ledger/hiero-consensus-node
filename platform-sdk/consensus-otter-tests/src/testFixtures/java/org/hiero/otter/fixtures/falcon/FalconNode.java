@@ -7,7 +7,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
@@ -16,8 +15,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -33,6 +30,7 @@ import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -40,7 +38,6 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 
 public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
@@ -103,7 +100,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         secureRandom.setSeed(random.nextLong());
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.consensusOutputWire().buildTransformer("Falcon_ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
+        wiring.consensusOutputWire()
+                .buildTransformer(
+                        "Falcon_ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
                 .<ConsensusRound>buildSplitter("Falcon_ConsensusResultSplitter", "consensus rounds")
                 .solderTo("", "", resultsCollector::addConsensusRound);
 

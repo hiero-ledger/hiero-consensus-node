@@ -101,7 +101,7 @@ final class StaleParentTracker {
             if (stale.containsKey(ph) || boundary.containsKey(ph)) {
                 continue; // already classified via another child
             }
-            final long pbr = parent.toPbj().birthRound();
+            final long pbr = parent.eventDescriptor().birthRound();
             if (pbr >= windowStart) {
                 stale.put(ph, new RefInfo(parent.creator().id(), pbr, childCreator, childBirthRound));
             } else {
