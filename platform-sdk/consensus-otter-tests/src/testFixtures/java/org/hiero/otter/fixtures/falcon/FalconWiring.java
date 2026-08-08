@@ -118,7 +118,8 @@ public class FalconWiring implements TimeTickReceiver {
         eventWindowOutputWire.solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow));
         eventWindowOutputWire.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::setEventWindow));
 
-        final Duration eventCreationHeartbeat = configuration.getConfigData(EventCreationConfig.class).period();
+        final Duration eventCreationHeartbeat =
+                configuration.getConfigData(EventCreationConfig.class).period();
         model.buildHeartbeatWire(eventCreationHeartbeat)
                 .solderTo(
                         eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
@@ -146,8 +147,12 @@ public class FalconWiring implements TimeTickReceiver {
 
     public void start() {
         model.start();
-        consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus).inject(PlatformStatus.ACTIVE);
-        eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus).inject(PlatformStatus.ACTIVE);
+        consensusEngineWiring
+                .getInputWire(ConsensusEngine::updatePlatformStatus)
+                .inject(PlatformStatus.ACTIVE);
+        eventCreationManagerWiring
+                .getInputWire(EventCreationManager::updatePlatformStatus)
+                .inject(PlatformStatus.ACTIVE);
     }
 
     @Override

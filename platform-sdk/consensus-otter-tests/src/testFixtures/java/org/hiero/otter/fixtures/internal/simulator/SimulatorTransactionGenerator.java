@@ -14,7 +14,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
-import org.hiero.otter.fixtures.turtle.TurtleNode;
 
 /**
  * A transaction generator for the {@link SimulatorNetwork}.

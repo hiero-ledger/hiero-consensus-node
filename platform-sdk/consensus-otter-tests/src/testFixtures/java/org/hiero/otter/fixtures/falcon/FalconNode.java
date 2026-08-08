@@ -32,7 +32,6 @@ import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.network.simulation.EventReceiver;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -110,7 +109,8 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         secureRandom.setSeed(random.nextLong());
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> network.submitEvent(selfId, event));
+        wiring.sentGossipEventsOutputWire()
+                .solderTo("EventSubmitter_" + selfId, "event", event -> network.submitEvent(selfId, event));
         wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)

@@ -21,14 +21,12 @@ import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
-import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
-import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 

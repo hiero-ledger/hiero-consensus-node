@@ -1,25 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.falcon;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
-import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
-import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
-import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
-import org.hiero.otter.fixtures.turtle.TurtleNode;
 
 public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver {
+
+    /**
+     * The keys and certificates of every node ever created by a Falcon network in this JVM.
+     *
+     * <p>Generating them is by far the most expensive part of setting up a network, and a sweep would otherwise pay
+     * that cost on every repetition. Caching is safe because {@code KeysAndCertsGenerator} derives the keys
+     * deterministically from the node ID, so a cached entry is exactly what a fresh generation would produce.
+     */
+    private static final Map<NodeId, KeysAndCerts> KEYS_AND_CERTS_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Constructor for {@code FalconNetwork}.
@@ -41,6 +48,27 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
     protected Node doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         return new FalconNode(
                 random, timeManager, nodeId, keysAndCerts, simulatedNetwork, networkConfiguration, consensusRoundPool);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Serves the keys and certificates from {@link #KEYS_AND_CERTS_CACHE}, generating only the ones not cached yet.
+     */
+    @Override
+    @NonNull
+    protected Map<NodeId, KeysAndCerts> createKeysAndCerts(@NonNull final List<NodeId> nodeIds) {
+        final List<NodeId> missing = nodeIds.stream()
+                .filter(nodeId -> !KEYS_AND_CERTS_CACHE.containsKey(nodeId))
+                .toList();
+        if (!missing.isEmpty()) {
+            // Generated in a single call, because the generator parallelizes across the requested nodes
+            KEYS_AND_CERTS_CACHE.putAll(super.createKeysAndCerts(missing));
+        }
+
+        final Map<NodeId, KeysAndCerts> result = new LinkedHashMap<>();
+        nodeIds.forEach(nodeId -> result.put(nodeId, KEYS_AND_CERTS_CACHE.get(nodeId)));
+        return result;
     }
 
     /**
