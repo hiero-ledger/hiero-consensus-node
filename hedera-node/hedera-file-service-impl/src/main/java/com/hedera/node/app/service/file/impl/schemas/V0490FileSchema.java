@@ -68,6 +68,7 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -122,6 +123,20 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
+    /**
+     * Returns the state key of the upgrade data queue for the given upgrade file number.
+     *
+     * @param fileNum the upgrade file number
+     * @return the state key naming that file's upgrade data queue
+     */
+    public static String upgradeDataStateKey(final long fileNum) {
+        // Locale.ROOT is required on both calls: under the default locale the digits render in a
+        // locale-specific script (e.g. Persian) and 'i' uppercases to 'İ' (Turkish), neither of which
+        // matches any SingletonType constant.
+        return String.format(Locale.ROOT, UPGRADE_DATA_STATE_KEY_PATTERN, fileNum)
+                .toUpperCase(Locale.ROOT);
+    }
+
     @NonNull
     @Override
     @SuppressWarnings("rawtypes")
@@ -136,8 +151,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            final var stateKey =
-                    UPGRADE_DATA_STATE_KEY_PATTERN.formatted(updateNum).toUpperCase();
+            final var stateKey = upgradeDataStateKey(updateNum);
             final int stateId = SingletonType.valueOf(stateKey).protoOrdinal();
             definitions.add(StateDefinition.queue(stateId, stateKey, ProtoBytes.PROTOBUF));
         }
