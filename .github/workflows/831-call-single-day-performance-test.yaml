@@ -1716,7 +1716,7 @@ jobs:
         run: |
           set +x
           set +e
-          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          KUBECTL_TIMEOUT=60m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; bash checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
@@ -1839,58 +1839,6 @@ jobs:
 
           echo "### Single Day Performance Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
-
-  delete-namespace:
-    name: Delete namespace
-    runs-on: hl-cn-sdpt-lin-lg
-    needs:
-      - acquire-kubernetes-resources
-      - performance-tests-start
-      - single-day-performance-test-result
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.35.0
-
-      - name: kubectl wrapper
-        run: |
-          kubectl=$(which kubectl)
-          sudo mv ${kubectl} ${kubectl}.orig
-          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
-          sudo chmod a+rx ${kubectl}
-          which kubectl
-          kubectl version
-
-      - name: Install Teleport Client
-        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
-        with:
-          version: 18.4.0
-
-      - name: Authorize Teleport SSH Access
-        id: auth-ssh
-        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          certificate-ttl: 24h
-
-      - name: Authorize Teleport K8S Access
-        id: auth-k8s
-        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
-          certificate-ttl: 168h
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
