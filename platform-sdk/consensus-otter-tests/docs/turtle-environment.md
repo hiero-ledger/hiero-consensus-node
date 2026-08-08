@@ -49,7 +49,7 @@ classDiagram
     TurtleTestEnvironment "1" --* "1" Randotron
 ```
 
-The `TurtleTestEnvironment` is the main container that owns a single `TurtleNetwork`, `SimulatorTimeManager`, `SimulatorTransactionGenerator`, and `Randotron`. The `TurtleNetwork` can contain zero or more `TurtleNode` instances. `TurtleTestEnvironment` manages all the core components needed to run deterministic consensus tests with multiple nodes in a simulated, single-JVM environment.
+The `TurtleTestEnvironment` is the main container that owns a single `TurtleNetwork`, `SimulatorTimeManager`, `TurtleTransactionGenerator`, and `Randotron`. The `TurtleNetwork` can contain zero or more `TurtleNode` instances. `TurtleTestEnvironment` manages all the core components needed to run deterministic consensus tests with multiple nodes in a simulated, single-JVM environment.
 
 ## 🏗️ Network and Node Management
 

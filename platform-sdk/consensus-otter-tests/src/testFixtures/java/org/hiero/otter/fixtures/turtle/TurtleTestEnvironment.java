@@ -28,7 +28,6 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
@@ -59,7 +58,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
     private final Path rootOutputDirectory;
     private final TurtleNetwork network;
-    private final SimulatorTransactionGenerator transactionGenerator;
+    private final TurtleTransactionGenerator transactionGenerator;
     private final SimulatorTimeManager timeManager;
 
     /**
@@ -118,7 +117,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         timeManager = new SimulatorTimeManager(time, GRANULARITY);
 
-        transactionGenerator = new SimulatorTransactionGenerator(randotron);
+        transactionGenerator = new TurtleTransactionGenerator(randotron);
         network = new TurtleNetwork(
                 randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 

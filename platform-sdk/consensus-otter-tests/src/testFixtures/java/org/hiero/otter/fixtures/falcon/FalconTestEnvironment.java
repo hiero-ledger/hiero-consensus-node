@@ -18,7 +18,6 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
 
 /**
  * A test environment for the Falcon framework.
@@ -41,8 +40,7 @@ public class FalconTestEnvironment implements TestEnvironment {
         final Randotron randotron = Randotron.create(randomSeed);
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
         timeManager = new SimulatorTimeManager(time, GRANULARITY);
-        final SimulatorTransactionGenerator transactionGenerator = new SimulatorTransactionGenerator(randotron);
-        network = new FalconNetwork(randotron, timeManager, transactionGenerator);
+        network = new FalconNetwork(randotron, timeManager);
         timeManager.addTimeTickReceiver(network);
     }
 

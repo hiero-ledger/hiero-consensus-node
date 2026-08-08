@@ -124,7 +124,7 @@ public class FalconWiring implements TimeTickReceiver {
                 .solderTo(
                         eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
                         OFFER);
-        eventCreationManagerWiring.getOutputWire().solderTo(hasherWiring.getInputWire(EventHasher::hashEvent));
+        eventCreationManagerWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
 
         consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus);
         eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus);

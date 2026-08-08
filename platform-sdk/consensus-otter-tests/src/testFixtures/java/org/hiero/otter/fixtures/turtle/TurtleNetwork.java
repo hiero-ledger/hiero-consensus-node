@@ -23,7 +23,6 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
@@ -37,6 +36,7 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
 
     private static final Logger log = LogManager.getLogger();
 
+    private final TurtleTransactionGenerator turtleTransactionGenerator;
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
 
@@ -57,9 +57,10 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
-            @NonNull final SimulatorTransactionGenerator transactionGenerator,
+            @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean useRandomNodeIds) {
         super(randotron, timeManager, transactionGenerator, useRandomNodeIds);
+        this.turtleTransactionGenerator = requireNonNull(transactionGenerator);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
     }
@@ -145,11 +146,12 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        super.tick(now);
-
         if (lifecycle != Lifecycle.RUNNING) {
             return;
         }
+
+        simulatedNetwork.tick(now);
+        turtleTransactionGenerator.tick(now, nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.

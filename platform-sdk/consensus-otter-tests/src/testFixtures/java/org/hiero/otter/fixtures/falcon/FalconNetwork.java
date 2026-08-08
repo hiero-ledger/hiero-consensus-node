@@ -15,7 +15,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorTransactionGenerator;
 
 public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver {
 
@@ -33,11 +32,8 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
      *
      * @param random the random number generator
      */
-    protected FalconNetwork(
-            @NonNull final Random random,
-            @NonNull final SimulatorTimeManager timeManager,
-            @NonNull final SimulatorTransactionGenerator transactionGenerator) {
-        super(random, timeManager, transactionGenerator, false);
+    protected FalconNetwork(@NonNull final Random random, @NonNull final SimulatorTimeManager timeManager) {
+        super(random, timeManager, new FalconTransactionGenerator(), false);
     }
 
     /**
@@ -86,11 +82,11 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        super.tick(now);
-
         if (lifecycle != Lifecycle.RUNNING) {
             return;
         }
+
+        simulatedNetwork.tick(now);
 
         for (final Node node : nodes()) {
             final FalconNode falconNode = (FalconNode) node;

@@ -23,39 +23,52 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
     @Override
     public void validate(@NonNull final List<ConsensusRound> rounds) {
         for (final ConsensusRound round : rounds) {
+            final List<PlatformEvent> events = round.getConsensusEvents();
             for (int i = 1; i < round.getEventCount(); i++) {
 
-                final PlatformEvent previousEvent = round.getConsensusEvents().get(i - 1);
-                final PlatformEvent currentEvent = round.getConsensusEvents().get(i);
+                final PlatformEvent previousEvent = events.get(i - 1);
+                final PlatformEvent currentEvent = events.get(i);
 
                 // Check the consensus timestamp
                 assertThat(currentEvent.getConsensusTimestamp())
-                        .withFailMessage(String.format(
-                                "Consensus time does not increase!%n"
-                                        + "Event %s consOrder:%s consTime:%s%n"
-                                        + "Event %s consOrder:%s consTime:%s%n",
-                                previousEvent.getDescriptor(),
-                                previousEvent.getConsensusOrder(),
-                                previousEvent.getConsensusTimestamp(),
-                                currentEvent.getDescriptor(),
-                                currentEvent.getConsensusOrder(),
-                                currentEvent.getConsensusTimestamp()))
+                        .withFailMessage(
+                                () -> failMessage("Consensus time does not increase!", previousEvent, currentEvent))
                         .isAfter(previousEvent.getConsensusTimestamp());
 
                 // Check the consensus order
                 assertThat(currentEvent.getConsensusOrder())
-                        .withFailMessage(String.format(
-                                "Consensus order does not increase by 1!%n"
-                                        + "Event %s consOrder:%s consTime:%s%n"
-                                        + "Event %s consOrder:%s consTime:%s%n",
-                                previousEvent.getDescriptor(),
-                                previousEvent.getConsensusOrder(),
-                                previousEvent.getConsensusTimestamp(),
-                                currentEvent.getDescriptor(),
-                                currentEvent.getConsensusOrder(),
-                                currentEvent.getConsensusTimestamp()))
+                        .withFailMessage(() ->
+                                failMessage("Consensus order does not increase by 1!", previousEvent, currentEvent))
                         .isEqualTo(previousEvent.getConsensusOrder() + 1);
             }
         }
+    }
+
+    /**
+     * Renders the failure message for a pair of adjacent events.
+     *
+     * <p>Only called when an assertion actually fails. Building it eagerly would render the descriptor of every
+     * consensus event, including the hex encoding of its hash, which dominates the cost of this validation in a test
+     * that runs it continuously.
+     *
+     * @param headline describes which of the two checks failed
+     * @param previousEvent the earlier of the two events
+     * @param currentEvent the later of the two events
+     * @return the failure message
+     */
+    @NonNull
+    private static String failMessage(
+            @NonNull final String headline,
+            @NonNull final PlatformEvent previousEvent,
+            @NonNull final PlatformEvent currentEvent) {
+        return String.format(
+                "%s%nEvent %s consOrder:%s consTime:%s%nEvent %s consOrder:%s consTime:%s%n",
+                headline,
+                previousEvent.getDescriptor(),
+                previousEvent.getConsensusOrder(),
+                previousEvent.getConsensusTimestamp(),
+                currentEvent.getDescriptor(),
+                currentEvent.getConsensusOrder(),
+                currentEvent.getConsensusTimestamp());
     }
 }

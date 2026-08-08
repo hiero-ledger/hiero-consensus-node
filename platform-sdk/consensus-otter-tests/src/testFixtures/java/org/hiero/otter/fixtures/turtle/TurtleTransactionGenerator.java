@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.internal.simulator;
+package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
 
@@ -13,6 +13,7 @@ import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
@@ -21,7 +22,7 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
  * <p>This class implements the {@link TransactionGenerator} interface and generates transactions at a fixed rate
  * to be submitted to the active nodes in the Simulator network.
  */
-public class SimulatorTransactionGenerator implements TransactionGenerator {
+public class TurtleTransactionGenerator implements TransactionGenerator {
 
     private static final Duration CYCLE_DURATION = Duration.ofSeconds(1).dividedBy(TransactionGenerator.TPS);
 
@@ -36,11 +37,11 @@ public class SimulatorTransactionGenerator implements TransactionGenerator {
     private boolean running;
 
     /**
-     * Constructor for the {@link SimulatorTransactionGenerator} class.
+     * Constructor for the {@link TurtleTransactionGenerator} class.
      *
      * @param randotron the random number generator
      */
-    public SimulatorTransactionGenerator(@NonNull final Randotron randotron) {
+    public TurtleTransactionGenerator(@NonNull final Randotron randotron) {
         this.randotron = requireNonNull(randotron);
     }
 
