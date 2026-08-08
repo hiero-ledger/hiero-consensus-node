@@ -58,6 +58,8 @@ public class FalconWiring implements TimeTickReceiver {
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
 
+    private final InputWire<PlatformEvent> receivedGossipEventsInputWire;
+
     public FalconWiring(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
@@ -77,6 +79,7 @@ public class FalconWiring implements TimeTickReceiver {
         final EventHasher eventHasher = new DefaultEventHasher();
         hasherWiring = new ComponentWiring<>(model, EventHasher.class, eventIntakeConfig.eventHasher());
         hasherWiring.bind(eventHasher);
+        receivedGossipEventsInputWire = hasherWiring.getInputWire(EventHasher::hashEvent);
 
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
@@ -132,7 +135,7 @@ public class FalconWiring implements TimeTickReceiver {
 
     @NonNull
     public InputWire<PlatformEvent> receivedGossipEventsInputWire() {
-        return hasherWiring.getInputWire(EventHasher::hashEvent);
+        return receivedGossipEventsInputWire;
     }
 
     @NonNull

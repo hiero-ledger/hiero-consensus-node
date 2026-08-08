@@ -46,7 +46,6 @@ module org.hiero.otter.fixtures {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.base.test.fixtures;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
@@ -71,14 +70,18 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
+    requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
+    requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.creator.impl;
+    requires org.hiero.consensus.event.creator;
+    requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.hashgraph.impl;
@@ -102,7 +105,6 @@ module org.hiero.otter.fixtures {
     requires java.net.http;
     requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;
-    requires org.jspecify;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
