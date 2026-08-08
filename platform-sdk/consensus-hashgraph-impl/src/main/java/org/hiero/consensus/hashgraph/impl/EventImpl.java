@@ -609,11 +609,11 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder();
-        getPlatformEvent().getDescriptor().shortString(sb);
+        final StringBuilder sb =
+                new StringBuilder(getPlatformEvent().getDescriptor().toString());
         final List<EventDescriptorWrapper> allParents = getPlatformEvent().getAllParents();
         for (final EventDescriptorWrapper parent : allParents) {
-            parent.shortString(sb);
+            sb.append(parent.toString());
         }
         return sb.toString();
     }
@@ -624,6 +624,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return a short string
      */
     public String shortString() {
-        return getPlatformEvent().getDescriptor().shortString();
+        return getPlatformEvent().getDescriptor().toString();
     }
 }

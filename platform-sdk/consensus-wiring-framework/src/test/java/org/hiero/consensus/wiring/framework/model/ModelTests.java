@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.wiring.framework.schedulers.SequentialTaskSchedulerAliveThreadCleanup;
 import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;

@@ -9,11 +9,11 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.base.state.MutabilityException;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -940,7 +940,7 @@ public final class VirtualNodeCache implements FastCopyable {
         return dirtyHashChunks.stream()
                 .filter(mutation -> {
                     final long hashChunkPath = mutation.value.path();
-                    return Path.getLeftChildPath(hashChunkPath) <= lastLeafPath;
+                    return MerklePathUtils.getLeftChildPath(hashChunkPath) <= lastLeafPath;
                 })
                 .filter(Mutation::notFiltered)
                 .map(mutation -> mutation.value);

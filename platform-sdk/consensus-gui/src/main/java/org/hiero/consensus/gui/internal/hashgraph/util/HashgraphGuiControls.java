@@ -13,6 +13,7 @@ import org.hiero.consensus.gui.internal.GuiUtils;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 
 /**
  * GUI controls for changing display options for the {@link HashgraphPicture}
@@ -394,7 +395,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         if (startGeneration.getValue() instanceof Long generations) {
             return generations;
         }
-        return EventConstants.GENERATION_UNDEFINED;
+        return NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     @Override
