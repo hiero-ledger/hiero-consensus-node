@@ -22,12 +22,30 @@ testing {
 
     suites.register<JvmTestSuite>("testOtter") {
         // Runs tests against the Container environment
-        targets.register("testContainer") { testTask { systemProperty("otter.env", "container") } }
+        targets.register("testContainer") {
+            testTask {
+                systemProperty("otter.env", "container")
+                useJUnitPlatform { excludeTags("falcon") }
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
+        }
 
         // Runs tests against the Turtle environment
-        targets.register("testTurtle") { testTask { systemProperty("otter.env", "turtle") } }
+        targets.register("testTurtle") {
+            testTask {
+                systemProperty("otter.env", "turtle")
+                useJUnitPlatform { excludeTags("falcon") }
+            }
+        }
 
-        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+        // Runs tests against the Falcon environment
+        targets.register("testFalcon") {
+            testTask {
+                useJUnitPlatform { includeTags("falcon") }
+                // Forwards e.g. -Dfalcon.repetitions=10 to the test JVM
+                systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get())
+            }
+        }
     }
 
     suites.register<JvmTestSuite>("testChaos") {

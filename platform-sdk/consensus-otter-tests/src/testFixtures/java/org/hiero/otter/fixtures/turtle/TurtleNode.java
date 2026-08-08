@@ -57,7 +57,6 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.otter.fixtures.Node;
@@ -74,9 +73,11 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -85,7 +86,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
-import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -94,7 +94,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  *
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
-public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
+public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManager.TimeTickReceiver {
     private static final Logger log = LogManager.getLogger();
     /**
      * Logger for startup messages that should appear in per-node logs (uses platform package to bypass org.hiero.otter
@@ -102,9 +102,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     private static final Logger startupLogger = LogManager.getLogger("com.swirlds.platform.node.startup");
 
-    private final Randotron randotron;
-    private final TurtleTimeManager timeManager;
-    private final SimulatedNetwork network;
+    private final Random random;
+    private final SimulatorTimeManager timeManager;
+    private final SimulatedGossip gossip;
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
@@ -131,7 +131,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Constructor of {@link TurtleNode}.
      *
-     * @param randotron the random number generator
+     * @param random the random number generator
      * @param timeManager the time manager for this test
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
@@ -142,8 +142,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public TurtleNode(
-            @NonNull final Randotron randotron,
-            @NonNull final TurtleTimeManager timeManager,
+            @NonNull final Random random,
+            @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
@@ -156,10 +156,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.outputDirectory = requireNonNull(outputDirectory);
             logging.addNodeLogging(selfId, outputDirectory);
 
-            this.randotron = requireNonNull(randotron);
+            this.random = requireNonNull(random);
             this.timeManager = requireNonNull(timeManager);
-            this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
+
+            final SimulatedGossip simulatedGossip = new SimulatedGossip(network, selfId);
+            network.addNode(selfId, simulatedGossip);
+            this.gossip = simulatedGossip;
+
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
@@ -263,10 +267,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
-            this.executionLayer =
-                    new OtterExecutionLayer(new Random(randotron.nextLong()), metrics, timeManager.time());
-
-            final SimulatedGossip gossip = network.getGossipInstance(selfId);
+            this.executionLayer = new OtterExecutionLayer(new Random(random.nextLong()), metrics, timeManager.time());
 
             final TestPlatformBuilder builder = new TestPlatformBuilder(
                             currentConfiguration,
@@ -286,7 +287,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             eventStreamLoc,
                             OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS)
                     .withWiringModel(model)
-                    .withSecureRandom(new SecureRandomBuilder(randotron.nextLong()).get())
+                    .withSecureRandom(new SecureRandomBuilder(random.nextLong()).get())
                     .withAdditionalProperties(Map.of("simulatedGossip", gossip));
 
             platform = builder.build();
@@ -476,7 +477,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     protected Random random() {
-        return randotron;
+        return random;
     }
 
     /**
