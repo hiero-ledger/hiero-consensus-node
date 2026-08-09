@@ -123,6 +123,13 @@ public class BlockImplUtils {
         return hashOfAll(digest, LEAF_PREFIX, leafData);
     }
 
+    /**
+     * Hashes an internal node that has exactly one child. This applies to the state tree; the block root
+     * tree has two children at every internal node (see {@link BlockRootTree}).
+     *
+     * @param hash the hash of the single child
+     * @return the hash of the internal node
+     */
     public static Bytes hashInternalNodeSingleChild(@NonNull final Bytes hash) {
         return sha384HashOfAll(SINGLE_CHILD_INTERNAL_NODE_PREFIX, hash.toByteArray());
     }

@@ -64,7 +64,10 @@ message StateProof {
  * 3. Merkle paths in the middle between another merkle path and the root. For
  *    these, none of the fields are set.
  * Merkle paths can only include sibling nodes for binary internal nodes. If
- * there is a unary node in the path a new MerklePath must be started.
+ * there is a unary node in the path a new MerklePath must be started. Unary
+ * nodes occur only in the state tree; every internal node in the block root
+ * tree has exactly two children, so every sibling on a block path carries a
+ * hash.
  */
 message MerklePath {
 

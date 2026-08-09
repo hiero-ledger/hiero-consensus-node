@@ -887,6 +887,13 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
+        /**
+         * The published cross-repo constant for the root of the eight empty reserved slots 8-15. Written
+         * out literally so this manual computation stays independent of the production tree builder.
+         */
+        private static final Bytes RESERVED_HALF = Bytes.fromHex(
+                "cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8");
+
         @Test
         void producesHashOfCorrectSize() {
             final var result = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
@@ -971,21 +978,22 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var consensusHash = randomHash();
             final var entry = entryWith(outputHash, consensusHash);
 
-            // Manually compute the expected tree structure
-            final Bytes depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
-            final Bytes depth5Node2 = EMPTY_INT_NODE;
-            final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
-            final Bytes depth5Node4 = EMPTY_INT_NODE;
+            // Manually compute the expected tree structure: a perfect 16-leaf tree whose slots 0, 1 and 5
+            // carry data, whose remaining slots are the empty sub-tree hash, and whose root is combined
+            // with the consensus timestamp leaf.
+            final Bytes slot01 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
+            final Bytes slot23 = EMPTY_INT_NODE;
+            final Bytes slot45 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
+            final Bytes slot67 = EMPTY_INT_NODE;
 
-            final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-            final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
+            final Bytes slot0123 = BlockImplUtils.hashInternalNode(slot01, slot23);
+            final Bytes slot4567 = BlockImplUtils.hashInternalNode(slot45, slot67);
 
-            final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
+            final Bytes assignedHalf = BlockImplUtils.hashInternalNode(slot0123, slot4567);
+            // Slots 8-15 are all empty, so their root is the constant reserved half
+            final Bytes subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, RESERVED_HALF);
 
-            final Bytes depth2Node1 = consensusHash;
-            final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
-
-            final Bytes expected = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
+            final Bytes expected = BlockImplUtils.hashInternalNode(consensusHash, subtreesRoot);
 
             final var actual =
                     BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);

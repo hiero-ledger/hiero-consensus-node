@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNodeSingleChild;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -11,6 +8,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.node.app.blocks.impl.BlockRootTree;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesCalculator;
@@ -43,7 +41,6 @@ public final class RcdFileBlockHashReplay {
     private static final Logger log = LogManager.getLogger(RcdFileBlockHashReplay.class);
 
     private static final int DEFAULT_MAX_SIDECAR_SIZE_BYTES = 256 * 1024 * 1024;
-    private static final Bytes EMPTY_INT_NODE = hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     private RcdFileBlockHashReplay() {}
 
@@ -185,19 +182,16 @@ public final class RcdFileBlockHashReplay {
             @NonNull final Bytes prevWrappedBlockHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        final Bytes depth5Node1 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
-        final Bytes depth5Node2 = EMPTY_INT_NODE;
-        final Bytes depth5Node3 = hashInternalNode(HASH_OF_ZERO, entry.outputItemsTreeRootHash());
-        final Bytes depth5Node4 = EMPTY_INT_NODE;
-
-        final Bytes depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final Bytes depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
-        final Bytes depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
-
-        final Bytes depth2Node1 = entry.consensusTimestampHash();
-        final Bytes depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-        return hashInternalNode(depth2Node1, depth2Node2);
+        return BlockRootTree.computeBlockRootHash(
+                entry.consensusTimestampHash(),
+                prevWrappedBlockHash,
+                allPrevBlocksRootHash,
+                BlockRootTree.EMPTY_SUBTREE,
+                BlockRootTree.EMPTY_SUBTREE,
+                BlockRootTree.EMPTY_SUBTREE,
+                entry.outputItemsTreeRootHash(),
+                BlockRootTree.EMPTY_SUBTREE,
+                BlockRootTree.EMPTY_SUBTREE);
     }
 
     /**

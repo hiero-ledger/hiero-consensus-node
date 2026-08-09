@@ -10,6 +10,7 @@ import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -66,6 +67,10 @@ public class IncrementalStreamingHasher {
     private final LinkedList<byte[]> hashList = new LinkedList<>();
     /** The count of leaves in the tree. */
     private long leafCount;
+    /** The sibling hashes on the path from the first leaf to the root, in bottom-up order. */
+    private final List<byte[]> firstLeafPath = new ArrayList<>();
+    /** Whether every leaf in this tree was added to this instance, so {@link #pathToFirstLeaf()} is complete. */
+    private boolean firstLeafPathIsComplete;
 
     /** Create a StreamingHasher with an existing intermediate hashing state. */
     public IncrementalStreamingHasher(
@@ -77,6 +82,9 @@ public class IncrementalStreamingHasher {
         // These byte arrays should have already been hashed, so we can add them directly
         this.hashList.addAll(intermediateHashingState);
         this.leafCount = leafCount;
+        // The path to the first leaf can only be recovered by observing every fold, so it is available only
+        // when the tree was built entirely by this instance
+        this.firstLeafPathIsComplete = intermediateHashingState.isEmpty() && leafCount == 0;
     }
 
     /**
@@ -105,9 +113,36 @@ public class IncrementalStreamingHasher {
         for (long n = leafCount; (n & 1L) == 1; n >>= 1) {
             final byte[] y = hashList.removeLast();
             final byte[] x = hashList.removeLast();
+            if (hashList.isEmpty()) {
+                // x is the first leaf's ancestor, so y is the next sibling on that leaf's path to the root
+                firstLeafPath.add(y);
+            }
             hashList.add(hashInternalNode(x, y));
         }
         leafCount++;
+    }
+
+    /**
+     * Returns the sibling hashes on the path from the first leaf to the root, ordered bottom-up. Every one is
+     * a right sibling, since the first leaf is the leftmost in the tree.
+     *
+     * <p>These are the same nodes the fold-up already combined to produce the root, recorded as it went, so
+     * they cannot disagree with {@link #computeRootHash()}.
+     *
+     * <p>The path is complete only for a tree whose leaf count is a power of two, because that is the only
+     * case in which the fold-up finishes at the root rather than leaving pending subtrees for
+     * {@link #computeRootHash()} to chain together.
+     *
+     * @return the sibling hashes on the first leaf's path to the root
+     * @throws IllegalStateException if this hasher was resumed from a saved state, in which case the folds
+     *                               that happened before the resume were not observed
+     */
+    public List<Bytes> pathToFirstLeaf() {
+        if (!firstLeafPathIsComplete) {
+            throw new IllegalStateException(
+                    "The path to the first leaf is unavailable for a hasher resumed from a saved state");
+        }
+        return firstLeafPath.stream().map(Bytes::wrap).toList();
     }
 
     /**
@@ -197,6 +232,9 @@ public class IncrementalStreamingHasher {
             leafCount = din.readLong();
             int hashCount = din.readInt();
             hashList.clear();
+            // The folds that built the loaded state were not observed here, so no first-leaf path can be offered
+            firstLeafPath.clear();
+            firstLeafPathIsComplete = false;
             for (int i = 0; i < hashCount; i++) {
                 byte[] hash = new byte[48]; // SHA-384 produces 48-byte hashes
                 din.readFully(hash);

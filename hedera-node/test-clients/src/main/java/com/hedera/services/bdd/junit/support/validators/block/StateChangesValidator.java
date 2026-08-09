@@ -41,6 +41,7 @@ import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.BlockRootTree;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.CommonUtils;
@@ -811,24 +812,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         return Bytes.wrap(digest.digest());
     }
 
-    private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
-        final var digest = sha384DigestOrThrow();
-        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
-        digest.update(hash.toByteArray());
-        return Bytes.wrap(digest.digest());
-    }
-
-    private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
-        final var digest = sha384DigestOrThrow();
-        digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
-        digest.update(leftChildHash.toByteArray());
-        digest.update(rightChildHash.toByteArray());
-        return Bytes.wrap(digest.digest());
-    }
-
-    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
-
-    private RootAndSiblingHashes computeBlockHash(
+    private BlockRootTree.RootAndSiblingHashes computeBlockHash(
             final Timestamp blockTimestamp,
             final Bytes previousBlockHash,
             final IncrementalStreamingHasher prevBlockRootsHasher,
@@ -844,32 +828,16 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        // Compute depth five hashes
-        final var depth5Node1 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = hashInternalNode(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = hashInternalNode(finalStateChangesHash, traceDataHash);
-
-        // Compute depth four hashes
-        final var depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
-
-        // Compute depth three hash (no 'node 2' at this level since reserved subroots 9-16 aren't encoded in the tree)
-        final var depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
-
-        // Compute depth two hashes (timestamp + last right sibling)
-        final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var depth2Node1 = hashLeaf(timestamp);
-        final var depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-        // Compute the block's root hash (depth 1)
-        final var root = hashInternalNode(depth2Node1, depth2Node2);
-
-        return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
-            new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, depth5Node2),
-            new MerkleSiblingHash(false, depth4Node2),
-        });
+        return BlockRootTree.computeRootAndSiblings(
+                hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp)),
+                previousBlockHash,
+                prevBlocksRootHash,
+                startOfBlockStateHash,
+                consensusHeaderHash,
+                inputTreeHash,
+                outputTreeHash,
+                finalStateChangesHash,
+                traceDataHash);
     }
 
     private boolean indirectProofsNeedVerification() {

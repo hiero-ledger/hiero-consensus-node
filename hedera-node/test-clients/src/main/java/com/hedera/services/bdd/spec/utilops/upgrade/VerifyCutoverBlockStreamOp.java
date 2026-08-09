@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.BlockRootTree;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -251,17 +252,16 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        final var d5n1 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
-        final var d5n2 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var d5n3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var d5n4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-        final var d4n1 = BlockImplUtils.hashInternalNode(d5n1, d5n2);
-        final var d4n2 = BlockImplUtils.hashInternalNode(d5n3, d5n4);
-        final var d3n1 = BlockImplUtils.hashInternalNode(d4n1, d4n2);
-        final var tsBytes = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var d2n1 = BlockImplUtils.hashLeaf(tsBytes);
-        final var d2n2 = BlockImplUtils.hashInternalNodeSingleChild(d3n1);
-        return BlockImplUtils.hashInternalNode(d2n1, d2n2);
+        return BlockRootTree.computeBlockRootHash(
+                blockTimestamp,
+                previousBlockHash,
+                prevBlockRootsHash,
+                startOfBlockStateHash,
+                consensusHeaderHash,
+                inputsHash,
+                outputsHash,
+                stateChangesHash,
+                traceDataHash);
     }
 
     @Override
