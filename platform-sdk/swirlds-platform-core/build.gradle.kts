@@ -39,7 +39,6 @@ jmhModuleInfo {
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
@@ -48,7 +47,6 @@ testModuleInfo {
     requires("com.swirlds.state.impl.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.concurrent.test.fixtures")
-    requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
@@ -69,6 +67,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.platform.core")
     requires("com.swirlds.state.impl")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.junit.jupiter.api")

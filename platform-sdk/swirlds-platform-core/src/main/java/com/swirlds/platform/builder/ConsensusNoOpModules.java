@@ -11,10 +11,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -24,7 +22,6 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -35,6 +32,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
@@ -42,13 +40,11 @@ import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.iss.detection.FatalErrorConsumer;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
@@ -58,10 +54,10 @@ import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
 
 /**
  * A factory class for creating no-op instances of various consensus modules.
@@ -133,11 +129,14 @@ public class ConsensusNoOpModules {
      *
      * @param model         the wiring model
      * @param configuration the configuration
+     * @param statusMonitorModule the status monitor module
      * @return an initialized no-op instance of {@code PcesModule}
      */
     @NonNull
     public static PcesModule createNoOpPcesModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -145,9 +144,6 @@ public class ConsensusNoOpModules {
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
         final Runnable flushPrimaryPipeline = () -> {};
-        final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
-        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
-        final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
@@ -163,9 +159,7 @@ public class ConsensusNoOpModules {
                 fileSystemManager,
                 startingRound,
                 flushPrimaryPipeline,
-                replayProgressSupplier,
-                statusActionConsumer,
-                platformStatusFlusher,
+                statusMonitorModule,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;
@@ -293,15 +287,15 @@ public class ConsensusNoOpModules {
     public static TransactionHandlingModule createNoOpTransactionHandlingModule(
             @NonNull final WiringModel model,
             @NonNull final Configuration configuration,
-            @NonNull final FileSystemManager fileSystemManager) {
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final StatusActionSubmitter statusActionSubmitter = action -> {};
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
-        final NodeId selfId = NodeId.FIRST_NODE_ID;
         final long transactionOffsetNanos = 0L;
 
         return new TransactionHandlingModule(
@@ -312,7 +306,7 @@ public class ConsensusNoOpModules {
                 latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
-                statusActionSubmitter,
+                statusMonitorModule,
                 appVersion,
                 selfId,
                 transactionOffsetNanos);

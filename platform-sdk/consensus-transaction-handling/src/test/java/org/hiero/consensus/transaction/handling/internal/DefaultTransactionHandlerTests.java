@@ -10,6 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atMostOnce;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -25,7 +28,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,7 +107,8 @@ class DefaultTransactionHandlerTests {
                             .getReservationCount(),
                     "state should be returned with a reservation");
 
-            assertEquals(0, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
+            verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), never())
+                    .put(any());
 
             assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
             assertSame(
@@ -164,11 +168,8 @@ class DefaultTransactionHandlerTests {
                             .get()
                             .getReservationCount(),
                     "state should be returned with a reservation");
-            assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
-            // The freeze action is the first action submitted.
-            assertEquals(
-                    FreezePeriodEnteredAction.class,
-                    tester.getSubmittedActions().getFirst().getClass());
+            verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
+                    .put(any(FreezePeriodEnteredAction.class));
             assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
             assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
 
@@ -177,7 +178,8 @@ class DefaultTransactionHandlerTests {
                     tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
             assertNull(postFreezeOutput, "no state should be created after freeze period");
 
-            assertEquals(1, tester.getSubmittedActions().size(), "no new status should have been submitted");
+            verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), atMostOnce())
+                    .put(any());
             assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
             assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
             assertEquals(
