@@ -5,6 +5,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.nio.file.Files;
@@ -67,14 +68,24 @@ public class IncrementalStreamingHasher {
     private final LinkedList<byte[]> hashList = new LinkedList<>();
     /** The count of leaves in the tree. */
     private long leafCount;
-    /** The sibling hashes on the path from the first leaf to the root, in bottom-up order. */
-    private final List<byte[]> firstLeafPath = new ArrayList<>();
-    /** Whether every leaf in this tree was added to this instance, so {@link #pathToFirstLeaf()} is complete. */
-    private boolean firstLeafPathIsComplete;
+    /**
+     * The sibling hashes on the path from the first leaf to the root, in bottom-up order. Null unless
+     * {@link #trackingPathToFirstLeaf} was used, so hashers that do not need the path hold nothing.
+     */
+    @Nullable
+    private final List<byte[]> firstLeafPath;
 
     /** Create a StreamingHasher with an existing intermediate hashing state. */
     public IncrementalStreamingHasher(
             final MessageDigest digest, List<byte[]> intermediateHashingState, final long leafCount) {
+        this(digest, intermediateHashingState, leafCount, false);
+    }
+
+    private IncrementalStreamingHasher(
+            final MessageDigest digest,
+            List<byte[]> intermediateHashingState,
+            final long leafCount,
+            final boolean tracksPathToFirstLeaf) {
         if (digest == null) {
             throw new IllegalArgumentException("digest must not be null");
         }
@@ -82,9 +93,20 @@ public class IncrementalStreamingHasher {
         // These byte arrays should have already been hashed, so we can add them directly
         this.hashList.addAll(intermediateHashingState);
         this.leafCount = leafCount;
-        // The path to the first leaf can only be recovered by observing every fold, so it is available only
-        // when the tree was built entirely by this instance
-        this.firstLeafPathIsComplete = intermediateHashingState.isEmpty() && leafCount == 0;
+        this.firstLeafPath = tracksPathToFirstLeaf ? new ArrayList<>() : null;
+    }
+
+    /**
+     * Creates an empty StreamingHasher that additionally records {@link #pathToFirstLeaf()} as it folds.
+     *
+     * <p>The path can only be recovered by observing every fold, so the hasher must start empty. Callers that
+     * do not need the path should use the constructor instead, which records nothing.
+     *
+     * @param digest the hashing algorithm to use
+     * @return a new hasher that tracks the path to its first leaf
+     */
+    public static IncrementalStreamingHasher trackingPathToFirstLeaf(final MessageDigest digest) {
+        return new IncrementalStreamingHasher(digest, List.of(), 0, true);
     }
 
     /**
@@ -113,7 +135,7 @@ public class IncrementalStreamingHasher {
         for (long n = leafCount; (n & 1L) == 1; n >>= 1) {
             final byte[] y = hashList.removeLast();
             final byte[] x = hashList.removeLast();
-            if (hashList.isEmpty()) {
+            if (firstLeafPath != null && hashList.isEmpty()) {
                 // x is the first leaf's ancestor, so y is the next sibling on that leaf's path to the root
                 firstLeafPath.add(y);
             }
@@ -134,13 +156,21 @@ public class IncrementalStreamingHasher {
      * {@link #computeRootHash()} to chain together.
      *
      * @return the sibling hashes on the first leaf's path to the root
-     * @throws IllegalStateException if this hasher was resumed from a saved state, in which case the folds
-     *                               that happened before the resume were not observed
+     * @throws IllegalStateException if this hasher was not created by {@link #trackingPathToFirstLeaf}, or if
+     *                               its leaf count is not a power of two
      */
     public List<Bytes> pathToFirstLeaf() {
-        if (!firstLeafPathIsComplete) {
+        if (firstLeafPath == null) {
             throw new IllegalStateException(
-                    "The path to the first leaf is unavailable for a hasher resumed from a saved state");
+                    "The path to the first leaf is only recorded by a hasher from trackingPathToFirstLeaf()");
+        }
+        if (Long.bitCount(leafCount) != 1) {
+            // With any other leaf count the fold-up stops short of the root, leaving pending subtrees for
+            // computeRootHash() to chain together; those combines are not observed here, so the recorded
+            // path would be silently short of the root
+            throw new IllegalStateException(
+                    "The path to the first leaf is only complete for a power-of-two leaf count, but %d leaves were added"
+                            .formatted(leafCount));
         }
         return firstLeafPath.stream().map(Bytes::wrap).toList();
     }
@@ -232,9 +262,6 @@ public class IncrementalStreamingHasher {
             leafCount = din.readLong();
             int hashCount = din.readInt();
             hashList.clear();
-            // The folds that built the loaded state were not observed here, so no first-leaf path can be offered
-            firstLeafPath.clear();
-            firstLeafPathIsComplete = false;
             for (int i = 0; i < hashCount; i++) {
                 byte[] hash = new byte[48]; // SHA-384 produces 48-byte hashes
                 din.readFully(hash);

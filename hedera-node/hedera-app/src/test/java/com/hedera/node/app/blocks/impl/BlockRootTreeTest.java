@@ -98,12 +98,26 @@ class BlockRootTreeTest {
         }
 
         @Test
-        @DisplayName("a hasher resumed from saved state cannot report a first-leaf path")
-        void resumedHasherRefusesToReportAPath() {
-            final var seeded = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(), List.of(BlockRootTree.EMPTY_SUBTREE.toByteArray()), 1);
-            seeded.addNodeByHash(BlockRootTree.EMPTY_SUBTREE.toByteArray());
-            assertThatThrownBy(seeded::pathToFirstLeaf).isInstanceOf(IllegalStateException.class);
+        @DisplayName("a hasher that was not asked to track cannot report a first-leaf path")
+        void untrackedHasherRefusesToReportAPath() {
+            final var untracked = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            untracked.addNodeByHash(BlockRootTree.EMPTY_SUBTREE.toByteArray());
+            untracked.addNodeByHash(BlockRootTree.EMPTY_SUBTREE.toByteArray());
+            assertThatThrownBy(untracked::pathToFirstLeaf)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("trackingPathToFirstLeaf");
+        }
+
+        @Test
+        @DisplayName("a non-power-of-two leaf count is rejected rather than yielding a path short of the root")
+        void nonPowerOfTwoLeafCountRefusesToReportAPath() {
+            final var hasher = IncrementalStreamingHasher.trackingPathToFirstLeaf(sha384DigestOrThrow());
+            for (int i = 0; i < 7; i++) {
+                hasher.addNodeByHash(randomHash().toByteArray());
+            }
+            assertThatThrownBy(hasher::pathToFirstLeaf)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("power-of-two");
         }
     }
 

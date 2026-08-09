@@ -20,7 +20,6 @@ public class BlockImplUtils {
 
     public static final byte[] LEAF_PREFIX = {0x0};
     public static final Bytes LEAF_PREFIX_BYTES = Bytes.wrap(LEAF_PREFIX);
-    public static final byte[] SINGLE_CHILD_INTERNAL_NODE_PREFIX = {0x1};
     public static final byte[] INTERNAL_NODE_PREFIX = {0x2};
     public static final Bytes INTERNAL_NODE_PREFIX_BYTES = Bytes.wrap(INTERNAL_NODE_PREFIX);
 
@@ -121,17 +120,6 @@ public class BlockImplUtils {
 
     public static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
         return hashOfAll(digest, LEAF_PREFIX, leafData);
-    }
-
-    /**
-     * Hashes an internal node that has exactly one child. This applies to the state tree; the block root
-     * tree has two children at every internal node (see {@link BlockRootTree}).
-     *
-     * @param hash the hash of the single child
-     * @return the hash of the internal node
-     */
-    public static Bytes hashInternalNodeSingleChild(@NonNull final Bytes hash) {
-        return sha384HashOfAll(SINGLE_CHILD_INTERNAL_NODE_PREFIX, hash.toByteArray());
     }
 
     public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final byte[] rightHash) {

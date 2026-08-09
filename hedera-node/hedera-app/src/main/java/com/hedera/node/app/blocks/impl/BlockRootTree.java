@@ -109,7 +109,7 @@ public final class BlockRootTree {
 
         // The assigned slots are a power-of-two count, so the hasher folds them to a single root and the
         // siblings on slot 0's path fall out of that same fold
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        final var hasher = IncrementalStreamingHasher.trackingPathToFirstLeaf(sha384DigestOrThrow());
         for (final var slot : slots) {
             hasher.addNodeByHash(slot.toByteArray());
         }
