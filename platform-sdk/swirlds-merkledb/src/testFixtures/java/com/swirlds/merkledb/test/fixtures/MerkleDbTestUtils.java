@@ -15,6 +15,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -154,7 +155,7 @@ public class MerkleDbTestUtils {
                 chunks.put(chunkId, chunk);
             }
             final boolean isLeaf = i >= firstLeafPath;
-            final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
+            final int rank = MerklePathUtils.getRank(i);
             if (isLeaf || (rank % hashChunkHeight == 0)) {
                 chunk.setHashAtPath(i, hash(valueFunction.apply(i)));
             }
