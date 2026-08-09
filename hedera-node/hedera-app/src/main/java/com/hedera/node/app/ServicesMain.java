@@ -47,7 +47,6 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -58,6 +57,7 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
 import com.swirlds.platform.config.ConfigurationSetupUtils;
 import com.swirlds.platform.config.legacy.ConfigurationException;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
@@ -75,7 +75,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.NodeId;
@@ -187,7 +187,8 @@ public class ServicesMain {
                 Hedera.APP_NAME,
                 Hedera.SWIRLD_NAME,
                 selfId,
-                platformContext,
+                platformConfig,
+                fileSystemManager,
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();

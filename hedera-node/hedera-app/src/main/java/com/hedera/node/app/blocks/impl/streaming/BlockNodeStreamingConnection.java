@@ -977,8 +977,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         final FailureType failureType = FailureType.findFailureType(e);
                         if (failureType.isCommonFailure()) {
                             logger.debug("{} Error executing request pipeline close (error: {})", this, failureType);
+                        } else {
+                            logger.debug("{} Error executing request pipeline close", this, e.getCause());
                         }
-                        logger.debug("{} Error executing request pipeline close", this, e.getCause());
                     }
                 }
             } catch (final Exception e) {

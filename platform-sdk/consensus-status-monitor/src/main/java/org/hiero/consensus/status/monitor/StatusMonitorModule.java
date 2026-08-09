@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.status.monitor;
 
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +19,11 @@ import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 import org.hiero.consensus.status.monitor.config.StatusMonitorWiringConfig;
 import org.hiero.consensus.status.monitor.internal.DefaultPlatformMonitor;
 import org.hiero.consensus.status.monitor.internal.PlatformMonitor;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * The StatusMonitorModule is responsible for monitoring the platform's status and updating the platform's
