@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
@@ -73,7 +74,7 @@ public class ContainerNetwork extends AbstractNetwork {
             final boolean proxyEnabled,
             final boolean gcLoggingEnabled,
             @NonNull final List<String> jvmArgs) {
-        super(Randotron.create(), useRandomNodeIds);
+        super(new Random(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
