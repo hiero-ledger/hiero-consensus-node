@@ -476,7 +476,7 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
-    void truncatesFileWhenWritingEnabledEvenWhenJumpstartNotConfigured() throws Exception {
+    void doesNotTruncateFileWhenJumpstartNotConfigured() throws Exception {
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 90; i <= 100; i++) {
             entries.add(entry(i));
@@ -487,12 +487,33 @@ class WrappedRecordBlockHashMigrationTest {
                         "hedera.recordStream.wrappedRecordHashesDir", recentHashesDir.toString())
                 .withValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true));
 
-        // No jumpstart config populated (blockNum defaults to -1), so the migration itself is a no-op.
+        // No jumpstart config populated (blockNum defaults to -1), so the migration itself is a no-op
+        // and must not touch the file, even though writing is enabled.
         subject.execute(StreamMode.RECORDS, config, defaultJumpstartConfig(), false);
 
         assertNull(subject.result());
-        assertThat(Files.exists(file)).isTrue();
-        assertThat(Files.size(file)).isZero();
+        assertThat(Files.size(file)).isGreaterThan(0L);
+    }
+
+    @Test
+    void doesNotTruncateFileWhenValidationFailsSoJumpstartDoesNotRun() throws Exception {
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        final var file =
+                tempDir.resolve("recent-hashes").resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+        // previousWrappedRecordBlockHash has the wrong length, so validation fails before any hashes are computed.
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100,
+                Bytes.wrap(new byte[32]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
+
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+
+        assertNull(subject.result());
+        assertThat(Files.size(file)).isGreaterThan(0L);
     }
 
     @Test
@@ -514,14 +535,22 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
-    void doesNotFailWhenWritingEnabledButFileMissing() {
+    void truncateHelperDoesNotFailWhenFileMissing() throws Exception {
         final var config = recordsConfigWith(RECORDS, true, b -> b.withValue(
                         "hedera.recordStream.wrappedRecordHashesDir",
                         tempDir.resolve("missing-dir").toString())
                 .withValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true));
 
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config, defaultJumpstartConfig(), false));
-        assertNull(subject.result());
+        final Method truncate = WrappedRecordBlockHashMigration.class.getDeclaredMethod(
+                "truncateHashesFileIfWritingEnabled", BlockRecordStreamConfig.class);
+        truncate.setAccessible(true);
+        assertDoesNotThrow(() -> {
+            try {
+                truncate.invoke(subject, config);
+            } catch (final java.lang.reflect.InvocationTargetException e) {
+                throw e.getCause();
+            }
+        });
     }
 
     private Path createRecentHashesDir(List<WrappedRecordFileBlockHashes> entries) throws Exception {
