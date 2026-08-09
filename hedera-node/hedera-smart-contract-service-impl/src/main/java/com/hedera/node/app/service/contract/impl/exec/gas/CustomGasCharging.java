@@ -69,7 +69,10 @@ public class CustomGasCharging {
         requireNonNull(sender);
         requireNonNull(context);
         requireNonNull(worldUpdater);
-        if (context.isNoopGasContext() || unusedGas == 0) {
+        if (!context.shouldChargeGasFees()) {
+            return;
+        }
+        if (context.isStaticCall() || unusedGas == 0) {
             return;
         }
         final var refund = unusedGas * context.gasPrice();
@@ -120,17 +123,27 @@ public class CustomGasCharging {
                 transaction.isCreate(),
                 transaction.accessLists(),
                 transaction.codeDelegations());
-        if (context.isNoopGasContext()) {
-            return gasCharges;
+        if (context.isStaticCall()) {
+            return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
         validateTrue(transaction.gasLimit() >= gasCharges.minimumGasUsed(), INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
+            if (!context.shouldChargeGasFees()) {
+                // Even when gas fees are free, a reverted Ethereum transaction must still
+                // consume the sender's nonce; record a zero-amount charge event so that
+                // EthereumTransactionRollbackHandler replays the nonce increment
+                worldUpdater.collectGasFee(sender.hederaId(), 0L, true);
+                return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
+            }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
             return new GasCharges(gasCharges.intrinsicGas(), gasCharges.minimumGasUsed(), allowanceUsed);
         } else {
-            chargeWithOnlySender(sender, context, worldUpdater, transaction);
-            return gasCharges;
+            if (context.shouldChargeGasFees()) {
+                chargeWithOnlySender(sender, context, worldUpdater, transaction);
+                return gasCharges;
+            }
+            return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
     }
 
@@ -162,6 +175,9 @@ public class CustomGasCharging {
                 transaction.accessLists(),
                 transaction.codeDelegations());
 
+        if (!context.shouldChargeGasFees()) {
+            return;
+        }
         if (transaction.isEthereumTransaction()) {
             final var fee =
                     feeForAborted(transaction.relayerId(), context, worldUpdater, gasRequirements.minimumGasUsed());

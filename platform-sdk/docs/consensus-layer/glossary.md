@@ -250,8 +250,7 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 A per-event count: one plus the maximum parent generation. The paper used a single
 *deterministic* generation as the ancient horizon; current code uses *Birth round* for that
 and keeps three separate generation counters instead, each calculated differently and used
-for a different purpose — *nGen* (local; topological ordering, now migrating to the event
-*Sequence number*, ADR-008), *deGen* (deterministic,
+for a different purpose — *nGen* (local, for graph height), *deGen* (deterministic,
 for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a
 *Consensus round*).
 See [concepts/birth-round.md](concepts/birth-round.md).
@@ -317,14 +316,13 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
 ### NGen
 
-*Non-deterministic generation* (`NonDeterministicGeneration`): historically the consensus
-layer's local topological-ordering key, answering "higher in the hashgraph" comparisons.
-Assigned to every non-orphan event, locally by each node, so it may differ between nodes; set
-once at intake and then stable. That ordering role has moved to the event *Sequence number*
-(ADR-008); `nGen` now survives only for the not-yet-migrated `cGen` path, pending removal.
-Contrast the deterministic *DeGen* and *CGen*; see *Generation*.
-See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md)
-and [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
+*Non-deterministic generation* (`NonDeterministicGeneration`): a local, per-node approximation of
+an event's height in the hashgraph, so it may differ between nodes. Assigned once to every
+non-orphan event at intake and then stable, but the assigned value resets to 1 when the event's
+parents have already gone ancient — so nGen can under-count an event's height, never over-count.
+Retained for consumers that need graph height rather than a mere ordering — contrast the *Sequence
+number* (ADR-008); the deterministic *DeGen* and *CGen* differ again, see *Generation*.
+See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
 
@@ -365,7 +363,7 @@ See [concepts/birth-round.md](concepts/birth-round.md).
 
 The node's lifecycle state (e.g. `ACTIVE`, `CHECKING`, `FREEZING`), tracked by the status
 state machine and consulted by rules such as whether to create events or gossip.
-See [architecture/interfaces/consensus-execution-boundary.md](architecture/interfaces/consensus-execution-boundary.md).
+See [architecture/topics/platform-status.md](architecture/topics/platform-status.md).
 
 ### Prehandle
 
@@ -475,11 +473,14 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 ### Sequence number
 
 A monotonic counter the *Orphan buffer* stamps on each event as it is released
-(`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between
-nodes. The canonical local ordering key — used for "higher in the hashgraph" comparisons by
-event creation, *Sync*, and the consensus algorithm (e.g. `consensusRelevantSeqNum`). Unlike
-*NGen* it never resets, even when an event's parents have gone ancient, and it is never used
-for cross-node agreement.
+(`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between nodes.
+Unlike *NGen* it never resets, but it is a release-order counter, **not** a graph height: among
+events numbered since the buffer was last cleared it gives a valid topological order, and no more.
+Within that window an ancestor is released — and numbered — before its descendant, so it carries a
+smaller value; but the converse fails, a smaller value does **not** make an event an ancestor
+(concurrent events are ordered too). Used where only a local topological order is needed — event
+creation's advancement scoring and *Sync* send order — never for cross-node agreement; consumers
+that need height keep *NGen*.
 See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ### Shadowgraph

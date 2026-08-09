@@ -5,10 +5,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
+import com.swirlds.platform.test.fixtures.builder.TestPlatformContextBuilder;
 import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -32,7 +32,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
@@ -58,12 +58,8 @@ public class EventCreatorNetwork {
     public EventCreatorNetwork(
             final long seed, final int numNodes, final Configuration configuration, final NetworkLatency latency) {
         // Build a roster with real keys
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .withRealKeysEnabled(true);
-
-        roster = rosterBuilder.build();
+        roster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
+                .getRoster();
 
         eventCreators = new HashMap<>();
         time = new FakeTime(Instant.parse("2026-01-01T00:00:00Z"), Duration.ZERO);

@@ -7,22 +7,23 @@ module org.hiero.consensus.pces.impl {
             org.hiero.consensus.state;
     exports org.hiero.consensus.pces.impl.common to
             com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.pcli,
             org.hiero.otter.fixtures,
             org.hiero.sloth.fixtures,
-            org.hiero.consensus.pces.impl.test.fixtures;
+            org.hiero.consensus.pces.impl.test.fixtures,
+            com.hedera.state.validator;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;

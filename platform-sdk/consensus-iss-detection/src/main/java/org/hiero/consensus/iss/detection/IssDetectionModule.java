@@ -7,12 +7,6 @@ import static org.hiero.consensus.iss.detection.internal.IssDetector.DO_NOT_IGNO
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +28,12 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Module for the Iss Detection component.
@@ -122,6 +122,11 @@ public class IssDetectionModule {
         issHandlerWiring.bind(issHandler);
     }
 
+    /**
+     * Get the input wire for post-consensus state signature transactions.
+     *
+     * @return the input wire for post-consensus state signature transactions
+     */
     @InputWireLabel("post consensus state signatures")
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> systemTransactionsInputWire() {
@@ -129,24 +134,40 @@ public class IssDetectionModule {
                 .getInputWire(IssDetector::handleStateSignatureTransactions);
     }
 
+    /**
+     * Get the input wire for hashed states.
+     *
+     * @return the input wire for hashed states
+     */
     @InputWireLabel("hashed states")
     @NonNull
     public InputWire<ReservedSignedState> stateInputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::handleState);
     }
 
+    /**
+     * Get the input wire for overriding state.
+     *
+     * @return the input wire for overriding state
+     */
     @InputWireLabel("overriding state")
     @NonNull
     public InputWire<ReservedSignedState> overridingStateInputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::overridingState);
     }
 
+    @InputWireLabel("signal end of preconsensus replay")
     @NonNull
     public InputWire<NoInput> signalEndOfPreconsensusReplayInputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized")
                 .getInputWire(IssDetector::signalEndOfPreconsensusReplay);
     }
 
+    /**
+     * Get the output wire for ISS notifications.
+     *
+     * @return the output wire for ISS notifications
+     */
     @NonNull
     public OutputWire<IssNotification> issNotificationOutputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getSplitOutput();

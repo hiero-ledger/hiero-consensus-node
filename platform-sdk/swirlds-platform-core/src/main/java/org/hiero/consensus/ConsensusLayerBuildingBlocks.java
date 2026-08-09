@@ -2,13 +2,8 @@
 package org.hiero.consensus;
 
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -21,12 +16,15 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
 
 public record ConsensusLayerBuildingBlocks(
         @NonNull WiringModel wiringModel,
@@ -41,12 +39,12 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull StateModule stateModule,
         @NonNull ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         @NonNull RunningEventHashOverrideWiring runningEventHashOverrideWiring,
-        @NonNull ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
+        @NonNull WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher,
         @NonNull ComponentWiring<AppNotifier, Void> notifierWiring,
-        @NonNull ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
+        @NonNull StatusMonitorModule statusMonitorModule,
         @NonNull NotificationEngine notificationEngine,
         @NonNull SavedStateController savedStateController,
-        @NonNull PlatformComponents platformComponents,
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
-        @NonNull IntakeEventCounter intakeEventCounter) {}
+        @NonNull IntakeEventCounter intakeEventCounter,
+        @NonNull PipelineFlusher pipelineFlusher) {}

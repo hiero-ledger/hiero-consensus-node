@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-28
 ---
 
 # Hashgraph
@@ -78,7 +78,7 @@ state at runtime:
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
-  decided-fame status, plus `minSeqNum` and `minBirthRound` for the
+  decided-fame status, plus `minNGen` and `minBirthRound` for the
   judges.
 - The future-event buffer
   [`consensus-utility/.../FutureEventBuffer.java`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/FutureEventBuffer.java)
@@ -99,7 +99,7 @@ is wired against those.
   `ConsensusEngine.updatePlatformStatus`, which sets `pcesMode = true`
   on `Consensus` when the status is `REPLAYING_EVENTS`
   (`DefaultConsensusEngine.java#updatePlatformStatus`).
-- `consensusSnapshotInputWire(): InputWire<ConsensusSnapshot>` —
+- `consensusSnapshotOverrideInputWire(): InputWire<ConsensusSnapshot>` —
   drives `ConsensusEngine.outOfBandSnapshotUpdate`, which clears the
   linker and the future-event buffer and reloads
   `Consensus.loadSnapshot(snapshot)` at restart and reconnect
@@ -173,8 +173,8 @@ rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
 `r + 1` if a super-majority is reached. As a short-circuit, any event
-whose sequence number is below the latest decided round's judges
-(`ConsensusRounds.isOlderThanDecidedRoundSeqNum`), and any consensus
+whose nGen is below the latest decided round's judges
+(`ConsensusRounds.isOlderThanDecidedRoundGeneration`), and any consensus
 event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and
 strongly-seeing work — see RUL-005. For the conceptual background see
 [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
@@ -282,16 +282,10 @@ into the loaded state — is covered in
 > [`../../concepts/birth-round.md`](../../concepts/birth-round.md) for that
 > substitution. The
 > implementation also carries a few quantities that do not appear in
-> the paper — the orphan-buffer **event sequence number** (a
-> locally-computed, monotonic counter used for picking a topological
-> order and for "higher in the hashgraph" comparisons, e.g.
-> `consensusRelevantSeqNum` / `RoundElections.minSeqNum` and
-> `ConsensusRounds.isOlderThanDecidedRoundSeqNum`) and the `DeGen`/`cGen`
-> family used inside the algorithm. The sequence number replaced `NGen`
-> as the algorithm's ordering key (see
-> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md));
-> `NonDeterministicGeneration` lingers in this module only for the
-> not-yet-migrated `cGen` path. Conceptual
+> the paper — `NGen` (a locally-computed, non-deterministic generation
+> used only for picking a topological order and for
+> "higher in the hashgraph" comparisons; see `NonDeterministicGeneration`)
+> and the `DeGen`/`cGen` family used inside the algorithm. Conceptual
 > background lives in
 > [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
 > and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).

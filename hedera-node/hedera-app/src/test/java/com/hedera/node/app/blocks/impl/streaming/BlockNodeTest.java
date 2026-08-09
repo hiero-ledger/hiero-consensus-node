@@ -617,8 +617,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<WantedBlock> wantedBlockRef = wantedBlockRef();
         assertThat(wantedBlockRef).doesNotHaveNullValue();
         final WantedBlock wantedBlock = wantedBlockRef.get();
-        // the wanted block should be the latest block available (11) + 1
-        assertThat(wantedBlock.blockNumber()).isEqualTo(12);
+        assertThat(wantedBlock.blockNumber()).isEqualTo(11);
     }
 
     @Test

@@ -7,20 +7,20 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
 import static org.hiero.sloth.fixtures.app.SlothStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.test.fixtures.builder.TestPlatformBuilder;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,10 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerFactory;
-import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
-import org.hiero.consensus.ConsensusLayerInputs;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
@@ -95,7 +92,7 @@ public class ConsensusNodeManager {
             @NonNull final KeysAndCerts keysAndCerts) {
 
         initLogging();
-        BootstrapUtils.setupConstructableRegistry();
+        setupConstructableRegistry();
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
@@ -124,7 +121,8 @@ public class ConsensusNodeManager {
                 SlothApp.APP_NAME,
                 SlothApp.SWIRLD_NAME,
                 selfId,
-                platformContext,
+                platformConfig,
+                fileSystemManager,
                 stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();
@@ -142,7 +140,8 @@ public class ConsensusNodeManager {
 
         final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
-        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+
+        final TestPlatformBuilder builder = new TestPlatformBuilder(
                 platformConfig,
                 platformContext.getMetrics(),
                 platformContext.getTime(),
@@ -156,29 +155,18 @@ public class ConsensusNodeManager {
                 initialState,
                 stateLifecycleManager,
                 version,
-                SlothApp.APP_NAME,
-                SlothApp.SWIRLD_NAME,
+                new PersistenceScope(SlothApp.APP_NAME, SlothApp.SWIRLD_NAME),
                 Long.toString(selfId.id()),
-                SlothApp.DEFAULT_TRANSACTION_OFFSET_NANOS,
-                null,
-                null,
-                null,
-                null);
+                SlothApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
-        // Build the platform component builder
-        final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
-        final ConsensusLayerFactoryResult factoryOutput = factory.create();
-
-        final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
-        PlatformWiring.wire(inputs, buildingBlocks);
+        platform = builder.build();
 
         // Wiring: Forward consensus rounds to registered listeners
+        final ConsensusLayerBuildingBlocks buildingBlocks = builder.buildingBlocks();
         buildingBlocks
                 .hashgraphModule()
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
-
-        platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
     }
 
     /**

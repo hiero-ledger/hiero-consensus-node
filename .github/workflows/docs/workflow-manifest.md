@@ -1,4 +1,4 @@
-|                  File Name                   |           Workflow Name            |                  Deprecated File Name                  |                     Deprecated Workflow Name                      |
+| File Name                                    | Workflow Name                      | Deprecated File Name                                   | Deprecated Workflow Name                                          |
 |----------------------------------------------|------------------------------------|--------------------------------------------------------|-------------------------------------------------------------------|
 | # USER (0-99)                                |                                    |                                                        |                                                                   |
 | 000-user-dry-run-mats-suite.yaml             | 000: [USER] CITR MATS Dry Run      | flow-dry-run-mats-suite.yaml                           | [CITR] MATS Dry Run                                               |
@@ -67,7 +67,7 @@
 | 822-call-verify-docker-determinism.yaml      | 822: [CALL] Verify Docker Build    | zxc-verify-docker-build-determinism.yaml               | ZXC: Verify Docker Build Determinism                              |
 | 823-call-verify-gradle-determinism.yaml      | 823: [CALL] Verify Gradle Build    | zxc-verify-gradle-build-determinism.yaml               | ZXC: Verify Gradle Build Determinism                              |
 | 825-call-migration-testing.yaml              | 825: [CALL] Migration Testing      | zxc-migration-testing-yaml                             | ZXC: Migration Testing                                            |
-| 826-call-solo-076-to-077-cutover.yaml        | 826: [CALL] Solo 076-077 Cutover   | N/A                                                    | N/A                                                               |
+| 826-call-solo-077-to-078-cutover.yaml        | 826: [CALL] Solo 077-078 Cutover   | N/A                                                    | N/A                                                               |
 | 830-call-merge-queue-performance-test.yaml   | 830: [CALL] CITR Exec MQ Perf Test | zxc-merge-queue-performance-test.yaml                  | ZXC: [CITR] Merge Queue Performance Test                          |
 | 831-call-single-day-performance-test.yaml    | 831: [CALL] CITR Exec SDPT         | zxc-single-day-performance-test.yaml                   | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml       | 832: [CALL] CITR Exec Perf Test    | zxc-execute-performance-test.yaml                      | ZXC: [CITR] Execute Performance Test                              |
@@ -81,6 +81,10 @@
 | 855-call-extract-citr-vars.yaml              | 855: [CALL] Extract CITR Vars      | 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     |
 | 856-call-solo-ge044.yaml                     | 856: [CALL] Compute solo-ge-0440   | 857-call-solo-ge044.yaml                               | 857: [CALL] Compute solo-ge-0440 Gate                             |
 | 857-call-workflow-unit-tests.yaml            | 857: [CALL] Workflow Unit Tests    |                                                        |                                                                   |
+| 858-call-get-chewie-jwt.yaml                 | 858: [CALL] Get Chewie JWT         |                                                        |                                                                   |
+| 859-call-create-chewie-request.yaml          | 859: [CALL] Create Chewie Request  |                                                        |                                                                   |
+| 860-call-validate-chewie-jwt.yaml            | 860: [CALL] Validate Chewie JWT    |                                                        |                                                                   |
+| 861-call-get-test-config.yaml                | 861: [CALL] Get Test Config        |                                                        |                                                                   |
 |                                              |                                    |                                                        |                                                                   |
 | # CRON (900-999)                             |                                    |                                                        |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite    | zxcron-extended-test-suite.yaml                        | ZXCron: [CITR] Extended Test Suite                                |

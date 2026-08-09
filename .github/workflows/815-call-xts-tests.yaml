@@ -53,14 +53,18 @@ on:
         type: string
         description: "Run Migration Testing Panel"
         default: "true"
-      enable-076-to-077-cutover-panel:
+      enable-077-to-078-cutover-panel:
         type: string
-        description: "Run Solo 0.76 to 0.77 Block Stream Cutover Panel"
+        description: "Run Solo 0.77 to 0.78 Block Stream Cutover Panel"
         default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
         default: "latest"
+      cutover-solo-version:
+        type: string
+        description: "The Solo version to use for the 0.77 to 0.78 cutover panel"
+        required: true
       mirror-node-version:
         type: string
         description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
@@ -128,12 +132,6 @@ on:
       gradle-cache-password:
         description: "Gradle Cache Password"
         required: false
-      grafana-agent-username:
-        description: "Grafana Agent Username"
-        required: false
-      grafana-agent-password:
-        description: "Grafana Agent Password"
-        required: false
       jrs-ssh-user-name:
         description: "JRS SSH User Name"
         required: false
@@ -175,10 +173,11 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
+      migration-baseline-available: ${{ steps.migration-baseline.outputs.available }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -190,6 +189,37 @@ jobs:
         run: |
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
+      # Migration Testing (825) deploys the previous minor (version.txt's
+      # minor - 1) as its baseline: a published v<prev>.* release if one exists,
+      # otherwise a source build of the release/<prev> branch (see
+      # solo-migration-test.sh). If NEITHER a tag nor that branch exists yet —
+      # the brief window right after a version roll — there is no baseline to
+      # migrate from, so the panel is skipped instead of failed (see
+      # migration-testing-baseline-skipped-notice). Coverage resumes
+      # automatically once either the tag or the branch appears. An inconclusive
+      # lookup (network/auth) defaults to available=true so the panel still runs
+      # and the script stays the authority.
+      - name: Resolve migration baseline availability
+        id: migration-baseline
+        run: |
+          raw="$(cat version.txt)"
+          major_minor="$(printf '%s' "${raw}" | cut -d. -f1,2)"
+          major="${major_minor%.*}"; minor="${major_minor#*.}"
+          prev_series="${major}.$((minor - 1))"
+          available=true
+          if tag_refs="$(git ls-remote --tags origin "v${prev_series}.*")" \
+             && branch_refs="$(git ls-remote --heads origin "release/${prev_series}")"; then
+            if [[ -z "${tag_refs}" && -z "${branch_refs}" ]]; then
+              available=false
+            fi
+          else
+            echo "::warning::Could not conclusively query origin for the v${prev_series}.* tag / release/${prev_series} branch; running Migration Testing and letting the script decide."
+          fi
+          echo "available=${available}" | tee "${GITHUB_OUTPUT}"
+          if [[ "${available}" == "false" ]]; then
+            echo "::notice::No v${prev_series}.* tag and no release/${prev_series} branch; Migration Testing will be skipped."
+          fi
 
   build:
     name: Compile and Spotless Check
@@ -252,9 +282,7 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
-      # (FUTURE) Flip to "true" once the hl-cn-hapi-wraps-lin-lg runner pool exists with
-      # the WRAPS proving-key artifacts mounted at /opt/wraps-v1.0.0
-      enable-hapi-tests-wraps: "false"
+      enable-hapi-tests-wraps: "true"
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
@@ -271,7 +299,7 @@ jobs:
     uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       enable-full-otter-tests: true
-      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
+      enable-chaos-otter-tests: false
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
@@ -288,6 +316,7 @@ jobs:
     if: ${{ needs.build.result == 'success' && inputs.enable-chaos-otter-test-suite == 'true' }}
     uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
+      enable-full-otter-tests: false
       enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
@@ -321,8 +350,6 @@ jobs:
       slack-api-token: ${{ secrets.slack-api-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
@@ -423,7 +450,7 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' && needs.commit-info.outputs.migration-baseline-available == 'true' }}
     uses: ./.github/workflows/825-call-migration-testing.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
@@ -441,6 +468,9 @@ jobs:
     if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
     runs-on: hl-cn-default-lin-sm
     steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+
       - name: Announce Skip
         run: |
           echo "::warning::Migration Testing Panel was requested (enable-migration-testing-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
@@ -453,17 +483,39 @@ jobs:
             echo "- Required: \`>= 0.44.0\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  solo-076-to-077-cutover-panel:
-    name: Solo 0.76 to 0.77 Cutover Panel
+  migration-testing-baseline-skipped-notice:
+    name: Migration Testing Panel (Skipped — no previous-minor baseline)
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-076-to-077-cutover-panel == 'true' }}
-    uses: ./.github/workflows/826-call-solo-076-to-077-cutover.yaml
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' && needs.commit-info.outputs.migration-baseline-available != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+
+      - name: Announce Skip
+        run: |
+          echo "::warning::Migration Testing Panel skipped: no previous-minor baseline exists yet — neither a v<minor-1>.* tag nor a release/<minor-1> branch for the current version.txt. It runs automatically once either appears."
+          {
+            echo "## Migration Testing Panel — SKIPPED"
+            echo ""
+            echo "No previous-minor baseline exists yet: neither a \`v<minor-1>.*\` release tag nor a \`release/<minor-1>\` branch was found for the current \`version.txt\`."
+            echo ""
+            echo "Coverage resumes automatically once the previous minor is tagged or its release branch is cut."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  solo-077-to-078-cutover-panel:
+    name: Solo 0.77 to 0.78 Cutover Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-077-to-078-cutover-panel == 'true' }}
+    uses: ./.github/workflows/826-call-solo-077-to-078-cutover.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
-      custom-job-name: "${{ inputs.custom-job-label }} Solo 0.76 -> 0.77 Cutover"
-      solo-version: "${{ inputs.solo-version }}"
+      custom-job-name: "${{ inputs.custom-job-label }} Solo 0.77 -> 0.78 Cutover"
+      solo-version: "${{ inputs.cutover-solo-version }}"
       java-version: "${{ inputs.java-version }}"
 
   set-failure-mode:
@@ -485,11 +537,11 @@ jobs:
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
       - migration-testing-panel
-      - solo-076-to-077-cutover-panel
+      - solo-077-to-078-cutover-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -510,7 +562,7 @@ jobs:
             ${{ needs.json-rpc-relay-regression-panel.result }}
             ${{ needs.block-node-regression-panel.result }}
             ${{ needs.migration-testing-panel.result }}
-            ${{ needs.solo-076-to-077-cutover-panel.result }}
+            ${{ needs.solo-077-to-078-cutover-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
@@ -524,7 +576,7 @@ jobs:
             ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
-            ${{ needs.solo-076-to-077-cutover-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.solo-077-to-078-cutover-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             build
@@ -538,5 +590,5 @@ jobs:
             json-rpc-relay-regression-panel
             block-node-regression-panel
             migration-testing-panel
-            solo-076-to-077-cutover-panel
+            solo-077-to-078-cutover-panel
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

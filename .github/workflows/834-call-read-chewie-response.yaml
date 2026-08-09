@@ -41,6 +41,8 @@ on:
         value: ${{ jobs.acquire-kubernetes-resources.outputs.network-id }}
       owner:
         value: ${{ jobs.acquire-kubernetes-resources.outputs.owner }}
+      request-expiration:
+        value: ${{ jobs.create-allocation-request.outputs.expiration }}
 
 permissions:
   contents: read
@@ -64,19 +66,22 @@ jobs:
       aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
       network-id: ${{ steps.read-chewie-response.outputs.network-id }}
       owner: ${{ steps.read-chewie-response.outputs.owner }}
+      expiration: ${{ steps.read-chewie-response.outputs.expiration }}
     steps:
       - name: Initialize Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: ${{ secrets.github-token }}
           checkout-ref: ${{ inputs.ref }}
 
       - name: Validate Test Type
+        env:
+          INPUT_TEST_TYPE: ${{ inputs.test-type }}
         run: |
           VALID_TEST_TYPES=("sdpt" "sdlt" "mqpt" "mdlt")
-          if [[ ! " ${VALID_TEST_TYPES[@]} " =~ "${{ inputs.test-type }}" ]]; then
-            echo "::error::Invalid test type: ${{ inputs.test-type }}. Must be one of: ${VALID_TEST_TYPES[*]}"
+          if [[ ! " ${VALID_TEST_TYPES[@]} " =~ "${INPUT_TEST_TYPE}" ]]; then
+            echo "::error::Invalid test type: ${INPUT_TEST_TYPE}. Must be one of: ${VALID_TEST_TYPES[*]}"
             exit 1
           fi
 
@@ -93,9 +98,12 @@ jobs:
       # The response from chewie will be a json object that we can parse.
       - name: Read Chewie Response
         id: read-chewie-response
+        env:
+          INPUT_TEST_ASSET: ${{ inputs.test-asset }}
+          INPUT_TEST_TYPE: ${{ inputs.test-type }}
         run: |
-          echo "::group::Collect Chewie Response for test asset: ${{ inputs.test-asset }}"
-          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${{ inputs.test-asset }}-${{ inputs.test-type }}.json"
+          echo "::group::Collect Chewie Response for test asset: ${INPUT_TEST_ASSET}"
+          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${INPUT_TEST_ASSET}-${INPUT_TEST_TYPE}.json"
           if [[ ! -f "${JSON_RESPONSE_FILE}" ]]; then
               echo "::error::file ${JSON_RESPONSE_FILE} does not exist."
               exit 1
@@ -124,6 +132,9 @@ jobs:
           NETWORK_ID="$(jq -r '."solo.hashgraph.io/network-id"' <<< "${CN_LABELS}")"
           OWNER="$(jq -r '."solo.hashgraph.io/owner"' <<< "${CN_LABELS}")"
 
+          # Get Expiration
+          EXPIRATION=$(jq -r '.expires_at' "${JSON_RESPONSE_FILE}")
+
           # Set outputs
           echo "namespace=${NAMESPACE}" | tee -a "${GITHUB_OUTPUT}"
           echo "kubernetes-fqdn=${CLUSTER_FQDN}" | tee -a "${GITHUB_OUTPUT}"
@@ -135,13 +146,15 @@ jobs:
           echo "aux-role=${AUX_ROLE}" | tee -a "${GITHUB_OUTPUT}"
           echo "cn-tolerations=${CN_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
           echo "aux-tolerations=${AUX_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
+          echo "expiration=${EXPIRATION}" | tee -a "${GITHUB_OUTPUT}"
           echo "::endgroup::"
 
           # Write step summary
           echo "## Chewie Response Read" >> "${GITHUB_STEP_SUMMARY}"
           echo "namespace=${NAMESPACE}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "test asset=${{ inputs.test-asset }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "test asset=${INPUT_TEST_ASSET}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Network ID=${NETWORK_ID}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Owner=${OWNER}" >> "${GITHUB_STEP_SUMMARY}"
           echo "CN Quantity=${CN_QTY}" >> "${GITHUB_STEP_SUMMARY}"
           echo "AUX Quantity=${AUX_QTY}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Request Expiration=${EXPIRATION}" >> "${GITHUB_STEP_SUMMARY}"

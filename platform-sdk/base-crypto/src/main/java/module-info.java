@@ -15,7 +15,6 @@ module org.hiero.base.crypto {
     opens org.hiero.base.crypto to
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.base.crypto.test.fixtures,
             org.hiero.otter.test,
             com.fasterxml.jackson.databind;
@@ -26,12 +25,11 @@ module org.hiero.base.crypto {
     requires transitive com.swirlds.logging;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
+    requires com.hedera.cryptography.libsecp256k1;
     requires com.swirlds.base;
-    requires com.sun.jna;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires org.hyperledger.besu.nativelib.secp256k1;
     requires static transitive com.github.spotbugs.annotations;
 
     // spotless:off

@@ -93,8 +93,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
@@ -940,8 +940,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
                 // convenience API directly here since we don't have a chain-of-trust proof
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-                final var sig =
-                        signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
+                final var sig = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
                 final boolean valid =
                         hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {

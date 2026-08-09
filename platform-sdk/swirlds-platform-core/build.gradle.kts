@@ -15,40 +15,38 @@ tasks.withType<JavaCompile>().configureEach {
 
 mainModuleInfo {
     annotationProcessor("com.swirlds.config.processor")
+
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
     runtimeOnly("org.hiero.consensus.event.intake.impl")
+    runtimeOnly("org.hiero.consensus.gossip.impl")
     runtimeOnly("org.hiero.consensus.hashgraph.impl")
     runtimeOnly("org.hiero.consensus.pces.impl")
-    runtimeOnly("org.hiero.consensus.gossip.impl")
     runtimeOnly("org.hiero.consensus.reconnect.impl")
 }
 
 jmhModuleInfo {
-    requires("com.swirlds.platform.core")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")
+    requires("com.hedera.pbj.runtime")
+    requires("com.swirlds.platform.core")
+    requires("org.hiero.base.utility")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces")
     requires("org.hiero.consensus.pces.impl")
-    requires("org.hiero.base.utility")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("jmh.core")
 }
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.platform.core")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.merkledb")
+    requires("com.swirlds.merkledb.test.fixtures")
+    requires("com.swirlds.platform.core")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")
-    requires("com.swirlds.merkledb.test.fixtures")
-    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.concurrent.test.fixtures")
-    requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
@@ -57,7 +55,9 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+
     runtimeOnly("org.hiero.consensus.pces.noop.impl.test.fixtures")
+
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
     opensTo("org.hiero.junit.extensions")
 }
@@ -65,9 +65,9 @@ testModuleInfo {
 timingSensitiveModuleInfo {
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.platform.core")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.impl")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.junit.jupiter.api")

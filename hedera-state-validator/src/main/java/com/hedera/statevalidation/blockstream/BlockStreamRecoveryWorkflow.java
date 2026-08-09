@@ -19,7 +19,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ProgressReporter;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -225,7 +225,7 @@ public class BlockStreamRecoveryWorkflow {
                             .formatted(targetRound, currentRound.get()));
         }
 
-        // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
+        // To make sure that VirtualMap.Metadata is persisted after all changes from the block stream were applied
         stateLifecycleManager.copyMutableState();
         state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();

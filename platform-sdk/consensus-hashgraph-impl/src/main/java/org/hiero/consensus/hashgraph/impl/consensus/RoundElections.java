@@ -2,7 +2,6 @@
 package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +18,7 @@ import org.hiero.base.IntReference;
 import org.hiero.base.utility.ArrayUtils;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -37,8 +37,8 @@ public class RoundElections {
      * witnesses in a single round)
      */
     private final List<CandidateWitness> elections = new ArrayList<>();
-    /** The minimum sequence number of all the judges. Only set once the judges are found. */
-    private long minSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
+    /** The minimum non-deterministic generation of all the judges. Only set once the judges are found. */
+    private long minNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
     /** the minimum birth round of all the judges, this is only set once the judges are found */
     private long minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
 
@@ -101,13 +101,14 @@ public class RoundElections {
     }
 
     /**
-     * @return the minimum sequence number of all the judges(unique famous witnesses) in this round
+     * @return the minimum non-deterministic generation of all the judges(unique famous witnesses) in this round
      */
-    public long getMinSeqNum() {
-        if (minSeqNum == UNASSIGNED_SEQUENCE_NUMBER) {
-            throw new IllegalStateException("Cannot provide the minimum sequence number until all judges are found");
+    public long getMinNGen() {
+        if (minNGen == NonDeterministicGeneration.GENERATION_UNDEFINED) {
+            throw new IllegalStateException(
+                    "Cannot provide the minimum non-deterministic generation until all judges are found");
         }
-        return minSeqNum;
+        return minNGen;
     }
 
     /**
@@ -151,10 +152,10 @@ public class RoundElections {
             throw new IllegalStateException("No judges found in round " + round);
         }
         allJudges.sort(Comparator.comparingLong(e -> e.getCreatorId().id()));
-        minSeqNum = Long.MAX_VALUE;
+        minNGen = Long.MAX_VALUE;
         minBirthRound = Long.MAX_VALUE;
         for (final EventImpl judge : allJudges) {
-            minSeqNum = Math.min(minSeqNum, judge.getSequenceNumber());
+            minNGen = Math.min(minNGen, judge.getNGen());
             minBirthRound = Math.min(minBirthRound, judge.getBirthRound());
             judge.setJudgeTrue();
         }
@@ -190,7 +191,7 @@ public class RoundElections {
         round++;
         numUnknownFame.set(0);
         elections.clear();
-        minSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
+        minNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
         minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
     }
 

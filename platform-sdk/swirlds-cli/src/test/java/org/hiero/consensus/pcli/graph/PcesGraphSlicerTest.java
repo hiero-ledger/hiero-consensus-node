@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,15 +21,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.graph.utils.TestEventUtils;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -57,23 +62,25 @@ public class PcesGraphSlicerTest {
         pcesLocation = baseDir.resolve(Path.of("preconsensus-events"));
         pcesOutputLocation = baseDir.resolve(Path.of("migrated/preconsensus-events/"));
         FileUtils.deleteDirectory(pcesOutputLocation);
-        final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
-        final Roster roster = PlatformTestUtils.generateRoster(keysAndCertsMap);
-        TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, 5000);
+        final Roster roster = RosterFactory.rosterOf(keysAndCertsMap);
+        TestEventUtils.generatePreConsensusStream(
+                configuration, metrics, time, pcesLocation, roster, keysAndCertsMap, 5000);
     }
 
     @ParameterizedTest
     @MethodSource("filters")
     public void sliceByPropertyTest(@NonNull final EventGraphPipeline.EventFilter filter)
             throws IOException, KeyStoreException, ExecutionException, InterruptedException {
-        final PlatformContext newContext =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final RecycleBin recycleBin = new NoOpRecycleBin();
 
         final Map<NodeId, KeysAndCerts> newKeysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()
-                .context(newContext)
+                .configuration(configuration)
                 .keysAndCertsMap(newKeysAndCertsMap)
                 .graphEventFilter(filter)
                 .graphEventCoreModifier(PcesGraphSlicerTest::overrideBirthround)
@@ -85,10 +92,10 @@ public class PcesGraphSlicerTest {
         assertTrue(Files.exists(pcesOutputLocation));
         assertFilteredPcesExist(pcesOutputLocation);
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, newContext);
+        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, configuration, recycleBin);
         final List<PlatformEvent> oldEventsInPCes = new ArrayList<>();
         source.forEachRemaining(oldEventsInPCes::add);
-        final PcesEventGraphSource newSource = new PcesEventGraphSource(pcesOutputLocation, newContext);
+        final PcesEventGraphSource newSource = new PcesEventGraphSource(pcesOutputLocation, configuration, recycleBin);
         final List<PlatformEvent> newEventsInPCes = new ArrayList<>();
         newSource.forEachRemaining(newEventsInPCes::add);
         Assertions.assertTrue(

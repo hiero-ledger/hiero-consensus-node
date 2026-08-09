@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25
+FROM eclipse-temurin:25.0.2_10-jdk
 
 # Create non-root user and group
 RUN groupadd -r appuser && useradd -r -g appuser appuser

@@ -37,7 +37,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
 import org.hiero.junit.extensions.ParameterCombinationExtension;
@@ -75,8 +76,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -140,8 +140,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -210,11 +209,7 @@ class TipsetEventCreatorTests {
 
             final int networkSize = 4;
 
-            final Roster roster = RandomRosterBuilder.create(random)
-                    .withMinimumWeight(1)
-                    .withMaximumWeight(1)
-                    .withSize(networkSize)
-                    .build();
+            final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
             final FakeTime time = new FakeTime();
 
@@ -327,8 +322,7 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 4;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final FakeTime time = new FakeTime();
         final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
@@ -416,8 +410,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -488,8 +481,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -568,7 +560,7 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
-        Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
+        Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final NodeId zeroWeightNode =
                 NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -673,7 +665,7 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
-        Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
+        Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final NodeId zeroWeightNode =
                 NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -798,8 +790,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 1;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -850,11 +841,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -935,11 +922,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -1012,11 +995,7 @@ class TipsetEventCreatorTests {
     void noStaleEventsAtCreationTimeTest(@ParamName("random") final Random random) {
         final int networkSize = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -1057,8 +1036,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -1124,8 +1102,7 @@ class TipsetEventCreatorTests {
     void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
@@ -1173,8 +1150,7 @@ class TipsetEventCreatorTests {
     void lastSelfEventNotOverwritten(@ParamName("random") final Random random) {
 
         final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
@@ -1203,6 +1179,54 @@ class TipsetEventCreatorTests {
     }
 
     /**
+     * When the event creator learns of a self event, it only adopts it as the latest self event if the event is
+     * actually higher in the hashgraph. Height is measured by nGen, not by sequence number: a sequence number is
+     * assigned in the order events are received and says nothing about a self event's position in the graph. This test
+     * registers a self event with a high nGen, then a second self event that is received later - and therefore has a
+     * higher, auto-assigned sequence number - but a lower nGen. The creator must keep the higher-nGen event as its self
+     * parent and ignore the later, lower-nGen one. Under the previous sequence-number comparison the later event would
+     * have wrongly replaced it.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Latest self event is chosen by nGen, not sequence number")
+    void lastSelfEventChosenByNGenNotSequenceNumber(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        // Register a self event with a high nGen. With no prior self event, it becomes the latest self event.
+        final PlatformEvent highNGenEvent = createTestEventWithParent(random, selfId, 10, ROUND_FIRST);
+        eventCreator.registerEvent(highNGenEvent);
+
+        // Register a self event created later - and therefore with a higher, auto-assigned sequence number - but with a
+        // lower nGen. Because it is lower in the graph, it must not replace the higher-nGen event.
+        final PlatformEvent lowNGenEvent = createTestEventWithParent(random, selfId, 5, ROUND_FIRST);
+        assertTrue(
+                lowNGenEvent.getSequenceNumber() > highNGenEvent.getSequenceNumber(),
+                "the later event must have a higher sequence number for this test to be meaningful");
+        eventCreator.registerEvent(lowNGenEvent);
+
+        // The new event must build on the higher-nGen self event, not the later, lower-nGen one.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(highNGenEvent.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
      * This test verifies that the event creator assigns the coin value correctly for a new event.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
@@ -1220,8 +1244,7 @@ class TipsetEventCreatorTests {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = random.nextInt(1, 100);
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
@@ -1251,8 +1274,7 @@ class TipsetEventCreatorTests {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = random.nextInt(1, 100);
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
@@ -1282,11 +1304,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 100;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -1333,11 +1351,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 5;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 

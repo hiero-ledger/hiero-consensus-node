@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
@@ -115,7 +115,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
@@ -260,6 +260,7 @@ jobs:
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
           COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          REF_NAME: ${{ github.ref_name }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -270,6 +271,7 @@ jobs:
         env:
           MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
           DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
+          REF_NAME: ${{ github.ref_name }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: gomplate -f .github/workflows/templates/slack-mats-env-failure-detailed.json.tpl -o slack_payload.json

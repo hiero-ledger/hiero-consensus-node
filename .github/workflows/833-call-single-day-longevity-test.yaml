@@ -4,16 +4,16 @@ name: "833: [CALL] CITR Exec SDLT"
 on:
   workflow_call:
     inputs:
-      test-asset:
-        required: true
-        default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
-        type: string
       ref:
         required: true
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      test-asset:
+        description: "Which cluster to run tests on"
+        required: false
+        type: string
+        default: ""
       solo-version:
         required: true
         default: "v0.41.0"
@@ -39,6 +39,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      duration-minutes:
+        required: false
+        default: 720
+        description: "Expected duration of all tests in minutes"
+        type: number
       reconnect-uptime:
         required: true
         default: "600"
@@ -60,6 +65,12 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      chewie-host:
+        required: false
+        description: "Chewie Host"
+      chewie-id-key:
+        required: false
+        description: "Chewie Identity Key"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -81,9 +92,61 @@ env:
   NLG_VERSION: 0.14.3
 
 jobs:
-  acquire-kubernetes-resources:
-    # TODO: This will use the chewie-action as chewie develops.
-    name: Acquire Kubernetes Resources
+  # Remove if test-asset is not empty check when formal SDLT uses Chewie
+  get-chewie-jwt:
+    if: ${{ inputs.test-asset == '' }}
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.chewie-id-key }}
+      chewie-host: ${{ secrets.chewie-host }}
+
+  # Remove if test-asset is not empty check when formal SDLT uses Chewie
+  get-sdlt-config:
+    if: ${{ inputs.test-asset == '' }}
+    uses: ./.github/workflows/861-call-get-test-config.yaml
+    with:
+      test-type: "sdlt"
+      ref: ${{ inputs.ref }}
+    secrets:
+      checkout-token: ${{ secrets.github-token }}
+
+  # Remove if test-asset is not empty check when formal SDLT uses Chewie
+  validate-chewie-jwt:
+    if: ${{ inputs.test-asset == '' }}
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.github-token }}
+
+  # Rename to acquire-kubernetes-resources when formal SDLT uses Chewie
+  # remove if test-asset is not empty check at that time
+  acquire-kubernetes-resources-chewie:
+    if: ${{ inputs.test-asset == '' }}
+    needs:
+      - validate-chewie-jwt
+      - get-chewie-jwt
+      - get-sdlt-config
+    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    with:
+      instances-cn-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-qty) }}
+      instances-cn-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-cpu-request) }}
+      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-mem-request-mb) }}
+      instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
+      instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
+      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
+      duration-minutes: ${{ inputs.duration-minutes }}
+    secrets:
+      github-token: ${{ secrets.github-token }}
+      chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      chewie-host: ${{ secrets.chewie-host }}
+
+  # Remove when formal SDLT uses Chewie
+  acquire-kubernetes-resources-legacy:
+    if: ${{ inputs.test-asset != '' }}
     uses: ./.github/workflows/834-call-read-chewie-response.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -92,9 +155,78 @@ jobs:
     secrets:
       github-token: ${{ secrets.github-token }}
 
+  # Remove when formal SDLT uses Chewie
+  acquire-kubernetes-resources:
+    needs:
+      - acquire-kubernetes-resources-chewie
+      - acquire-kubernetes-resources-legacy
+    runs-on: hl-cn-sdlt-lin-sm
+    if: ${{ !cancelled() && (needs.acquire-kubernetes-resources-chewie.result == 'success' || needs.acquire-kubernetes-resources-legacy.result == 'success') }}
+    outputs:
+      namespace: ${{ steps.normalize.outputs.namespace }}
+      fqdn: ${{ steps.normalize.outputs.fqdn }}
+      cn-quantity: ${{ steps.normalize.outputs.cn-quantity }}
+      aux-quantity: ${{ steps.normalize.outputs.aux-quantity }}
+      cn-tolerations: ${{ steps.normalize.outputs.cn-tolerations }}
+      aux-tolerations: ${{ steps.normalize.outputs.aux-tolerations }}
+      cn-role: ${{ steps.normalize.outputs.cn-role }}
+      aux-role: ${{ steps.normalize.outputs.aux-role }}
+      network-id: ${{ steps.normalize.outputs.network-id }}
+      owner: ${{ steps.normalize.outputs.owner }}
+      request-expiration: ${{ steps.normalize.outputs.expiration }}
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Normalize Outputs
+        id: normalize
+        run: |
+          echo "::group::Set Outputs"
+          echo "namespace=${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "fqdn=${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "expiration=${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration || needs.acquire-kubernetes-resources-legacy.outputs.request-expiration }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "::endgroup::"
+
+  print-allocation-details:
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - acquire-kubernetes-resources
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Output Allocation Details
+        run: |
+          echo "::group::Output Step Summary"
+          echo "## Allocation Details" > "${GITHUB_STEP_SUMMARY}"
+          echo "- **Namespace**: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **FQDN**: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" | tee -a  "${GITHUB_STEP_SUMMARY}"
+          echo "- **CN Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "::endgroup::"
+
   longevity-tests-start:
     name: Start
     runs-on: hl-cn-sdlt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     outputs:
       run-hcn-version: ${{ steps.set-hcn-version.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -105,7 +237,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -196,11 +328,13 @@ jobs:
 
       - name: Set CN Version
         id: set-hcn-version
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
           # trim the input ref
-          echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
+          echo "run-hcn-version=$(echo ${REF} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
 
       - name: Check for namespace collision
         run: |
@@ -227,9 +361,12 @@ jobs:
             });
 
       - name: Print parameters
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -268,8 +405,10 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
           # verify the installation
           solo --version
@@ -277,6 +416,7 @@ jobs:
       - name: Deploy with Solo
         env:
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
@@ -351,8 +491,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -490,7 +630,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hl-cn-sdlt-lin-lg
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - longevity-tests-start
@@ -498,7 +638,7 @@ jobs:
       max-parallel: 1
       fail-fast: true
       matrix:
-        value: ${{fromJSON(needs.longevity-tests-start.outputs.waiterMatrix)}}
+        value: ${{fromJSON(needs.longevity-tests-start.outputs.waiterMatrix || '["1"]')}}
 
     steps:
       - name: Harden Runner
@@ -780,6 +920,8 @@ jobs:
 
       - name: Publish logs
         if: ${{ !cancelled() }}
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -793,8 +935,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
@@ -950,6 +1092,8 @@ jobs:
 
       - name: Publish logs
         if: ${{ !cancelled() }}
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -960,8 +1104,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
@@ -1038,8 +1182,10 @@ jobs:
 
       - name: Build Summary Details
         id: summary
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${REF})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
@@ -1077,8 +1223,10 @@ jobs:
 
       - name: Clean branch or tag name from input.ref
         id: clean-branch-name
+        env:
+          REF: ${{ inputs.ref }}
         run: |
-          raw_ref="${{ inputs.ref }}"
+          raw_ref="${REF}"
           echo "Raw input ref: ${raw_ref}"
           clean_ref=""
 
@@ -1095,6 +1243,8 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
+        env:
+          REF: ${{ inputs.ref }}
         run: |
 
           report="\
@@ -1179,7 +1329,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*Version*: ${{ inputs.ref }}"
+                        "text": "*Version*: ${REF}"
                       },
                       {
                         "type": "mrkdwn",

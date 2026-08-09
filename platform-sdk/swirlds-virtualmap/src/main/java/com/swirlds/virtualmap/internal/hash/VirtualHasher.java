@@ -2,19 +2,18 @@
 package com.swirlds.virtualmap.internal.hash;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
+import com.swirlds.virtualmap.MerkleHasher;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,12 +47,6 @@ public final class VirtualHasher {
     private static final Logger logger = LogManager.getLogger(VirtualHasher.class);
 
     private final ForkJoinPool hashingPool;
-
-    /**
-     * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
-     */
-    private static final ThreadLocal<WritableMessageDigest> MESSAGE_DIGEST_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     /**
      * Pre-loads virtual hash chunks by chunk paths.
@@ -97,31 +90,6 @@ public final class VirtualHasher {
     public void shutdown() {
         shutdown.set(true);
         hashingPool.shutdown();
-    }
-
-    /**
-     * Calculates a hash for an internal node from its left and right child hashes.
-     *
-     * <p>The left hash must always be provided. The right hash is typically provided, too.
-     * However, this method may also be called with a null right hash to calculate a root
-     * hash for a tree with only one leaf node.
-     */
-    public static byte[] hashInternal(@NonNull final byte[] left, @Nullable final byte[] right) {
-        return hashInternal(left, right, MESSAGE_DIGEST_THREAD_LOCAL.get());
-    }
-
-    private static byte[] hashInternal(final byte[] left, final byte[] right, final WritableMessageDigest wmd) {
-        // Unique value to make sure internal node hashes are different from leaf hashes. This
-        // value indicates the number of child nodes. All internal virtual nodes have 2 children
-        // except a root node in a tree with just one element / leaf. In this and only this case,
-        // the right hash will be set to a marker NO_PATH2_HASH hash object
-        wmd.writeByte(right == null ? (byte) 0x01 : (byte) 0x02);
-        wmd.writeBytes(left);
-        if (right != null) {
-            wmd.writeBytes(right);
-        }
-        // Note that the digest is reset after the call to digest()
-        return wmd.digest();
     }
 
     // A task that can supply hashes to other tasks. There are two hash producer task
@@ -214,10 +182,11 @@ public final class VirtualHasher {
         }
 
         void setHash(final long path, @NonNull final byte[] hash) {
-            assert Path.getRank(this.path) + height == Path.getRank(path)
-                    : this.path + " " + Path.getRank(this.path) + " " + height + " " + path + " " + Path.getRank(path);
+            assert MerklePathUtils.getRank(this.path) + height == MerklePathUtils.getRank(path)
+                    : this.path + " " + MerklePathUtils.getRank(this.path) + " " + height + " " + path + " "
+                            + MerklePathUtils.getRank(path);
             assert hash != null;
-            final long firstPathInPathRank = Path.getLeftGrandChildPath(this.path, height);
+            final long firstPathInPathRank = MerklePathUtils.getLeftGrandChildPath(this.path, height);
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
             ins[index] = hash;
@@ -233,17 +202,18 @@ public final class VirtualHasher {
         protected boolean onExecute() {
             int len = 1 << height;
             final long chunkPath;
-            final int taskRank = Path.getRank(path);
+            final int taskRank = MerklePathUtils.getRank(path);
             if (taskRank % defaultChunkHeight == 0) {
                 chunkPath = path;
             } else {
                 final int chunkPathRank = taskRank / defaultChunkHeight * defaultChunkHeight;
                 final int rankDiff = taskRank - chunkPathRank;
-                chunkPath = Path.getGrandParentPath(path, rankDiff);
+                chunkPath = MerklePathUtils.getGrandParentPath(path, rankDiff);
             }
-            final int chunkRank = Path.getRank(chunkPath);
+            final int chunkRank = MerklePathUtils.getRank(chunkPath);
             VirtualHashChunk hashChunk = null;
-            if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
+            if ((height == defaultChunkHeight)
+                    || (MerklePathUtils.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
                 if (chunkPath == path) {
                     if (!hasNullInputs) {
                         // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
@@ -261,9 +231,9 @@ public final class VirtualHasher {
                 assert hashChunk.path() == chunkPath;
             }
             final int chunkLastRank = chunkRank + hashChunk.height();
-            long rankPath = Path.getLeftGrandChildPath(path, height);
+            long rankPath = MerklePathUtils.getLeftGrandChildPath(path, height);
             int currentRank = taskRank + height;
-            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+            final MerkleHasher merkleHasher = MerkleHasher.threadSafeDefault();
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
                     byte[] left = ins[i * 2];
@@ -277,7 +247,7 @@ public final class VirtualHasher {
                             left = hashChunk.getHashBytesAtPath(leftPath);
                         } else {
                             // Get left's left and right child hashes and hashInternal() them
-                            left = hashChunk.calcHashBytes(leftPath, firstLeafPath, lastLeafPath);
+                            left = hashChunk.calcHashBytes(merkleHasher, leftPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
@@ -300,7 +270,7 @@ public final class VirtualHasher {
                             right = hashChunk.getHashBytesAtPath(rightPath);
                         } else {
                             // Get right's left and right child hashes and hashInternal() them
-                            right = hashChunk.calcHashBytes(rightPath, firstLeafPath, lastLeafPath);
+                            right = hashChunk.calcHashBytes(merkleHasher, rightPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
@@ -309,9 +279,9 @@ public final class VirtualHasher {
                         }
                     }
 
-                    ins[i] = hashInternal(left, right, wmd);
+                    ins[i] = merkleHasher.internalNodeHashBytes(left, right);
                 }
-                rankPath = Path.getParentPath(rankPath);
+                rankPath = MerklePathUtils.getParentPath(rankPath);
                 currentRank--;
                 len = len >> 1;
             }
@@ -348,10 +318,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
-            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
-            leaf.writeToForHashing(wmd);
-            final byte[] hash = wmd.digest();
-            out.setHash(path, hash);
+            out.setHash(path, MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf));
             return true;
         }
     }
@@ -388,8 +355,8 @@ public final class VirtualHasher {
             final int defaultChunkHeight) {
         if ((rank == lastLeafRank) && (firstLeafRank != lastLeafRank)) {
             final int height = ((rank - 1) % defaultChunkHeight) + 1;
-            final long chunkPath = Path.getGrandParentPath(path, height);
-            final long lastPathInChunk = Path.getRightGrandChildPath(chunkPath, height);
+            final long chunkPath = MerklePathUtils.getGrandParentPath(path, height);
+            final long lastPathInChunk = MerklePathUtils.getRightGrandChildPath(chunkPath, height);
             return (lastPathInChunk <= lastLeafPath) ? height : 1;
         } else if (rank == firstLeafRank) {
             // If a chunk ends at the first leaf rank, its height is aligned with the first leaf rank
@@ -547,8 +514,8 @@ public final class VirtualHasher {
         // is calculated, it is set as an input dependency of that task. Output dependency value
         // may not be null.
 
-        int firstLeafRank = Path.getRank(firstLeafPath);
-        int lastLeafRank = Path.getRank(lastLeafPath);
+        int firstLeafRank = MerklePathUtils.getRank(firstLeafPath);
+        int lastLeafRank = MerklePathUtils.getRank(lastLeafPath);
 
         // This map contains all tasks created, but not scheduled for execution yet
         final HashMap<Long, ChunkHashTask> chunkTasks = new HashMap<>(128);
@@ -585,7 +552,7 @@ public final class VirtualHasher {
             // number of dependencies in the parent tasks
             HashProducingTask curTask = leafTask;
             while (true) {
-                final int curRank = Path.getRank(curPath);
+                final int curRank = MerklePathUtils.getRank(curPath);
                 assert curRank > 0; // there must be a parent task
 
                 final long lastPathAtRank = stack[curRank];
@@ -596,12 +563,12 @@ public final class VirtualHasher {
                     final int lastTaskAtRankParentChunkHeight = getChunkHeightForInputRank(
                             lastPathAtRank, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
                     final long lastTaskAtRankParentPath =
-                            Path.getGrandParentPath(lastPathAtRank, lastTaskAtRankParentChunkHeight);
+                            MerklePathUtils.getGrandParentPath(lastPathAtRank, lastTaskAtRankParentChunkHeight);
                     final ChunkHashTask lastTaskAtRankParentTask = chunkTasks.get(lastTaskAtRankParentPath);
                     // The parent tank must exist, since it was created at the previous iteration
                     assert lastTaskAtRankParentTask != null;
-                    final long lastTaskAtRankParentLastInputPath =
-                            Path.getRightGrandChildPath(lastTaskAtRankParentPath, lastTaskAtRankParentChunkHeight);
+                    final long lastTaskAtRankParentLastInputPath = MerklePathUtils.getRightGrandChildPath(
+                            lastTaskAtRankParentPath, lastTaskAtRankParentChunkHeight);
                     if (curPath > lastTaskAtRankParentLastInputPath) {
                         // Mark all paths in range (last path at stack, the last input path
                         // in the parent task] as clean. The corresponding dependencies in the
@@ -624,7 +591,7 @@ public final class VirtualHasher {
                 // Now find this task's parent task
                 final int parentChunkHeight =
                         getChunkHeightForInputRank(curPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
-                final long parentPath = Path.getGrandParentPath(curPath, parentChunkHeight);
+                final long parentPath = MerklePathUtils.getGrandParentPath(curPath, parentChunkHeight);
                 ChunkHashTask parentTask = chunkTasks.get(parentPath);
                 final boolean parentTaskExists = parentTask != null;
                 if (parentTask == null) {
@@ -637,7 +604,8 @@ public final class VirtualHasher {
                 // the last path in stack may be in the same parent task, in this case only paths
                 // greater than the last path in stack are marked
                 if (lastPathAtRank != INVALID_PATH) {
-                    final long parentTaskFirstInputPath = Path.getLeftGrandChildPath(parentPath, parentChunkHeight);
+                    final long parentTaskFirstInputPath =
+                            MerklePathUtils.getLeftGrandChildPath(parentPath, parentChunkHeight);
                     for (long l = Math.max(parentTaskFirstInputPath, lastPathAtRank + 1); l < curPath; l++) {
                         parentTask.staticNullInput();
                     }
@@ -658,28 +626,9 @@ public final class VirtualHasher {
         // created during walking from the last leaf on the last leaf rank to the root; sibling
         // tasks to the left of the very first route to the root. There are no more dirty leaves,
         // all these tasks may be marked as clean now
-        chunkTasks.forEach((path, task) -> task.noMoreInputs());
+        chunkTasks.forEach((_, task) -> task.noMoreInputs());
         chunkTasks.clear();
 
         return rootTask;
-    }
-
-    public Hash emptyRootHash() {
-        final MessageDigest md = Cryptography.DEFAULT_DIGEST_TYPE.buildDigest();
-        md.update((byte) 0x00);
-        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-    }
-
-    /**
-     * Computes the hash of a leaf record. May be called from multiple threads in parallel.
-     *
-     * @param leaf the leaf bytes to hash
-     * @return the computed hash
-     */
-    public static Hash hashLeafRecord(final VirtualLeafBytes<?> leaf) {
-        final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
-        leaf.writeToForHashing(wmd);
-        // Calling digest() resets the digest
-        return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 }

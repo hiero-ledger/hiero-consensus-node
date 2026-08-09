@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.SECP256K1_EC_COMPRESSED;
-import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.CONTEXT;
-import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.secp256k1_ecdsa_recover;
-import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact;
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromParsedPubKey;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
-import com.sun.jna.ptr.LongByReference;
+import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
+import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.foreign.MemorySegment;
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Optional;
 import org.apache.commons.codec.binary.Hex;
@@ -22,16 +19,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
+    private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
+
     private static final Logger logger = LogManager.getLogger(EthTxSigs.class);
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
+    // Lower-half boundary (N >> 1) by EIP-2 standard.
+    private static final BigInteger HALF_N = N.shiftRight(1);
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
         final var message = calculateSignableMessage(ethTx);
         final var pubKey = extractSig(ethTx.recId(), ethTx.r(), ethTx.s(), message);
-        final var address = recoverAddressFromPubKey(pubKey);
+        final var address = recoverAddressFromParsedPubKey(pubKey);
         final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
         return new EthTxSigs(compressedKey, address);
     }
@@ -40,7 +40,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         try {
             final var message = codeDelegation.calculateSignableMessage();
             final var pubKey = extractSig(codeDelegation.yParity(), codeDelegation.r(), codeDelegation.s(), message);
-            final var address = recoverAddressFromPubKey(pubKey);
+            final var address = recoverAddressFromParsedPubKey(pubKey);
             final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
             return Optional.of(new EthTxSigs(compressedKey, address));
         } catch (final Exception e) {
@@ -133,35 +133,42 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         });
     }
 
-    static byte[] serializeIntoCompressedKeyBytes(LibSecp256k1.secp256k1_pubkey pubKey) {
-        final ByteBuffer recoveredFullKey = ByteBuffer.allocate(33);
-        final LongByReference fullKeySize = new LongByReference(recoveredFullKey.limit());
-        LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                CONTEXT, recoveredFullKey, fullKeySize, pubKey, SECP256K1_EC_COMPRESSED);
-        return recoveredFullKey.array();
+    static byte[] serializeIntoCompressedKeyBytes(byte[] pubKey) {
+        final byte[] recoveredFullKey = new byte[33];
+        final long[] fullKeySize = new long[] {recoveredFullKey.length};
+        LIBSECP256K1.secp256k1EcPubkeySerialize(
+                MemorySegment.ofArray(recoveredFullKey),
+                MemorySegment.ofArray(fullKeySize),
+                MemorySegment.ofArray(pubKey),
+                Libsecp256k1.SECP256K1_EC_COMPRESSED);
+        return recoveredFullKey;
     }
 
-    static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
+    static byte[] extractSig(int recId, byte[] r, byte[] s, byte[] message) {
         // The only meaningful recovery ids are 0 and 1 (even if the high order bytes
         // were used to encode the chain id, the parity is all that matters here)
         recId = Math.floorMod(recId, 2);
 
         byte[] dataHash = new Keccak.Digest256().digest(message);
 
-        checkInBounds(r);
-        checkInBounds(s);
+        checkInBounds(r, N);
+        checkInBounds(s, HALF_N);
         // The RLP library output won't include leading zeros, which means
         // a simple (r, s) concatenation breaks signature verification below
         byte[] signature = concatLeftPadded(r, s);
 
-        final LibSecp256k1.secp256k1_ecdsa_recoverable_signature parsedSignature =
-                new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
+        final byte[] parsedSignature = new byte[Libsecp256k1.RECOVERABLE_SIGNATURE_BYTES];
+        final MemorySegment parsedSignatureSeg = MemorySegment.ofArray(parsedSignature);
 
-        if (secp256k1_ecdsa_recoverable_signature_parse_compact(CONTEXT, parsedSignature, signature, recId) == 0) {
+        if (LIBSECP256K1.secp256k1EcdsaRecoverableSignatureParseCompact(
+                        parsedSignatureSeg, MemorySegment.ofArray(signature), recId)
+                == 0) {
             throw new IllegalArgumentException("Could not parse signature");
         }
-        final LibSecp256k1.secp256k1_pubkey newPubKey = new LibSecp256k1.secp256k1_pubkey();
-        if (secp256k1_ecdsa_recover(CONTEXT, newPubKey, parsedSignature, dataHash) == 0) {
+        final byte[] newPubKey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
+        if (LIBSECP256K1.secp256k1EcdsaRecover(
+                        MemorySegment.ofArray(newPubKey), parsedSignatureSeg, MemorySegment.ofArray(dataHash))
+                == 0) {
             throw new IllegalArgumentException("Could not recover signature");
         } else {
             return newPubKey;
@@ -208,13 +215,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     /**
      * Returns whether the given curve point is in bounds for the Secp256k1 curve.
      * @param curvePoint the curve point to check
+     * @param upperBound the inclusive maximum: {@code N} for r, {code N>>1} for s per EIP-2.
      */
-    private static void checkInBounds(@NonNull byte[] curvePoint) {
+    private static void checkInBounds(@NonNull byte[] curvePoint, @NonNull final BigInteger upperBound) {
         final var bi = new BigInteger(1, curvePoint);
         if (bi.compareTo(BigInteger.ONE) < 0) {
             throw new IllegalArgumentException("Curve point must be >= 1");
         }
-        if (bi.compareTo(N) >= 0) {
+        if (bi.compareTo(upperBound) >= 0) {
             throw new IllegalArgumentException("Curve point must be < N");
         }
     }
