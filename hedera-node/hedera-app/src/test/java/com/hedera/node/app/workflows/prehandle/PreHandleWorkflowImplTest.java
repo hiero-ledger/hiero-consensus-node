@@ -17,6 +17,7 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSch
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.workflows.TransactionScenarioBuilder.scenario;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.NODE_DUE_DILIGENCE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.UNKNOWN_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.nodeDueDiligenceFailure;
@@ -26,7 +27,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -485,6 +488,63 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
             // But we do see this transaction registered with the deduplication cache
             verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
+        }
+
+        @Test
+        @DisplayName("Fail pre-handle due diligence when pure checks fail")
+        void preHandlePureChecksFail() throws PreCheckException {
+            final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(txInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(txInfo);
+            doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
+                    .when(dispatcher)
+                    .dispatchPureChecks(any());
+
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.status()).isEqualTo(NODE_DUE_DILIGENCE_FAILURE);
+            assertThat(result.responseCode()).isEqualTo(INVALID_ACCOUNT_AMOUNTS);
+            assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
+            assertThat(result.txInfo()).isSameAs(txInfo);
+            verify(dispatcher, never()).dispatchPreHandle(any());
+            verifyNoInteractions(signatureExpander, signatureVerifier);
+            verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
+        }
+
+        @Test
+        @DisplayName("Fail inner transaction due diligence when pure checks fail")
+        void preHandleInnerTransactionPureChecksFail() throws PreCheckException {
+            final var innerTxInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final var batchTxInfo = scenario().withPayer(ALICE.accountID()).txInfoForBatch(innerTxInfo);
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(batchTxInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(batchTxInfo)
+                    .thenReturn(innerTxInfo);
+            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of());
+            doNothing()
+                    .doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
+                    .when(dispatcher)
+                    .dispatchPureChecks(any());
+
+            final var result = workflow.preHandleAllTransactions(
+                    NODE_1.asInfo(),
+                    storeFactory,
+                    storeFactory.readableStore(ReadableAccountStore.class),
+                    platformTx.getApplicationTransaction(),
+                    null,
+                    (txns, bytes) -> {});
+
+            assertThat(result.status()).isEqualTo(SO_FAR_SO_GOOD);
+            assertThat(result.innerResults()).hasSize(1);
+            final var innerResult = result.innerResults().getFirst();
+            assertThat(innerResult.status()).isEqualTo(NODE_DUE_DILIGENCE_FAILURE);
+            assertThat(innerResult.responseCode()).isEqualTo(INVALID_ACCOUNT_AMOUNTS);
+            assertThat(innerResult.payer()).isEqualTo(NODE_1.nodeAccountID());
+            assertThat(innerResult.txInfo()).isSameAs(innerTxInfo);
+            verify(dispatcher, times(2)).dispatchPureChecks(any());
+            verify(dispatcher, times(1)).dispatchPreHandle(any());
         }
     }
 

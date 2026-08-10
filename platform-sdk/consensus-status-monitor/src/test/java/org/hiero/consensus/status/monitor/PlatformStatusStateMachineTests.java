@@ -17,8 +17,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
-import org.hiero.consensus.config.PlatformStatusConfig_;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.status.monitor.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
@@ -28,6 +27,7 @@ import org.hiero.consensus.status.monitor.actions.SelfEventReachedConsensusActio
 import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.monitor.actions.StateWrittenToDiskAction;
 import org.hiero.consensus.status.monitor.actions.TimeElapsedAction;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig_;
 import org.hiero.consensus.status.monitor.internal.StatusStateMachine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

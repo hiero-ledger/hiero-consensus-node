@@ -18,7 +18,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*Deploy Production Release job resulted in failure on `main`. See status below.*"
+            "text": {{ printf "*Deploy Production Release job resulted in failure on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") (getenv "REF_NAME") | data.ToJSON }}
           },
           "fields": [
             {

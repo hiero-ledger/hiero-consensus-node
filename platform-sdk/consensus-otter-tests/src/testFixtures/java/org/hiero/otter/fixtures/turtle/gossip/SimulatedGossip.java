@@ -3,11 +3,6 @@ package org.hiero.otter.fixtures.turtle.gossip;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.component.framework.model.DeterministicWiringModel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -19,11 +14,18 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 
 /**
  * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetwork}.
  */
-public class SimulatedGossip implements Gossip {
+public class SimulatedGossip implements Gossip, EventReceiver {
 
     private final SimulatedNetwork network;
     private final NodeId selfId;
@@ -100,7 +102,7 @@ public class SimulatedGossip implements Gossip {
      *
      * @param event the event that was received
      */
-    void receiveEvent(@NonNull final PlatformEvent event) {
+    public void receiveEvent(@NonNull final PlatformEvent event) {
         if (deterministicWiringModel.isRunning()) {
             if (wasPreviouslyHalted) {
                 eventBuffer.forEach(this::forwardEvent);

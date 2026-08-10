@@ -15,7 +15,7 @@ import java.nio.file.Path;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 /**
  * Utility methods for creating {@link VirtualMapStateImpl} instances for use in tests.
