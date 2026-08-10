@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Tag;
  * the current {@code ContractsConfig} defaults.
  */
 @Tag(SMART_CONTRACT)
-public class OpsDurationPrecompileFeedSuite {
+public class OpsDurationPrecompileFeedTest {
     private static final String CONTRACT = "OpsDurationPrecompileFeed";
     private static final String MODEXP_CALLER = "modExpCaller";
     private static final String UNRELATED_CALLER = "unrelatedContractCaller";
