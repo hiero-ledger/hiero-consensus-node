@@ -19,6 +19,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.config;
+    exports com.swirlds.platform.context;
     exports com.swirlds.platform.crypto;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -72,6 +73,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.reconnect;

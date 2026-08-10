@@ -39,7 +39,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.junit.jupiter.api.BeforeEach;

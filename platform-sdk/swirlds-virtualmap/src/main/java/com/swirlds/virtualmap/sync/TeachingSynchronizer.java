@@ -6,10 +6,10 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.virtualmap.MerklePathUtils;
+import com.swirlds.virtualmap.RecordAccessor;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
-import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.internal.reconnect.TeacherPullVirtualTreeReceiveTask;
@@ -177,16 +177,16 @@ public class TeachingSynchronizer {
         }
         final PullVirtualTreeRequest rootRequest =
                 PullVirtualTreeRequest.parseFrom(BufferedData.wrap(rootRequestBytes));
-        if (rootRequest.path() != Path.ROOT_PATH) {
+        if (rootRequest.path() != MerklePathUtils.ROOT_PATH) {
             throw new MerkleSynchronizationException("Expected root request (path 0), got path " + rootRequest.path());
         }
 
-        final Hash teacherRootHash = teacherView.findHash(Path.ROOT_PATH);
+        final Hash teacherRootHash = teacherView.findHash(MerklePathUtils.ROOT_PATH);
         final boolean isClean = (teacherRootHash == null) || teacherRootHash.equals(rootRequest.hash());
         final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();
         final long lastLeafPath = teacherView.getMetadata().getLastLeafPath();
         final PullVirtualTreeResponse rootResponse =
-                new PullVirtualTreeResponse(Path.ROOT_PATH, isClean, firstLeafPath, lastLeafPath, null);
+                new PullVirtualTreeResponse(MerklePathUtils.ROOT_PATH, isClean, firstLeafPath, lastLeafPath, null);
 
         logger.info(
                 RECONNECT.getMarker(),

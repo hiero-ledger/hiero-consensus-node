@@ -17,9 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -33,7 +30,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -50,13 +46,6 @@ import org.hiero.consensus.concurrent.framework.Stoppable;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.metrics.PlatformMetricsFactory;
-import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
-import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
-import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -78,24 +67,6 @@ class QueueThreadTests {
                 Arguments.of(new LinkedBlockingQueue<Integer>()),
                 Arguments.of(new LinkedBlockingDeque<Integer>()),
                 Arguments.of(new LinkedTransferQueue<Integer>()));
-    }
-
-    private Metrics metrics;
-    private ScheduledExecutorService executor;
-
-    @BeforeEach
-    void setUp() {
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
-        executor = Executors.newSingleThreadScheduledExecutor();
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final PlatformMetricsFactory factory = new PlatformMetricsFactoryImpl(metricsConfig);
-        metrics = new DefaultPlatformMetrics(null, registry, executor, factory, metricsConfig);
-    }
-
-    @AfterEach
-    void teardown() {
-        executor.shutdown();
     }
 
     @Test

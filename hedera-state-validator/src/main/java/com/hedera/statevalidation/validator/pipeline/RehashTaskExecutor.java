@@ -5,9 +5,9 @@ import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_
 
 import com.hedera.statevalidation.util.FutureMerkleHash;
 import com.swirlds.virtualmap.MerkleHasher;
+import com.swirlds.virtualmap.MerklePathUtils;
+import com.swirlds.virtualmap.RecordAccessor;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
@@ -63,8 +63,8 @@ public class RehashTaskExecutor {
             if (path < firstLeafPath) {
                 // Internal node. Create traverse tasks recursively.
                 ComputeInternalHashTask hashTask = new ComputeInternalHashTask(path, parent);
-                new TraverseTask(Path.getChildPath(path, 0), hashTask).send();
-                new TraverseTask(Path.getChildPath(path, 1), hashTask).send();
+                new TraverseTask(MerklePathUtils.getChildPath(path, 0), hashTask).send();
+                new TraverseTask(MerklePathUtils.getChildPath(path, 1), hashTask).send();
             } else {
                 // Leaf node. Read and hash bytes.
                 final VirtualLeafBytes<?> leafBytes = records.findLeafRecord(path);

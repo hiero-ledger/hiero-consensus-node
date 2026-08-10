@@ -9,8 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +19,8 @@ class PullVirtualTreeResponseTest {
     @Test
     @DisplayName("Round-trip: root response with leaf path range")
     void roundTripRootResponse() {
-        final PullVirtualTreeResponse original = new PullVirtualTreeResponse(Path.ROOT_PATH, false, 10, 99, null);
+        final PullVirtualTreeResponse original =
+                new PullVirtualTreeResponse(MerklePathUtils.ROOT_PATH, false, 10, 99, null);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -27,7 +28,7 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(Path.ROOT_PATH, deserialized.path());
+        assertEquals(MerklePathUtils.ROOT_PATH, deserialized.path());
         assertFalse(deserialized.isClean());
         assertEquals(10, deserialized.firstLeafPath());
         assertEquals(99, deserialized.lastLeafPath());
@@ -37,7 +38,8 @@ class PullVirtualTreeResponseTest {
     @Test
     @DisplayName("Round-trip: clean root response")
     void roundTripCleanRootResponse() {
-        final PullVirtualTreeResponse original = new PullVirtualTreeResponse(Path.ROOT_PATH, true, 5, 20, null);
+        final PullVirtualTreeResponse original =
+                new PullVirtualTreeResponse(MerklePathUtils.ROOT_PATH, true, 5, 20, null);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -146,7 +148,7 @@ class PullVirtualTreeResponseTest {
     void sizeMatchesActualOutput() {
         final PullVirtualTreeResponse[] variants = {
             // Root
-            new PullVirtualTreeResponse(Path.ROOT_PATH, true, 1, 100, null),
+            new PullVirtualTreeResponse(MerklePathUtils.ROOT_PATH, true, 1, 100, null),
             // Clean internal
             new PullVirtualTreeResponse(5, true, -1, -1, null),
             // Dirty internal
@@ -174,7 +176,7 @@ class PullVirtualTreeResponseTest {
     @Test
     @DisplayName("Root response is larger than non-root due to leaf path fields")
     void rootResponseLargerThanNonRoot() {
-        final PullVirtualTreeResponse root = new PullVirtualTreeResponse(Path.ROOT_PATH, true, 1, 100, null);
+        final PullVirtualTreeResponse root = new PullVirtualTreeResponse(MerklePathUtils.ROOT_PATH, true, 1, 100, null);
         final PullVirtualTreeResponse nonRoot = new PullVirtualTreeResponse(5, true, -1, -1, null);
 
         // Root includes two extra INT64 fields
