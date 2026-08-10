@@ -2,6 +2,7 @@
 package org.hiero.consensus.reconnect.impl;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -10,7 +11,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -27,7 +27,6 @@ import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -61,24 +60,26 @@ final class ReconnectTest {
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
 
-    @TempDir
-    Path tempDir;
-
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerSyncConstructables();
     }
 
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+    }
+
     @Test
     @DisplayName("Successfully reconnects multiple times and stats are updated")
-    void statsTrackSuccessfulReconnect() throws IOException, InterruptedException {
+    void statsTrackSuccessfulReconnect(@TempDir Path tempDir) throws IOException, InterruptedException {
         final int numberOfReconnects = 11;
 
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
             // Use a different data dir for every reconnect attempt
-            final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir.resolve("" + index));
+            final FileSystemManager fileSystemManager = new FileSystemManager(tempDir.resolve("" + index));
             executeReconnect(fileSystemManager, reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
@@ -137,6 +138,9 @@ final class ReconnectTest {
             final ReservedSignedState receivedState = receiver.execute();
             receivedState.get().getState().release();
             thread.join();
+            assertTrue(
+                    receivedState.get().getState().getRoot().waitUntilFamilyDestroyed(Duration.ofSeconds(3)),
+                    "reconnect state is not destroyed within the timeout");
         } finally {
             TestStateUtils.destroyStateLifecycleManager(stateLifecycleManager);
         }
@@ -176,12 +180,5 @@ final class ReconnectTest {
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
                 stateLifecycleManager);
-    }
-
-    @AfterEach
-    void tearDown() {
-        // Wait for MerkleDB's background threads to finish closing the database before JUnit deletes the per-test
-        // @TempDir. Otherwise the directory can still be in use, causing the deletion to fail intermittently in CI.
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }
