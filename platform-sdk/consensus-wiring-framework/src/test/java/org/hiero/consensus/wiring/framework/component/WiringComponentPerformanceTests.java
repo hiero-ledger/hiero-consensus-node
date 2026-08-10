@@ -5,7 +5,7 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
