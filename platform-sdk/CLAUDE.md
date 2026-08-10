@@ -7,7 +7,7 @@ new modules, or deciding where a new dependency belongs.
 ### Modularization Rules
 
 1. Base modules (`base-*`) must never depend on any non-base modules.
-2. Supporting modules must not depend on functional-api or functional-impl modules.
+2. Supporting modules must not depend on functional-api, functional-impl, or self-contained functional modules.
 3. Nothing must depend on impl modules except test code and test fixtures.
 4. Test fixtures must not expose impl classes transitively to other modules.
 5. Classes in `internal` packages must not be used outside their defining module.
