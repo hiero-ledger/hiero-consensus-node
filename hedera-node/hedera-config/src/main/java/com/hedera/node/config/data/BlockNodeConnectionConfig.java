@@ -71,6 +71,11 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis,
         @ConfigProperty(defaultValue = "20.0") @Min(0) @NetworkProperty double numBlocksBehindLowThreshold,
         @ConfigProperty(defaultValue = "35.0") @Min(0) @NetworkProperty double numBlocksBehindHighThreshold,
-        @ConfigProperty(defaultValue = "250") @Min(1) @NetworkProperty long slowRequestThresholdMillis) {
+        @ConfigProperty(defaultValue = "250") @Min(1) @NetworkProperty long slowRequestThresholdMillis,
+        @ConfigProperty(value = "operationTimeout.baseMillis", defaultValue = "2000") @Min(0) @NetworkProperty long opTimeoutBaseMillis,
+        @ConfigProperty(value = "operationTimeout.microsPerKilobyte", defaultValue = "250") @Min(0) @NetworkProperty long opTimeoutMicrosPerKilobyte,
+        @ConfigProperty(value = "operationTimeout.maxMillis", defaultValue = "30000") @Min(1) @NetworkProperty long opTimeoutMaxMillis,
+        @ConfigProperty(value = "operationTimeout.maxTimeoutsPerWindow", defaultValue = "3") @Min(1) @NetworkProperty int opTimeoutMaxAttemptsPerWindow,
+        @ConfigProperty(value = "operationTimeout.timeoutWindowDuration", defaultValue = "60s") @NetworkProperty Duration opTimeoutWindowDuration) {
 }
 // spotless:on

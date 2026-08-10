@@ -25,6 +25,7 @@ import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestResult;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
@@ -57,14 +58,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.hiero.block.api.BlockEnd;
+import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -79,19 +86,25 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
     private static final MethodHandle sendRequestHandle;
+    private static final MethodHandle calculateRequestTimeoutHandle;
 
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
-                    .findVarHandle(BlockNodeStreamingConnection.class, "streamingBlockNumber", AtomicLong.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
-                    .findVarHandle(BlockNodeStreamingConnection.class, "workerThreadRef", AtomicReference.class);
+            final Class<?> cls = BlockNodeStreamingConnection.class;
 
-            final Method sendRequest = BlockNodeStreamingConnection.class.getDeclaredMethod(
-                    "sendRequest", BlockNodeStreamingConnection.StreamRequest.class);
+            streamingBlockNumberHandle = MethodHandles.privateLookupIn(cls, lookup)
+                    .findVarHandle(cls, "streamingBlockNumber", AtomicLong.class);
+            workerThreadRefHandle = MethodHandles.privateLookupIn(cls, lookup)
+                    .findVarHandle(cls, "workerThreadRef", AtomicReference.class);
+
+            final Method sendRequest = cls.getDeclaredMethod("sendRequest", BlockNodeStreamingConnection.StreamRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
+
+            final Method calculateRequestTimeout = cls.getDeclaredMethod("calculateRequestTimeout", long.class);
+            calculateRequestTimeout.setAccessible(true);
+            calculateRequestTimeoutHandle = lookup.unreflect(calculateRequestTimeout);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -1214,7 +1227,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+                sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
             } catch (final RuntimeException e) {
                 exceptionRef.set(e);
             }
@@ -1411,6 +1424,160 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verifyNoMoreInteractions(requestCall);
     }
 
+    @Test
+    @Timeout(value = 30, unit = TimeUnit.SECONDS)
+    void testConnectionWorker_sendRequests_tooManyTimeouts() throws Exception {
+        /*
+        This test verifies that after 3 timeouts sending a request, the connection is closed. This test forces the
+        timeout on "large" requests. Smaller requests are allowed to succeed, but large ones will time out.
+         */
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.operationTimeout.baseMillis", "1000")
+                .withValue("blockNode.operationTimeout.microsPerKilobyte", "250")
+                .withValue("blockNode.operationTimeout.maxMillis", "5000")
+                .withValue("operationTimeout.maxTimeoutsPerWindow", "3")
+                .withValue("operationTimeout.timeoutWindowDuration", "60s")
+                .withValue("blockNode.maxRequestDelay", "25ms");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID,
+                streamingObs);
+
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.configuration();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
+
+        final BlockState block = new BlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        Thread.sleep(100);
+
+        doAnswer(inv -> {
+            final PublishStreamRequestBytes req = inv.getArgument(0);
+            final BlockItemSetBytes itemSet = req.blockItems();
+            if (itemSet != null) {
+                final List<Bytes> items = itemSet.blockItems();
+                long size = 0;
+                for (final Bytes bytes : items) {
+                    size += bytes.length();
+                }
+
+                // if the request is large, then time it out
+                if (size > 5_000_000L) {
+                    try {
+                        Thread.sleep(10_000);
+                    } catch (final InterruptedException _) {
+                        // ignore
+                    }
+                }
+            }
+
+            return null;
+        }).when(requestCall).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+
+        final CountDownLatch waitLatch = new CountDownLatch(1);
+        final ArgumentCaptor<CloseReason> closeReasonCaptor = ArgumentCaptor.forClass(CloseReason.class);
+        doAnswer(_ -> {
+            waitLatch.countDown();
+            return null;
+        }).when(metrics).recordConnectionClosed(closeReasonCaptor.capture());
+
+        block.addItem(newBlockHeaderItem());
+        block.addItem(newBlockTxItem(10_240)); // 10 KB
+        block.addItem(newBlockTxItem(5_242_880)); // 5 MB
+
+        assertThat(waitLatch.await(20, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(closeReasonCaptor.getValue()).isEqualTo(CloseReason.TIMEOUT);
+        assertThat(connection.currentState().isTerminal()).isTrue();
+
+        verify(metrics).recordConnectionClosed(CloseReason.TIMEOUT);
+        verify(metrics, times(3)).recordPipelineOperationTimeout();
+        verify(metrics, times(3)).recordRequestSendFailure();
+        verify(metrics, times(3)).recordStreamingBlockNumber(10L);
+        verify(metrics, times(3)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(3)).recordBlockItemsSent(2);
+        verify(metrics, times(3)).recordRequestBlockItemCount(2);
+        verify(metrics, times(3)).recordRequestBytes(anyLong());
+        verify(metrics, times(4)).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(PublishStreamRequest.EndStream.Code.RESET);
+        verify(requestCall, times(7)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+        verify(requestCall).completeRequests();
+        verifyNoMoreInteractions(requestCall);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @ParameterizedTest
+    @MethodSource("calculateRequestTimeoutParams")
+    void testConnectionWorker_calculateRequestTimeout(final long payloadSize, final long expectedTimeoutMillis) throws Throwable {
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.operationTimeout.baseMillis", "2000")
+                .withValue("blockNode.operationTimeout.microsPerKilobyte", "250")
+                .withValue("blockNode.operationTimeout.maxMillis", "30000");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID,
+                streamingObs);
+
+        final long timeoutMillis = invokeCalculateRequestTimestamp(payloadSize);
+        assertThat(timeoutMillis).isEqualTo(expectedTimeoutMillis);
+    }
+
+    static Stream<Arguments> calculateRequestTimeoutParams() {
+        return Stream.of(
+                Arguments.of(100L, 2_000L), // 100 B
+                Arguments.of(1_024L, 2_000L), // 1 KB
+                Arguments.of(10_240L, 2_002L), // 10 KB
+                Arguments.of(102_400L, 2_025L), // 100 KB
+                Arguments.of(256_000L, 2_062L), // 250 KB
+                Arguments.of(512_000L, 2_125L), // 512 KB
+                Arguments.of(1_048_576L, 2_256L), // 1 MB
+                Arguments.of(2_097_152L, 2_512L), // 2 MB
+                Arguments.of(5_242_880L, 3_280L), // 5 MB
+                Arguments.of(10_485_760L, 4_560L), // 10 MB
+                Arguments.of(15_728_640L, 5_840L), // 15 MB
+                Arguments.of(20_971_520L, 7_120L), // 20 MB
+                Arguments.of(26_214_400L, 8_400L), // 25 MB
+                Arguments.of(41_943_040L, 12_240L), // 40 MB
+                Arguments.of(52_428_800L, 14_800L), // 50 MB
+                Arguments.of(62_914_560L, 17_360L), // 60 MB
+                Arguments.of(78_643_200L, 21_200L), // 75 MB
+                Arguments.of(104_857_600L, 27_600L), // 100 MB
+                Arguments.of(131_072_000L, 30_000L), // 125 MB
+                Arguments.of(157_286_400L, 30_000L), // 150 MB
+                Arguments.of(183_500_800L, 30_000L), // 175 MB
+                Arguments.of(209_715_200L, 30_000L), // 200 MB
+                Arguments.of(235_929_600L, 30_000L), // 225 MB
+                Arguments.of(262_144_000L, 30_000L) // 250 MB
+        );
+    }
+
     // Utilities
 
     private void openConnectionAndResetMocks() {
@@ -1428,14 +1595,18 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connection);
     }
 
-    private void sendRequest(final BlockNodeStreamingConnection.StreamRequest request) {
-        sendRequest(connection, request);
+    private long invokeCalculateRequestTimestamp(final long payloadSizeInBytes) throws Throwable {
+        return (long) calculateRequestTimeoutHandle.invoke(connection, payloadSizeInBytes);
     }
 
-    private void sendRequest(
+    private SendRequestResult sendRequest(final BlockNodeStreamingConnection.StreamRequest request) {
+        return sendRequest(connection, request);
+    }
+
+    private SendRequestResult sendRequest(
             final BlockNodeStreamingConnection connection, final BlockNodeStreamingConnection.StreamRequest request) {
         try {
-            sendRequestHandle.invoke(connection, request);
+            return (SendRequestResult) sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {
             if (e instanceof final RuntimeException re) {
                 throw re;

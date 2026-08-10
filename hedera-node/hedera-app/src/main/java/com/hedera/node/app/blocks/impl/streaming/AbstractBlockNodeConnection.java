@@ -161,17 +161,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
-     * Returns a request-level correlation ID for block-specific requests.
-     *
-     * @param blockNumber block number
-     * @param blockRequestNumber request number scoped to the block
-     * @return correlation ID in format N#-[STR|SVC]#-BLK#-REQ#
-     */
-    final @NonNull String blockRequestCorrelationId(final long blockNumber, final int blockRequestNumber) {
-        return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber;
-    }
-
-    /**
      * Builds a correlation ID for the specified connection request.
      *
      * @param connectionRequestNumber the connection-level request number
@@ -187,11 +176,12 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param connectionRequestNumber the connection-level request number
      * @param blockNumber the block number
      * @param blockRequestNumber the block-level request number
+     * @param blockAttemptNumber number of times this block has been attempted on this connection
      * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-REQ#-CRN#
      */
     final @NonNull String buildRequestCorrelationId(
-            final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber) {
-        return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber + "-CRN" + connectionRequestNumber;
+            final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber, final int blockAttemptNumber) {
+        return connectionId + "-BLK" + blockNumber + "-BAN" + blockAttemptNumber + "-REQ" + blockRequestNumber + "-CRN" + connectionRequestNumber;
     }
 
     /**
