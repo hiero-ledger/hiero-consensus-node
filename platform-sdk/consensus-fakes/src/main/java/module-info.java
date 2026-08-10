@@ -7,5 +7,6 @@ module org.hiero.consensus.fakes {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
+    requires com.hedera.node.hapi;
     requires static transitive com.github.spotbugs.annotations;
 }
