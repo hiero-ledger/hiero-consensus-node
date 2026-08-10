@@ -374,6 +374,7 @@ public class SidecarWatcher {
         if (blockStreamPath == null) {
             return false;
         }
+        final var source = blockNodeNetwork != null ? "block node (gRPC)" : "disk";
         try {
             // Under writerMode=GRPC no .blk files are written to disk, so pull every block from the
             // block node over gRPC; otherwise re-read the marker-backed (fully written) blocks from
@@ -388,12 +389,27 @@ public class SidecarWatcher {
             for (final var block : blocks) {
                 added += pumpBlockSidecars(block, translator, split, foundGenesis);
             }
+            // Surface the drain outcome so a reconstruction gap is diagnosable: "read 0 blocks" points
+            // to a read gap, "read N blocks, translated 0" points to a block->sidecar translation gap.
+            log.info(
+                    "Sidecar block re-scan: read {} block(s) from {}, translated {} new sidecar(s) ({} still pending)",
+                    blocks.size(),
+                    source,
+                    added,
+                    expectedSidecars.size());
             return added > 0;
         } catch (final UncheckedIOException | IllegalArgumentException e) {
-            // Block files may still be in-flight while this assertion loop is polling.
+            // Block files may still be in-flight while this assertion loop is polling. Previously this
+            // was swallowed silently, so a persistent read/translate failure only ever surfaced as
+            // "pending sidecars" at the end with no cause; log it so it is diagnosable.
+            log.warn(
+                    "Sidecar block re-scan hit a recoverable read/translate error reading from {} ({} sidecar(s) still pending); continuing",
+                    source,
+                    expectedSidecars.size(),
+                    e);
             return false;
         } catch (final RuntimeException e) {
-            log.warn("Failed to re-scan block stream for sidecars; continuing", e);
+            log.warn("Failed to re-scan block stream for sidecars from {}; continuing", source, e);
             return false;
         }
     }
