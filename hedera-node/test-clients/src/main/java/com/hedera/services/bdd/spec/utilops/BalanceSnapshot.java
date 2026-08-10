@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.utilops;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -55,26 +56,34 @@ public class BalanceSnapshot extends UtilOp {
     protected boolean submitOp(HapiSpec spec) {
         snapshot = snapshotFn.map(fn -> fn.apply(spec)).orElse(snapshot);
 
-        HapiGetAccountBalance delegate = aliased
-                ? QueryVerbs.getAutoCreatedAccountBalance(account).logged()
-                : QueryVerbs.getAccountBalance(account).logged();
-        payer.ifPresent(delegate::payingWith);
-        Optional<Throwable> error = delegate.execFor(spec);
-        if (error.isPresent()) {
-            log.error("Failed to take balance snapshot for '{}'!", account);
-            return false;
-        }
-
         if (token == null) {
-            long balance = delegate.getResponse()
-                    .getAccountDetails()
-                    .getAccountDetails()
-                    .getBalance();
+            HapiGetAccountBalance delegate = aliased
+                    ? QueryVerbs.getAutoCreatedAccountBalance(account).logged()
+                    : QueryVerbs.getAccountBalance(account).logged();
+            payer.ifPresent(delegate::payingWith);
+            Optional<Throwable> error = delegate.execFor(spec);
+            if (error.isPresent()) {
+                log.error("Failed to take balance snapshot for '{}'!", account);
+                return false;
+            }
+            long balance =
+                    delegate.getResponse().getCryptoGetInfo().getAccountInfo().getBalance();
             spec.registry().saveBalanceSnapshot(snapshot, balance);
         } else {
+            final var detailsDelegate = QueryVerbs.getAccountDetails(account).payingWith(GENESIS);
+            Optional<Throwable> error = detailsDelegate.execFor(spec);
+            if (error.isPresent()) {
+                log.error("Failed to take token balance snapshot for '{}'!", account);
+                return false;
+            }
             final var tokenId = asTokenId(token, spec);
             final long balance =
-                    delegate.getResponse().getAccountDetails().getAccountDetails().getTokenRelationshipsList().stream()
+                    detailsDelegate
+                            .getResponse()
+                            .getAccountDetails()
+                            .getAccountDetails()
+                            .getTokenRelationshipsList()
+                            .stream()
                             .filter(relationship -> relationship.getTokenId().equals(tokenId))
                             .findFirst()
                             .map(relationship -> relationship.getBalance())

@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.common.base.MoreObjects;
@@ -15,7 +16,7 @@ import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.GetAccountDetailsQuery;
+import com.hederahashgraph.api.proto.java.CryptoGetInfoQuery;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -177,7 +178,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
     @Override
     public HederaFunctionality type() {
-        return HederaFunctionality.GetAccountDetails;
+        return HederaFunctionality.CryptoGetInfo;
     }
 
     @Override
@@ -186,21 +187,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     }
 
     @Override
-    protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        payer = Optional.of(spec.setup().genesisAccountName());
-        return super.submitOp(spec);
-    }
-
-    @Override
     protected void assertExpectationsGiven(HapiSpec spec) throws Throwable {
-        final var details = response.getAccountDetails().getAccountDetails();
-        long actual = details.getBalance();
+        final var actualInfo = response.getCryptoGetInfo().getAccountInfo();
+        long actual = actualInfo.getBalance();
         if (balanceObserver != null) {
             balanceObserver.accept(actual);
-        }
-        if (verboseLoggingOn) {
-            String message = String.format("Explicit token balances: %s", details.getTokenRelationshipsList());
-            log.info(message);
         }
 
         if (assertAccountIDIsNotAlias) {
@@ -209,11 +200,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                             .getKey(aliasKeySource)
                             .toByteString()
                             .toStringUtf8());
-            assertEquals(expectedID, details.getAccountId());
+            assertEquals(expectedID, actualInfo.getAccountID());
         }
 
         if (expectedId != null) {
-            assertEquals(expectedId, details.getAccountId(), "Wrong account id");
+            assertEquals(expectedId, actualInfo.getAccountID(), "Wrong account id");
         }
 
         if (expectedTinybarCondition.isPresent()) {
@@ -228,8 +219,30 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
         }
 
         if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent() || expectedTokenConditions != null) {
-            Map<TokenID, Pair<Long, Integer>> actualTokenBalances = details.getTokenRelationshipsList().stream()
-                    .collect(Collectors.toMap(tr -> tr.getTokenId(), tr -> Pair.of(tr.getBalance(), tr.getDecimals())));
+            final var accountId = actualInfo.getAccountID();
+            final var detailsLookup = QueryVerbs.getAccountDetails(
+                            accountId.getShardNum() + "." + accountId.getRealmNum() + "." + accountId.getAccountNum())
+                    .payingWith(GENESIS);
+            allRunFor(spec, detailsLookup);
+            if (verboseLoggingOn) {
+                String message = String.format(
+                        "Explicit token balances: %s",
+                        detailsLookup
+                                .getResponse()
+                                .getAccountDetails()
+                                .getAccountDetails()
+                                .getTokenRelationshipsList());
+                log.info(message);
+            }
+            Map<TokenID, Pair<Long, Integer>> actualTokenBalances =
+                    detailsLookup
+                            .getResponse()
+                            .getAccountDetails()
+                            .getAccountDetails()
+                            .getTokenRelationshipsList()
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    tr -> tr.getTokenId(), tr -> Pair.of(tr.getBalance(), tr.getDecimals())));
             if (expectedTokenConditions != null) {
                 expectedTokenConditions.forEach((key, value) -> {
                     final var tokenId = asTokenId(key, spec);
@@ -290,13 +303,13 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
     @Override
     protected void processAnswerOnlyResponse(@NonNull final HapiSpec spec) {
-        final var detailsResponse = response.getAccountDetails();
-        final var status = detailsResponse.getHeader().getNodeTransactionPrecheckCode();
+        final var infoResponse = response.getCryptoGetInfo();
+        final var status = infoResponse.getHeader().getNodeTransactionPrecheckCode();
         if (status == ResponseCodeEnum.ACCOUNT_DELETED) {
             String message = String.format("%s%s was actually deleted!", spec.logPrefix(), repr);
             log.info(message);
         } else {
-            long balance = detailsResponse.getAccountDetails().getBalance();
+            long balance = infoResponse.getAccountInfo().getBalance();
             long TINYBARS_PER_HBAR = 100_000_000L;
             long hBars = balance / TINYBARS_PER_HBAR;
             if (!loggingOff) {
@@ -318,10 +331,10 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             @NonNull final HapiSpec spec,
             @NonNull final Transaction payment,
             @NonNull final ResponseType responseType) {
-        return getAccountDetailsQuery(spec, payment, responseType == ResponseType.COST_ANSWER);
+        return getAccountInfoQuery(spec, payment, responseType == ResponseType.COST_ANSWER);
     }
 
-    private Query getAccountDetailsQuery(HapiSpec spec, Transaction payment, boolean costOnly) {
+    private Query getAccountInfoQuery(HapiSpec spec, Transaction payment, boolean costOnly) {
         if (entityFn.isPresent()) {
             account = entityFn.get().get();
             repr = account;
@@ -357,11 +370,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                 target = spec.registry().keyAliasIdFor(spec, aliasKeySource);
             }
         }
-        final var query = GetAccountDetailsQuery.newBuilder()
+        final var query = CryptoGetInfoQuery.newBuilder()
                 .setHeader(costOnly ? answerCostHeader(payment) : answerHeader(payment))
-                .setAccountId(target)
+                .setAccountID(target)
                 .build();
-        return Query.newBuilder().setAccountDetails(query).build();
+        return Query.newBuilder().setCryptoGetInfo(query).build();
     }
 
     @Override
