@@ -1248,7 +1248,7 @@ public final class HashgraphInfo {
                 //                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = 1 + i + rp.prevNumCons;
-                    consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(i);
+                    consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(1 + i);
                 }
             } else if (consensusEventsArray.length > 0) { // each new consensus event is an ancestor of all judges
                 // put weighted median timestamp for each event into event.receivedTime[0]

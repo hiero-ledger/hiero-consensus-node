@@ -389,7 +389,7 @@ public class TestHashgraphInfo {
             int roundInfoCoinInterval = 10;
             int roundInfoSeeNum = 3;
             int roundInfoSeeDen = 3;
-            boolean roundInfoJudgeCon1 = false;
+            boolean roundInfoJudgeCon1 = true; /**/
             int roundInfoTargetNumRoundsNonAncient = 5;
             int roundInfoNumRoundsAddressBook = 2;
 
