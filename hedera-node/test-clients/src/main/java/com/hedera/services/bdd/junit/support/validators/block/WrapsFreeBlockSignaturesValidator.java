@@ -70,8 +70,8 @@ import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -669,8 +669,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         Bytes verificationKey = null;
         if (signature.length() == HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH) {
             final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-            final var sig =
-                    signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
+            final var sig = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
             proofVkHash = shortSha384Hash(vk);
             verificationKey = vk;
             aggregateSignature = sig;
@@ -720,8 +719,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             return false;
         }
         final var verificationKey = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-        final var aggregateSignature =
-                signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
+        final var aggregateSignature = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
         return hintsLibrary.verifyAggregate(
                 aggregateSignature, blockHash, verificationKey, 1, hintsThresholdDenominator);
     }

@@ -4,13 +4,13 @@ package org.hiero.sloth.fixtures.internal;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.sloth.fixtures.internal.helpers.Utils.createConfiguration;
 
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.sloth.fixtures.NodeConfiguration;
 import org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle;
 

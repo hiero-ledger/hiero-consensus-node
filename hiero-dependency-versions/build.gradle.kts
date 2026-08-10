@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.15.Final"))
+    api(platform("io.netty:netty-bom:4.2.16.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -9,11 +9,11 @@ dependencies {
 }
 
 val besu = "26.2.0"
-val bouncycastle = "1.84"
+val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.11.2"
+val hederaCryptography = "3.12.0"
 val helidon = "4.5.0"
 val jackson = "2.22.1"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
@@ -22,7 +22,7 @@ val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.34.0"
-val blockNodeProtobufSources = "0.36.0"
+val blockNodeProtobufSources = "0.39.0"
 val testContainers = "2.0.3"
 val tuweni = "2.7.2"
 val webcompare = "2.1.8"
@@ -100,18 +100,9 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.4.2") {
-        because("org.hyperledger.besu.nativelib.secp256k1")
-    }
     api("org.hyperledger.besu:gnark:1.4.2")
     api("org.hyperledger.besu:secp256r1:1.4.2")
     api("org.hyperledger.besu:arithmetic:1.4.2")
-    api("org.hyperledger.besu:blake2bf:1.4.2") {
-        because("org.hyperledger.besu.nativelib.blake2bf")
-    }
-    api("org.hyperledger.besu:boringssl:1.4.2") {
-        because("org.hyperledger.besu.nativelib.boringssl")
-    }
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
@@ -138,6 +129,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:libsodium:$hederaCryptography") {
         because("com.hedera.cryptography.libsodium")
+    }
+    api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
+        because("com.hedera.cryptography.libsecp256k1")
     }
 
     // Versions of additional tools that are not part of the product or test module paths

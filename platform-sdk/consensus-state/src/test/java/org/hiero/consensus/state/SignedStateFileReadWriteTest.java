@@ -29,7 +29,6 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -43,9 +42,8 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
@@ -146,9 +144,9 @@ class SignedStateFileReadWriteTest {
                 readState(testDirectory, configuration, stateLifecycleManager);
         hashState(deserializedSignedState.reservedSignedState().get());
 
-        final VirtualMapMetadata originalMetadata =
+        final VirtualMap.Metadata originalMetadata =
                 signedState.getState().getRoot().getMetadata();
-        final VirtualMapMetadata loadedMetadata = deserializedSignedState
+        final VirtualMap.Metadata loadedMetadata = deserializedSignedState
                 .reservedSignedState()
                 .get()
                 .getState()
@@ -184,8 +182,7 @@ class SignedStateFileReadWriteTest {
         final Path consensusSnapshotFile = directory.resolve(CONSENSUS_SNAPSHOT_FILE_NAME);
 
         throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
-        final String configDir = testDirectory.resolve("data/saved").toString();
-        final Configuration configuration = changeConfigAndConfigHolder(configDir);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         // Async snapshot requires all references to the state being written to disk to be released
         stateLifecycleManager.getLatestImmutableState().release();
@@ -205,11 +202,5 @@ class SignedStateFileReadWriteTest {
         assertTrue(exists(consensusSnapshotFile), "consensus snapshot file should exist");
 
         stateLifecycleManager.getMutableState().release();
-    }
-
-    private Configuration changeConfigAndConfigHolder(String directory) {
-        return new TestConfigBuilder()
-                .withValue(PathsConfig_.SAVED_STATE_DIR, directory)
-                .getOrCreateConfig();
     }
 }

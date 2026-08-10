@@ -2,14 +2,11 @@
 package org.hiero.otter.fixtures.turtle.gossip;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
@@ -18,6 +15,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -26,31 +24,29 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.gossip.GossipWiring;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * A test implementation of {@link GossipModule} that uses a {@link SimulatedGossip} instance to simulate gossip behavior in tests.
  */
 public class TurtleGossipModule implements GossipModule {
 
-    private final SimulatedGossip gossip;
-
     @Nullable
     private GossipWiring gossipWiring;
 
-    /**
-     * Constructor.
-     *
-     * @param gossip the simulated gossip instance to use for this module
-     */
-    public TurtleGossipModule(@NonNull final SimulatedGossip gossip) {
-        this.gossip = requireNonNull(gossip);
-    }
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     /**
      * {@inheritDoc}
@@ -69,13 +65,23 @@ public class TurtleGossipModule implements GossipModule {
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
         }
 
         this.gossipWiring = new GossipWiring(configuration, model);
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "Gossip_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
+
+        // Wire components
+        eventWindowExtractor.getOutputWire().solderTo(gossipWiring.getEventWindowInput(), INJECT);
+
+        // Create and bind components
+        final SimulatedGossip gossip = (SimulatedGossip) additionalParameters.get("simulatedGossip");
         gossipWiring.bind(gossip);
+        gossip.provideIntakeEventCounter(intakeEventCounter);
     }
 
     /**
@@ -110,7 +116,16 @@ public class TurtleGossipModule implements GossipModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").getEventWindowInput();
     }
 
@@ -163,8 +178,9 @@ public class TurtleGossipModule implements GossipModule {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
-        requireNonNull(gossipWiring, "Not initialized").getStartInput().inject(NoInput.getInstance());
+    @NonNull
+    public InputWire<NoInput> startInputWire() {
+        return requireNonNull(gossipWiring, "Not initialized").getStartInput();
     }
 
     /**

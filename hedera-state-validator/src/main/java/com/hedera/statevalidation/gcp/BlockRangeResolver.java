@@ -3,6 +3,8 @@ package com.hedera.statevalidation.gcp;
 
 import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileName;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileUri;
+import static com.hedera.statevalidation.gcp.GcpPathHelper.listFirstFile;
+import static com.hedera.statevalidation.gcp.GcpPathHelper.listLastFile;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -121,6 +123,63 @@ public final class BlockRangeResolver {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse BlockStreamInfo singleton", e);
         }
+    }
+
+    /**
+     * Resolves the block range by round numbers rather than requiring a known left block number.
+     * Used when no state is available to extract a starting block number from BlockStreamInfo.
+     *
+     * @param originRound the first round to include (left boundary)
+     * @param targetRound the last round to include (right boundary)
+     * @return the resolved block range
+     */
+    public BlockRange resolveByRounds(final long originRound, final long targetRound) throws IOException {
+        log.info(CONSOLE, "Discovering block stream boundaries ...");
+
+        log.info(CONSOLE, "  Listing first available block file ...");
+        final String firstFileUri = listFirstFile(gcpBlockStreamDir, billingProject);
+
+        log.info(CONSOLE, "  Listing last available block file ...");
+        final String lastFileUri = listLastFile(gcpBlockStreamDir, billingProject);
+
+        if (firstFileUri == null || lastFileUri == null) {
+            throw new IOException("No block files found in " + gcpBlockStreamDir);
+        }
+        final long firstBlock = blockNumberFromUri(firstFileUri);
+        final long lastBlock = blockNumberFromUri(lastFileUri);
+        log.info(
+                CONSOLE,
+                "  Block stream range: [{}, {}] ({} blocks)",
+                firstBlock,
+                lastBlock,
+                lastBlock - firstBlock + 1);
+
+        final ExecutorService executor = Executors.newFixedThreadPool(PROBE_THREAD_POOL_SIZE);
+        try {
+            log.info(CONSOLE, "  Searching for block containing origin round {} ...", originRound);
+            final long leftBlock = findBlockForTargetRound(firstBlock, lastBlock, originRound, executor);
+            log.info(CONSOLE, "  Origin round {} found in block {}", originRound, leftBlock);
+
+            log.info(CONSOLE, "  Searching for block containing target round {} ...", targetRound);
+            final long rightBlock = findBlockForTargetRound(leftBlock, lastBlock, targetRound, executor);
+            log.info(CONSOLE, "  Target round {} found in block {}", targetRound, rightBlock);
+
+            final BlockRange range = new BlockRange(leftBlock, rightBlock);
+            cleanUpProbeFiles(range);
+            return range;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static long blockNumberFromUri(@NonNull final String fileUri) {
+        // e.g. "gs://bucket/.../000000000000000000000000000070001488.blk.gz" → 70001488
+        final String fileName = fileUri.substring(fileUri.lastIndexOf('/') + 1);
+        final int dotIndex = fileName.indexOf('.');
+        if (dotIndex <= 0) {
+            throw new IllegalArgumentException("Cannot parse block number from: " + fileUri);
+        }
+        return Long.parseLong(fileName.substring(0, dotIndex));
     }
 
     /**

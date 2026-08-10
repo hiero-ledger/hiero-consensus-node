@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "861 [CALL] Get CITR Test Config"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+        description: "Git ref to checkout for the test config"
+      test-type:
+        type: string
+        required: true
+        description: "Type of test to retrieve config for (e.g., sdpt, sdlt, mdlt, etc)"
+    secrets:
+      checkout-token:
+        required: true
+        description: "GitHub token for accessing the repository"
+    outputs:
+      cn-qty:
+        description: "Quantity of CN nodes"
+        value: ${{ jobs.get-test-config.outputs.cn-qty }}
+      cn-cpu-request:
+        description: "CPU request for CN nodes"
+        value: ${{ jobs.get-test-config.outputs.cn-cpu-request }}
+      cn-mem-request-mb:
+        description: "Memory request for CN nodes in MB"
+        value: ${{ jobs.get-test-config.outputs.cn-mem-request-mb }}
+      aux-qty:
+        description: "Quantity of Aux nodes"
+        value: ${{ jobs.get-test-config.outputs.aux-qty }}
+      aux-cpu-request:
+        description: "CPU request for Aux nodes"
+        value: ${{ jobs.get-test-config.outputs.aux-cpu-request }}
+      aux-mem-request-mb:
+        description: "Memory request for Aux nodes in MB"
+        value: ${{ jobs.get-test-config.outputs.aux-mem-request-mb }}
+
+jobs:
+  get-test-config:
+    runs-on: hl-cn-chewie-lin-sm
+    outputs:
+      cn-qty: ${{ steps.get-test-config.outputs.cn-qty }}
+      cn-cpu-request: ${{ steps.get-test-config.outputs.cn-cpu-request }}
+      cn-mem-request-mb: ${{ steps.get-test-config.outputs.cn-mem-request-mb }}
+      aux-qty: ${{ steps.get-test-config.outputs.aux-qty }}
+      aux-cpu-request: ${{ steps.get-test-config.outputs.aux-cpu-request }}
+      aux-mem-request-mb: ${{ steps.get-test-config.outputs.aux-mem-request-mb }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-token: ${{ secrets.checkout-token }}
+          checkout-ref: ${{ inputs.ref }}
+          setup-jq: true
+
+      - name: Read config
+        id: get-test-config
+        env:
+          TEST_TYPE: ${{ inputs.test-type }}
+        run: |
+          valid_types=("sdpt" "sdlt")
+          if [[ ! "${valid_types[*]}" =~ "${TEST_TYPE}" ]]; then
+            echo "::error::Invalid test-type: '${TEST_TYPE}'. Must be one of: ${valid_types[*]}"
+            exit 1
+          fi
+
+          CONFIG_FILE=".github/workflows/support/chewie/${TEST_TYPE}-config.json"
+          if [[ ! -f "${CONFIG_FILE}" ]]; then
+            echo "::error::Test config file not found: ${CONFIG_FILE}"
+            exit 1
+          fi
+
+          CN_QTY=$(jq -r '.["cn-nodes"].quantity' "${CONFIG_FILE}")
+          CN_CPU=$(jq -r '.["cn-nodes"].resources.cpu' "${CONFIG_FILE}")
+          CN_MEM=$(jq -r '.["cn-nodes"].resources.memory' "${CONFIG_FILE}")
+          AUX_QTY=$(jq -r '.["aux-nodes"].quantity' "${CONFIG_FILE}")
+          AUX_CPU=$(jq -r '.["aux-nodes"].resources.cpu' "${CONFIG_FILE}")
+          AUX_MEM=$(jq -r '.["aux-nodes"].resources.memory' "${CONFIG_FILE}")
+
+          # set outputs
+          echo "::group::Test Config Values"
+          echo "cn-qty=${CN_QTY}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-cpu-request=${CN_CPU}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-mem-request-mb=${CN_MEM}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-qty=${AUX_QTY}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-cpu-request=${AUX_CPU}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-mem-request-mb=${AUX_MEM}" | tee -a "${GITHUB_OUTPUT}"
+          echo "::endgroup::"
