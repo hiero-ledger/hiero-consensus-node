@@ -144,7 +144,7 @@ jobs:
       chewie-host: ${{ secrets.chewie-host }}
 
   # Remove if test-asset is not empty check when formal SDPT uses Chewie
-  get-sdlt-config:
+  get-sdpt-config:
     if: ${{ inputs.test-asset == '' }}
     uses: ./.github/workflows/861-call-get-test-config.yaml
     with:
@@ -172,15 +172,15 @@ jobs:
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
-      - get-sdlt-config
+      - get-sdpt-config
     uses: ./.github/workflows/859-call-create-chewie-request.yaml
     with:
-      instances-cn-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-qty) }}
-      instances-cn-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-cpu-request) }}
-      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-mem-request-mb) }}
-      instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
-      instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
-      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
+      instances-cn-qty: ${{ fromJSON(needs.get-sdpt-config.outputs.cn-qty) }}
+      instances-cn-cpu: ${{ fromJSON(needs.get-sdpt-config.outputs.cn-cpu-request) }}
+      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdpt-config.outputs.cn-mem-request-mb) }}
+      instances-aux-qty: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-qty) }}
+      instances-aux-cpu: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-cpu-request) }}
+      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-mem-request-mb) }}
       duration-minutes: ${{ inputs.duration-minutes }}
     secrets:
       github-token: ${{ secrets.github-token }}
