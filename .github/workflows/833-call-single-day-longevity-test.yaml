@@ -9,6 +9,8 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      # Test Asset is required for the nightly runs of SDLT
+      # it goes away when Chewie runs the nightly SDLT tests
       test-asset:
         description: "Which cluster to run tests on"
         required: false
@@ -183,19 +185,31 @@ jobs:
 
       - name: Normalize Outputs
         id: normalize
+        env:
+          NAMESPACE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}
+          FQDN: ${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}
+          CN_QUANTITY: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}
+          AUX_QUANTITY: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}
+          CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}
+          AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}
+          CN_ROLE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}
+          AUX_ROLE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}
+          NETWORK_ID: ${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}
+          OWNER: ${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}
+          EXPIRATION: ${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration || needs.acquire-kubernetes-resources-legacy.outputs.request-expiration }}
         run: |
           echo "::group::Set Outputs"
-          echo "namespace=${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "fqdn=${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-quantity=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-tolerations=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-role=${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "network-id=${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "owner=${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "expiration=${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration || needs.acquire-kubernetes-resources-legacy.outputs.request-expiration }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "namespace=${NAMESPACE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "fqdn=${FQDN}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-quantity=${CN_QUANTITY}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-quantity=${AUX_QUANTITY}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-tolerations=${CN_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-tolerations=${AUX_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-role=${CN_ROLE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-role=${AUX_ROLE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "network-id=${NETWORK_ID}" | tee -a "${GITHUB_OUTPUT}"
+          echo "owner=${OWNER}" | tee -a "${GITHUB_OUTPUT}"
+          echo "expiration=${EXPIRATION}" | tee -a "${GITHUB_OUTPUT}"
           echo "::endgroup::"
 
   print-allocation-details:
@@ -336,6 +350,7 @@ jobs:
           # trim the input ref
           echo "run-hcn-version=$(echo ${REF} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
 
+      # TODO: Remove this step when formal SDLT uses Chewie
       - name: Check for namespace collision
         run: |
           set +e
@@ -349,6 +364,7 @@ jobs:
             exit 13
           fi
 
+      # TODO: Remove this step when formal SDLT uses Chewie
       - name: Cancelling in case of namespace collision
         if: failure()
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
@@ -391,7 +407,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22.23.2
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -491,8 +507,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -935,8 +951,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
@@ -1104,8 +1120,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/reconnect"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/reconnect"
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
@@ -1170,6 +1186,7 @@ jobs:
       - longevity-tests-finish
       - longevity-test-reconnect
       - single-day-longevity-test-result
+      - acquire-kubernetes-resources
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
       needs.single-day-longevity-test-result.result != 'success' ||
       needs.longevity-test-reconnect.result != 'success') &&
@@ -1185,7 +1202,7 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
         run: |
-          title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${REF})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }} - ${REF})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
