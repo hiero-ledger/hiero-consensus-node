@@ -88,7 +88,7 @@ semantic pass rather than scraped into a brittle Tier-2 assertion that would mis
 The semantic pass is the only part that *reasons* rather than *resolves*, so it is fenced in tightly
 to keep it from becoming a false-positive source of its own:
 
-- **It reads the current source, never memory.** For each worklisted topic it opens the exact files
+- **It reads the current source, never memory.** For each worklisted document it opens the exact files
   the engine located and judges each load-bearing prose claim against what the code now says.
 - **Only `contradicted`-with-citation survives.** Each claim is judged `supported`, `contradicted`,
   or `can't-determine`. Only `contradicted` claims that can point at the specific current code
@@ -98,23 +98,26 @@ to keep it from becoming a false-positive source of its own:
   section, after and distinct from the deterministic report — never intermixed with engine-verified
   findings.
 - **It looks only where the code moved.** It processes only worklist entries whose status is
-  `review` or `unknown`; `fresh` topics are skipped.
+  `review` or `unknown`; `fresh` entries are skipped.
 
-The worklist that drives it is built by the engine from git history: for each topic it flags review
-when any anchored source was committed **on or after** the topic's `last_reviewed` date.
+The worklist that drives it is built by the engine from git history for **every** scanned document: it
+flags review when any anchored source was committed **on or after** the document's `last_reviewed` date.
+A document that anchors no code (glossary, symptoms, README indexes) is `unknown` — there is nothing to
+date its prose against.
 
-The loop closes by bumping `last_reviewed`: a topic whose semantic pass found every claim supported
+The loop closes by bumping `last_reviewed`: a document whose semantic pass found every claim supported
 (or whose contradictions were fixed) should be marked reviewed — mechanically, via
 `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; rewrites only an *existing*
-`last_reviewed:` frontmatter line) — or every future run re-worklists the same topics. A reference to
+`last_reviewed:` frontmatter line) — or every future run re-worklists the same documents. A reference to
 a renamed or removed symbol counts as a contradiction (even if the behavior survives), so it blocks
 the bump.
 
-The date to record is the topic's **newest anchored-source commit date** — the state this run
+The date to record is the document's **newest anchored-source commit date** — the state this run
 reviewed, shown as `newestAnchoredCommit` in `worklist.json`. A bare `--mark-reviewed <key>` records
 it automatically, derived from the scanned checkout, never the wall clock — so a run against a stale
-`main` cannot mark commits it never reviewed as reviewed. (`--date` is used only as a fallback for a
-topic that anchors no dated source, where there is no freshness signal anyway.)
+`main` cannot mark commits it never reviewed as reviewed. A document that anchors no source is dated by
+the reviewed checkout's **HEAD commit** instead (it was still reviewed against that commit); wall-clock
+`--date` is only the last resort when git is unavailable.
 
 ## Lanes — how a result is routed
 
@@ -270,7 +273,7 @@ entries tag a topic that was never written, the fix may be to write it rather th
 citation. Use it to find documentation worth adding or anchoring; tracked apart from the drift
 report on purpose.
 
-**`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
+**`worklist.md` / `worklist.json` — the semantic-pass input.** For each document, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
 `review` (a source was committed on or after `last_reviewed`), `fresh` (every source predates it), or
 `unknown` (freshness can't be determined — the entry's note names the reason: no anchored sources, git

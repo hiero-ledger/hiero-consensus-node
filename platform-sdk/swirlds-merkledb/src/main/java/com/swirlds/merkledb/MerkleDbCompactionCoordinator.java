@@ -38,11 +38,11 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.IORunnable;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
- * Coordinates compaction tasks for a {@link MerkleDbDataSource}. Manages two kinds of background
- * tasks:
+ * Coordinates compaction tasks for a {@link MerkleDbDataSource}. Manages two kinds of background tasks:
  *
  * <ul>
  *   <li><b>Scanner tasks</b> — traverse the in-memory index and compute per-file garbage
@@ -74,12 +74,10 @@ class MerkleDbCompactionCoordinator {
     private static ExecutorService compactionExecutor = null;
 
     /**
-     * This method is invoked from a non-static method and uses the provided configuration.
-     * Consequently, the compaction executor will be initialized using the configuration provided
-     * by the first instance of MerkleDbCompactionCoordinator class that calls the relevant
-     * non-static method. Subsequent calls will reuse the same executor, regardless of any new
-     * configurations provided.
-     * FUTURE WORK: it can be moved to MerkleDb.
+     * This method is invoked from a non-static method and uses the provided configuration. Consequently, the compaction
+     * executor will be initialized using the configuration provided by the first instance of
+     * MerkleDbCompactionCoordinator class that calls the relevant non-static method. Subsequent calls will reuse the
+     * same executor, regardless of any new configurations provided. FUTURE WORK: it can be moved to MerkleDb.
      */
     static synchronized ExecutorService getCompactionExecutor(final @NonNull MerkleDbConfig merkleDbConfig) {
         requireNonNull(merkleDbConfig);
@@ -93,8 +91,8 @@ class MerkleDbCompactionCoordinator {
                     new LinkedBlockingQueue<>(),
                     new ThreadConfiguration(getStaticThreadManager())
                             .setThreadGroup(new ThreadGroup("Compaction"))
-                            .setComponent(MERKLEDB_COMPONENT)
-                            .setThreadName("Compacting")
+                            .setThreadNameProvider(
+                                    CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Compacting"))
                             .setExceptionHandler((_, ex) ->
                                     logger.error(EXCEPTION.getMarker(), "Uncaught exception during merging", ex))
                             .buildFactory());
@@ -106,32 +104,28 @@ class MerkleDbCompactionCoordinator {
     private boolean compactionEnabled = false;
 
     /**
-     * Active compactors by task key (e.g. "IdToHashChunk_compact_0_1"). Synchronized on this.
-     * Only populated when a compaction task has created a DataFileCompactor and is actively
-     * compacting. Used for pause/resume during snapshots and interrupt during shutdown.
+     * Active compactors by task key (e.g. "IdToHashChunk_compact_0_1"). Synchronized on this. Only populated when a
+     * compaction task has created a DataFileCompactor and is actively compacting. Used for pause/resume during
+     * snapshots and interrupt during shutdown.
      */
     final Map<String, DataFileCompactor> compactorsByName = new HashMap<>(16);
 
     /**
-     * All active task keys — both scanner tasks and compaction tasks. Synchronized on this.
-     * Used for {@link #awaitForCurrentCompactionsToComplete(long)} and
-     * {@link #isCompactionRunning(String)}.
+     * All active task keys — both scanner tasks and compaction tasks. Synchronized on this. Used for
+     * {@link #awaitForCurrentCompactionsToComplete(long)} and {@link #isCompactionRunning(String)}.
      */
     private final Set<String> taskKeys = new HashSet<>(20);
 
     /**
-     * Number of outstanding (queued + running) compaction tasks per level key.
-     * Key format: "storeName_compact_level" (e.g. "IdToHashChunk_compact_0").
-     * New tasks for a level are only submitted when the count reaches zero, ensuring
-     * all groups from the previous cycle finish before a fresh scan result is consumed.
-     * Synchronized on this.
+     * Number of outstanding (queued + running) compaction tasks per level key. Key format: "storeName_compact_level"
+     * (e.g. "IdToHashChunk_compact_0"). New tasks for a level are only submitted when the count reaches zero, ensuring
+     * all groups from the previous cycle finish before a fresh scan result is consumed. Synchronized on this.
      */
     private final Map<String, Integer> compactionTaskCounts = new HashMap<>(16);
 
     /**
-     * Latest scan statistics per store name. Written by scanner tasks, read by
-     * {@link #submitCompactionTasks} to filter and partition candidates.
-     * Keys are store names (e.g. "IdToHashChunk").
+     * Latest scan statistics per store name. Written by scanner tasks, read by {@link #submitCompactionTasks} to filter
+     * and partition candidates. Keys are store names (e.g. "IdToHashChunk").
      */
     private final Map<String, IndexedGarbageFileStats> scanStatsByStore = new ConcurrentHashMap<>(4);
 
@@ -156,14 +150,13 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Pauses compaction of all active data file compactors while running the provided action.
-     * Compaction may not stop immediately, but as soon as the compaction process needs to update
-     * data source state (which is critical for snapshots, e.g. update an index), it will be
-     * blocked until the action completes.
+     * Pauses compaction of all active data file compactors while running the provided action. Compaction may not stop
+     * immediately, but as soon as the compaction process needs to update data source state (which is critical for
+     * snapshots, e.g. update an index), it will be blocked until the action completes.
      *
      * <p>Scanner tasks are not paused because they are read-only. Compaction tasks that have been
-     * submitted but have not yet created a compactor (still queued) are also unaffected — they
-     * will encounter the lock when they start writing.
+     * submitted but have not yet created a compactor (still queued) are also unaffected — they will encounter the lock
+     * when they start writing.
      *
      * @param action action to run while compaction is paused
      */
@@ -181,9 +174,9 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Stops all compactions in progress and disables background compaction. All subsequent calls
-     * to compacting methods will be ignored until {@link #enableBackgroundCompaction()} is called.
-     * Scanner tasks are not interrupted (they are read-only and will finish harmlessly).
+     * Stops all compactions in progress and disables background compaction. All subsequent calls to compacting methods
+     * will be ignored until {@link #enableBackgroundCompaction()} is called. Scanner tasks are not interrupted (they
+     * are read-only and will finish harmlessly).
      *
      * <p>Queued compaction tasks that have not yet started will check {@code compactionEnabled}
      * when they begin execution and exit immediately.
@@ -200,8 +193,8 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Waits for all currently submitted tasks to complete (both queued and actively running,
-     * including both scanner and compaction tasks).
+     * Waits for all currently submitted tasks to complete (both queued and actively running, including both scanner and
+     * compaction tasks).
      *
      * @param timeoutMillis maximum timeout to wait for tasks to complete (0 for indefinite wait)
      */
@@ -209,7 +202,9 @@ class MerkleDbCompactionCoordinator {
         final long deadline = timeoutMillis > 0 ? System.currentTimeMillis() + timeoutMillis : Long.MAX_VALUE;
         while (!taskKeys.isEmpty()) {
             final long remaining = deadline - System.currentTimeMillis();
-            if (remaining <= 0) break;
+            if (remaining <= 0) {
+                break;
+            }
 
             try {
                 wait(remaining);
@@ -221,9 +216,9 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Submits a scanner task for the given store, if one is not already running. The scanner
-     * traverses the in-memory index and stores the results in {@link #scanStatsByStore},
-     * where {@link #submitCompactionTasks} reads them to filter and partition work.
+     * Submits a scanner task for the given store, if one is not already running. The scanner traverses the in-memory
+     * index and stores the results in {@link #scanStatsByStore}, where {@link #submitCompactionTasks} reads them to
+     * filter and partition work.
      *
      * @param storeName store name (e.g. {@link MerkleDbDataSource#ID_TO_HASH_CHUNK})
      * @param scanner   the scanner to run
@@ -243,9 +238,8 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Filters files from the latest scan results, partitions eligible files into groups,
-     * runs phase 2 absorption on each group, and submits each group as an independent
-     * compaction task.
+     * Filters files from the latest scan results, partitions eligible files into groups, runs phase 2 absorption on
+     * each group, and submits each group as an independent compaction task.
      *
      * <p>The algorithm proceeds per level:
      * <ol>
@@ -393,9 +387,8 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Checks if any compaction task is currently submitted or running for the given store.
-     * This checks all levels — if any level has a queued or active task, this returns
-     * {@code true}.
+     * Checks if any compaction task is currently submitted or running for the given store. This checks all levels — if
+     * any level has a queued or active task, this returns {@code true}.
      *
      * @param storeName store name (e.g. {@link MerkleDbDataSource#OBJECT_KEY_TO_PATH})
      * @return {@code true} if any compaction for this store is submitted or running
@@ -440,9 +433,9 @@ class MerkleDbCompactionCoordinator {
     // ========================================================================
 
     /**
-     * Partitions candidates into groups where each group's projected output size fits within
-     * the cap. Files are taken in iteration order (file index order from the scanner) without
-     * sorting. At least one file per group is always included.
+     * Partitions candidates into groups where each group's projected output size fits within the cap. Files are taken
+     * in iteration order (file index order from the scanner) without sorting. At least one file per group is always
+     * included.
      *
      * @param candidates        files eligible for compaction at a single level
      * @param maxProjectedBytes maximum projected alive bytes per group, or &le; 0 to disable
@@ -482,18 +475,17 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Phase 2: absorbs additional files from a shared remaining pool into a single group.
-     * Files that would push the group's aggregate dead/alive ratio below the threshold or
-     * the projected output size past the cap are skipped. Absorbed files are removed from
-     * the pool so no other group at the same level can claim them.
+     * Phase 2: absorbs additional files from a shared remaining pool into a single group. Files that would push the
+     * group's aggregate dead/alive ratio below the threshold or the projected output size past the cap are skipped.
+     * Absorbed files are removed from the pool so no other group at the same level can claim them.
      *
      * <p>The pool must be pre-sorted by dead/alive ratio descending. Files that least worsen
      * the aggregate are tried first, maximizing the number of files absorbed.
      *
      * @param storeName         name of the store being compacted (for logging only)
      * @param group             the group to absorb files into (modified in place)
-     * @param remainingPool     shared pool of non-eligible files for this level, sorted by
-     *                          dead/alive ratio descending (modified — absorbed files are removed)
+     * @param remainingPool     shared pool of non-eligible files for this level, sorted by dead/alive ratio descending
+     *                          (modified — absorbed files are removed)
      * @param stats             per-file garbage statistics from the scan
      * @param gcRateThreshold   minimum aggregate dead/alive ratio to maintain
      * @param maxProjectedBytes maximum projected alive bytes for the group
@@ -571,8 +563,8 @@ class MerkleDbCompactionCoordinator {
     // ========================================================================
 
     /**
-     * Background task that traverses the in-memory index and computes per-file garbage statistics.
-     * Results are stored in {@link #scanStatsByStore} for compaction tasks to consume.
+     * Background task that traverses the in-memory index and computes per-file garbage statistics. Results are stored
+     * in {@link #scanStatsByStore} for compaction tasks to consume.
      */
     private class ScannerTask implements Runnable {
 
@@ -610,9 +602,9 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Background compaction task for a pre-assigned group of files at a single level. The group
-     * is determined at submission time by {@link #submitCompactionTasks}, which partitions
-     * candidates by projected output size and absorbs additional files via phase 2.
+     * Background compaction task for a pre-assigned group of files at a single level. The group is determined at
+     * submission time by {@link #submitCompactionTasks}, which partitions candidates by projected output size and
+     * absorbs additional files via phase 2.
      *
      * <p>Before compacting, the task filters out files that may have been deleted by concurrent
      * compaction tasks since the scan. If no valid files remain, the task is a no-op.
@@ -629,13 +621,12 @@ class MerkleDbCompactionCoordinator {
         /**
          * Creates a new compaction task for a pre-assigned group of files.
          *
-         * @param taskKey          unique key for deduplication and tracking
-         *                         (e.g. "IdToHashChunk_compact_0_1")
+         * @param taskKey          unique key for deduplication and tracking (e.g. "IdToHashChunk_compact_0_1")
          * @param levelKey         per-level key used for the counter-based deduplication in
          *                         {@link #compactionTaskCounts} (e.g. "IdToHashChunk_compact_0")
          * @param sourceLevel      compaction level of the input files
-         * @param assignedFiles    pre-assigned group of files to compact (non-overlapping with
-         *                         other groups at the same level)
+         * @param assignedFiles    pre-assigned group of files to compact (non-overlapping with other groups at the same
+         *                         level)
          * @param compactorFactory creates a fresh {@link DataFileCompactor} for this task
          * @param config           MerkleDb configuration for level cap and other parameters
          */
