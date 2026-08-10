@@ -621,13 +621,6 @@ public final class HashgraphInfo {
                     }
                     x.receivedTime[judgeIndex] = lowestTime;
                     x.searchParent = -1; // descend through the first parent first (index 0)
-                    if (x.searchCount == targetCount) {
-                        x.isConsensus = true;
-                        if (consensusEvents != null) {
-                            x.searchOrder = consensusEvents.size();
-                            consensusEvents.add(x);
-                        }
-                    }
                     nextX = null;
                     // while nextX is bad (null / ancient / marked / isConsensus), search until good is found or done
                     while (x != null
@@ -638,6 +631,13 @@ public final class HashgraphInfo {
                         while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
                             // backtrack up from x to its child, so mark x as fully explored
                             x.searchMark = hashgraphInfo.currMark; // mark x after done exploring all its parents
+                            if (x.searchCount == targetCount) {
+                                x.isConsensus = true;
+                                if (consensusEvents != null) {
+                                    x.searchOrder = consensusEvents.size();
+                                    consensusEvents.add(x);
+                                }
+                            }
                             x = x.searchChild; // backtrack up until an event is found with an unexplored parent
                             if (x != null && x.searchJudgeSelfAncestor) {
                                 lowestTime = x.timeCreated;
