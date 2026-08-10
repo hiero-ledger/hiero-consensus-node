@@ -282,6 +282,7 @@ jobs:
   performance-tests-start:
     name: Start
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
     env:
