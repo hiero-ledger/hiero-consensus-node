@@ -34,9 +34,13 @@ message StateProof {
      * The merkle paths that prove the nodes in the block merkle tree.
      * This field SHALL contain, in the following order:
      * - The merkle path from the consensus timestamp leaf to the root.
-     * - The merkle path from the previous block root (the "left-most"
-     *   node on level 5) to it's (single) internal node parent (on level
-     *   1, adjacent to the block's consensus timestamp).
+     * - The merkle path from the previous block root hash (branch 1, the
+     *   left-most of the sixteen branches, at depth four in the branch
+     *   sub-tree and depth five from the block root) up to the root of
+     *   that sub-tree, which is the right child of the block root and the
+     *   sibling of the block's consensus timestamp leaf. This path SHALL
+     *   carry one sibling per level, four in total, each present and each
+     *   carrying a hash.
      * - The merkle path of the root of the entire block merkle tree.
      */
     repeated MerklePath paths = 1;
@@ -63,8 +67,7 @@ message StateProof {
  *    block root hash. For these the `hash` field is set.
  * 3. Merkle paths in the middle between another merkle path and the root. For
  *    these, none of the fields are set.
- * Merkle paths can only include sibling nodes for binary internal nodes. If
- * there is a unary node in the path a new MerklePath must be started. Unary
+ * Merkle paths can only include sibling nodes for binary internal nodes. Unary
  * nodes occur only in the state tree; every internal node in the block root
  * tree has exactly two children, so every sibling on a block path carries a
  * hash.

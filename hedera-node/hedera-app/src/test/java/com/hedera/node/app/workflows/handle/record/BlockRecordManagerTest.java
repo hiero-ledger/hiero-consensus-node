@@ -888,7 +888,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
         /**
-         * The published cross-repo constant for the root of the eight empty reserved slots 8-15. Written
+         * The published cross-repo constant for the root of the eight empty reserved branches 9-16. Written
          * out literally so this manual computation stays independent of the production tree builder.
          */
         private static final Bytes RESERVED_HALF = Bytes.fromHex(
@@ -978,8 +978,8 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var consensusHash = randomHash();
             final var entry = entryWith(outputHash, consensusHash);
 
-            // Manually compute the expected tree structure: a perfect 16-leaf tree whose slots 0, 1 and 5
-            // carry data, whose remaining slots are the empty sub-tree hash, and whose root is combined
+            // Manually compute the expected tree structure: a perfect 16-leaf tree whose branches 1, 2 and 6
+            // carry data, whose remaining branches are the empty sub-tree hash, and whose root is combined
             // with the consensus timestamp leaf.
             final Bytes slot01 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
             final Bytes slot23 = EMPTY_INT_NODE;
@@ -990,7 +990,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             final Bytes slot4567 = BlockImplUtils.hashInternalNode(slot45, slot67);
 
             final Bytes assignedHalf = BlockImplUtils.hashInternalNode(slot0123, slot4567);
-            // Slots 8-15 are all empty, so their root is the constant reserved half
+            // Branches 9-16 are all empty, so their root is the constant reserved half
             final Bytes subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, RESERVED_HALF);
 
             final Bytes expected = BlockImplUtils.hashInternalNode(consensusHash, subtreesRoot);

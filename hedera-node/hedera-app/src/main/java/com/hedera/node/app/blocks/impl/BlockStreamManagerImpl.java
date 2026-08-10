@@ -433,17 +433,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
         final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
-        return combine(
-                        prevBlockHash,
-                        allPrevBlocksHash,
-                        blockStreamInfo.startOfBlockStateHash(),
-                        blockStreamInfo.consensusHeaderRootHash(),
-                        blockStreamInfo.inputTreeRootHash(),
-                        blockStreamInfo.outputItemRootHash(),
-                        lastBlockFinalStateChangesHash,
-                        blockStreamInfo.traceDataRootHash(),
-                        blockStreamInfo.blockTimeOrThrow())
-                .blockRootHash();
+        // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
+        // that only a pending proof needs
+        return BlockRootTree.computeBlockRootHash(
+                blockStreamInfo.blockTimeOrThrow(),
+                prevBlockHash,
+                allPrevBlocksHash,
+                blockStreamInfo.startOfBlockStateHash(),
+                blockStreamInfo.consensusHeaderRootHash(),
+                blockStreamInfo.inputTreeRootHash(),
+                blockStreamInfo.outputItemRootHash(),
+                lastBlockFinalStateChangesHash,
+                blockStreamInfo.traceDataRootHash());
     }
 
     @Override
@@ -1613,25 +1614,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Resets the hashers for the block root tree's per-block sub-trees (slots 3-7, see {@link BlockRootTree}).
+     * Resets the hashers for the block root tree's per-block sub-trees (branches 4-8, see
+     * {@link BlockRootTree}).
      * Since these subtrees only contain data specific to the current block, they need to be reset whenever a
      * new block starts.
      */
     private void resetSubtrees() {
-        // Slot 3
+        // Branch 4
         consensusHeaderHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-        // Slot 4
+        // Branch 5
         inputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-        // Slot 5
+        // Branch 6
         outputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-        // Slot 6
+        // Branch 7
         stateChangesHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-        // Slot 7
+        // Branch 8
         traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
     }
 
     /**
-     * Fills the {@link BlockRootTree} slots with this block's sub-tree roots and computes its root hash.
+     * Fills the {@link BlockRootTree} branches with this block's sub-tree roots and computes its root hash.
      * Since it's not known whether the pending proof will be directly signed at this point in the block's
      * lifecycle, the sibling hashes required for an indirect proof are also computed.
      * <p>
@@ -1643,9 +1645,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO}; for all other
      * blocks it is the previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
-     * slot level) to top (the root)
+     * branch level) to top (the root)
      */
-    private static BlockRootTree.RootAndSiblingHashes combine(
+    private static BlockRootTreeHasher.RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
             @NonNull final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,

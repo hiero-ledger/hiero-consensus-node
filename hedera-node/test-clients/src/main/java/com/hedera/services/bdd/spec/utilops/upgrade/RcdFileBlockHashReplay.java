@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -8,7 +9,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
-import com.hedera.node.app.blocks.impl.BlockRootTree;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesCalculator;
@@ -182,16 +183,31 @@ public final class RcdFileBlockHashReplay {
             @NonNull final Bytes prevWrappedBlockHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        return BlockRootTree.computeBlockRootHash(
-                entry.consensusTimestampHash(),
-                prevWrappedBlockHash,
-                allPrevBlocksRootHash,
-                BlockRootTree.EMPTY_SUBTREE,
-                BlockRootTree.EMPTY_SUBTREE,
-                BlockRootTree.EMPTY_SUBTREE,
-                entry.outputItemsTreeRootHash(),
-                BlockRootTree.EMPTY_SUBTREE,
-                BlockRootTree.EMPTY_SUBTREE);
+        // Built by hand, on purpose. This replay must not share the block root tree implementation with
+        // block production: if it did, any error in that implementation would be reproduced here and the
+        // replay would agree with production regardless. A wrapped record block populates only branches 1, 2
+        // and 6; every other branch, assigned or reserved, is the empty sub-tree hash.
+        final var empty = BlockStreamManager.HASH_OF_ZERO;
+        final var slots01 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
+        final var slots23 = hashInternalNode(empty, empty);
+        final var slots45 = hashInternalNode(empty, entry.outputItemsTreeRootHash());
+        final var slots67 = hashInternalNode(empty, empty);
+        final var slots0123 = hashInternalNode(slots01, slots23);
+        final var slots4567 = hashInternalNode(slots45, slots67);
+        final var assignedHalf = hashInternalNode(slots0123, slots4567);
+
+        final var subtreesRoot = hashInternalNode(assignedHalf, emptyReservedHalf());
+        return hashInternalNode(entry.consensusTimestampHash(), subtreesRoot);
+    }
+
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties = hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return hashInternalNode(fourEmpties, fourEmpties);
     }
 
     /**

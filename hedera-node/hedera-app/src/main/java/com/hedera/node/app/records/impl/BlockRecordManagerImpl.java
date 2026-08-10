@@ -628,26 +628,26 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        // A wrapped record block fills the same slots as any other block; only the previous block root, the
+        // A wrapped record block fills the same branches as any other block; only the previous block root, the
         // all-previous-block-roots tree and the output items tree carry data. The consensus timestamp leaf
         // is already hashed on the entry.
         return BlockRootTree.computeBlockRootHash(
                 entry.consensusTimestampHash(),
-                // Slot 0: previous wrapped record block root hash
+                // Branch 1: previous wrapped record block root hash
                 previousWrappedRecordBlockRootHash,
-                // Slot 1: root of the tree of all previous block root hashes
+                // Branch 2: root of the tree of all previous block root hashes
                 allPrevBlocksRootHash,
-                // Slot 2: no start-of-block state hash in a wrapped record block
+                // Branch 3: no start-of-block state hash in a wrapped record block
                 BlockRootTree.EMPTY_SUBTREE,
-                // Slot 3: no consensus headers
+                // Branch 4: no consensus headers
                 BlockRootTree.EMPTY_SUBTREE,
-                // Slot 4: no input items
+                // Branch 5: no input items
                 BlockRootTree.EMPTY_SUBTREE,
-                // Slot 5: the output items tree, holding the block header and the record file item
+                // Branch 6: the output items tree, holding the block header and the record file item
                 entry.outputItemsTreeRootHash(),
-                // Slot 6: no state changes
+                // Branch 7: no state changes
                 BlockRootTree.EMPTY_SUBTREE,
-                // Slot 7: no trace data
+                // Branch 8: no trace data
                 BlockRootTree.EMPTY_SUBTREE);
     }
 

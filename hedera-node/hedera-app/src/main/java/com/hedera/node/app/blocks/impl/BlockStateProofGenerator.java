@@ -114,7 +114,7 @@ public class BlockStateProofGenerator {
 
         // Merkle Path 2: starting from the block-to-prove's root hash, enumerate sibling hashes for all
         // subsequent blocks up through the signed block. Each block contributes NUM_SIBLINGS_PER_BLOCK
-        // siblings, the last of which is the root of its reserved slots.
+        // siblings, the last of which is the root of its reserved branches 9-16.
         MerklePath.Builder mp2 = MerklePath.newBuilder()
                 .hash(currentPendingBlock.blockHash())
                 .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);

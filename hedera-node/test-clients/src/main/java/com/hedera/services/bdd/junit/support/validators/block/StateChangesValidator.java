@@ -41,7 +41,6 @@ import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
-import com.hedera.node.app.blocks.impl.BlockRootTree;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.CommonUtils;
@@ -812,7 +811,27 @@ public class StateChangesValidator implements BlockStreamValidator {
         return Bytes.wrap(digest.digest());
     }
 
-    private BlockRootTree.RootAndSiblingHashes computeBlockHash(
+    private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
+        digest.update(leftChildHash.toByteArray());
+        digest.update(rightChildHash.toByteArray());
+        return Bytes.wrap(digest.digest());
+    }
+
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties = hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return hashInternalNode(fourEmpties, fourEmpties);
+    }
+
+    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
+
+    private RootAndSiblingHashes computeBlockHash(
             final Timestamp blockTimestamp,
             final Bytes previousBlockHash,
             final IncrementalStreamingHasher prevBlockRootsHasher,
@@ -828,16 +847,29 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        return BlockRootTree.computeRootAndSiblings(
-                hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp)),
-                previousBlockHash,
-                prevBlocksRootHash,
-                startOfBlockStateHash,
-                consensusHeaderHash,
-                inputTreeHash,
-                outputTreeHash,
-                finalStateChangesHash,
-                traceDataHash);
+        // Built by hand, on purpose. This validator must not share the block root tree implementation with
+        // block production: if it did, any error in that implementation would be reproduced here and the
+        // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
+        final var slots01 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var slots23 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var slots45 = hashInternalNode(inputTreeHash, outputTreeHash);
+        final var slots67 = hashInternalNode(finalStateChangesHash, traceDataHash);
+        final var slots0123 = hashInternalNode(slots01, slots23);
+        final var slots4567 = hashInternalNode(slots45, slots67);
+        final var assignedHalf = hashInternalNode(slots0123, slots4567);
+
+        final var reservedHalf = emptyReservedHalf();
+        final var subtreesRoot = hashInternalNode(assignedHalf, reservedHalf);
+        final var timestampLeaf = hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        final var root = hashInternalNode(timestampLeaf, subtreesRoot);
+
+        // The right sibling of branch 1's ancestor at each level, bottom-up
+        return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
+            new MerkleSiblingHash(false, prevBlocksRootHash),
+            new MerkleSiblingHash(false, slots23),
+            new MerkleSiblingHash(false, slots4567),
+            new MerkleSiblingHash(false, reservedHalf)
+        });
     }
 
     private boolean indirectProofsNeedVerification() {

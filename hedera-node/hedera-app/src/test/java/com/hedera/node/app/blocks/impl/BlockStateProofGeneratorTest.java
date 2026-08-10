@@ -376,7 +376,7 @@ class BlockStateProofGeneratorTest {
             Assertions.assertThat(paths.getFirst()).isEqualTo(expectedMp1);
 
             // Verify all the sibling hashes in mp2. Proof starts from the block's own root hash;
-            // siblings begin at the next block, the last for each block being its reserved-slots root.
+            // siblings begin at the next block, the last for each block being its reserved-branches root.
             final var allMp2Hashes = paths.get(BLOCK_CONTENTS_PATH_INDEX).siblings();
 
             var finalHash = EXPECTED_BLOCK_HASHES.get(outerCurrentBlockNum);
@@ -528,7 +528,7 @@ class BlockStateProofGeneratorTest {
         Bytes.fromBase64("vsAhtPNo4waRNOASwrQwcIPTqb3SBuJOXw2G4T1mNmVZM+wrQTRllmgXqcIIoRcX"),
         Bytes.fromBase64("szITXG1kGEeXF7DN1DvaAbyUh8cPXASqotbz+ddav6nSZkOGN3cg44MAtTf49zxN"),
         Bytes.fromBase64("Neol38vLZtLyxE3J2b6Hah7XTQgwpu3e3TGlyDRlUbW7xA3gqXZnm3jGlXIY9S6j"),
-        // The root of the reserved slots 8-15
+        // The root of the reserved branches 9-16
         Bytes.fromBase64("z352R/V4BwBvT1hw0iELW0A40ACyv6cRvO639KMnNGtQxh/aTlxoEQsDznCPuRz4")
     };
 

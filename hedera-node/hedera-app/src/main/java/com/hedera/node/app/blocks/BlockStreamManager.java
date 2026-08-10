@@ -35,8 +35,8 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
 
     /**
-     * The number of sibling hashes on the path from a block's first sub-tree slot up to its root: one per
-     * level of the eight assigned slots, plus the root of the reserved slots 8-15. The block root's other
+     * The number of sibling hashes on the path from a block's first branch up to its root: one per level
+     * of the eight assigned branches, plus the root of the reserved branches 9-16. The block root's other
      * child, the consensus timestamp leaf, is carried separately and is not counted here.
      */
     int NUM_SIBLINGS_PER_BLOCK = 4;

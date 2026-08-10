@@ -36,7 +36,8 @@ import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.ServicesMain;
-import com.hedera.node.app.blocks.impl.BlockRootTree;
+import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -1295,7 +1296,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         }
     }
 
-    private static BlockRootTree.RootAndSiblingHashes computeBlockHash(
+    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
+
+    private static RootAndSiblingHashes computeBlockHash(
             @NonNull final Timestamp blockTimestamp,
             @NonNull final Bytes previousBlockHash,
             @NonNull final IncrementalStreamingHasher prevBlockRootsHasher,
@@ -1311,16 +1314,40 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        return BlockRootTree.computeRootAndSiblings(
-                BlockRootTree.hashTimestampLeaf(blockTimestamp),
-                previousBlockHash,
-                prevBlocksRootHash,
-                startOfBlockStateHash,
-                consensusHeaderHash,
-                inputTreeHash,
-                outputTreeHash,
-                finalStateChangesHash,
-                traceDataHash);
+        // Built by hand, on purpose. This validator must not share the block root tree implementation with
+        // block production: if it did, any error in that implementation would be reproduced here and the
+        // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
+        final var slots01 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var slots23 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var slots45 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
+        final var slots67 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
+        final var slots0123 = BlockImplUtils.hashInternalNode(slots01, slots23);
+        final var slots4567 = BlockImplUtils.hashInternalNode(slots45, slots67);
+        final var assignedHalf = BlockImplUtils.hashInternalNode(slots0123, slots4567);
+
+        final var reservedHalf = emptyReservedHalf();
+        final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, reservedHalf);
+        final var timestampLeaf = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        final var root = BlockImplUtils.hashInternalNode(timestampLeaf, subtreesRoot);
+
+        // The right sibling of branch 1's ancestor at each level, bottom-up
+        return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
+            new MerkleSiblingHash(false, prevBlocksRootHash),
+            new MerkleSiblingHash(false, slots23),
+            new MerkleSiblingHash(false, slots4567),
+            new MerkleSiblingHash(false, reservedHalf)
+        });
+    }
+
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties =
+                BlockImplUtils.hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
     }
 
     private static List<Block> readBlocksFrom(@NonNull final Path blockStreamsDir) {
