@@ -41,6 +41,8 @@ on:
         value: ${{ jobs.acquire-kubernetes-resources.outputs.network-id }}
       owner:
         value: ${{ jobs.acquire-kubernetes-resources.outputs.owner }}
+      request-expiration:
+        value: ${{ jobs.create-allocation-request.outputs.expiration }}
 
 permissions:
   contents: read
@@ -64,6 +66,7 @@ jobs:
       aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
       network-id: ${{ steps.read-chewie-response.outputs.network-id }}
       owner: ${{ steps.read-chewie-response.outputs.owner }}
+      expiration: ${{ steps.read-chewie-response.outputs.expiration }}
     steps:
       - name: Initialize Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -129,6 +132,9 @@ jobs:
           NETWORK_ID="$(jq -r '."solo.hashgraph.io/network-id"' <<< "${CN_LABELS}")"
           OWNER="$(jq -r '."solo.hashgraph.io/owner"' <<< "${CN_LABELS}")"
 
+          # Get Expiration
+          EXPIRATION=$(jq -r '.expires_at' "${JSON_RESPONSE_FILE}")
+
           # Set outputs
           echo "namespace=${NAMESPACE}" | tee -a "${GITHUB_OUTPUT}"
           echo "kubernetes-fqdn=${CLUSTER_FQDN}" | tee -a "${GITHUB_OUTPUT}"
@@ -140,6 +146,7 @@ jobs:
           echo "aux-role=${AUX_ROLE}" | tee -a "${GITHUB_OUTPUT}"
           echo "cn-tolerations=${CN_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
           echo "aux-tolerations=${AUX_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
+          echo "expiration=${EXPIRATION}" | tee -a "${GITHUB_OUTPUT}"
           echo "::endgroup::"
 
           # Write step summary
@@ -150,3 +157,4 @@ jobs:
           echo "Owner=${OWNER}" >> "${GITHUB_STEP_SUMMARY}"
           echo "CN Quantity=${CN_QTY}" >> "${GITHUB_STEP_SUMMARY}"
           echo "AUX Quantity=${AUX_QTY}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Request Expiration=${EXPIRATION}" >> "${GITHUB_STEP_SUMMARY}"

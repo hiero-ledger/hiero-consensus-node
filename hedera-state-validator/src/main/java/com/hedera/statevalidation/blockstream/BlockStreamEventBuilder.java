@@ -231,7 +231,7 @@ public class BlockStreamEventBuilder {
                     final int parentIndex = parentRef.parent().as();
                     final PlatformEvent parent = eventIndexToEvent.get(parentIndex);
                     if (parent != null) {
-                        resolvedParents.add(parent.getDescriptor().eventDescriptor());
+                        resolvedParents.add(parent.getDescriptor().toPbj());
                     } else {
                         throw new IllegalStateException("Unable to find a parent event for index " + parentIndex);
                     }

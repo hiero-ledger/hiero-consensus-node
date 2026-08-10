@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
@@ -96,8 +96,8 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
 
         // At least one flush should have happened by now for the first 500,000 records.
         assertNotNull(loadHash(dataSource, 1, hashChunkHeight), "First record should be flushed by interval");
-        final long toCheck =
-                Path.getLeftChildPath(VirtualHashChunk.chunkIdToChunkPath(chunksToFlush - 1, hashChunkHeight));
+        final long toCheck = MerklePathUtils.getLeftChildPath(
+                VirtualHashChunk.chunkIdToChunkPath(chunksToFlush - 1, hashChunkHeight));
         assertNotNull(loadHash(dataSource, toCheck, hashChunkHeight), "500,000th record should be flushed by interval");
         assertNull(loadHash(dataSource, toCheck + 2, hashChunkHeight), "500,001st record should not be flushed yet");
         listener.onHashingCompleted();
