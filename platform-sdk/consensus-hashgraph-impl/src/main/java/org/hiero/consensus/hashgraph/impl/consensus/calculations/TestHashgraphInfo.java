@@ -91,7 +91,7 @@ public class TestHashgraphInfo {
      */
      static void main() throws IOException {
         if (!OUTPUT_FILENAME.isEmpty()) {
-            createLogFile(OUTPUT_FILENAME);
+            writeLogFile(OUTPUT_FILENAME);
         }
         if (!INPUT_FILENAME.isEmpty()) {
             checkLogFile(INPUT_FILENAME);
@@ -163,7 +163,7 @@ public class TestHashgraphInfo {
      * @param randomSeed the random number generator seed used to generate all the data in the CSV log file
      * @param time the time when the CSV log file was created
      */
-    private record NewHashgraphRow(long softwareVersion, long randomSeed, Instant time) {}
+    private record NewHashgraphRow(long hashgraphID, long softwareVersion, long randomSeed, Instant time) {}
 
     /** return the eventID of an event, or -1 if null */
     private static long eventID(EventInfo event) {
@@ -201,6 +201,7 @@ public class TestHashgraphInfo {
     private static void writeNewHashgraphRow(PrintWriter out, NewHashgraphRow newHashgraphRow) {
         StringBuilder line = new StringBuilder();
         line.append(NEW_HASHGRAPH_ROW_TYPE);
+        line.append(",").append(newHashgraphRow.hashgraphID());
         line.append(",").append(newHashgraphRow.softwareVersion());
         line.append(",").append(newHashgraphRow.randomSeed());
         line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getYear());
@@ -309,6 +310,7 @@ public class TestHashgraphInfo {
     private static void writeUpdateResults(PrintWriter out, UpdateResults updateResults) {
         StringBuilder line = new StringBuilder();
         line.append(UPDATE_RESULTS_TYPE);
+        line.append(",").append(updateResults.nextRoundInfoPrev().pendingRound() - 1);
         appendEvents(line, updateResults.consensusEvents());
         line.append(",").append(updateResults.roundTimestamp().getEpochSecond());
         line.append(",").append(updateResults.roundTimestamp().getNano());
@@ -356,7 +358,7 @@ public class TestHashgraphInfo {
      * hiero-consensus-node/platform-sdk/consensus-hashgraph-impl/src/main/java/
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
-    static void createLogFile(String outputFilename) throws IOException {
+    static void writeLogFile(String outputFilename) throws IOException {
         //final int MAX_NODE_ID = 999;
         final int NUM_NODES = 4;
         final int MAX_OTHER_PARENTS = 2;
@@ -395,7 +397,7 @@ public class TestHashgraphInfo {
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
                 if (newHashgraph) {
-                    writeNewHashgraphRow(out, new NewHashgraphRow(SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
+                    writeNewHashgraphRow(out, new NewHashgraphRow(hashgraphInfo.getHashgraphInfoID(), SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
                     newHashgraph = false;
                 }
                 while (newRound) { // start new round, update old events, if one of them reaches consensus, loop

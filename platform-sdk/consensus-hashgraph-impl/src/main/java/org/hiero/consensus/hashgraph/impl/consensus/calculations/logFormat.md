@@ -17,6 +17,7 @@ If any field is an array, it is represented by its length followed by all elemen
 
 ```
   NewHashgraph (type 0)
+    int64       hashgraphID
     int64       softwareVersion
     int64       randomSeed
     int32       year // UTC time that this file was created (7 fields)
@@ -76,6 +77,7 @@ If any field is an array, it is represented by its length followed by all elemen
     boolean[]   voteB (boolean part of the vote() pair)
 
   UpdateResults (type 5)
+    int64       pendingRound
     EventInfo[] consensusEvents
     Instant     roundTimestamp
     int32       voteD // either 1 or 2
