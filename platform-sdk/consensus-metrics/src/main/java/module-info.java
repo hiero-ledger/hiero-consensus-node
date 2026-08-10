@@ -3,16 +3,15 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.metrics.config.MetricsConfigurationExtension;
 
 module org.hiero.consensus.metrics {
-    exports org.hiero.consensus.metrics;
     exports org.hiero.consensus.metrics.config;
     exports org.hiero.consensus.metrics.extensions;
-    exports org.hiero.consensus.metrics.noop;
-    exports org.hiero.consensus.metrics.platform;
     exports org.hiero.consensus.metrics.platform.prometheus;
-    exports org.hiero.consensus.metrics.statistics;
+    exports org.hiero.consensus.metrics.platform;
     exports org.hiero.consensus.metrics.statistics.atomic;
     exports org.hiero.consensus.metrics.statistics.cycle;
     exports org.hiero.consensus.metrics.statistics.simple;
+    exports org.hiero.consensus.metrics.statistics;
+    exports org.hiero.consensus.metrics;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
