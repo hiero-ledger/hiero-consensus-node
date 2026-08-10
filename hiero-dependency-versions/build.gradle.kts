@@ -100,6 +100,8 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
+    // minot vertx-core version override 4.5.13 -> 4.5.16 to fix Snyk Scan CI [High Severity] for besu 25.7.0
+    api("io.vertx:vertx-core:4.5.16") { because("io.vertx.core") }
     api("org.hyperledger.besu:gnark:1.3.1")
     api("org.hyperledger.besu:secp256r1:1.3.1")
     api("org.hyperledger.besu:arithmetic:1.3.1")
