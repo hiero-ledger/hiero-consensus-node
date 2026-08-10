@@ -293,9 +293,8 @@ public class TestHashgraphInfo {
      * Return one line of the CSV file with just the EventID field plus the EventInfo fields that changed because it just
      * reached consensus.
      */
-    private static void writeEventInfoConsensus(PrintWriter out, EventInfo eventInfo, RoundInfoPrev roundInfoPrev) {
+    private static void writeEventInfoConsensus(PrintWriter out, EventInfo eventInfo) {
         StringBuilder line = new StringBuilder();
-        HashgraphInfo h = eventInfo.getHashgraph();
         line.append(EVENT_INFO_CONSENSUS_TYPE);
         line.append(",").append(eventID(eventInfo));
         line.append(",").append(eventInfo.isConsensus() ? 1 : 0);
@@ -449,7 +448,7 @@ public class TestHashgraphInfo {
                 Collections.shuffle(possibleOtherParents, random);
                 parents.addAll(possibleOtherParents.subList(0, Math.min(possibleOtherParents.size(), MAX_OTHER_PARENTS)));
 
-                // create a random time, greater than self parent, and greater than a randomly-chosen potential parent
+                // create a random time, greater than self-parent, and greater than a randomly chosen potential parent
                 Instant timeCreated = Instant.EPOCH;
                 if (!parents.isEmpty() && timeCreated.isBefore(parents.getFirst().getTimeCreated())) {
                     timeCreated = parents.getFirst().getTimeCreated();
@@ -482,7 +481,7 @@ public class TestHashgraphInfo {
                     roundInfoPrev = updateResults.nextRoundInfoPrev();
                     newRound = true;
                     for (EventInfo event : updateResults.consensusEvents()) {
-                        writeEventInfoConsensus(out, event, roundInfoPrev);
+                        writeEventInfoConsensus(out, event);
                         eventsWritten++;
                     }
                 }

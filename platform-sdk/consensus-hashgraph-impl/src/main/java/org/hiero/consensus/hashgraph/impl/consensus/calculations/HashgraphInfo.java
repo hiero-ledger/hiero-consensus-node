@@ -575,7 +575,7 @@ public final class HashgraphInfo {
          * Three useful metrics would be the fraction of rounds that returned
          * {@link UpdateResults#voteD}==2,
          * {@link UpdateResults#usedCoin}==true,
-         * {@link UpdateResults#nextRoundInfoPrev#prevJudgesCopied}==true.
+         * {@link UpdateResults#nextRoundInfoPrev}.prevJudgesCopied==true.
          * All 3 metrics should be close to 0.
          */
         public record UpdateResults(
