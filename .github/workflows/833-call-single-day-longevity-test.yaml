@@ -95,9 +95,30 @@ env:
   NLG_VERSION: 0.14.3
 
 jobs:
+  # Remove when the chewie secrets are required (formal SDLT integration with Chewie)
+  validate-chewie-inputs:
+    if: ${{ inputs.test-asset == '' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Validate Chewie Inputs
+        env:
+          CHEWIE_HOST: ${{ secrets.chewie-host }}
+          CHEWIE_ID_KEY: ${{ secrets.chewie-id-key }}
+        run: |
+          missing=()
+          [[ -z "${CHEWIE_HOST}" ]] && missing+=("chewie-host")
+          [[ -z "${CHEWIE_ID_KEY}" ]] && missing+=("chewie-id-key")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::Chewie requires the following secrets: ${missing[*]}."
+            exit 1
+          fi
+
   # Remove if test-asset is not empty check when formal SDLT uses Chewie
   get-chewie-jwt:
     if: ${{ inputs.test-asset == '' }}
+    needs:
+      - validate-chewie-inputs
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
@@ -116,7 +137,8 @@ jobs:
   # Remove if test-asset is not empty check when formal SDLT uses Chewie
   validate-chewie-jwt:
     if: ${{ inputs.test-asset == '' }}
-    needs: get-chewie-jwt
+    needs:
+      - get-chewie-jwt
     uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
       ref: ${{ inputs.ref }}

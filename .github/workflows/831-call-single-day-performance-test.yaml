@@ -114,10 +114,31 @@ env:
   ValidatorExitCode: 0
 
 jobs:
+  # Remove when the chewie secrets are required (formal SDPT integration with Chewie)
+  validate-chewie-inputs:
+    if: ${{ inputs.test-asset == '' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Validate Chewie Inputs
+        env:
+          CHEWIE_HOST: ${{ secrets.chewie-host }}
+          CHEWIE_ID_KEY: ${{ secrets.chewie-id-key }}
+        run: |
+          missing=()
+          [[ -z "${CHEWIE_HOST}" ]] && missing+=("chewie-host")
+          [[ -z "${CHEWIE_ID_KEY}" ]] && missing+=("chewie-id-key")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::Chewie requires the following secrets: ${missing[*]}."
+            exit 1
+          fi
+
   # Remove if test-asset is not empty check when formal SDPT uses Chewie
   get-chewie-jwt:
     if: ${{ inputs.test-asset == '' }}
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    needs:
+      - validate-chewie-inputs
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
