@@ -4,14 +4,19 @@ package com.swirlds.platform.reconnect;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Supplier;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * The {@code ReconnectModule} contains the logic for handling reconnects. It is responsible for managing the
@@ -33,12 +38,24 @@ public interface ReconnectModule {
      * @param selfId the ID of this node
      */
     void initialize(
-            @NonNull Configuration configuration,
-            @NonNull Time time,
-            @NonNull Roster currentRoster,
-            @NonNull ConsensusLayerAdapterBuildingBlocks buildingBlocks,
-            @NonNull Platform platform,
-            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull NodeId selfId);
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final ThreadManager threadManager,
+            @NonNull final Roster currentRoster,
+            @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
+            @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
+            @NonNull final Platform platform,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
+            @NonNull final NodeId selfId);
+
+    /**
+     * Provides an implementation of {@link PeerProtocolFactory} that implements the execution layer's part
+     * of the reconnect protocol. This is a temporary method which will be deleted when reconnect teaching moves
+     * to the block node.
+     *
+     * @return the peer protocol factory
+     */
+    PeerProtocolFactory getReconnectPeerProtocolFactory();
 }

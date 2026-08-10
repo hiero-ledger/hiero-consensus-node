@@ -6,6 +6,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
@@ -61,6 +62,14 @@ public interface ConsensusLayer {
     void oldestRestartableSnapshot(@NonNull final ConsensusSnapshot consensusSnapshot);
 
     /**
+     * Sets the reconnect peer protocol factory, which is provided by the adapter. This method is temporary and will be
+     * deleted when reconnect teaching moves to the block node.
+     *
+     * @param reconnectPeerProtocolFactory the peer protocol factory
+     */
+    void setReconnectPeerProtocolFactory(@NonNull final PeerProtocolFactory reconnectPeerProtocolFactory);
+
+    /**
      * Informs the consensus layer of a status change based on events owned by the execution layer.
      *
      * @param status the new status
@@ -76,6 +85,5 @@ public interface ConsensusLayer {
          * The node has encountered a failure, and is unable to continue. The consensus layer is idle.
          */
         CATASTROPHIC_FAILURE;
-
     }
 }

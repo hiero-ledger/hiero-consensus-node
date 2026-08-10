@@ -44,6 +44,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -54,6 +55,7 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -71,11 +73,13 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
@@ -213,8 +217,6 @@ public class ConsensusLayerAdapterFactory {
     public ConsensusLayerAdapterBuildingBlocks create() {
         final LatestCompleteStateNexus latestCompleteStateNexus =
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
-                new BlockingResourceProvider<>();
 
         // TODO figure out what to do with this
         final FallenBehindMonitor fallenBehindMonitor = createFallenBehindMonitor();
@@ -237,8 +239,9 @@ public class ConsensusLayerAdapterFactory {
 
         ConsensusLayerStaticSetup.setup(configuration);
 
+        final AtomicReference<PlatformStatus> platformStatusReference = new AtomicReference<>();
         final ExecutionLayerCallbacks executionLayerCallbacks = createExecutionLayerCallbacks(latestImmutableStateNexus,
-                notifierWiring, stateModule, transactionHandlingModule);
+                notifierWiring, stateModule, transactionHandlingModule, platformStatusReference);
 
         final ConsensusLayer consensusLayer = createConsensusLayer(executionLayerCallbacks);
 
@@ -253,8 +256,9 @@ public class ConsensusLayerAdapterFactory {
                 notifierWiring,
                 notificationEngine,
                 savedStateController,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor);
+                fallenBehindMonitor,
+                platformStatusReference,
+                latestCompleteStateNexus);
     }
 
     private ConsensusLayer createConsensusLayer(@NonNull final ExecutionLayerCallbacks executionLayerCallbacks) {
@@ -266,10 +270,6 @@ public class ConsensusLayerAdapterFactory {
                 new RunningEventHashOverride(legacyRunningEventHash, false);
 
         final Instant freezeTime = getFreezeTime();
-
-        final ReconnectPeerProtocolFactory reconnectProtocolFactory = new ReconnectPeerProtocolFactory(
-
-        );
 
         final ConsensusLayerInputs consensusLayerInputs = new ConsensusLayerInputs(
                 configuration,
@@ -287,7 +287,6 @@ public class ConsensusLayerAdapterFactory {
                 version,
                 transactionOffsetNanos,
                 executionLayer.getTransactionLimits(),
-                reconnectProtocolFactory,
                 freezeTime,
                 wiringModel,
                 secureRandom,
@@ -318,7 +317,8 @@ public class ConsensusLayerAdapterFactory {
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final ComponentWiring<AppNotifier, Void> notifierWiring,
             @NonNull final StateModule stateModule,
-            @NonNull final TransactionHandlingModule transactionHandlingModule) {
+            @NonNull final TransactionHandlingModule transactionHandlingModule,
+            @NonNull final AtomicReference<PlatformStatus> platformStatusReference) {
         return new AdapterCallbacks(
                 consensusStateEventHandler,
                 executionLayer,
@@ -326,7 +326,8 @@ public class ConsensusLayerAdapterFactory {
                 staleEventConsumer,
                 notifierWiring,
                 stateModule,
-                transactionHandlingModule);
+                transactionHandlingModule,
+                platformStatusReference);
     }
 
     @NonNull
@@ -367,13 +368,18 @@ public class ConsensusLayerAdapterFactory {
         final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
         reconnectModule.initialize(
                 configuration,
+                metrics,
                 time,
+                AdHocThreadManager.getStaticThreadManager(),
                 rosterHistory.getCurrentRoster(),
+                () -> buildingBlocks.lastCompleteSignedState().getState("teach reconnect"),
                 buildingBlocks,
                 platform,
                 stateLifecycleManager,
                 consensusStateEventHandler,
                 selfId);
+        final PeerProtocolFactory reconnectPeerProtocolFactory = reconnectModule.getReconnectPeerProtocolFactory();
+        buildingBlocks.consensusLayer().setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
     }
 
     @NonNull

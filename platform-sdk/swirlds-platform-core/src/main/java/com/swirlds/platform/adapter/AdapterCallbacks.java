@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.ExecutionLayerCallbacks;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.Round;
@@ -48,6 +49,9 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     @NonNull
     private final TransactionHandlingModule transactionHandlingModule;
 
+    @NonNull
+    private final AtomicReference<PlatformStatus> platformStatusReference;
+
     public AdapterCallbacks(
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final ExecutionLayer executionLayer,
@@ -55,7 +59,8 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
             @Nullable final StaleEventConsumer staleEventConsumer,
             @NonNull final ComponentWiring<AppNotifier, Void> notifierWiring,
             @NonNull final StateModule stateModule,
-            @NonNull final TransactionHandlingModule transactionHandlingModule) {
+            @NonNull final TransactionHandlingModule transactionHandlingModule,
+            @NonNull final AtomicReference<PlatformStatus> platformStatusReference) {
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.executionLayer = requireNonNull(executionLayer);
         this.latestImmutableStateNexus = requireNonNull(latestImmutableStateNexus);
@@ -63,6 +68,7 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
         this.notifierWiring = requireNonNull(notifierWiring);
         this.stateModule = requireNonNull(stateModule);
         this.transactionHandlingModule = requireNonNull(transactionHandlingModule);
+        this.platformStatusReference = requireNonNull(platformStatusReference);
     }
 
     @Override
@@ -94,6 +100,7 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
         executionLayer.newPlatformStatus(status);
         notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification).inject(status);
         stateModule.platformStatusInputWire().inject(status);
+        platformStatusReference.set(status);
     }
 
     @Override

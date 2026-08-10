@@ -38,7 +38,6 @@ public record ConsensusLayerInputs(
         @NonNull SemanticVersion version,
         long transactionOffsetNanos,
         @NonNull TransactionLimits transactionLimits,
-        @NonNull PeerProtocolFactory reconnectProtocolFactory,
         @Nullable Instant freezeTime,
         // The fields below are for testing only.
         @Nullable WiringModel wiringModel,

@@ -24,12 +24,20 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  */
 public class ReconnectPeerProtocolFactory implements PeerProtocolFactory {
 
-    private final FallenBehindMonitor fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
 
     private final Configuration configuration;
     private final Metrics metrics;
     private final Time time;
     private final Supplier<PlatformStatus> platformStatusSupplier;
+    private final ThreadManager threadManager;
+    private final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle;
+    private final ReconnectMetrics reconnectMetrics;
+    private final Supplier<ReservedSignedState> lastCompleteSignedState;
+    private final Duration reconnectSocketTimeout;
+    private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
+    private final StateLifecycleManager stateLifecycleManager;
+
 
     public ReconnectPeerProtocolFactory(
             @NonNull final Configuration configuration,
@@ -40,7 +48,7 @@ public class ReconnectPeerProtocolFactory implements PeerProtocolFactory {
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
-            @NonNull final FallenBehindMonitor fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier) {
@@ -53,7 +61,7 @@ public class ReconnectPeerProtocolFactory implements PeerProtocolFactory {
         this.lastCompleteSignedState = requireNonNull(lastCompleteSignedState);
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = requireNonNull(reconnectMetrics);
-        this.fallenBehindManager = requireNonNull(fallenBehindManager);
+        this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.reservedSignedStateResultPromise = requireNonNull(reservedSignedStateResultPromise);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.platformStatusSupplier = requireNonNull(platformStatusSupplier);
@@ -66,9 +74,15 @@ public class ReconnectPeerProtocolFactory implements PeerProtocolFactory {
                 configuration,
                 metrics,
                 time,
+                threadManager,
                 requireNonNull(peerId),
-                executionProtocol,
-                platformStatusSupplier,
-                fallenBehindManager);
+                reconnectStateTeacherThrottle,
+                lastCompleteSignedState,
+                reconnectSocketTimeout,
+                reconnectMetrics,
+                fallenBehindMonitor,
+                reservedSignedStateResultPromise,
+                stateLifecycleManager,
+                platformStatusSupplier);
     }
 }
