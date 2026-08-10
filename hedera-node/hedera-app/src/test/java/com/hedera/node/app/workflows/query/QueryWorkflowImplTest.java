@@ -868,6 +868,29 @@ class QueryWorkflowImplTest extends AppTestBase {
     }
 
     @Test
+    void paidQueryDoesNotSubmitPaymentWhenResponseGenerationFails() throws PreCheckException, ParseException {
+        // given — a paid query that passes validation and throttling, but whose response generation then fails
+        mockQueryContext();
+        when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
+        when(handler.findResponse(any(), any())).thenThrow(new RuntimeException("response generation failed"));
+        final var responseBuffer = newEmptyBuffer();
+
+        // when
+        workflow.handleQuery(requestBuffer, responseBuffer);
+
+        // then — the node never produced an answer, so the payment is not submitted and the payer is not charged.
+        verify(submissionManager, never()).submit(any(), any(), anyBoolean());
+    }
+
+    @Test
     void testPaidQueryWithInvalidTransactionFails() throws PreCheckException, ParseException {
         // given
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
