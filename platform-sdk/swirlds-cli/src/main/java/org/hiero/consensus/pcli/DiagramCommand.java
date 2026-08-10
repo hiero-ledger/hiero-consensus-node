@@ -12,6 +12,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatus
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -55,7 +56,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
@@ -156,7 +156,7 @@ public final class DiagramCommand extends AbstractCommand {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                RosterHistory.fakeRoster(),
+                fakeRosterHistory(),
                 KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
                 NodeId.FIRST_NODE_ID,
                 new NoOpRecycleBin(),
