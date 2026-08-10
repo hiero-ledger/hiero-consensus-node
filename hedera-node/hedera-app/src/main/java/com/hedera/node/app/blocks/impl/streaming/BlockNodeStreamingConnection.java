@@ -1243,7 +1243,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final long microsPerKb = bncConfig().opTimeoutMicrosPerKilobyte();
         final long maxMillis = bncConfig().opTimeoutMaxMillis();
 
-        final long kilobytes = (payloadSizeInBytes / 1024L) + 1;
+        final long kilobytes = (payloadSizeInBytes / BlockStreamingUtils.KB_TO_BYTES) + 1;
         final long microsToAdd = kilobytes * microsPerKb;
         final long millisToAdd = TimeUnit.MICROSECONDS.toMillis(microsToAdd);
         final long timeout = baseMillis + millisToAdd;

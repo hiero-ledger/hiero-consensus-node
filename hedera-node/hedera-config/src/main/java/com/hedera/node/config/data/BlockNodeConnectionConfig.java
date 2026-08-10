@@ -41,6 +41,11 @@ import java.time.Duration;
  * @param numBlocksBehindHighThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
  *                                     via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in an extended cool down
  * @param slowRequestThresholdMillis amount of time (in milliseconds) a request will take to send before it is considered slow (should be less than {@link #pipelineOperationTimeout()}
+ * @param opTimeoutBaseMillis the minimum amount of time (in milliseconds) to set for dynamic timeouts when sending requests to a block node
+ * @param opTimeoutMicrosPerKilobyte the amount of time (in microseconds) to add for dynamic timeouts for each kilobyte being sent to a block node in one request
+ * @param opTimeoutMaxMillis the maximum amount of time (in milliseconds) to set for dynamic timeouts when sending requests to a block node
+ * @param opTimeoutMaxAttemptsPerWindow the maximum number of times requests are allowed to timeout within a given window before the connection is closed
+ * @param opTimeoutWindowDuration the sliding window duration used for checking if too many request timeouts have occurred
  */
 // spotless:off
 @ConfigData("blockNode")
