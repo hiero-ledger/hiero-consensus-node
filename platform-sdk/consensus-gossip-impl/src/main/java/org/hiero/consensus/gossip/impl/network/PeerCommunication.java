@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.consensus.concurrent.NodeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
@@ -69,11 +70,11 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Create manager of communication with neighbouring nodes for exchanging events.
      *
-     * @param configuration the platform configuration
-     * @param metrics the metrics system
-     * @param time source of time
-     * @param peers the current list of peers
-     * @param selfPeer this node's data
+     * @param configuration   the platform configuration
+     * @param metrics         the metrics system
+     * @param time            source of time
+     * @param peers           the current list of peers
+     * @param selfPeer        this node's data
      * @param ownKeysAndCerts private keys and public certificates for this node
      */
     public PeerCommunication(
@@ -100,9 +101,9 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Second half of constructor, to initialize things which cannot be passed in the constructor for whatever reasons
      *
-     * @param threadManager the thread manager
+     * @param threadManager      the thread manager
      * @param handshakeProtocols list of handshake protocols for new connections
-     * @param protocols list of peer protocols for handling data for established connection
+     * @param protocols          list of peer protocols for handling data for established connection
      */
     public void initialize(
             @NonNull final ThreadManager threadManager,
@@ -120,13 +121,17 @@ public class PeerCommunication implements ConnectionTracker {
 
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
 
-        this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
-                .setPriority(gossipConfig.connectionServerThreadPriority())
+        final NodeThreadNameProvider threadNaming = new NodeThreadNameProvider()
                 .setNodeId(selfId)
                 .setComponent(PLATFORM_THREAD_POOL_NAME)
-                .setThreadName("connectionServer")
+                .setThreadName("connectionServer");
+
+        final StoppableThreadConfiguration<InterruptableRunnable> stc = new StoppableThreadConfiguration<>(
+                        threadManager)
                 .setWork(connectionServer)
-                .build();
+                .setPriority(gossipConfig.connectionServerThreadPriority())
+                .setThreadNameProvider(threadNaming.supplier());
+        this.connectionServerThread = stc.build();
 
         registerDedicatedThreads(buildProtocolThreads(topology.getNeighbors()));
     }
@@ -144,7 +149,7 @@ public class PeerCommunication implements ConnectionTracker {
      * data in added. Internally it will be first removed and then added, so there can be a short moment when it will
      * drop out of the network if disconnect happens at a bad moment.
      *
-     * @param added peers to be added
+     * @param added   peers to be added
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
@@ -257,24 +262,26 @@ public class PeerCommunication implements ConnectionTracker {
         final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads =
                 new ArrayList<DedicatedStoppableThread<NodeId>>();
         for (final NodeId otherId : peers) {
-            syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(
-                    otherId,
-                    new StoppableThreadConfiguration<>(threadManager)
-                            .setPriority(Thread.NORM_PRIORITY)
-                            .setNodeId(selfId)
-                            .setComponent(PLATFORM_THREAD_POOL_NAME)
-                            .setOtherNodeId(otherId)
-                            .setThreadName("SyncProtocolWith" + otherId)
-                            .setHangingThreadPeriod(hangingThreadDuration)
-                            .setWork(new ProtocolNegotiatorThread(
-                                    connectionManagers.getManager(otherId),
-                                    syncConfig.syncSleepAfterFailedNegotiation(),
-                                    handshakeProtocols,
-                                    new NegotiationProtocols(protocolList.stream()
-                                            .map(protocol -> protocol.createPeerInstance(otherId))
-                                            .toList()),
-                                    time))
-                            .build()));
+
+            StoppableThreadConfiguration stc = new StoppableThreadConfiguration<>(threadManager)
+                    .setPriority(Thread.NORM_PRIORITY)
+                    .setHangingThreadPeriod(hangingThreadDuration)
+                    .setWork(new ProtocolNegotiatorThread(
+                            connectionManagers.getManager(otherId),
+                            syncConfig.syncSleepAfterFailedNegotiation(),
+                            handshakeProtocols,
+                            new NegotiationProtocols(protocolList.stream()
+                                    .map(protocol -> protocol.createPeerInstance(otherId))
+                                    .toList()),
+                            time));
+            stc.setThreadNameProvider(new NodeThreadNameProvider()
+                    .setOtherNodeId(otherId)
+                    .setNodeId(selfId)
+                    .setComponent(PLATFORM_THREAD_POOL_NAME)
+                    .setThreadName("SyncProtocolWith" + otherId)
+                    .supplier());
+
+            syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(otherId, stc.build()));
         }
         return syncProtocolThreads;
     }
@@ -349,7 +356,7 @@ public class PeerCommunication implements ConnectionTracker {
 /**
  * Represents a thread created for a specific context
  *
- * @param key opaque context for which this thread is created
+ * @param key    opaque context for which this thread is created
  * @param thread thread itself, to be started/stopped/forgotten depending on the key context
  */
 record DedicatedStoppableThread<E>(@NonNull E key, @Nullable StoppableThread thread) {}

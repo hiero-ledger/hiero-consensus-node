@@ -105,7 +105,10 @@ Behavioral claims tie to the specific code that makes them true. Match that bar
   `module/.../File.java` (e.g.
   `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java`); full,
   unabbreviated paths belong in `components:` frontmatter. Follow the
-  surrounding file.
+  surrounding file. To point at a specific declaration, cite the **symbol**,
+  not a line: `File.java#methodOrFieldOrEnumOrType` — never `File.java:NN`
+  (line numbers drift; the checker auto-migrates a cited declaration line to
+  `#symbol`, and a `#symbol` that no longer exists asserts).
 - **Verify before you write; refresh on touch.** Confirm every class, method,
   path, and commit exists before citing it — never invent line numbers or
   commit hashes. When you change a claim, re-check that its anchors still
