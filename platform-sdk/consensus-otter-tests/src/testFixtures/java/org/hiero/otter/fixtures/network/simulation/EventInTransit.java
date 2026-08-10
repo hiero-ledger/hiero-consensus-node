@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.gossip;
+package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -13,8 +13,10 @@ import org.hiero.consensus.model.node.NodeId;
  * @param sender      the node that sent the event
  * @param arrivalTime the time the event is scheduled to arrive at its destination
  */
-public record EventInTransit(@NonNull PlatformEvent event, @NonNull NodeId sender, @NonNull Instant arrivalTime)
-        implements Comparable<EventInTransit> {
+public record EventInTransit(
+        @NonNull PlatformEvent event,
+        @NonNull NodeId sender,
+        @NonNull Instant arrivalTime) implements Comparable<EventInTransit> {
     @Override
     public int compareTo(@NonNull final EventInTransit that) {
         return arrivalTime.compareTo(that.arrivalTime);

@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-003 — Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
