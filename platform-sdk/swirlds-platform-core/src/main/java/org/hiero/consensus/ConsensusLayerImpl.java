@@ -18,6 +18,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.pces.PcesModule;
@@ -123,6 +124,12 @@ public class ConsensusLayerImpl implements ConsensusLayer {
     @Override
     public void oldestRestartableSnapshot(@NonNull final ConsensusSnapshot consensusSnapshot) {
         pcesModule.minimumBirthRoundInputWire().inject(extractAncientThreshold(consensusSnapshot));
+    }
+
+    @Override
+    public void setReconnectPeerProtocolFactory(
+            @NonNull final PeerProtocolFactory reconnectPeerProtocolFactory) {
+        gossipModule.setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
     }
 
     @Override

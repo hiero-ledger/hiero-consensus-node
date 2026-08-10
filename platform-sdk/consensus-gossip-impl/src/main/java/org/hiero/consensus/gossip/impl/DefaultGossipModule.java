@@ -56,6 +56,9 @@ public final class DefaultGossipModule implements GossipModule {
     @Nullable
     private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
+    @Nullable
+    private SyncGossipModular gossip;
+
     /**
      * {@inheritDoc}
      */
@@ -74,7 +77,6 @@ public final class DefaultGossipModule implements GossipModule {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final PeerProtocolFactory reconnectPeerProtocolFactory,
             @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
@@ -90,7 +92,7 @@ public final class DefaultGossipModule implements GossipModule {
 
         // Create and bind components
         final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
-        final Gossip gossip = new SyncGossipModular(
+        gossip = new SyncGossipModular(
                 configuration,
                 metrics,
                 time,
@@ -100,8 +102,7 @@ public final class DefaultGossipModule implements GossipModule {
                 selfId,
                 appVersion,
                 intakeEventCounter,
-                fallenBehindMonitor,
-                reconnectPeerProtocolFactory);
+                fallenBehindMonitor);
         gossipWiring.bind(gossip);
     }
 
@@ -210,5 +211,11 @@ public final class DefaultGossipModule implements GossipModule {
     @Override
     public void flush() {
         requireNonNull(gossipWiring, "Not initialized").flush();
+    }
+
+    @Override
+    public void setReconnectPeerProtocolFactory(
+            @NonNull PeerProtocolFactory reconnectPeerProtocolFactory) {
+        requireNonNull(gossip, "Not initialized").setExecutionProtocolFactory(reconnectPeerProtocolFactory);
     }
 }

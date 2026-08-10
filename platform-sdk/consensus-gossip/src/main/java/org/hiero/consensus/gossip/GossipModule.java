@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.PeerProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -172,4 +173,12 @@ public interface GossipModule {
      * Flushes the gossip module.
      */
     void flush();
+
+    /**
+     * Sets the reconnect peer protocol factory, which is provided by the adapter. This method is temporary and will be
+     * deleted when reconnect teaching moves to the block node.
+     *
+     * @param reconnectPeerProtocolFactory the peer protocol factory
+     */
+    void setReconnectPeerProtocolFactory(@NonNull PeerProtocolFactory reconnectPeerProtocolFactory);
 }

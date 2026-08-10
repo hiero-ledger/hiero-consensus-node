@@ -59,6 +59,7 @@ public class SyncGossipModular implements Gossip {
     private final RpcPeerProtocolFactory rpcProtocolFactory;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final ShadowgraphSynchronizer synchronizer;
+    private final ReconnectProxyProtocolFactory proxyProtocolFactory;
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
@@ -77,7 +78,6 @@ public class SyncGossipModular implements Gossip {
      * @param appVersion the version of the app
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param reconnectProtocolFactory the reconnect protocol to use
      */
     public SyncGossipModular(
             @NonNull final Configuration configuration,
@@ -89,8 +89,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final PeerProtocolFactory reconnectProtocolFactory) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -143,10 +142,9 @@ public class SyncGossipModular implements Gossip {
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event));
 
-        final ReconnectProxyProtocolFactory proxyProtocolFactory = new ReconnectProxyProtocolFactory(
+        proxyProtocolFactory = new ReconnectProxyProtocolFactory(
                 metrics,
                 time,
-                reconnectProtocolFactory,
                 fallenBehindMonitor);
 
         this.protocolFactories = List.of(
@@ -159,6 +157,10 @@ public class SyncGossipModular implements Gossip {
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
         network.initialize(threadManager, handshakeProtocols, protocolFactories);
+    }
+
+    public void setExecutionProtocolFactory(@NonNull final PeerProtocolFactory executionProtocolFactory) {
+        this.proxyProtocolFactory.setExecutionProtocolFactory(executionProtocolFactory);
     }
 
     /**
@@ -215,9 +217,6 @@ public class SyncGossipModular implements Gossip {
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(rpcProtocolFactory::reportUnhealthyDuration);
-        platformStatusInput.bindConsumer(status -> {
-            protocolFactories.forEach(protocolFactory -> protocolFactory.updatePlatformStatus(status));
-        });
         pauseGossip.bindConsumer(ignored -> {
             rpcProtocolFactory.pause();
             fallenBehindMonitor.notifySyncProtocolPaused();
