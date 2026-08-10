@@ -72,6 +72,7 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      # TODO: The chewie secrets become required when SDPT is fully integrated with Chewie. For now, they are optional to allow for legacy SDPT runs.
       chewie-host:
         required: false
         description: "Chewie Host"
