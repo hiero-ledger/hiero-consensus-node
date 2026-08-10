@@ -78,8 +78,8 @@ public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonV
             final StringBuilder sb = new StringBuilder();
             sb.append(description).append("\n");
             sb.append("Events are not equal:\n");
-            sb.append("Event 1: ").append(e1.getDescriptor().shortString()).append("\n");
-            sb.append("Event 2: ").append(e2.getDescriptor().shortString()).append("\n");
+            sb.append("Event 1: ").append(e1.getDescriptor()).append("\n");
+            sb.append("Event 2: ").append(e2.getDescriptor()).append("\n");
             getEventDifference(sb, e1, e2);
             throw new RuntimeException(sb.toString());
         }
