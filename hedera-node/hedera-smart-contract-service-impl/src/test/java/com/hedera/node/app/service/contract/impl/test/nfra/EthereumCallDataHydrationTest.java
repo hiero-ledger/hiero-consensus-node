@@ -25,7 +25,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.bouncycastle.util.encoders.Hex;
+import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -130,7 +130,7 @@ class EthereumCallDataHydrationTest {
 
     @Test
     void replacesCallDataIfAppropriate() {
-        final var hexedCallData = Hex.encode(CALL_DATA.toByteArray());
+        final var hexedCallData = HexFormat.of().formatHex(CALL_DATA.toByteArray());
         final var expectedData = ETH_DATA_WITH_TO_ADDRESS.replaceCallData(CALL_DATA.toByteArray());
         given(fileStore.getFileLeaf(ETH_CALLDATA_FILE_ID))
                 .willReturn(
