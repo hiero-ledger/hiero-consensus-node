@@ -4,8 +4,6 @@ package com.swirlds.virtualmap;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -43,7 +41,7 @@ public final class VirtualMapMigration {
 
         final long firstLeafPath = source.getMetadata().getFirstLeafPath();
         final long lastLeafPath = source.getMetadata().getLastLeafPath();
-        if (firstLeafPath == Path.INVALID_PATH || lastLeafPath == Path.INVALID_PATH) {
+        if (firstLeafPath == MerklePathUtils.INVALID_PATH || lastLeafPath == MerklePathUtils.INVALID_PATH) {
             return;
         }
 
@@ -127,7 +125,7 @@ public final class VirtualMapMigration {
 
         final long firstLeafPath = source.getMetadata().getFirstLeafPath();
         final long lastLeafPath = source.getMetadata().getLastLeafPath();
-        if (firstLeafPath == Path.INVALID_PATH || lastLeafPath == Path.INVALID_PATH) {
+        if (firstLeafPath == MerklePathUtils.INVALID_PATH || lastLeafPath == MerklePathUtils.INVALID_PATH) {
             return;
         }
 

@@ -28,6 +28,7 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValueGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterBuilder;
@@ -36,7 +37,6 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGen
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;

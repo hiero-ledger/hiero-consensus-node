@@ -160,18 +160,20 @@ jobs:
           fetch-tags: true
 
       - name: Checkout TCK Tag
+        env:
+          TCK_VERSION: ${{ inputs.tck-version }}
         run: |
           cd sdk-tck/regression
           git fetch --tags
           # Check out by tag first, then fall back to commit SHA.
-          if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
-            echo "Checking out specified TCK version (tag): ${{ inputs.tck-version }}"
-            git checkout "tags/${{ inputs.tck-version }}"
-          elif git rev-parse --verify "${{ inputs.tck-version }}^{commit}" >/dev/null 2>&1; then
-            echo "Checking out specified TCK version (commit SHA): ${{ inputs.tck-version }}"
-            git checkout "${{ inputs.tck-version }}"
+          if git rev-parse "refs/tags/${TCK_VERSION}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (tag): ${TCK_VERSION}"
+            git checkout "tags/${TCK_VERSION}"
+          elif git rev-parse --verify "${TCK_VERSION}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (commit SHA): ${TCK_VERSION}"
+            git checkout "${TCK_VERSION}"
           else
-            echo "Specified TCK version ${{ inputs.tck-version }} not found as a tag or commit SHA."
+            echo "Specified TCK version ${TCK_VERSION} not found as a tag or commit SHA."
             exit 1
           fi
 
@@ -185,17 +187,22 @@ jobs:
           fetch-tags: true
 
       - name: Checkout JS-SDK Tag
+        env:
+          JS_SDK_VERSION: ${{ inputs.js-sdk-version }}
         run: |
           cd sdk-tck/sdk-server
           git fetch --tags
 
-          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
-          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
-            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
-            git checkout "tags/${{ inputs.js-sdk-version }}"
+          # Check out by tag first, then fall back to commit SHA, then branch.
+          if git rev-parse "refs/tags/${JS_SDK_VERSION}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version (tag): ${JS_SDK_VERSION}"
+            git checkout "tags/${JS_SDK_VERSION}"
+          elif git rev-parse --verify "${JS_SDK_VERSION}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version (commit SHA): ${JS_SDK_VERSION}"
+            git checkout "${JS_SDK_VERSION}"
           else
-            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
-            exit 1 # fail the workflow if not present.
+            echo "Checking out specified JS-SDK version (branch): ${JS_SDK_VERSION}"
+            git fetch origin "${JS_SDK_VERSION}" && git checkout FETCH_HEAD
           fi
 
       - name: Setup PNPM
@@ -241,12 +248,14 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          if [[ -z "${{ inputs.solo-version }}" ]]; then
+          if [[ -z "$SOLO_VERSION" ]]; then
             echo "ERROR: solo-version input must be set to a specific version tag (e.g. v0.44.0)"
             exit 1
           fi
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
