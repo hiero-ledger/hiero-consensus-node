@@ -180,8 +180,12 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-REQ#-CRN#
      */
     final @NonNull String buildRequestCorrelationId(
-            final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber, final int blockAttemptNumber) {
-        return connectionId + "-BLK" + blockNumber + "-BAN" + blockAttemptNumber + "-REQ" + blockRequestNumber + "-CRN" + connectionRequestNumber;
+            final long connectionRequestNumber,
+            final long blockNumber,
+            final int blockRequestNumber,
+            final int blockAttemptNumber) {
+        return connectionId + "-BLK" + blockNumber + "-BAN" + blockAttemptNumber + "-REQ" + blockRequestNumber + "-CRN"
+                + connectionRequestNumber;
     }
 
     /**

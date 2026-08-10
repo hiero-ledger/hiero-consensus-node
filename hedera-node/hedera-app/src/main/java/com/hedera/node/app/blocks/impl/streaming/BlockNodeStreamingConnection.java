@@ -736,7 +736,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final String correlationId;
         if (request instanceof final BlockRequest blockRequest) {
             correlationId = buildRequestCorrelationId(
-                    connectionRequestNumber, blockRequest.blockNumber(), blockRequest.requestNumber(), blockRequest.blockAttemptNumber());
+                    connectionRequestNumber,
+                    blockRequest.blockNumber(),
+                    blockRequest.requestNumber(),
+                    blockRequest.blockAttemptNumber());
         } else {
             correlationId = buildRequestCorrelationId(connectionRequestNumber);
         }
@@ -788,7 +791,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         } catch (final TimeoutException _) {
             endNanos.compareAndSet(-1, System.nanoTime());
             future.cancel(true);
-            return handleSendTimeout(request, System.currentTimeMillis(), correlationId, startNanos.get(), endNanos.get());
+            return handleSendTimeout(
+                    request, System.currentTimeMillis(), correlationId, startNanos.get(), endNanos.get());
         } catch (final InterruptedException e) {
             endNanos.compareAndSet(-1, System.nanoTime());
             Thread.currentThread().interrupt();
@@ -848,7 +852,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         return new SendRequestResult(SendRequestStatus.SUCCESS, startNanos.get(), endNanos.get());
     }
 
-    private SendRequestResult handleSendError(final Exception e, final String correlationId, final long reqStartNanos, final long reqEndNanos) {
+    private SendRequestResult handleSendError(
+            final Exception e, final String correlationId, final long reqStartNanos, final long reqEndNanos) {
         final long durationMicros = calculateDurationMicros(reqStartNanos, reqEndNanos);
         blockStreamMetrics.recordRequestSendFailure();
         final Throwable error = e instanceof ExecutionException ? e.getCause() : e;
@@ -889,7 +894,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
     }
 
-    private SendRequestResult handleSendInterrupt(final InterruptedException e, final String correlationId, final long reqStartNanos, final long reqEndNanos) {
+    private SendRequestResult handleSendInterrupt(
+            final InterruptedException e,
+            final String correlationId,
+            final long reqStartNanos,
+            final long reqEndNanos) {
         blockStreamMetrics.recordRequestSendFailure();
         final long durationMicros = calculateDurationMicros(reqStartNanos, reqEndNanos);
 
@@ -908,7 +917,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
     }
 
-    private SendRequestResult handleSendTimeout(final StreamRequest request, final long timeoutTimestamp, final String correlationId, final long reqStartNanos, final long reqEndNanos) {
+    private SendRequestResult handleSendTimeout(
+            final StreamRequest request,
+            final long timeoutTimestamp,
+            final String correlationId,
+            final long reqStartNanos,
+            final long reqEndNanos) {
         /*
         We've timed out sending a request to the block node. If we've encountered too many timeouts in a short period,
         then we need to close the connection. If we haven't reached the max timeouts, then we can retry sending the
@@ -959,8 +973,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             return new SendRequestResult(SendRequestStatus.TIMEOUT_CLOSE, reqStartNanos, reqEndNanos);
         } else {
             if (logger.isDebugEnabled()) {
-            logger.debug("{} Max timeouts have not been reached; block re-send is permitted (max: {}, attempts: {})",
-                    connectionContext(correlationId), maxTimeoutsAllowed, mostRecentOpTimeoutTimestamps.size());
+                logger.debug(
+                        "{} Max timeouts have not been reached; block re-send is permitted (max: {}, attempts: {})",
+                        connectionContext(correlationId),
+                        maxTimeoutsAllowed,
+                        mostRecentOpTimeoutTimestamps.size());
             }
             return new SendRequestResult(SendRequestStatus.TIMEOUT, reqStartNanos, reqEndNanos);
         }
@@ -1503,8 +1520,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     .build();
             final long timeoutMillis = calculateRequestTimeout(endOfBlock.protobufSize());
             try {
-                final SendRequestResult result =
-                        sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get(), timeoutMillis, blockAttemptNumber));
+                final SendRequestResult result = sendRequest(new BlockEndRequest(
+                        endOfBlock, block.blockNumber(), requestCtr.get(), timeoutMillis, blockAttemptNumber));
                 if (SendRequestStatus.SUCCESS == result.status) {
                     streamingObs.onBlockEndSend(block.blockNumber(), result.nanosTickStart, result.nanosTickEnd);
                     connStats.recordBlockSent(block.blockNumber());
@@ -1689,7 +1706,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     resetForNextRequest();
                     return true;
                 } else if (SendRequestStatus.TIMEOUT == result.status) {
-                    logger.warn("{} Timed out out sending request; resetting to block start for retry (block: {})", BlockNodeStreamingConnection.this, block.blockNumber());
+                    logger.warn(
+                            "{} Timed out out sending request; resetting to block start for retry (block: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber());
                     resetForBlockStart(true);
                     return false;
                 } else {
@@ -1892,7 +1912,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      *
      * @param streamRequest the PublishStreamRequest to send
      */
-    record EndStreamRequest(@NonNull PublishStreamRequestBytes streamRequest, long timeoutMillis) implements StreamRequest {
+    record EndStreamRequest(@NonNull PublishStreamRequestBytes streamRequest, long timeoutMillis)
+            implements StreamRequest {
         EndStreamRequest {
             requireNonNull(streamRequest);
         }
@@ -1915,7 +1936,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param timeoutMillis the timeout (in milliseconds) to apply when sending this request
      * @param blockAttemptNumber number of times this block ({@link #blockNumber()}) has been attempted on this connection
      */
-    record BlockEndRequest(@NonNull PublishStreamRequestBytes streamRequest, long blockNumber, int requestNumber, long timeoutMillis, int blockAttemptNumber)
+    record BlockEndRequest(
+            @NonNull PublishStreamRequestBytes streamRequest,
+            long blockNumber,
+            int requestNumber,
+            long timeoutMillis,
+            int blockAttemptNumber)
             implements BlockRequest {
         BlockEndRequest {
             requireNonNull(streamRequest);

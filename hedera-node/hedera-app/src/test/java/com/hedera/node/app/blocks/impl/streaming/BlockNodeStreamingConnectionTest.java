@@ -905,8 +905,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         doThrow(new RuntimeException("kaboom!")).when(requestCall).sendRequest(any(), anyBoolean());
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
-        final RuntimeException e =
-                catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1)));
+        final RuntimeException e = catchRuntimeException(
+                () -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1)));
         assertThat(e).isInstanceOf(RuntimeException.class);
         // Exception gets wrapped when executed in virtual thread executor
         assertThat(e.getMessage()).contains("Error encountered while sending request to block node");
@@ -1992,8 +1992,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
         // Should throw RuntimeException wrapped by the executor
-        final RuntimeException exception =
-                catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1)));
+        final RuntimeException exception = catchRuntimeException(
+                () -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1)));
 
         assertThat(exception).isNotNull();
         // Exception gets wrapped when executed in virtual thread executor
@@ -2057,7 +2057,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
         // Send request - should trigger timeout handling immediately
-        final SendRequestResult result = sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
+        final SendRequestResult result =
+                sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(SendRequestStatus.TIMEOUT);
@@ -2210,8 +2211,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Connection should still be CLOSED
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
     }
-
-
 
     // Utilities
 
