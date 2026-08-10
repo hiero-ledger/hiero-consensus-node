@@ -289,6 +289,29 @@ class EngineFixtureTest {
     }
 
     @Test
+    void everyDocumentTypeEntersTheWorklist() {
+        // The worklist is no longer topic/interface-only: decisions, invariants, rules, and concepts are
+        // all evaluated now. Each anchors code, so it is present (not dropped by a type gate).
+        assertThat(result.worklist())
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("decisions/ADR-001-fixture.md"))
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("invariants/INV-001-fixture.md"))
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("rules/RUL-001-fixture.md"))
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("concepts/external-cites.md"));
+    }
+
+    @Test
+    void anchorlessDocIsUnknownRegardlessOfMarker() {
+        // ADR-003-fixture anchors no code and carries a non-ISO `TBD` marker. The no-anchored-sources
+        // check must win over the marker check, so it is `unknown`, not routed to `review`.
+        final WorklistEntry e = result.worklist().stream()
+                .filter(x -> x.entryPath().endsWith("decisions/ADR-003-fixture.md"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(e.status()).isEqualTo(WorklistEntry.Status.UNKNOWN);
+        assertThat(e.note()).isEqualTo("no anchored sources");
+    }
+
+    @Test
     void movedSourceStillFeedsTheWorklist() {
         // moved-anchored.md cites MovedClass at its stale module-a path; the worklist must track it at
         // its unique new location instead of dropping the topic to "no anchored sources".
