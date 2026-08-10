@@ -64,7 +64,7 @@ class PcesFileChannelWriterTest {
                 eventSize > BUFFER_CAPACITY,
                 "Event size should exceed 10MB buffer capacity. Actual size: " + eventSize);
 
-        writer = new PcesFileChannelWriter(testFile, List.of(), BUFFER_CAPACITY);
+        writer = new PcesFileChannelWriter(testFile, List.of());
         writer.writeVersion(2);
 
         // This should trigger buffer expansion since event exceeds default 10MB buffer
