@@ -475,15 +475,12 @@ public class TestingEventBuilder {
             }
             return null;
         }
+        final EventDescriptorWrapper descriptor = parent.getDescriptor();
         if (birthRoundOverride == null) {
-            return parent.getDescriptor();
+            return descriptor;
         }
 
-        return new EventDescriptorWrapper(parent.getDescriptor()
-                .eventDescriptor()
-                .copyBuilder()
-                .birthRound(birthRoundOverride)
-                .build());
+        return new EventDescriptorWrapper(descriptor.hash(), descriptor.creator(), birthRoundOverride);
     }
 
     /**

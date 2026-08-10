@@ -73,6 +73,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.reconnect;

@@ -40,7 +40,7 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.event.stream")
-    requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.roster")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility")
