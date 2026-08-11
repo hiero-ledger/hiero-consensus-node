@@ -70,8 +70,7 @@ class CustomExtCodeHashOperationTest {
             givenWellKnownFrameWith();
             frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             given(frame.getRemainingGas()).willReturn(123L);
-            given(frame.getStackItem(0))
-                    .willReturn(Address.fromHexString("0x123").getBytes());
+            given(frame.getStackItem(0)).willReturn(Address.fromHexString("0x123"));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils
                     .when(() -> FrameUtils.contractRequired(any(), any(), any()))
@@ -93,7 +92,7 @@ class CustomExtCodeHashOperationTest {
 
     @Test
     void hasSpecialBehaviorForNonUserAccount() {
-        given(frame.getStackItem(0)).willReturn(Address.fromHexString("0x123").getBytes());
+        given(frame.getStackItem(0)).willReturn(Address.fromHexString("0x123"));
         given(addressChecks.isNonUserAccount(Address.fromHexString("0x123"))).willReturn(true);
         givenWellKnownFrameWith();
         given(frame.getRemainingGas()).willReturn(123L);
