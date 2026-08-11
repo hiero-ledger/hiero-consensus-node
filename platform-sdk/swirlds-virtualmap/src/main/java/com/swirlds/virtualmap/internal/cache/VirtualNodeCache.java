@@ -884,7 +884,8 @@ public final class VirtualNodeCache {
     /**
      * Creates a new immutable snapshot of this cache.
      *
-     * <p>This method may not be called in parallel with {@link #merge()} or {@link #release()}.
+     * <p>Threading: this method may not be called in parallel with {@link #merge()} or
+     * {@link #release()} on any cache copy in a single family.
      *
      * @return snapshot of the current {@link VirtualNodeCache}
      */
