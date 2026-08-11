@@ -56,7 +56,7 @@ jobs:
 
   run-single-node-tests:
     name: Single node tests
-    runs-on: hl-cn-mem-profiler-lin
+    runs-on: hg-cn-mem-profiler-lin
     needs:
       - extract-jdk-version
     steps:

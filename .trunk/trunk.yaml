@@ -29,13 +29,13 @@ merge:
     - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2022)"
     - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-24.04)"
     - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-22.04)"
-    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-md)"
-    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-lg)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (hg-cn-gradle-determinism-lin-md)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (hg-cn-gradle-determinism-lin-lg)"
 
     # MATS Docker Determinism
     - "MQ MATS / Docker Determinism / Docker: Generate Baseline"
     - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
-    - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
+    - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (hg-cn-docker-determinism-lin-lg)"
 
     # MATS Snyk
     - "MQ MATS / Snyk Scan / Snyk Checks"

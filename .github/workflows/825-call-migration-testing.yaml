@@ -46,7 +46,7 @@ jobs:
   migration-testing:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-migration-lin-lg
+    runs-on: hg-cn-migration-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -177,7 +177,7 @@ jobs:
 
   report-migration-testing-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-migration-lin-sm
+    runs-on: hg-cn-migration-lin-sm
     needs: migration-testing
     if: ${{ always() }}
     steps:

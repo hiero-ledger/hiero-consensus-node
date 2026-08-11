@@ -58,7 +58,7 @@ env:
 jobs:
   execute-hammer-tests:
     name: "Hammer Tests"
-    runs-on: hl-cn-hammer-lin
+    runs-on: hg-cn-hammer-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

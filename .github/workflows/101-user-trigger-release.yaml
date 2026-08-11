@@ -30,7 +30,7 @@ permissions:
 jobs:
   create-new-tag:
     name: Create New Tag
-    runs-on: hl-cn-default-lin-md
+    runs-on: hg-cn-default-lin-md
     outputs:
       version: ${{ steps.next-release.outputs.version }}
     steps:

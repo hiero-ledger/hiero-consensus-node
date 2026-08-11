@@ -49,7 +49,7 @@ jobs:
     name: Verify CITR vars
     needs:
       - extract-citr-vars
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -84,7 +84,7 @@ jobs:
 
   parameters:
     name: Determine Configurable Parameters
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - extract-citr-vars
       - verify-citr-vars
@@ -125,7 +125,7 @@ jobs:
 
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -392,7 +392,7 @@ jobs:
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -455,7 +455,7 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -497,7 +497,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution

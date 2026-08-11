@@ -64,7 +64,7 @@ env:
 jobs:
   execute-unit-tests:
     name: "Unit Tests"
-    runs-on: hl-cn-unit-test-lin
+    runs-on: hg-cn-unit-test-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -117,7 +117,7 @@ jobs:
         id: publish-codacy
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
-        if: ${{ !github.event.pull_request.head.repo.fork }}
+        if: ${{ false && !github.event.pull_request.head.repo.fork }}
         run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java $(find gradle/aggregation/build/reports/jacoco-xml/*.xml -printf '-r %p ')
 
       - name: Upload Test Reports

@@ -132,7 +132,7 @@ jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -250,7 +250,7 @@ jobs:
   hapi-tests-misc-records-crypto-and-serial:
     name: "HAPI Tests (Misc Records, Crypto & Misc Serial)"
     if: ${{ inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -354,7 +354,7 @@ jobs:
   hapi-tests-token-and-time-consuming:
     name: "HAPI Tests (Token & Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -456,7 +456,7 @@ jobs:
   hapi-tests-simple-fees-and-nd-reconnect:
     name: "HAPI Tests (Simple Fees & ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -558,7 +558,7 @@ jobs:
   hapi-tests-smart-contracts-and-iss:
     name: "HAPI Tests (Smart Contracts & ISS)"
     if: ${{ inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -659,7 +659,7 @@ jobs:
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -743,7 +743,7 @@ jobs:
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
-    runs-on: hl-cn-hapi-bn-lin-xl
+    runs-on: hg-cn-hapi-bn-lin-xl
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -825,7 +825,7 @@ jobs:
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hg-cn-hapi-lin-xl
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -926,7 +926,7 @@ jobs:
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -1011,7 +1011,7 @@ jobs:
   hapi-tests-crypto-and-misc-serial:
     name: "HAPI Tests (Crypto & Misc Serial)"
     if: ${{ inputs.enable-hapi-tests-crypto-and-misc-serial == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hg-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -1112,7 +1112,7 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - hapi-tests-misc
       - hapi-tests-misc-records-crypto-and-serial

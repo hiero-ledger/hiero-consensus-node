@@ -26,7 +26,7 @@ defaults:
 jobs:
   compute:
     name: Compute solo-ge-0440
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       solo-ge-0440: ${{ steps.compute.outputs.solo-ge-0440 }}
       solo-version-bare: ${{ steps.compute.outputs.solo-version-bare }}

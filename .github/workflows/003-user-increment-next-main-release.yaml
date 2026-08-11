@@ -33,7 +33,7 @@ jobs:
     name: Increment Version File
     needs:
       - extract-jdk-version
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Prepare Runner
         id: prepare-runner

@@ -94,7 +94,7 @@ jobs:
 
   longevity-tests-start:
     name: Start
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hg-cn-sdlt-lin-lg
     outputs:
       run-hcn-version: ${{ steps.set-hcn-version.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -489,7 +489,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hg-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -635,7 +635,7 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hg-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -802,7 +802,7 @@ jobs:
   # Send this output back to the caller workflow
   longevity-test-reconnect:
     name: Reconnect test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hg-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -971,7 +971,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hg-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -1019,7 +1019,7 @@ jobs:
 
   longevity-report-failures:
     name: Report Failures
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hg-cn-sdlt-lin-sm
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -1063,7 +1063,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-to-slack:
-    runs-on: hl-cn-sdlt-lin-sm
+    runs-on: hg-cn-sdlt-lin-sm
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result

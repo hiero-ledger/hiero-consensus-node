@@ -58,7 +58,7 @@ env:
 jobs:
   compile-and-spotless-check:
     name: "Compile and Spotless Check"
-    runs-on: hl-cn-compile-app-lin
+    runs-on: hg-cn-compile-app-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

@@ -43,7 +43,7 @@ permissions:
 jobs:
   validate-input-version:
     name: Validate Input Version
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       release-identifier: ${{ steps.validate.outputs.release-identifier }}
     steps:
@@ -118,7 +118,7 @@ jobs:
     name: Generate Release Notes File
     needs:
       - validate-input-version
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     if: ${{ inputs.create-release-notes == true }}
     steps:
       - name: Prepare Runner
@@ -164,7 +164,7 @@ jobs:
     name: Full Commit History
     needs:
       - validate-input-version
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -186,7 +186,7 @@ jobs:
   create-github-release:
     name: Create Github Release
     needs: generate-release-notes
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Prepare Runner
         id: prepare-runner

@@ -97,7 +97,7 @@ jobs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'jumpstart' }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
-    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
+    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hg-cn-sdlt-lin-lg' || 'hg-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
     env:
       # On the shared remote cluster the network lives in the solo-sdlt-n6 namespace; on Kind it is
@@ -286,7 +286,7 @@ jobs:
     needs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
-    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
+    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hg-cn-sdlt-lin-lg' || 'hg-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 180
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
@@ -471,7 +471,7 @@ jobs:
     needs:
       - extract-jdk-version
     if: ${{ inputs.scenario == '075-to-076-tss' }}
-    runs-on: hl-cn-rpc-relay-lin-lg
+    runs-on: hg-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     env:
       SOLO_CLUSTER_NAME: "tss-075-to-076"
@@ -608,7 +608,7 @@ jobs:
     needs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'wrb-streaming' }}
-    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
+    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hg-cn-sdlt-lin-lg' || 'hg-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
     env:
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}

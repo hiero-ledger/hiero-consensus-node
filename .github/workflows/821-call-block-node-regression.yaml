@@ -77,7 +77,7 @@ jobs:
   block-node-regression:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-bn-regression-lin-lg
+    runs-on: hg-cn-bn-regression-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -482,7 +482,7 @@ jobs:
 
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-bn-regression-lin-sm
+    runs-on: hg-cn-bn-regression-lin-sm
     needs: block-node-regression
     if: ${{ always() }}
     steps:

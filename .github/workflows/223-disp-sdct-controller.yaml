@@ -25,7 +25,7 @@ permissions:
 jobs:
   canonical-test:
     name: Canonical
-    runs-on: hl-cn-sdct-lin-sm
+    runs-on: hg-cn-sdct-lin-sm
 
     timeout-minutes: 90 # max one hour timeout
 
@@ -289,7 +289,7 @@ jobs:
     needs:
       - canonical-test
     if: ${{ needs.canonical-test.result != 'success' }}
-    runs-on: hl-cn-sdct-lin-sm
+    runs-on: hg-cn-sdct-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4

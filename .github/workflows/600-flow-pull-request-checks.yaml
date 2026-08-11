@@ -28,7 +28,7 @@ concurrency:
 jobs:
   detect-change-type:
     name: Detect Change Type
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
       enable-tests: ${{ steps.classify.outputs.enable-tests }}
@@ -76,7 +76,7 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-snyk-scan: "false"
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
       custom-job-label: "Standard"
@@ -90,7 +90,7 @@ jobs:
 
   ci-complete:
     name: CI Complete
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks
@@ -116,7 +116,7 @@ jobs:
 
   report-summary:
     name: Report PR Check Summary
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks

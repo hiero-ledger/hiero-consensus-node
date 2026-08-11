@@ -13,7 +13,7 @@ permissions:
 jobs:
   print-deprecated:
     name: Print Deprecated Warning
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Print Deprecation Warning
         run: |

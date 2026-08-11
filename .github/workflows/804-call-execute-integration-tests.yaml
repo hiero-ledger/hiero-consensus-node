@@ -63,7 +63,7 @@ env:
 jobs:
   execute-integration-tests:
     name: "Integration Tests"
-    runs-on: hl-cn-integration-lin
+    runs-on: hg-cn-integration-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

@@ -54,7 +54,7 @@ env:
 jobs:
   generate-baseline:
     name: "Docker: Generate Baseline"
-    runs-on: hl-cn-docker-determinism-lin-md
+    runs-on: hg-cn-docker-determinism-lin-md
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       sha-abbrev: ${{ steps.commit.outputs.sha-abbrev }}
@@ -229,10 +229,10 @@ jobs:
           #- ubuntu-22.04
           #- macos-12
           #- macos-11
-          #- hl-cn-docker-determinism-lin-md
-          - hl-cn-docker-determinism-lin-lg
-          - hl-cn-docker-determinism-lin-u24-lg
-          - hl-cn-docker-determinism-lin-d12-lg
+          #- hg-cn-docker-determinism-lin-md
+          - hg-cn-docker-determinism-lin-lg
+          - hg-cn-docker-determinism-lin-u24-lg
+          - hg-cn-docker-determinism-lin-d12-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
 
@@ -437,7 +437,7 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - generate-baseline
       - verify-artifacts

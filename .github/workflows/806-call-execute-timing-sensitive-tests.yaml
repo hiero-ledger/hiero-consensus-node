@@ -58,7 +58,7 @@ env:
 jobs:
   execute-timing-sensitive-tests:
     name: "Timing Sensitive Tests"
-    runs-on: hl-cn-timing-sensitive-lin
+    runs-on: hg-cn-timing-sensitive-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

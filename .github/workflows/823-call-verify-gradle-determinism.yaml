@@ -51,7 +51,7 @@ env:
 jobs:
   generate-baseline:
     name: "Gradle: Generate Baseline"
-    runs-on: hl-cn-gradle-determinism-lin-md
+    runs-on: hg-cn-gradle-determinism-lin-md
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       path: ${{ steps.baseline.outputs.path }}
@@ -132,7 +132,7 @@ jobs:
 
   generate-matrix:
     name: "Gradle: Generate OS Matrix"
-    runs-on: hl-cn-gradle-determinism-lin-ss
+    runs-on: hg-cn-gradle-determinism-lin-ss
     outputs:
       os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -148,12 +148,12 @@ jobs:
           ALWAYS_RUN=(
             "ubuntu-24.04"
             "ubuntu-22.04"
-            "hl-cn-gradle-determinism-lin-md"
-            "hl-cn-gradle-determinism-lin-u24-md"
-            "hl-cn-gradle-determinism-lin-d12-md"
-            "hl-cn-gradle-determinism-lin-lg"
-            "hl-cn-gradle-determinism-lin-u24-lg"
-            "hl-cn-gradle-determinism-lin-d12-lg"
+            "hg-cn-gradle-determinism-lin-md"
+            "hg-cn-gradle-determinism-lin-u24-md"
+            "hg-cn-gradle-determinism-lin-d12-md"
+            "hg-cn-gradle-determinism-lin-lg"
+            "hg-cn-gradle-determinism-lin-u24-lg"
+            "hg-cn-gradle-determinism-lin-d12-lg"
           )
 
           PUBLIC_ONLY=(
@@ -320,7 +320,7 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
-    runs-on: hl-cn-gradle-determinism-lin-ss
+    runs-on: hg-cn-gradle-determinism-lin-ss
     needs:
       - generate-baseline
       - generate-matrix

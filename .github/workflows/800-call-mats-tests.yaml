@@ -133,7 +133,7 @@ defaults:
 jobs:
   commit-info:
     name: Get Commit Info
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
     steps:
@@ -310,7 +310,7 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}

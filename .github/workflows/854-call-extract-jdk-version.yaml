@@ -26,7 +26,7 @@ defaults:
 jobs:
   extract-jdk-version:
     name: Extract JDK Version
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       jdk-version: ${{ steps.get-jdk-version.outputs.jdk-version }}
     steps:

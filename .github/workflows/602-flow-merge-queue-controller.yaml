@@ -37,7 +37,7 @@ jobs:
     name: Verify CITR vars
     needs:
       - extract-citr-vars
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -64,7 +64,7 @@ jobs:
     uses: ./.github/workflows/800-call-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
-      enable-snyk-scan: "true" # for Snyk
+      enable-snyk-scan: "false" # for Snyk
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}

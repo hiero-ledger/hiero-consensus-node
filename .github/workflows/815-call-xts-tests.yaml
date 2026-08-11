@@ -172,7 +172,7 @@ defaults:
 jobs:
   commit-info:
     name: Get Commit Info
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
     steps:
@@ -437,7 +437,7 @@ jobs:
     needs:
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Announce Skip
         run: |
@@ -472,7 +472,7 @@ jobs:
     needs:
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Announce Skip
         run: |
@@ -488,7 +488,7 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}

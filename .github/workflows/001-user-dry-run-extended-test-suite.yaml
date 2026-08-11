@@ -99,7 +99,7 @@ jobs:
     name: Verify CITR vars
     needs:
       - extract-citr-vars
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -134,7 +134,7 @@ jobs:
 
   parameters:
     name: Workflow Parameters
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - extract-citr-vars
       - verify-citr-vars

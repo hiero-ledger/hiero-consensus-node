@@ -115,7 +115,7 @@ jobs:
 
   merge-queue-performance-tests-start:
     name: Start
-    runs-on: hl-cn-mqpt-lin-lg
+    runs-on: hg-cn-mqpt-lin-lg
     needs:
       - acquire-kubernetes-resources
     outputs:
@@ -763,7 +763,7 @@ jobs:
   # Send this output back to the caller workflow
   merge-queue-test-result:
     name: Calculate Result
-    runs-on: hl-cn-mqpt-lin-lg
+    runs-on: hg-cn-mqpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - merge-queue-performance-tests-start
@@ -840,7 +840,7 @@ jobs:
 
   merge-queue-report-to-rootly:
     name: Report Failures to Rootly
-    runs-on: hl-cn-mqpt-lin-sm
+    runs-on: hg-cn-mqpt-lin-sm
     needs:
       - merge-queue-performance-tests-start
       - merge-queue-test-result
@@ -882,7 +882,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
-    runs-on: hl-cn-mqpt-lin-sm
+    runs-on: hg-cn-mqpt-lin-sm
     needs:
       - merge-queue-performance-tests-start
       - merge-queue-test-result

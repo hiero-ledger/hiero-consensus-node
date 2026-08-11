@@ -44,7 +44,7 @@ defaults:
 jobs:
   extract-citr-vars:
     name: Extract CITR Variables
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       adhoc-solo-version: ${{ steps.get-citr-vars.outputs.adhoc-solo-version }}
       adhoc-xts-solo-version: ${{ steps.get-citr-vars.outputs.adhoc-xts-solo-version }}

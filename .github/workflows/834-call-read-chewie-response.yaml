@@ -52,7 +52,7 @@ defaults:
 jobs:
   acquire-kubernetes-resources:
     name: Get Kubernetes Resources
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       namespace: ${{ steps.read-chewie-response.outputs.namespace }}
       fqdn: ${{ steps.read-chewie-response.outputs.kubernetes-fqdn }}

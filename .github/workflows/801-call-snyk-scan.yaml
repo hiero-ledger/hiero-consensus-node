@@ -61,7 +61,7 @@ env:
 jobs:
   snyk-checks:
     name: "Snyk Checks"
-    runs-on: hl-cn-snyk-check-lin
+    runs-on: hg-cn-snyk-check-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

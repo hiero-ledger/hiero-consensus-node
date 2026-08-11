@@ -24,7 +24,7 @@ jobs:
     name: Snyk Monitor
     needs:
       - extract-jdk-version
-    runs-on: hl-cn-snyk-check-lin
+    runs-on: hg-cn-snyk-check-lin
 
     steps:
       - name: Prepare Runner

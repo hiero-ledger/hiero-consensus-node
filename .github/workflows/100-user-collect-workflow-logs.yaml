@@ -17,7 +17,7 @@ permissions:
 jobs:
   collect-logs:
     name: Collect Workflow Run Logs
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Prepare Runner
         id: prepare-runner

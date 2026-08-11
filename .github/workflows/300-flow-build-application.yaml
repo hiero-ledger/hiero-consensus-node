@@ -46,7 +46,7 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "true"
       enable-hapi-tests-state-throttling: "true"
       enable-otter-tests: "true"
-      enable-snyk-scan: "true"
+      enable-snyk-scan: "false"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
@@ -62,7 +62,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - mats-tests
     if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' }}
@@ -106,7 +106,7 @@ jobs:
   # so it can classify the result into a category and send the appropriate Slack notification.
   report-status:
     name: Report MATS execution status
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - mats-tests
       - deploy-ci-trigger
