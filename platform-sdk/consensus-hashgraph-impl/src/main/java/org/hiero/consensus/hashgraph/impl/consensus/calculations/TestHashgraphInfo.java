@@ -389,10 +389,10 @@ public class TestHashgraphInfo {
             long[] roundInfoNodes = new long[] {100, 200, 300, 400};
             long[] roundInfoStake = new long[] {101, 102, 103, 104};
             int roundInfoCoinInterval = 10;
-            int roundInfoSeeNum = 2; /**/
-            int roundInfoSeeDen = 3;
+            int roundInfoSeeNum = 200; /**/
+            int roundInfoSeeDen = 300;
             boolean roundInfoJudgeCon1 = true; /**/
-            int roundInfoTargetNumRoundsNonAncient = 5;
+            int roundInfoTargetNumRoundsNonAncient = 1/*5*//**/;
             int roundInfoNumRoundsAddressBook = 2;
 
             RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
