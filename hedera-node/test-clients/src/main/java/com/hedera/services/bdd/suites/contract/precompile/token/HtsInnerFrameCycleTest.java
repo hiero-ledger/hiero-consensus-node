@@ -71,9 +71,9 @@ public class HtsInnerFrameCycleTest {
     @HapiTest
     public Stream<DynamicTest> innerFrameCycleZeroGasTest() {
         return Stream.of(
-//                        0 // minimum gas
-//                        1, // low gas
-//                        10000, // some gas, but less than required
+                        0, // minimum gas
+                        1, // low gas
+                        10000, // some gas, but less than required
                         20000 // enough gas
                 )
                 .map(gas -> namedHapiTest("innerFrameCycl gas=" + gas, doingContextual(e -> transferTokensCycleFrames(e, gas))));
@@ -99,13 +99,7 @@ public class HtsInnerFrameCycleTest {
         allRunFor(
                 spec, op
                 , getTxnRecord(ATTACK_TXN).logged()
-                        .exposingAllTo(e -> {
-                            //TODO Glib:
-                            System.out.printf("!!!!!!!!!!!!! %s Got records:%s\n", e.getFirst()
-                                    .getReceipt()
-                                    .getStatus(), e.size());
-                            Assertions.assertEquals(expectedCycles, e.size());
-                        })
+                        .exposingAllTo(e -> Assertions.assertEquals(expectedCycles, e.size()))
                         .andAllChildRecords());
     }
 }

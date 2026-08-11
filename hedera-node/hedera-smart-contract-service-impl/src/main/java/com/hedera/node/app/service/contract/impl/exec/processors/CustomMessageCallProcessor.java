@@ -291,19 +291,13 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                         systemContractAddress.getBytes().toHexString(),
                         opsDurationCost);
 
-        // TODO Glib:
-        AtomicInteger i = new AtomicInteger(0);
-        System.out.println("!!!!!!!!!!!!!!!!! " + frame.getMessageFrameStack()
-                .stream()
-                .map(e -> "Frame[%s] gas:%s".formatted(i.getAndIncrement(), e.getRemainingGas()))
-                .collect(Collectors.joining("->")));
-
         if (frame.getRemainingGas() < gasRequirement) {
             // TODO Glib: charge gasRequirement from parentFrame if parent frame exists?
             if (frame.getMessageFrameStack().size() > 1) {
                 MessageFrame parentFrame = FrameUtils.parentFrameOf(frame);
                 if (parentFrame != null && !fullResult.isRefundGas()) {
-                    parentFrame.decrementRemainingGas(gasRequirement - frame.getRemainingGas());
+                    final var parentGasCharging = Math.min(parentFrame.getRemainingGas(), gasRequirement - frame.getRemainingGas());
+                    parentFrame.decrementRemainingGas(parentGasCharging);
                 }
             }
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
