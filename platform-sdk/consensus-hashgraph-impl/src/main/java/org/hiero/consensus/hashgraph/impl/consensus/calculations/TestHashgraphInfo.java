@@ -310,6 +310,9 @@ public class TestHashgraphInfo {
         StringBuilder line = new StringBuilder();
         line.append(UPDATE_RESULTS_TYPE);
         line.append(",").append(updateResults.nextRoundInfoPrev().pendingRound() - 1);
+        EventInfo[] searchOrder = updateResults.consensusEvents().clone();
+        Arrays.sort(searchOrder, Comparator.comparingLong(EventInfo::getSearchOrder));
+        appendEvents(line, searchOrder);
         appendEvents(line, updateResults.consensusEvents());
         line.append(",").append(updateResults.roundTimestamp().getEpochSecond());
         line.append(",").append(updateResults.roundTimestamp().getNano());
@@ -386,7 +389,7 @@ public class TestHashgraphInfo {
             long[] roundInfoNodes = new long[] {100, 200, 300, 400};
             long[] roundInfoStake = new long[] {101, 102, 103, 104};
             int roundInfoCoinInterval = 10;
-            int roundInfoSeeNum = 3;
+            int roundInfoSeeNum = 2; /**/
             int roundInfoSeeDen = 3;
             boolean roundInfoJudgeCon1 = true; /**/
             int roundInfoTargetNumRoundsNonAncient = 5;
