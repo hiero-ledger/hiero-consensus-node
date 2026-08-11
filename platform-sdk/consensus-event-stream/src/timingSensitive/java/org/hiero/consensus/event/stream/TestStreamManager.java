@@ -44,7 +44,8 @@ public class TestStreamManager {
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream<>(countDownLatchStream);
         hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(hashCalculator)
                 .build();
         hashQueueThread.start();
@@ -58,7 +59,8 @@ public class TestStreamManager {
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream<>();
         hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(hashCalculator)
                 .build();
 

@@ -7,25 +7,6 @@ on:
         description: "The git ref (branch or tag) to checkout"
         required: false
         default: ""
-      bnref:
-        required: true
-        default: "main"
-        description: "Version of block-node: branch, tag, commit"
-        type: string
-      test-asset:
-        required: true
-        default: "AdHocSD8"
-        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
-        type: choice
-        options:
-          - AdHoc5
-          - AdHoc6
-          - AdHoc7
-          - AdHoc13
-          - AdHoc14
-          - AdHoc16
-          - AdHocSD8
-          - AdHocSD9
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"
@@ -71,16 +52,16 @@ on:
         default: "600"
         type: string
         description: "Reconnect uptime (secs). Downtime is Uptime x 3"
+      duration-minutes:
+        required: false
+        default: "180"
+        description: "Expected duration of all tests in minutes"
+        type: string
       disable-notifications:
         required: false
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
-      delete-namespace:
-        required: false
-        default: true
-        type: boolean
-        description: "If true, automatically delete namespace when done"
 
 defaults:
   run:
@@ -180,21 +161,21 @@ jobs:
     uses: ./.github/workflows/833-call-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
-      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
-      ref: "${{ inputs.ref }}"
-      solo-version: "v0.84.1" #"${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
+      ref: "${{ inputs.ref || github.ref }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
+      duration-minutes: ${{ fromJSON(inputs.duration-minutes) }}
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
-      delete-namespace: "${{ inputs.delete-namespace }}"
-      #java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-      bnref: "${{ inputs.bnref }}"
-
+      delete-namespace: false # chewie automatically deletes the namespace after duration-minutes
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
 
   tag-sdlt-result:
     name: Tag SDLT Result

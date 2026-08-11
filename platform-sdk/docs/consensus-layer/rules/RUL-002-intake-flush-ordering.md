@@ -19,6 +19,7 @@ status: holds
 confidence: high
 provenance: elicitation-2026-06-03
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # RUL-002 — The intake pipeline is flushed component-by-component in topological order so every event advances as far as it can

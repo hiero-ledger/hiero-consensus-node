@@ -144,6 +144,7 @@
 /.github/workflows/config/                          @hiero-ledger/github-maintainers
 /.github/workflows/docs/                            @hiero-ledger/github-maintainers
 /.github/workflows/support/                         @hiero-ledger/github-maintainers
+/.github/workflows/support/scripts                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
 /.github/workflows/templates/                       @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
 
 # specific to CITR
@@ -164,6 +165,7 @@
 /.github/workflows/858-call-get-chewie-jwt.yaml                 @hiero-ledger/github-maintainers
 /.github/workflows/859-call-create-chewie-request.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/860-call-validate-chewie-jwt.yaml            @hiero-ledger/github-maintainers
+/.github/workflows/861-call-get-test-config.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/901-cron-promote-build-candidate.yaml        @hiero-ledger/github-maintainers
 /.github/workflows/902-cron-auto-namespace-delete.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/903-cron-clean.yaml                          @hiero-ledger/github-maintainers
