@@ -188,6 +188,15 @@ public final class ReplayPcesWorkflow {
         final long startingRound = initialState.get().getRound();
         final long pcesReplayLowerBound = ancientThresholdOf(state);
 
+        // Consensus timestamps depend on transactionOffsetNanos (reserves nanos before the first user
+        // transaction for preceding/system records). ServicesMain.main computes this from config and wires it
+        // into the platform; the replay path must do the same or every transaction's consensus timestamp is
+        // short by `offset` ns (offset = scheduling.reservedSystemTxnNanos + consensus.handleMaxPrecedingRecords
+        // + 1), diverging from production from the first round.
+        final int transactionOffsetNanos = ServicesMain.transactionOffsetNanos(platformConfig);
+        hedera.setTxnOffsetNanos(transactionOffsetNanos);
+        log.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
+
         // --- Build the platform (constructor priming runs inside build()) ---
         final PlatformComponentBuilder componentBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -204,6 +213,7 @@ public final class ReplayPcesWorkflow {
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera)
+                .withTransactionOffsetNanos(transactionOffsetNanos)
                 .buildComponentBuilder();
 
         final Platform platform = componentBuilder.build();
