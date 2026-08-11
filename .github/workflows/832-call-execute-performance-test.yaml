@@ -4,11 +4,6 @@ name: "832: [CALL] CITR Exec Perf Test"
 on:
   workflow_call:
     inputs:
-      test-asset:
-        description: "Which cluster to run tests on"
-        required: true
-        type: string
-        default: "AdHoc5"
       ref:
         description: "Version of hiero-consensus-node: branch, tag, commit"
         required: true
@@ -53,6 +48,11 @@ on:
         required: true
         default: ""
         description: "Kubernetes cluster to run the test on"
+        type: string
+      k8s-network-id:
+        required: true
+        default: ""
+        description: "Kubernetes network ID to run the test on"
         type: string
       java-version:
         required: false
@@ -99,9 +99,9 @@ jobs:
           REF: ${{ inputs.ref }}
           GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
           GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
-          TEST_ASSET: ${{ inputs.test-asset }}
           K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
           K8S_CLUSTER: ${{ inputs.k8s-cluster }}
+          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
           NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
           NLG_TEST: ${{ inputs.nlg-test }}
           NLG_TIME: ${{ inputs.nlg-time }}
@@ -112,8 +112,8 @@ jobs:
           echo "${GS_ROOT_DIR_INPUT}"
           echo "GS Root HTTPS"
           echo "${GS_ROOT_HTTPS_INPUT}"
-          echo "Test Asset"
-          echo "${TEST_ASSET}"
+          echo "K8S Network ID"
+          echo "${K8S_NETWORK_ID}"
           echo "Namespace"
           echo "${K8S_NAMESPACE}"
           echo "K8S Cluster"
@@ -132,10 +132,11 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
           GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
-          TEST_ASSET: ${{ inputs.test-asset }}
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
           NLG_TEST: ${{ inputs.nlg-test }}
         run: |
-          GS_DIR_URL="${GS_ROOT_DIR_INPUT}/${REF}_${TEST_ASSET}_${{ github.run_number }}/report/${NLG_TEST}"
+          GS_DIR_URL="${GS_ROOT_DIR_INPUT}/${REF}_${K8S_NAMESPACE}_${K8S_NETWORK_ID}_${{ github.run_number }}/report/${NLG_TEST}"
           echo "Calculated gs-dir-url: ${GS_DIR_URL}"
           echo "url=${GS_DIR_URL}" >> "${GITHUB_OUTPUT}"
 
@@ -144,10 +145,11 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
           GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
-          TEST_ASSET: ${{ inputs.test-asset }}
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
           NLG_TEST: ${{ inputs.nlg-test }}
         run: |
-          GS_HTTPS_URL="${GS_ROOT_HTTPS_INPUT}/${REF}_${TEST_ASSET}_${{ github.run_number }}/report/${NLG_TEST}"
+          GS_HTTPS_URL="${GS_ROOT_HTTPS_INPUT}/${REF}_${K8S_NAMESPACE}_${K8S_NETWORK_ID}_${{ github.run_number }}/report/${NLG_TEST}"
           echo "Calculated gs-https-url: ${GS_HTTPS_URL}"
           echo "url=${GS_HTTPS_URL}" >> "${GITHUB_OUTPUT}"
 
