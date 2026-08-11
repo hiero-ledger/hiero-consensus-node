@@ -6,8 +6,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
-import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 import java.util.function.Function;
@@ -57,9 +57,9 @@ public class BalanceSnapshot extends UtilOp {
         snapshot = snapshotFn.map(fn -> fn.apply(spec)).orElse(snapshot);
 
         if (token == null) {
-            HapiGetAccountBalance delegate = aliased
+            HapiQueryOp<?> delegate = aliased
                     ? QueryVerbs.getAutoCreatedAccountBalance(account).logged()
-                    : QueryVerbs.getAccountBalance(account).logged();
+                    : QueryVerbs.getAccountInfo(account).payingWith(GENESIS).noLogging();
             payer.ifPresent(delegate::payingWith);
             Optional<Throwable> error = delegate.execFor(spec);
             if (error.isPresent()) {
