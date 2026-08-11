@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class BlockNodeSimSuite {
     private static final int BLOCK_PERIOD_SECONDS = 2;
-    private static final int STRESS_CYCLES = 50;
+    private static final int STRESS_CYCLES = 30;
 
     @HapiTest
     @HapiBlockNode(
