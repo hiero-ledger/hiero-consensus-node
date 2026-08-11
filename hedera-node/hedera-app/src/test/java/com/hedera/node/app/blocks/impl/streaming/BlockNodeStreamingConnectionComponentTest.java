@@ -1437,8 +1437,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.operationTimeout.baseMillis", "1000")
                 .withValue("blockNode.operationTimeout.microsPerKilobyte", "250")
                 .withValue("blockNode.operationTimeout.maxMillis", "5000")
-                .withValue("operationTimeout.maxTimeoutsPerWindow", "3")
-                .withValue("operationTimeout.timeoutWindowDuration", "60s")
+                .withValue("blockNode.operationTimeout.maxTimeoutsPerWindow", "3")
+                .withValue("blockNode.operationTimeout.timeoutWindowDuration", "60s")
                 .withValue("blockNode.maxRequestDelay", "25ms");
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
@@ -1527,6 +1527,141 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestEndStreamSent(PublishStreamRequest.EndStream.Code.RESET);
         verify(requestCall, times(7)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verify(requestCall).completeRequests();
+        verifyNoMoreInteractions(requestCall);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    @Timeout(value = 30, unit = TimeUnit.SECONDS)
+    void testConnectionWorker_sendBlockEnd_timeout() throws Exception {
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.operationTimeout.baseMillis", "1000")
+                .withValue("blockNode.operationTimeout.microsPerKilobyte", "250")
+                .withValue("blockNode.operationTimeout.maxMillis", "5000")
+                .withValue("blockNode.operationTimeout.maxTimeoutsPerWindow", "3")
+                .withValue("blockNode.operationTimeout.timeoutWindowDuration", "60s")
+                .withValue("blockNode.maxRequestDelay", "25ms");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID,
+                streamingObs);
+
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(10);
+
+        final BlockState block = new BlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
+        doReturn(new BlockState(11)).when(bufferService).getBlockState(11);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        Thread.sleep(100);
+
+        final AtomicBoolean isFirstBlockEnd = new AtomicBoolean(true);
+        doAnswer(inv -> {
+                    final PublishStreamRequestBytes req = inv.getArgument(0);
+                    if (req.endOfBlock() != null && isFirstBlockEnd.compareAndSet(true, false)) {
+                        // timeout the first EndOfBlock send
+                        try {
+                            Thread.sleep(10_000);
+                        } catch (final InterruptedException _) {
+                            // ignore
+                        }
+                    }
+
+                    return null;
+                })
+                .when(requestCall)
+                .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+
+        final CountDownLatch waitLatch = new CountDownLatch(1);
+        doAnswer(_ -> {
+                    waitLatch.countDown();
+                    return null;
+                })
+                .when(metrics)
+                .recordLatestBlockEndOfBlockSent(10);
+
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+
+        final Bytes header = BlockItem.PROTOBUF.toBytes(newBlockHeaderItem(10));
+        final Bytes item1 = BlockItem.PROTOBUF.toBytes(newBlockTxItem(10_240)); // 10 KB item
+        final Bytes item2 = BlockItem.PROTOBUF.toBytes(newBlockTxItem(5_242_880)); // 5 MB item
+        final Bytes footer = BlockItem.PROTOBUF.toBytes(newBlockFooter());
+        final Bytes proof = BlockItem.PROTOBUF.toBytes(newBlockProofItem(10, 1024));
+        block.addSerializedItem(header, BlockItem.ItemOneOfType.BLOCK_HEADER);
+        block.addSerializedItem(item1, BlockItem.ItemOneOfType.SIGNED_TRANSACTION);
+        block.addSerializedItem(item2, BlockItem.ItemOneOfType.SIGNED_TRANSACTION);
+        block.addSerializedItem(footer, BlockItem.ItemOneOfType.BLOCK_FOOTER);
+        block.addSerializedItem(proof, BlockItem.ItemOneOfType.BLOCK_PROOF);
+        block.closeBlock();
+
+        assertThat(waitLatch.await(20, TimeUnit.SECONDS)).isTrue();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
+
+        /*
+        For the block, we expect a total of 4 requests:
+        Request 1: Header + Item 1
+        Request 2: Item 2
+        Request 3: Footer + Proof
+        Request 4: Block End
+
+        The first time we try to send the block end, we will artificially cause a timeout. This will cause the block to
+        be resent in its entirety. Because of this, we expect a total of 8 requests to be sent with requests 1-4 and
+        requests 5-8 being replicas of each other.
+         */
+        verify(requestCall, times(8)).sendRequest(requestCaptor.capture(), anyBoolean());
+        final List<PublishStreamRequestBytes> requests = requestCaptor.getAllValues();
+        assertThat(requests).hasSize(8);
+        final PublishStreamRequestBytes req1 = requests.get(0);
+        assertThat(req1.blockItems()).isNotNull();
+        assertThat(req1.blockItems().blockItems()).containsExactly(header, item1);
+        final PublishStreamRequestBytes req2 = requests.get(1);
+        assertThat(req2.blockItems()).isNotNull();
+        assertThat(req2.blockItems().blockItems()).containsExactly(item2);
+        final PublishStreamRequestBytes req3 = requests.get(2);
+        assertThat(req3.blockItems()).isNotNull();
+        assertThat(req3.blockItems().blockItems()).containsExactly(footer, proof);
+        final PublishStreamRequestBytes req4 = requests.get(3);
+        assertThat(req4.endOfBlock()).isNotNull();
+        final PublishStreamRequestBytes req5 = requests.get(4);
+        assertThat(req5.blockItems()).isNotNull();
+        assertThat(req5.blockItems().blockItems()).containsExactly(header, item1);
+        final PublishStreamRequestBytes req6 = requests.get(5);
+        assertThat(req6.blockItems()).isNotNull();
+        assertThat(req6.blockItems().blockItems()).containsExactly(item2);
+        final PublishStreamRequestBytes req7 = requests.get(6);
+        assertThat(req7.blockItems()).isNotNull();
+        assertThat(req7.blockItems().blockItems()).containsExactly(footer, proof);
+        final PublishStreamRequestBytes req8 = requests.get(7);
+        assertThat(req8.endOfBlock()).isNotNull();
+
+        // recording of the block end being sent will only happen once, since the other time failed
+        verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        // similarly, there are only 7 out of 8 successful requests that will have latency recorded
+        verify(metrics, times(7)).recordRequestLatency(anyLong());
+        verify(metrics, times(6)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(6)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(6)).recordRequestBlockItemCount(anyInt());
+        verify(metrics, times(6)).recordRequestBytes(anyLong());
+        verify(metrics).recordRequestSendFailure();
+        verify(metrics).recordPipelineOperationTimeout();
+        verify(metrics, times(2)).recordStreamingBlockNumber(10);
+        verify(metrics).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(requestCall, times(8)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(metrics);
     }

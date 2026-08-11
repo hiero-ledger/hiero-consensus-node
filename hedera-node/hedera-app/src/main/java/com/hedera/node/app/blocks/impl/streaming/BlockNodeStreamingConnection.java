@@ -25,6 +25,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.StringJoiner;
@@ -68,10 +69,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeStreamingConnection.class);
-    /**
-     * Timeout used for connection lifecycle operations - i.e. initialization and closing.
-     */
-    private static final int CONNECTION_LIFECYCLE_TIMEOUT_SECONDS = 3;
     /**
      * Default window (in milliseconds) for timeouts.
      */
@@ -163,7 +160,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     /**
      * Set of the most recent timestamps (as milliseconds) when an operations timed out.
      */
-    private final SortedSet<Long> mostRecentOpTimeoutTimestamps = new TreeSet<>();
+    private final SortedSet<Long> mostRecentOpTimeoutTimestamps = Collections.synchronizedSortedSet(new TreeSet<>());
 
     /**
      * Construct a new BlockNodeConnection.
@@ -248,14 +245,16 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             requestCallRef.set(call);
         });
 
+        final long timeoutMillis = connectionManagementTimeoutMillis();
+
         try {
-            future.get(CONNECTION_LIFECYCLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            future.get(timeoutMillis, TimeUnit.MILLISECONDS);
             logger.debug("{} Request pipeline initialized", this);
             updateConnectionState(ConnectionState.READY);
             blockStreamMetrics.recordConnectionOpened();
         } catch (final TimeoutException e) {
             future.cancel(true);
-            logger.warn("{} Pipeline creation timed out after {}s", this, CONNECTION_LIFECYCLE_TIMEOUT_SECONDS);
+            logger.warn("{} Pipeline creation timed out after {}ms", this, timeoutMillis);
             blockStreamMetrics.recordPipelineOperationTimeout();
             throw new RuntimeException("Pipeline creation timed out", e);
         } catch (final InterruptedException e) {
@@ -1064,18 +1063,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             logger.debug("{} Closing request pipeline for block node", this);
             streamShutdownInProgress.set(true);
 
+            final long timeoutMillis = connectionManagementTimeoutMillis();
+
             try {
                 if (currentState() == ConnectionState.CLOSING && callOnComplete) {
                     final Future<?> future = blockingIoExecutor.submit(call::completeRequests);
                     try {
-                        future.get(CONNECTION_LIFECYCLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                        future.get(timeoutMillis, TimeUnit.MILLISECONDS);
                         logger.debug("{} Request pipeline successfully closed", this);
                     } catch (final TimeoutException _) {
                         future.cancel(true); // Cancel the task if it times out
                         logger.warn(
-                                "{} Timed out while attempting to shutdown request pipeline (timeout: {}s) - ignoring",
+                                "{} Timed out while attempting to shutdown request pipeline (timeout: {}ms) - ignoring",
                                 this,
-                                CONNECTION_LIFECYCLE_TIMEOUT_SECONDS);
+                                timeoutMillis);
                         blockStreamMetrics.recordPipelineOperationTimeout();
                         // Connection is already closing, just log the timeout
                     } catch (final InterruptedException _) {
@@ -1513,8 +1514,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         /**
          * Sends the block end message to the block node in its own request.
+         *
+         * @return true if sending the block end was successful, else false
          */
-        private void sendBlockEnd() {
+        private boolean sendBlockEnd() {
             final PublishStreamRequestBytes endOfBlock = PublishStreamRequestBytes.newBuilder()
                     .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
                     .build();
@@ -1533,11 +1536,28 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         blockStreamMetrics.recordHeaderSentToBlockEndSentLatency(
                                 durationMicros(headerSentNanos, blockEndSentNanos));
                     }
+
+                    return true;
+                } else if (SendRequestStatus.TIMEOUT == result.status) {
+                    logger.warn(
+                            "{} Timed out sending block end request; resetting to block start for retry (block: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber());
+                    resetForBlockStart(true);
+                } else {
+                    logger.warn(
+                            "{} Sending the block end request failed for a non-exceptional reason (block: {}, request: {}, reason: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber(),
+                            requestCtr.get(),
+                            result.status);
                 }
             } catch (final RuntimeException e) {
                 logger.warn("{} Error sending EndOfBlock request", BlockNodeStreamingConnection.this, e);
                 close(CloseReason.CONNECTION_ERROR, false);
             }
+
+            return false;
         }
 
         /**
@@ -1555,7 +1575,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             }
 
             // send the BlockEnd to the block node announcing we are complete with the block
-            sendBlockEnd();
+            if (!sendBlockEnd()) {
+                return;
+            }
 
             /*
             We are now done with the current block and have two options:
@@ -1707,7 +1729,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     return true;
                 } else if (SendRequestStatus.TIMEOUT == result.status) {
                     logger.warn(
-                            "{} Timed out out sending request; resetting to block start for retry (block: {})",
+                            "{} Timed out sending request; resetting to block start for retry (block: {})",
                             BlockNodeStreamingConnection.this,
                             block.blockNumber());
                     resetForBlockStart(true);

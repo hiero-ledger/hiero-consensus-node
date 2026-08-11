@@ -24,7 +24,7 @@ import java.time.Duration;
  * @param grpcOverallTimeout single timeout configuration for gRPC Client construction, connectTimeout, readTimeout and pollWaitTime
  * @param connectionWorkerSleepDuration the amount of time a connection worker will sleep between handling block items (should be less than {@link #maxRequestDelay})
  * @param maxRequestDelay the maximum amount of time between sending a request to a block node
- * @param pipelineOperationTimeout timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes
+ * @param connectionManagementTimeout timeout for connection management operations (e.g. connection create and destroy)
  * @param streamingRequestPaddingBytes the base overhead (in bytes) that is applied to every pending request when estimating the request size
  * @param streamingRequestItemPaddingBytes the amount of additional bytes to include for each block item when estimating the request size
  * @param blockNodeStatusTimeout the timeout for retrieving block node server status (millisecond precision)
@@ -40,7 +40,7 @@ import java.time.Duration;
  *                                    via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in a basic cool down
  * @param numBlocksBehindHighThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
  *                                     via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in an extended cool down
- * @param slowRequestThresholdMillis amount of time (in milliseconds) a request will take to send before it is considered slow (should be less than {@link #pipelineOperationTimeout()}
+ * @param slowRequestThresholdMillis amount of time (in milliseconds) a request will take to send before it is considered slow (should be less than {@link #opTimeoutBaseMillis()})
  * @param opTimeoutBaseMillis the minimum amount of time (in milliseconds) to set for dynamic timeouts when sending requests to a block node
  * @param opTimeoutMicrosPerKilobyte the amount of time (in microseconds) to add for dynamic timeouts for each kilobyte being sent to a block node in one request
  * @param opTimeoutMaxMillis the maximum amount of time (in milliseconds) to set for dynamic timeouts when sending requests to a block node
@@ -63,7 +63,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
         @ConfigProperty(defaultValue = "10ms") @NetworkProperty Duration connectionWorkerSleepDuration,
         @ConfigProperty(defaultValue = "100ms") @NetworkProperty Duration maxRequestDelay,
-        @ConfigProperty(defaultValue = "20s") @NodeProperty Duration pipelineOperationTimeout,
+        @ConfigProperty(defaultValue = "3s") @NodeProperty Duration connectionManagementTimeout,
         @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes,
         @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,
