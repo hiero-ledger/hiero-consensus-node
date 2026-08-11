@@ -29,7 +29,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ifNextStakePeriodStartsWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilJustBeforeNextStakingPeriod;
@@ -62,7 +62,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntFunction;
 import java.util.stream.IntStream;
@@ -94,15 +93,10 @@ public class StakingSuite {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                overridingAllOf(Map.of(
-                        "staking.startThreshold",
-                        "" + 10 * ONE_HBAR,
-                        "staking.perHbarRewardRate",
-                        "" + SUITE_PER_HBAR_REWARD_RATE,
-                        "staking.rewardBalanceThreshold",
-                        "0",
-                        "staking.maxStakeRewarded",
-                        Long.toString(MAX_STAKE_REWARDED))),
+                overridingThree(
+                        "staking.startThreshold", "" + 10 * ONE_HBAR,
+                        "staking.perHbarRewardRate", "" + SUITE_PER_HBAR_REWARD_RATE,
+                        "staking.rewardBalanceThreshold", "0"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)));
     }
 
