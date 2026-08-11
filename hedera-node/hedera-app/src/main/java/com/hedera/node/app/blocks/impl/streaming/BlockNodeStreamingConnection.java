@@ -688,6 +688,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         return (endNanos - startNanos) / 1_000;
     }
 
+    /**
+     * Enumeration of possible statuses as a result of a request being sent.
+     */
     enum SendRequestStatus {
         /**
          * Request was successful.
@@ -716,6 +719,13 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         TIMEOUT_CLOSE
     }
 
+    /**
+     * Result of an attempted sending of a request.
+     *
+     * @param status the outcome of the request send operation
+     * @param nanosTickStart the nanosecond tick when the request send started
+     * @param nanosTickEnd the nanosecond tick when the request send completed
+     */
     record SendRequestResult(SendRequestStatus status, long nanosTickStart, long nanosTickEnd) {}
 
     /**
@@ -851,6 +861,15 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         return new SendRequestResult(SendRequestStatus.SUCCESS, startNanos.get(), endNanos.get());
     }
 
+    /**
+     * Handle an unexpected error encountered when sending a request.
+     *
+     * @param e the error encountered
+     * @param correlationId the correlation ID of the failing request
+     * @param reqStartNanos the nanosecond tick when the request send started
+     * @param reqEndNanos the nanosecond tick when the request send completed
+     * @return the result of handling the error
+     */
     private SendRequestResult handleSendError(
             final Exception e, final String correlationId, final long reqStartNanos, final long reqEndNanos) {
         final long durationMicros = calculateDurationMicros(reqStartNanos, reqEndNanos);
@@ -893,6 +912,15 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
     }
 
+    /**
+     * Handle an interrupt encountered when sending a request.
+     *
+     * @param e the interrupt encountered
+     * @param correlationId the correlation ID of the failing request
+     * @param reqStartNanos the nanosecond tick when the request send started
+     * @param reqEndNanos the nanosecond tick when the request send completed
+     * @return the result of handling the interrupt
+     */
     private SendRequestResult handleSendInterrupt(
             final InterruptedException e,
             final String correlationId,
@@ -916,6 +944,16 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
     }
 
+    /**
+     * Handle a timeout encountered when sending a request.
+     *
+     * @param request the request that timed out
+     * @param timeoutTimestamp the timestamp of when the timeout happened
+     * @param correlationId the correlation ID of the failing request
+     * @param reqStartNanos the nanosecond tick when the request send started
+     * @param reqEndNanos the nanosecond tick when the request send completed
+     * @return the result of handling the timeout
+     */
     private SendRequestResult handleSendTimeout(
             final StreamRequest request,
             final long timeoutTimestamp,
@@ -1470,6 +1508,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             return block == null || block.itemCount() == itemIndex;
         }
 
+        /**
+         * Append the specified item to the pending request.
+         *
+         * @param item the item to append
+         * @param itemSize the estimated size (in bytes) of the item being appended
+         */
         private void appendItem(final BufferedItem item, final long itemSize) {
             pendingRequestItems.add(item);
             pendingRequestBytes += itemSize;
