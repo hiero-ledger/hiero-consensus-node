@@ -189,7 +189,7 @@ jobs:
 
   # Remove when formal SDPT uses Chewie
   acquire-kubernetes-resources-legacy:
-    name: Acquire Kubernetes Resources
+    name: "Acquire Kubernetes Resources (Legacy)"
     if: ${{ inputs.test-asset != '' }}
     uses: ./.github/workflows/834-call-read-chewie-response.yaml
     with:
