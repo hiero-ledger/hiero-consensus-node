@@ -122,7 +122,6 @@ class AutoclosableLockTest {
         final AtomicBoolean threadGotLock1 = new AtomicBoolean(false);
 
         final Thread thread0 = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("thread0")
                 .setInterruptableRunnable(() -> {
                     try (final Locked locked0 = lock.lock()) {
                         // Lock is reentrant, second lock on same thread should not block
@@ -132,12 +131,12 @@ class AutoclosableLockTest {
                         }
                     }
                 })
+                .setSingleThreadName("thread0")
                 .build(true);
 
         assertEventuallyTrue(threadGotLock0::get, Duration.ofSeconds(1), "thread should have acquired lock by now");
 
         final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("thread1")
                 .setInterruptableRunnable(() -> {
                     while (true) {
                         try (final MaybeLocked maybeLocked = lock.tryLock(1, MILLISECONDS)) {
@@ -149,6 +148,7 @@ class AutoclosableLockTest {
                         }
                     }
                 })
+                .setSingleThreadName("thread1")
                 .build(true);
 
         // Wait a little while to make sure that the other thread isn't able to get the lock

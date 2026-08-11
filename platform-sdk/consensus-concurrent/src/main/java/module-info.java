@@ -4,9 +4,9 @@ import org.hiero.consensus.concurrent.config.ConcurrentConfigurationExtension;
 
 module org.hiero.consensus.concurrent {
     exports org.hiero.consensus.concurrent.config;
-    exports org.hiero.consensus.concurrent.framework;
     exports org.hiero.consensus.concurrent.framework.config;
     exports org.hiero.consensus.concurrent.framework.queue;
+    exports org.hiero.consensus.concurrent.framework;
     exports org.hiero.consensus.concurrent.manager;
     exports org.hiero.consensus.concurrent.pool;
     exports org.hiero.consensus.concurrent.throttle;
@@ -16,7 +16,6 @@ module org.hiero.consensus.concurrent {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.model;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.logging;
     requires static transitive com.github.spotbugs.annotations;

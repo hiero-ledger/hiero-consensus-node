@@ -7,7 +7,6 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import java.time.Duration;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
@@ -103,20 +102,6 @@ public abstract class AbstractStoppableThreadConfiguration<
         }
 
         return thread;
-    }
-
-    /**
-     * Build a seed for a stoppable thread.
-     *
-     * @param stoppableThread the stoppable thread to build a seed from
-     * @return an injectable seed
-     */
-    ThreadSeed buildStoppableThreadSeed(final StoppableThreadImpl<T> stoppableThread) {
-        stoppableThread.setInjected();
-        return () -> {
-            stoppableThread.markAsStarted(Thread.currentThread());
-            buildThreadSeed().inject();
-        };
     }
 
     /**
