@@ -655,7 +655,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final long timeoutMillis = calculateRequestTimeout(endStream.protobufSize());
 
         try {
-            sendRequest(new EndStreamRequest(endStream, timeoutMillis));
+            final SendRequestResult result = sendRequest(new EndStreamRequest(endStream, timeoutMillis));
+            if (SendRequestStatus.SUCCESS != result.status) {
+                logger.warn("{} Sending of end stream request failed (reason: {})", this, result.status);
+            }
         } catch (final RuntimeException e) {
             logger.warn("{} Error sending EndStream request", this, e);
         }
