@@ -46,6 +46,7 @@ class PairedAsyncStreamsTest {
     // Generous safety timeout used for the production knobs (readOrWait / sendAsync) that are
     // expected to never fire in a healthy test run. Matches AsyncOutputStreamTest.DEFAULT_TIMEOUT.
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
+    private static final int DEFAULT_MAX_MESSAGE_SIZE = 1024;
 
     @Test
     @DisplayName("Basic Operation: messages round-trip through the socket and done() terminates cleanly")
@@ -53,8 +54,8 @@ class PairedAsyncStreamsTest {
         try (final PairedStreams streams = new PairedStreams();
                 final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "basic")) {
 
-            final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream teacherIn = new AsyncInputStream(
+                    streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             final AsyncOutputStream learnerOut = new AsyncOutputStream(
                     streams.getLearnerOutput(), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
 
@@ -101,8 +102,8 @@ class PairedAsyncStreamsTest {
         final PairedStreams streams = new PairedStreams();
         try (final StandardWorkGroup workGroup =
                 new StandardWorkGroup(getStaticThreadManager(), "teacher-disconnect")) {
-            final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream teacherIn = new AsyncInputStream(
+                    streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             final AsyncOutputStream learnerOut = new AsyncOutputStream(
                     streams.getLearnerOutput(), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
 
@@ -151,8 +152,8 @@ class PairedAsyncStreamsTest {
         final PairedStreams streams = new PairedStreams();
         try (final StandardWorkGroup workGroup =
                 new StandardWorkGroup(getStaticThreadManager(), "learner-disconnect")) {
-            final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream teacherIn = new AsyncInputStream(
+                    streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             final AsyncOutputStream learnerOut = new AsyncOutputStream(
                     streams.getLearnerOutput(), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
 
@@ -214,7 +215,8 @@ class PairedAsyncStreamsTest {
             // backpressure blocks the producer instead of throwing while the consumer catches up.
             final int bufferSize = 8;
             final int count = 1000;
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), bufferSize, DEFAULT_TIMEOUT);
+            final AsyncInputStream in = new AsyncInputStream(
+                    streams.getTeacherInput(), bufferSize, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             final AsyncOutputStream out = new AsyncOutputStream(
                     streams.getLearnerOutput(), bufferSize, DEFAULT_FLUSH_INTERVAL, Duration.ofSeconds(30));
 
@@ -268,8 +270,8 @@ class PairedAsyncStreamsTest {
             // throws SocketTimeoutException (a subclass of IOException) into AsyncInputStream.run().
             streams.setTeacherTimeout(100);
 
-            final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream teacherIn = new AsyncInputStream(
+                    streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             teacherIn.start(workGroup);
 
             try {

@@ -61,6 +61,8 @@ class AsyncInputStreamTest {
     /** Default queue size threshold used by tests that don't care about backpressure boundaries. */
     private static final int DEFAULT_QUEUE_SIZE = 100;
 
+    private static final int DEFAULT_MAX_MESSAGE_SIZE = 10000000;
+
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
 
     /**
@@ -74,16 +76,21 @@ class AsyncInputStreamTest {
         @SuppressWarnings("DataFlowIssue")
         void constructorRejectsNullInputStream() {
             assertThrows(
-                    NullPointerException.class, () -> new AsyncInputStream(null, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT));
+                    NullPointerException.class,
+                    () -> new AsyncInputStream(null, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE));
         }
 
         @ParameterizedTest
         @DisplayName("Constructor rejects non-positive queueSizeThreshold")
         @ValueSource(ints = {-1, 0})
-        void constructorRejectsBadThreshold(int queueSizeThreshold) {
+        void constructorRejectsBadQueueSize(int queueSizeThreshold) {
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> new AsyncInputStream(mock(DataInputStream.class), queueSizeThreshold, DEFAULT_TIMEOUT));
+                    () -> new AsyncInputStream(
+                            mock(DataInputStream.class),
+                            queueSizeThreshold,
+                            DEFAULT_TIMEOUT,
+                            DEFAULT_MAX_MESSAGE_SIZE));
         }
 
         @Test
@@ -92,7 +99,8 @@ class AsyncInputStreamTest {
         void constructorRejectsNullTimeout() {
             assertThrows(
                     NullPointerException.class,
-                    () -> new AsyncInputStream(mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, null));
+                    () -> new AsyncInputStream(
+                            mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, null, DEFAULT_MAX_MESSAGE_SIZE));
         }
 
         @ParameterizedTest
@@ -102,14 +110,27 @@ class AsyncInputStreamTest {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> new AsyncInputStream(
-                            mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, Duration.ofMillis(timeoutMs)));
+                            mock(DataInputStream.class),
+                            DEFAULT_QUEUE_SIZE,
+                            Duration.ofMillis(timeoutMs),
+                            DEFAULT_MAX_MESSAGE_SIZE));
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {-1, 0})
+        @DisplayName("Constructor rejects non-positive max message size")
+        void constructorRejectsBadMaxMessageSize(int maxMessageSize) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new AsyncInputStream(
+                            mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, maxMessageSize));
         }
 
         @Test
         @DisplayName("Status is NOT_STARTED and queue is empty before start")
         void notStartedAndEmptyBeforeStart() {
-            final AsyncInputStream in =
-                    new AsyncInputStream(mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream in = new AsyncInputStream(
+                    mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
 
             assertEquals(AsyncInputStream.Status.NOT_STARTED, in.getStatus(), "status should be NOT_STARTED");
             assertEquals(0, in.getQueueSize(), "queue size should be empty");
@@ -119,8 +140,8 @@ class AsyncInputStreamTest {
         @DisplayName("Start fails with null workGroup")
         @SuppressWarnings("DataFlowIssue")
         void startRejectsNullWorkGroup() {
-            AsyncInputStream stream =
-                    new AsyncInputStream(mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            AsyncInputStream stream = new AsyncInputStream(
+                    mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             assertThrows(NullPointerException.class, () -> stream.start(null));
         }
 
@@ -128,8 +149,8 @@ class AsyncInputStreamTest {
         @EnumSource(YieldStrategy.class)
         @DisplayName("read returns null on a stream that was never started")
         void readReturnsNullOnNotStartedStream(final YieldStrategy yieldStrategy) {
-            final AsyncInputStream in =
-                    new AsyncInputStream(mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream in = new AsyncInputStream(
+                    mock(DataInputStream.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             assertNull(in.readOrWait(yieldStrategy), "Queue is empty and stream is not alive to return any message");
         }
     }
@@ -154,7 +175,10 @@ class AsyncInputStreamTest {
                 throws ParallelExecutionException, InterruptedException {
             try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
                 final AsyncInputStream in = new AsyncInputStream(
-                        new DataInputStream(new ByteArrayInputStream(data)), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                        new DataInputStream(new ByteArrayInputStream(data)),
+                        DEFAULT_QUEUE_SIZE,
+                        DEFAULT_TIMEOUT,
+                        DEFAULT_MAX_MESSAGE_SIZE);
                 in.start(workGroup);
 
                 beforeDone.accept(in);
@@ -291,7 +315,8 @@ class AsyncInputStreamTest {
         void secondStartThrowsAnException() {
             final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
             final DataInputStream inputStream = mock(DataInputStream.class);
-            final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
 
             in.start(workGroup);
 
@@ -313,7 +338,8 @@ class AsyncInputStreamTest {
 
             doThrow(cause).when(workGroup).fork(eq("async-input-stream"), any(Runnable.class));
 
-            final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
             try {
                 in.start(workGroup);
                 fail("Exception should have been thrown");
@@ -331,7 +357,8 @@ class AsyncInputStreamTest {
         @Test
         @DisplayName("Too big message read causes exception")
         void tooBigMessageReadThrowsException() throws InterruptedException, IOException {
-            final byte[] payload = new byte[AsyncInputStream.MAX_MESSAGE_SIZE + 1];
+            final int maxMessageSize = 100;
+            final byte[] payload = new byte[maxMessageSize + 1];
             for (int i = 0; i < payload.length; i++) {
                 payload[i] = (byte) (i & 0xFF);
             }
@@ -345,7 +372,8 @@ class AsyncInputStreamTest {
             try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
                 final DataInputStream inputStream =
                         new DataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
-                final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                final AsyncInputStream in =
+                        new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, maxMessageSize);
 
                 in.start(workGroup);
 
@@ -372,7 +400,8 @@ class AsyncInputStreamTest {
         void eofExceptionIsPropagated() throws InterruptedException {
             try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
                 final DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(new byte[0]));
-                final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                final AsyncInputStream in = new AsyncInputStream(
+                        inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
 
                 in.start(workGroup);
 
@@ -400,7 +429,8 @@ class AsyncInputStreamTest {
                 final DataInputStream inputStream = mock(DataInputStream.class);
                 when(inputStream.readInt()).thenThrow(new IOException(error));
 
-                final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                final AsyncInputStream in = new AsyncInputStream(
+                        inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
 
                 in.start(workGroup);
 
@@ -424,7 +454,10 @@ class AsyncInputStreamTest {
                         new BlockingInputStream(new ByteArrayInputStream(encodeLongs(1)));
                 blockingIn.lock();
                 final AsyncInputStream in = new AsyncInputStream(
-                        new DataInputStream(blockingIn), DEFAULT_QUEUE_SIZE, Duration.ofMillis(100));
+                        new DataInputStream(blockingIn),
+                        DEFAULT_QUEUE_SIZE,
+                        Duration.ofMillis(100),
+                        DEFAULT_MAX_MESSAGE_SIZE);
                 in.start(workGroup);
 
                 assertThrows(
@@ -449,7 +482,8 @@ class AsyncInputStreamTest {
         void concurrentStartsThrowsAnException() throws InterruptedException {
             final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
             final DataInputStream inputStream = mock(DataInputStream.class);
-            final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
 
             final int threadsCount = 10;
             final AtomicInteger exceptionsCount = new AtomicInteger();
@@ -498,8 +532,8 @@ class AsyncInputStreamTest {
                 final BlockingInputStream blockingIn =
                         new BlockingInputStream(new ByteArrayInputStream(encodeLongs(1)));
                 blockingIn.lock();
-                final AsyncInputStream in =
-                        new AsyncInputStream(new DataInputStream(blockingIn), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                final AsyncInputStream in = new AsyncInputStream(
+                        new DataInputStream(blockingIn), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT, DEFAULT_MAX_MESSAGE_SIZE);
                 in.start(workGroup);
 
                 assertEquals(AsyncInputStream.Status.RUNNING, in.getStatus(), "Reader thread should be running");
@@ -540,7 +574,8 @@ class AsyncInputStreamTest {
                 final AsyncInputStream in = new AsyncInputStream(
                         new DataInputStream(new ByteArrayInputStream(encodeLongs(messageCount))),
                         DEFAULT_QUEUE_SIZE,
-                        DEFAULT_TIMEOUT);
+                        DEFAULT_TIMEOUT,
+                        DEFAULT_MAX_MESSAGE_SIZE);
                 in.start(workGroup);
 
                 final CyclicBarrier barrier = new CyclicBarrier(threadsCount);
