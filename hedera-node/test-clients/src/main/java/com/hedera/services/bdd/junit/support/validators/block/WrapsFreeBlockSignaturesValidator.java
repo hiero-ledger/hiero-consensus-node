@@ -1317,13 +1317,13 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         // Built by hand, on purpose. This validator must not share the block root tree implementation with
         // block production: if it did, any error in that implementation would be reproduced here and the
         // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
-        final var slots01 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var slots23 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var slots45 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
-        final var slots67 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
-        final var slots0123 = BlockImplUtils.hashInternalNode(slots01, slots23);
-        final var slots4567 = BlockImplUtils.hashInternalNode(slots45, slots67);
-        final var assignedHalf = BlockImplUtils.hashInternalNode(slots0123, slots4567);
+        final var branches12 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
+        final var branches78 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
+        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
+        final var assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
 
         final var reservedHalf = emptyReservedHalf();
         final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, reservedHalf);
@@ -1333,8 +1333,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         // The right sibling of branch 1's ancestor at each level, bottom-up
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, slots23),
-            new MerkleSiblingHash(false, slots4567),
+            new MerkleSiblingHash(false, branches34),
+            new MerkleSiblingHash(false, branches5678),
             new MerkleSiblingHash(false, reservedHalf)
         });
     }

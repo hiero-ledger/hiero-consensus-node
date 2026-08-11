@@ -981,15 +981,15 @@ final class BlockRecordManagerTest extends AppTestBase {
             // Manually compute the expected tree structure: a perfect 16-leaf tree whose branches 1, 2 and 6
             // carry data, whose remaining branches are the empty sub-tree hash, and whose root is combined
             // with the consensus timestamp leaf.
-            final Bytes slot01 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
-            final Bytes slot23 = EMPTY_INT_NODE;
-            final Bytes slot45 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
-            final Bytes slot67 = EMPTY_INT_NODE;
+            final Bytes branches12 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
+            final Bytes branches34 = EMPTY_INT_NODE;
+            final Bytes branches56 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
+            final Bytes branches78 = EMPTY_INT_NODE;
 
-            final Bytes slot0123 = BlockImplUtils.hashInternalNode(slot01, slot23);
-            final Bytes slot4567 = BlockImplUtils.hashInternalNode(slot45, slot67);
+            final Bytes branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
+            final Bytes branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
 
-            final Bytes assignedHalf = BlockImplUtils.hashInternalNode(slot0123, slot4567);
+            final Bytes assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
             // Branches 9-16 are all empty, so their root is the constant reserved half
             final Bytes subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, RESERVED_HALF);
 

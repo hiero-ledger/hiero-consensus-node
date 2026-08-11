@@ -67,10 +67,13 @@ message StateProof {
  *    block root hash. For these the `hash` field is set.
  * 3. Merkle paths in the middle between another merkle path and the root. For
  *    these, none of the fields are set.
- * Merkle paths can only include sibling nodes for binary internal nodes. Unary
- * nodes occur only in the state tree; every internal node in the block root
- * tree has exactly two children, so every sibling on a block path carries a
- * hash.
+ *
+ * A step inside a MerklePath combines the running hash with a `SiblingNode`,
+ * so a path only covers internal nodes that have two children. A single-child
+ * internal node is represented between paths instead: the path ends at that
+ * child, and the path named by `next_path_index` is the parent. Such nodes
+ * occur in the state tree, so a path proving a state item MUST be split at
+ * each one. The block root tree has none, so a block path is never split.
  */
 message MerklePath {
 

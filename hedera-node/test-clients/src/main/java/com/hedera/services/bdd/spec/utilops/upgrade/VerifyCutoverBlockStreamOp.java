@@ -255,13 +255,13 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         // Built by hand, on purpose. This check must not share the block root tree implementation with block
         // production: if it did, any error in that implementation would be reproduced here and the check
         // would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
-        final var slots01 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
-        final var slots23 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var slots45 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var slots67 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-        final var slots0123 = BlockImplUtils.hashInternalNode(slots01, slots23);
-        final var slots4567 = BlockImplUtils.hashInternalNode(slots45, slots67);
-        final var assignedHalf = BlockImplUtils.hashInternalNode(slots0123, slots4567);
+        final var branches12 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
+        final var branches78 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
+        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
+        final var assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
 
         final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, emptyReservedHalf());
         final var timestampLeaf = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));

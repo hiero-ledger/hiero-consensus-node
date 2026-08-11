@@ -188,13 +188,13 @@ public final class RcdFileBlockHashReplay {
         // replay would agree with production regardless. A wrapped record block populates only branches 1, 2
         // and 6; every other branch, assigned or reserved, is the empty sub-tree hash.
         final var empty = BlockStreamManager.HASH_OF_ZERO;
-        final var slots01 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
-        final var slots23 = hashInternalNode(empty, empty);
-        final var slots45 = hashInternalNode(empty, entry.outputItemsTreeRootHash());
-        final var slots67 = hashInternalNode(empty, empty);
-        final var slots0123 = hashInternalNode(slots01, slots23);
-        final var slots4567 = hashInternalNode(slots45, slots67);
-        final var assignedHalf = hashInternalNode(slots0123, slots4567);
+        final var branches12 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
+        final var branches34 = hashInternalNode(empty, empty);
+        final var branches56 = hashInternalNode(empty, entry.outputItemsTreeRootHash());
+        final var branches78 = hashInternalNode(empty, empty);
+        final var branches1234 = hashInternalNode(branches12, branches34);
+        final var branches5678 = hashInternalNode(branches56, branches78);
+        final var assignedHalf = hashInternalNode(branches1234, branches5678);
 
         final var subtreesRoot = hashInternalNode(assignedHalf, emptyReservedHalf());
         return hashInternalNode(entry.consensusTimestampHash(), subtreesRoot);

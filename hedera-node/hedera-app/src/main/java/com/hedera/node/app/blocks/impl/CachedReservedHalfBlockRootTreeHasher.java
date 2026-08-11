@@ -19,8 +19,17 @@ import java.util.Arrays;
  * empty branches.
  */
 public final class CachedReservedHalfBlockRootTreeHasher implements BlockRootTreeHasher {
-    /** A shared instance; this implementation holds no state. */
+    /**
+     * The instance to use. This class declares no instance fields — the cached reserved half is a static
+     * constant — so it is immutable and safe to use concurrently, including by tests running in parallel.
+     * It exists only so the implementation can be passed as a {@link BlockRootTreeHasher} without each
+     * caller allocating an identical stateless object.
+     */
     public static final CachedReservedHalfBlockRootTreeHasher INSTANCE = new CachedReservedHalfBlockRootTreeHasher();
+
+    private CachedReservedHalfBlockRootTreeHasher() {
+        // Use INSTANCE; there is no per-instance state to justify another
+    }
 
     /**
      * The root of the reserved branches 9-16, all of which are {@link #EMPTY_SUBTREE}. Folded once here rather
@@ -44,13 +53,13 @@ public final class CachedReservedHalfBlockRootTreeHasher implements BlockRootTre
             }
         }
 
-        final var slots01 = BlockImplUtils.hashInternalNode(slots[0], slots[1]);
-        final var slots23 = BlockImplUtils.hashInternalNode(slots[2], slots[3]);
-        final var slots45 = BlockImplUtils.hashInternalNode(slots[4], slots[5]);
-        final var slots67 = BlockImplUtils.hashInternalNode(slots[6], slots[7]);
-        final var slots0123 = BlockImplUtils.hashInternalNode(slots01, slots23);
-        final var slots4567 = BlockImplUtils.hashInternalNode(slots45, slots67);
-        final var assignedHalfRootHash = BlockImplUtils.hashInternalNode(slots0123, slots4567);
+        final var branches12 = BlockImplUtils.hashInternalNode(slots[0], slots[1]);
+        final var branches34 = BlockImplUtils.hashInternalNode(slots[2], slots[3]);
+        final var branches56 = BlockImplUtils.hashInternalNode(slots[4], slots[5]);
+        final var branches78 = BlockImplUtils.hashInternalNode(slots[6], slots[7]);
+        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
+        final var assignedHalfRootHash = BlockImplUtils.hashInternalNode(branches1234, branches5678);
 
         final var subtreesRootHash = BlockImplUtils.hashInternalNode(assignedHalfRootHash, EMPTY_RESERVED_HALF);
         final var blockRootHash = BlockImplUtils.hashInternalNode(timestampLeafHash, subtreesRootHash);
@@ -58,8 +67,8 @@ public final class CachedReservedHalfBlockRootTreeHasher implements BlockRootTre
         // The right sibling of branch 1's ancestor at each level, bottom-up
         final var siblings = new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, slots[1]),
-            new MerkleSiblingHash(false, slots23),
-            new MerkleSiblingHash(false, slots4567),
+            new MerkleSiblingHash(false, branches34),
+            new MerkleSiblingHash(false, branches5678),
             new MerkleSiblingHash(false, EMPTY_RESERVED_HALF)
         };
         return new RootAndSiblingHashes(blockRootHash, siblings);

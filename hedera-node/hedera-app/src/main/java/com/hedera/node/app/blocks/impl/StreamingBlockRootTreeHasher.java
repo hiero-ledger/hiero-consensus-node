@@ -18,8 +18,17 @@ import java.util.List;
  * branch is ever assigned. Production should use {@link CachedReservedHalfBlockRootTreeHasher}.
  */
 public final class StreamingBlockRootTreeHasher implements BlockRootTreeHasher {
-    /** A shared instance; this implementation holds no state. */
+    /**
+     * The instance to use. This class declares no instance fields and every call allocates its own hasher,
+     * so it is immutable and safe to use concurrently — callers, including tests running in parallel, need
+     * no coordination. It exists only so the implementation can be passed as a
+     * {@link BlockRootTreeHasher} without each caller allocating an identical stateless object.
+     */
     public static final StreamingBlockRootTreeHasher INSTANCE = new StreamingBlockRootTreeHasher();
+
+    private StreamingBlockRootTreeHasher() {
+        // Use INSTANCE; there is no per-instance state to justify another
+    }
 
     @Override
     public RootAndSiblingHashes computeRootAndSiblings(
