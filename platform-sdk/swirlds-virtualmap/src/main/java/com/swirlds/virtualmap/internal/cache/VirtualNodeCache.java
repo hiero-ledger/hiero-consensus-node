@@ -437,9 +437,11 @@ public final class VirtualNodeCache {
         return true;
     }
 
-    // For testing purposes
-    public boolean isDestroyed() {
-        return this.released.get();
+    /**
+     * Returns if this cache copy is destroyed by calling {@link #release()}. For testing purposes only.
+     */
+    boolean isDestroyed() {
+        return released.get();
     }
 
     /**
