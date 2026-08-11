@@ -56,6 +56,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +69,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
@@ -168,8 +168,8 @@ public class Utils {
 
     public static ByteString extractBytecodeUnhexed(final String path) {
         try {
-            final var bytes = Files.readAllBytes(Path.of(path));
-            return ByteString.copyFrom(Hex.decode(bytes));
+            final var string = Files.readString(Path.of(path));
+            return ByteString.copyFrom(HexFormat.of().parseHex(string));
         } catch (IOException e) {
             log.warn("An error occurred while reading file", e);
             return ByteString.EMPTY;

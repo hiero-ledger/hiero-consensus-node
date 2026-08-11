@@ -52,9 +52,14 @@ public final class ReportRenderer {
                 .filter(j -> j.finding().lane() == Lane.ASSERT && j.triage() == Triage.DISMISSED)
                 .count();
         final long quiet = countLane(result, Lane.QUIET_LOG);
-        final long lineMoves = countLane(result, Lane.AUTO_FIX);
+        final long lineMoves = result.findings().stream()
+                .filter(f -> f.lane() == Lane.AUTO_FIX && f.autoFixLine() != null)
+                .count();
+        final long symbolMigrations = result.findings().stream()
+                .filter(f -> f.lane() == Lane.AUTO_FIX && f.autoFixSymbol() != null)
+                .count();
         // Path-move asserts still assert (the KB claim is wrong until edited) but each carries a ready
-        // path-rewrite, so they are mechanically fixable alongside the line moves.
+        // path-rewrite, so they are mechanically fixable alongside the line moves and symbol migrations.
         final long pathMoves =
                 asserts.stream().filter(j -> j.finding().resolvedPath() != null).count();
 
@@ -73,10 +78,15 @@ public final class ReportRenderer {
                 .append(" |\n");
         sb.append("| Unverifiable (quiet log) | ").append(quiet).append(" |\n");
         sb.append("| Auto-fix — moved lines | ").append(lineMoves).append(" |\n");
+        sb.append("| Auto-fix — `:NN`→`#symbol` migrations | ")
+                .append(symbolMigrations)
+                .append(" |\n");
         sb.append("| Auto-fix — path moves (assert + ready rewrite) | ")
                 .append(pathMoves)
                 .append(" |\n");
-        sb.append("| Fixable now with `--fix` | ").append(lineMoves + pathMoves).append(" |\n");
+        sb.append("| Fixable now with `--fix` | ")
+                .append(lineMoves + symbolMigrations + pathMoves)
+                .append(" |\n");
         // The Tier-3 semantic pass runs outside this engine (the skill); surfacing its pending workload
         // here keeps a standalone engine run from reading as "everything was checked".
         final long review = countWorklist(result, WorklistEntry.Status.REVIEW);

@@ -27,6 +27,7 @@ import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
@@ -75,7 +76,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             // check all the node hashes
             for (int i = 1; i < lastLeafPath + 1; i++) {
                 final boolean isLeaf = i >= firstLeafPath;
-                final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
+                final int rank = MerklePathUtils.getRank(i);
                 if (isLeaf || (rank % hashChunkHeight == 0)) {
                     final var hash = VirtualMapTestUtils.loadHash(dataSource, i, hashChunkHeight);
                     assertEquals(
@@ -132,7 +133,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                     false);
             // check all the node hashes
             IntStream.range(1, testSize * 2 + 1).forEach(i -> {
-                if ((i >= testSize) || (com.swirlds.virtualmap.internal.Path.getRank(i) % chunkHeight == 0)) {
+                if ((i >= testSize) || (MerklePathUtils.getRank(i) % chunkHeight == 0)) {
                     try {
                         assertEquals(
                                 hash(i * 10),
@@ -776,7 +777,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     public static void assertHash(final MerkleDbDataSource dataSource, final long path, final int i) {
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         final boolean isLeaf = (path >= dataSource.getFirstLeafPath()) && (path <= dataSource.getLastLeafPath());
-        final int pathRank = com.swirlds.virtualmap.internal.Path.getRank(path);
+        final int pathRank = MerklePathUtils.getRank(path);
         if (isLeaf || (pathRank % hashChunkHeight == 0)) {
             try {
                 assertEqualsAndPrint(
@@ -817,7 +818,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(key));
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(path));
             final boolean isLeaf = (path >= dataSource.getFirstLeafPath()) && (path <= dataSource.getLastLeafPath());
-            final int pathRank = com.swirlds.virtualmap.internal.Path.getRank(path);
+            final int pathRank = MerklePathUtils.getRank(path);
             if (isLeaf || (pathRank % hashChunkHeight == 0)) {
                 assertEquals(
                         hash(hashIndex),

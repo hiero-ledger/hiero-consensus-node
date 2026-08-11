@@ -35,7 +35,6 @@ module com.hedera.node.app.hapi.utils {
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;
-    requires org.apache.commons.codec;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
