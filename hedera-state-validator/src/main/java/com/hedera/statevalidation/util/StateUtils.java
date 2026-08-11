@@ -54,6 +54,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.system.InitTrigger;
@@ -72,6 +73,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.InstantSource;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -83,7 +86,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
@@ -370,5 +373,25 @@ public final class StateUtils {
         }
 
         throw new IllegalArgumentException(String.format("No state ID found for %s.%s", serviceName, stateKey));
+    }
+
+    public static List<Pair<String, String>> prepareServiceNamesAndStateKeys() {
+        final List<Pair<String, String>> serviceNamesAndStateKeys = new ArrayList<>();
+        for (final StateKey.KeyOneOfType value : StateKey.KeyOneOfType.values()) {
+            extractStateName(value.protoName(), serviceNamesAndStateKeys);
+        }
+        for (final SingletonType singletonType : SingletonType.values()) {
+            extractStateName(singletonType.protoName(), serviceNamesAndStateKeys);
+        }
+
+        return serviceNamesAndStateKeys;
+    }
+
+    private static void extractStateName(
+            @NonNull final String value, @NonNull final List<Pair<String, String>> serviceNamesAndStateKeys) {
+        final String[] serviceNameStateKey = value.split("_I_");
+        if (serviceNameStateKey.length == 2) {
+            serviceNamesAndStateKeys.add(Pair.of(serviceNameStateKey[0], serviceNameStateKey[1]));
+        }
     }
 }

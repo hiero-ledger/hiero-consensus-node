@@ -28,6 +28,7 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -55,6 +56,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.IORunnable;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
@@ -264,33 +266,30 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
         // create thread pool storing virtual node hashes
         storeHashesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store hashes"))
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store hashes")
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing hashes", tableName, ex))
                 .buildFactory());
         // create thread pool storing virtual leaf nodes
         storeLeavesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store leaves")
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaves"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaves", tableName, ex))
                 .buildFactory());
         // create thread pool storing virtual leaf keys
         storeLeafKeysExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store leaf keys")
+                .setThreadNameProvider(
+                        CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaf keys"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaf keys", tableName, ex))
                 .buildFactory());
         // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Snapshot")
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
                 .setExceptionHandler(
                         (t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", ex))
                 .buildFactory());
@@ -360,7 +359,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
                 final long path = hashChunk.path();
                 // Old data files may contain entries with paths outside the current virtual node range
-                final long firstHashPath = com.swirlds.virtualmap.internal.Path.getRightChildPath(path);
+                final long firstHashPath = MerklePathUtils.getRightChildPath(path);
                 if (firstHashPath <= validLeafPathRange.getMaxValidKey()) {
                     final long chunkId = VirtualHashChunk.pathToChunkId(firstHashPath, hashChunkHeight);
                     idToDiskLocationHashChunks.put(chunkId, dataLocation);
@@ -775,7 +774,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
 
         final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
-        if (com.swirlds.virtualmap.internal.Path.getLeftChildPath(chunkPath) > getLastLeafPath()) {
+        if (MerklePathUtils.getLeftChildPath(chunkPath) > getLastLeafPath()) {
             return null;
         }
 

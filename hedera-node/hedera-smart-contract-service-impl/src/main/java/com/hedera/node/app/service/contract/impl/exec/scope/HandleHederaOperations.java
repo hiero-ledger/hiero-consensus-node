@@ -191,7 +191,7 @@ public class HandleHederaOperations implements HederaOperations {
         final var payerId = context.payer();
         // Calculate gas for a CryptoCreateTransactionBody with an alias address
         final var synthCreation = TransactionBody.newBuilder()
-                .cryptoCreateAccount(CREATE_TXN_BODY_BUILDER.alias(tuweniToPbjBytes(recipient.getBytes())))
+                .cryptoCreateAccount(CREATE_TXN_BODY_BUILDER.alias(tuweniToPbjBytes(recipient)))
                 .build();
         final var createFee = gasCalculator.feeCalculatorPriceInTinyBars(synthCreation, payerId);
 
@@ -548,7 +548,7 @@ public class HandleHederaOperations implements HederaOperations {
         // Dispatch a synthetic transaction to set the delegation
         final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
                 .accountIDToUpdate(accountID)
-                .delegationAddress(tuweniToPbjBytes(delegationAddress.getBytes()))
+                .delegationAddress(tuweniToPbjBytes(delegationAddress))
                 .build();
         final var body =
                 TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();

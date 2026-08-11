@@ -5,7 +5,6 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.virtualmap.internal.Path;
 import org.junit.jupiter.api.Test;
 
 class VirtualMapMetadataTest {
@@ -56,7 +55,7 @@ class VirtualMapMetadataTest {
                 "Setting firstLeafPath to a path greater than lastLeafPath should throw an exception");
 
         // Path.INVALID_PATH is allowed
-        metadata.setFirstLeafPath(Path.INVALID_PATH);
+        metadata.setFirstLeafPath(MerklePathUtils.INVALID_PATH);
     }
 
     @Test
@@ -79,7 +78,7 @@ class VirtualMapMetadataTest {
                 "Setting lastLeafPath lesser than firstLeafPath should throw an exception");
 
         // Path.INVALID_PATH is allowed
-        metadata.setLastLeafPath(Path.INVALID_PATH);
+        metadata.setLastLeafPath(MerklePathUtils.INVALID_PATH);
     }
 
     @Test
