@@ -362,7 +362,6 @@ class FrameUtilsTest {
                 .isAllowCallsToNonContractAccountsEnabled(
                         DEFAULT_CONTRACTS_CONFIG,
                         NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS
-                                .getBytes()
                                 .toUnsignedBigInteger()
                                 .longValueExact());
     }

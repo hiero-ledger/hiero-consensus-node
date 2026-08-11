@@ -8,8 +8,8 @@ dependencies {
     }
 }
 
-val besu = "26.2.0"
-val bouncycastle = "1.84"
+val besu = "25.7.0"
+val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
@@ -100,16 +100,20 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.4.2") {
+    // minor vertx-core version override 4.5.13 -> 4.5.16
+    // to fix Snyk Scan CI [High Severity] for besu 25.7.0
+    api("io.vertx:vertx-core:4.5.16") { because("io.vertx.core") }
+    // native libs version is related to besu version
+    api("org.hyperledger.besu:secp256k1:1.3.1") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
-    api("org.hyperledger.besu:gnark:1.4.2")
-    api("org.hyperledger.besu:secp256r1:1.4.2")
-    api("org.hyperledger.besu:arithmetic:1.4.2")
-    api("org.hyperledger.besu:blake2bf:1.4.2") {
+    api("org.hyperledger.besu:gnark:1.3.1")
+    api("org.hyperledger.besu:secp256r1:1.3.1")
+    api("org.hyperledger.besu:arithmetic:1.3.1")
+    api("org.hyperledger.besu:blake2bf:1.3.1") {
         because("org.hyperledger.besu.nativelib.blake2bf")
     }
-    api("org.hyperledger.besu:boringssl:1.4.2") {
+    api("org.hyperledger.besu:boringssl:1.3.1") {
         because("org.hyperledger.besu.nativelib.boringssl")
     }
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }

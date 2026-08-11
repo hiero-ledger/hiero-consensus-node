@@ -106,7 +106,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream

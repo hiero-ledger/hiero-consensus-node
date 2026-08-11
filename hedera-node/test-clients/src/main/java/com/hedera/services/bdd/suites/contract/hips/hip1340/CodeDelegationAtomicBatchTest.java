@@ -857,7 +857,8 @@ public class CodeDelegationAtomicBatchTest {
                             getContractBytecode(evmAddress)
                                     .exposingBytecodeTo(bytes -> assertEquals(
                                             fromHeadlongAddress(delegationTargetAddress),
-                                            CodeDelegationHelper.getTargetAddress(Bytes.wrap(bytes)))));
+                                            org.hyperledger.besu.datatypes.Address.wrap(Bytes.wrap(bytes)
+                                                    .slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size())))));
                 }),
                 getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceAfter::set),
                 getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterRollback::set),
