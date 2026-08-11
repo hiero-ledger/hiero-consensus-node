@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.base.concurrent.framework.internal;
+package org.hiero.consensus.concurrent;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static org.assertj.core.api.Assertions.assertThat;

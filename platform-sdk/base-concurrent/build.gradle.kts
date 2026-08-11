@@ -16,8 +16,6 @@ testModuleInfo {
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.hiero.consensus.metrics")
-    requires("org.hiero.consensus.model")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
