@@ -17,7 +17,7 @@ import java.time.Duration;
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  */
-@ConfigData("vmap.sync.teacher")
+@ConfigData("reconnect.teacher")
 public record VirtualMapTeacherSyncConfig(
         @ConfigProperty(defaultValue = "16") @Positive int numReceiveThreads,
         @ConfigProperty(defaultValue = "8000000") @Positive int maxMessageSizeBytes,

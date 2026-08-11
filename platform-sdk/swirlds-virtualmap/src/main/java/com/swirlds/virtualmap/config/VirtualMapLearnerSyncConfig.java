@@ -19,7 +19,7 @@ import java.time.Duration;
  *                                               asyncOutputStream buffer a periodic flush is performed.
  */
 // spotless:off
-@ConfigData("vmap.sync.learner")
+@ConfigData("reconnect.learner")
 public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "16") @Positive int numSendThreads,
         @ConfigProperty(defaultValue = "16") @Positive int numReceiveThreads,
