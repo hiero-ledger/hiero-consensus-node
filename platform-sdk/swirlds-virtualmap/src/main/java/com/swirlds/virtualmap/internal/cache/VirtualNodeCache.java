@@ -2,6 +2,7 @@
 package com.swirlds.virtualmap.internal.cache;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -916,6 +917,7 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     public VirtualNodeCache snapshot() {
         synchronized (lastReleased) {
+            final long start = System.currentTimeMillis();
             final VirtualNodeCache newSnapshot = new VirtualNodeCache(
                     virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
             setMapSnapshotAndArray(
@@ -925,6 +927,8 @@ public final class VirtualNodeCache implements FastCopyable {
             setMapSnapshotAndArray(this.keyToDirtyLeafIndex, newSnapshot.keyToDirtyLeafIndex, newSnapshot.dirtyLeaves);
             newSnapshot.fastCopyVersion.set(this.fastCopyVersion.get());
             newSnapshot.seal();
+            logger.info(STARTUP.getMarker(), "++++++++ VirtualNodeCache snapshot, took {} ms",
+                    System.currentTimeMillis() - start);
             return newSnapshot;
         }
     }

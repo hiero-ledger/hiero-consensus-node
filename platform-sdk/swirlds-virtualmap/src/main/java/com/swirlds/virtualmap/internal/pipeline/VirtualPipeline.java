@@ -2,6 +2,7 @@
 package com.swirlds.virtualmap.internal.pipeline;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -525,7 +526,14 @@ public class VirtualPipeline {
                 executorService.shutdownNow();
                 fireOnShutdown(true);
             } else {
-                executorService.submit(() -> fireOnShutdown(false));
+                final long shutdownStart = System.currentTimeMillis();
+                executorService.submit(() -> {
+                    fireOnShutdown(false);
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "++++++++ Virtual pipeline graceful shutdown is finished, took {} ms",
+                            System.currentTimeMillis() - shutdownStart);
+                });
                 executorService.shutdown();
             }
         }
