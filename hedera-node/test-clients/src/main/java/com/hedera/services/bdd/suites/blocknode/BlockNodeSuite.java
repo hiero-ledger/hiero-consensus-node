@@ -38,15 +38,7 @@ public class BlockNodeSuite {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        })
+                        blockNodePriorities = {0})
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
@@ -65,51 +57,19 @@ public class BlockNodeSuite {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
-                        blockNodePriorities = {0, 0, 0, 0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0, 0, 0, 0}),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0, 1, 2, 3},
-                        blockNodePriorities = {0, 0, 0, 0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0, 0, 0, 0}),
                 @SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0, 1, 2, 3},
-                        blockNodePriorities = {0, 0, 0, 0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0, 0, 0, 0}),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0, 1, 2, 3},
-                        blockNodePriorities = {0, 0, 0, 0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        })
+                        blockNodePriorities = {0, 0, 0, 0})
             })
     @Order(2)
     final Stream<DynamicTest> allP0NodesStreamingHappyPath() {

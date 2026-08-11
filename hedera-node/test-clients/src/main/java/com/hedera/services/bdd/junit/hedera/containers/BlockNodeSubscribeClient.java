@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
@@ -38,6 +39,7 @@ import org.hiero.block.api.SubscribeStreamResponse;
 public class BlockNodeSubscribeClient implements AutoCloseable {
     private static final Logger log = LogManager.getLogger(BlockNodeSubscribeClient.class);
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
+    private static final int MAX_MESSAGE_SIZE_BYTES = 4 * 1024 * 1024;
 
     private final String host;
     private final int port;
@@ -48,16 +50,17 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
     }
 
     /**
-     * Queries the block node's server status and returns the last available block number.
+     * Queries the block node's server status and returns the next expected block number.
+     * The next block the block node wants streamed, or -1 if
+     * the block node is empty or its status cannot be retrieved.
      *
-     * @return the last available block number, or -1 if the status cannot be retrieved
+     * @return the next expected block number, or -1 if the status cannot be retrieved
      */
-    public long getLastAvailableBlock() {
+    public long getNextExpectedBlock() {
         try (final var serviceClient = createServiceClient()) {
             final var response = serviceClient.serverStatus(ServerStatusRequest.DEFAULT);
-            log.info(
-                    "Block node {}:{} server status: lastAvailableBlock={}", host, port, response.lastAvailableBlock());
-            return response.lastAvailableBlock();
+            log.info("Block node {}:{} server status: nextExpectedBlock={}", host, port, response.nextExpectedBlock());
+            return response.nextExpectedBlock();
         } catch (final Exception e) {
             log.error("Failed to get server status from block node {}:{}", host, port, e);
             return -1;
@@ -175,8 +178,15 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
 
     private PbjGrpcClient buildPbjClient() {
         final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig pbjConfig =
-                new PbjGrpcClientConfig(DEFAULT_TIMEOUT, tls, Optional.of(""), "application/grpc");
+        final PbjGrpcClientConfig pbjConfig = new PbjGrpcClientConfig(
+                DEFAULT_TIMEOUT,
+                tls,
+                Optional.of(""),
+                "application/grpc",
+                GrpcCompression.IDENTITY,
+                GrpcCompression.getDecompressorNames(),
+                MAX_MESSAGE_SIZE_BYTES,
+                MAX_MESSAGE_SIZE_BYTES * 5);
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + host + ":" + port)
                 .tls(tls)
