@@ -515,6 +515,58 @@ public class StakingSuite {
                         .isEqualTo(WHALE_STAKE)));
     }
 
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nodeStakeUnchangedAfterStakeeDeleted() {
+        // Scenario: A stakes to live W (W staked to node), then W is deleted, then A's balance
+        // changes. Without the fix, each subsequent transaction touching A triggers a spurious
+        // withdrawStake on the node (because A still carries stakedAccountId=W and the handler
+        // would update W's stakedToMe, re-enter W into modified-accounts, and run withdraw-without-
+        // award), driving the node's stakeToReward below its true value.
+        final var payer = "tc02Payer";
+        final var beneficiary = "tc02Beneficiary";
+        final var whale = "tc02Whale";
+        final var stakee = "tc02Stakee"; // W — staked to node, will be deleted
+        final var staker = "tc02Staker"; // A — staked to W
+
+        return hapiTest(
+                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
+                cryptoCreate(beneficiary)
+                        .balance(0L)
+                        .receiverSigRequired(false)
+                        .payingWith(payer)
+                        .signedBy(payer),
+                cryptoCreate(whale)
+                        .stakedNodeId(NODE)
+                        .balance(WHALE_STAKE)
+                        .payingWith(payer)
+                        .signedBy(payer),
+
+                // Create W staked to node (alive), then A staked to W.
+                cryptoCreate(stakee)
+                        .stakedNodeId(NODE)
+                        .balance(0L)
+                        .payingWith(payer)
+                        .signedBy(payer),
+                cryptoCreate(staker)
+                        .stakedAccountId(stakee)
+                        .balance(DIRECT_CREATE_STAKE)
+                        .payingWith(payer)
+                        .signedBy(payer),
+
+                // Delete W — the node's stakeToReward correctly drops to WHALE_STAKE here.
+                cryptoDelete(stakee).transfer(beneficiary).payingWith(payer).signedBy(payer, stakee),
+
+                // Change A's balance while A still carries stakedAccountId=W (deleted).
+                // This is the triggering transaction for the phantom-withdraw bug.
+                cryptoTransfer(tinyBarsFromTo(payer, staker, ONE_HBAR)).payingWith(payer),
+
+                // The node's stakeToReward must remain at WHALE_STAKE: deleting the stakee and
+                // then touching the staker must not cause a spurious withdrawal from the node.
+                doingContextual(spec -> assertThat(nodeInfo(spec).stakeToReward())
+                        .as("node stake must remain at whale's stake after stakee deletion and subsequent staker tx")
+                        .isEqualTo(WHALE_STAKE)));
+    }
+
     private static StakingNodeInfo nodeInfo(@NonNull final HapiSpec spec) {
         final var info = spec.embeddedStakingInfosOrThrow()
                 .get(EntityNumber.newBuilder().number(NODE).build());
