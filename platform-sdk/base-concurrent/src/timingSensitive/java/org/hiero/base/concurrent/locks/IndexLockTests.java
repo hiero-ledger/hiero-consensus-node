@@ -67,8 +67,8 @@ class IndexLockTests {
     }
 
     /**
-     * Although it is possible for different indexes to acquire the same lock, if the requested indices are less
-     * than hte total size of the array then they will not block.
+     * Although it is possible for different indexes to acquire the same lock, if the requested indices are less than
+     * hte total size of the array then they will not block.
      */
     @Test
     @Tag(TestComponentTags.THREADING)
@@ -199,7 +199,7 @@ class IndexLockTests {
 
             final int finalIndex = index;
             threads.add(new ThreadConfiguration(getStaticThreadManager())
-                    .setThreadName("background-locker")
+                    .setSingleThreadName("background-locker")
                     .setRunnable(() -> {
                         lock.lock(finalIndex);
                         lock.unlock(finalIndex);
@@ -232,7 +232,7 @@ class IndexLockTests {
 
                 final int finalIndex = index;
                 threads.add(new ThreadConfiguration(getStaticThreadManager())
-                        .setThreadName("background-locker")
+                        .setSingleThreadName("background-locker")
                         .setRunnable(() -> {
                             lock.lock(finalIndex);
                             lock.unlock(finalIndex);

@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.CREATE2;
-import static org.hyperledger.besu.evm.Code.EMPTY_CODE;
+import static org.hyperledger.besu.evm.code.CodeV0.EMPTY_CODE;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -15,6 +15,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.operation.Create2Operation;
@@ -31,10 +32,13 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
      * Constructor for custom create2 operations.
      * @param gasCalculator the gas calculator to use
      * @param featureFlags current evm module feature flags
+     * @param codeFactory the code factory to use
      */
     public CustomCreate2Operation(
-            @NonNull final GasCalculator gasCalculator, @NonNull final FeatureFlags featureFlags) {
-        super(CREATE2.opcode(), "ħCREATE2", 4, 1, gasCalculator);
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
+        super(CREATE2.opcode(), "ħCREATE2", 4, 1, gasCalculator, codeFactory);
         this.featureFlags = featureFlags;
     }
 
@@ -85,8 +89,7 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
         final var length = clampedToLong(frame.getStackItem(2));
         final Bytes32 salt = UInt256.fromBytes(frame.getStackItem(3));
         final var initCode = frame.readMutableMemory(offset, length);
-        final var hash =
-                keccak256(Bytes.concatenate(EIP_1014_PREFIX, creatorAddress.getBytes(), salt, keccak256(initCode)));
+        final var hash = keccak256(Bytes.concatenate(EIP_1014_PREFIX, creatorAddress, salt, keccak256(initCode)));
         return Address.wrap(hash.slice(12, 20));
     }
 

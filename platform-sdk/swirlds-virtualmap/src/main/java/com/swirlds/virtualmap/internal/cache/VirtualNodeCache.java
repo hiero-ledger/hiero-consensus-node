@@ -38,62 +38,60 @@ import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * A cache for virtual merkel trees.
  * <p>
- * At genesis, a virtual merkel tree has an empty {@link VirtualNodeCache} and no data on disk. As values
- * are added to the tree, corresponding {@link VirtualLeafBytes}s are added to the cache. When the round
- * completes, a fast-copy of the tree is made, along with a fast-copy of the cache. Any new changes to the
- * modifiable tree are done through the corresponding copy of the cache. The original tree and original
- * cache have <strong>IMMUTABLE</strong> leaf data. The original tree is then submitted to multiple hashing
- * threads. All hashed internal and leaf nodes are grouped into {@link VirtualHashChunk}s and put to the
- * node cache.
+ * At genesis, a virtual merkel tree has an empty {@link VirtualNodeCache} and no data on disk. As values are added to
+ * the tree, corresponding {@link VirtualLeafBytes}s are added to the cache. When the round completes, a fast-copy of
+ * the tree is made, along with a fast-copy of the cache. Any new changes to the modifiable tree are done through the
+ * corresponding copy of the cache. The original tree and original cache have <strong>IMMUTABLE</strong> leaf data. The
+ * original tree is then submitted to multiple hashing threads. All hashed internal and leaf nodes are grouped into
+ * {@link VirtualHashChunk}s and put to the node cache.
  * <p>
- * Eventually, there are multiple copies of the cache in memory. It may become necessary to merge two
- * caches together. The {@link #merge()} method is provided to merge a cache with the one-prior cache.
- * These merges are non-destructive, meaning it is OK to continue to query against a cache that has been merged.
+ * Eventually, there are multiple copies of the cache in memory. It may become necessary to merge two caches together.
+ * The {@link #merge()} method is provided to merge a cache with the one-prior cache. These merges are non-destructive,
+ * meaning it is OK to continue to query against a cache that has been merged.
  * <p>
- * At some point, the cache should be flushed to disk. This is done by calling the {@link #dirtyLeavesForFlush(long,
- * long)} and {@link #dirtyHashesForFlush(long)} methods and sending them to the code responsible for flushing. The
- * cache itself knows nothing about the data source or how to save data, it simply maintains a record of mutations
- * so that some other code can perform the flushing.
+ * At some point, the cache should be flushed to disk. This is done by calling the
+ * {@link #dirtyLeavesForFlush(long, long)} and {@link #dirtyHashesForFlush(long)} methods and sending them to the code
+ * responsible for flushing. The cache itself knows nothing about the data source or how to save data, it simply
+ * maintains a record of mutations so that some other code can perform the flushing.
  * <p>
  * A cache is {@link FastCopyable}, so that each copy of the {@link VirtualMap} has a corresponding copy of the
- * {@link VirtualNodeCache}, at the same version. It keeps track of immutability of leaf data and internal
- * data separately, since the set of dirty leaves in a copy is added during {@code handleTransaction}
- * (which uses the most current copy), but the set of dirty internals during the {@code hashing} phase,
- * which is always one-copy removed from the current copy.
+ * {@link VirtualNodeCache}, at the same version. It keeps track of immutability of leaf data and internal data
+ * separately, since the set of dirty leaves in a copy is added during {@code handleTransaction} (which uses the most
+ * current copy), but the set of dirty internals during the {@code hashing} phase, which is always one-copy removed from
+ * the current copy.
  * <p>
- * Caches have pointers to the next and previous caches in the chain of copies. This is necessary to support
- * merging of two caches (we could have added API to explicitly merge two caches together, but our use case
- * only supports merging a cache and its next-of-kin (the next copy in the chain), so we made this the only
- * supported case in the API).
+ * Caches have pointers to the next and previous caches in the chain of copies. This is necessary to support merging of
+ * two caches (we could have added API to explicitly merge two caches together, but our use case only supports merging a
+ * cache and its next-of-kin (the next copy in the chain), so we made this the only supported case in the API).
  * <p>
- * The {@link VirtualNodeCache} was designed with our specific performance requirements in mind. We need to
- * maintain a chain of mutations over versions (the so-called map-of-lists approach to a fast-copy data
- * structure), yet we need to be able to get all mutations for a given version quickly, and we need to release
- * memory back to the garbage collector quickly. We also need to maintain the mutations for leaf data, for
- * which leaves occupied a given path, and for the internal node hashes at a given path.
+ * The {@link VirtualNodeCache} was designed with our specific performance requirements in mind. We need to maintain a
+ * chain of mutations over versions (the so-called map-of-lists approach to a fast-copy data structure), yet we need to
+ * be able to get all mutations for a given version quickly, and we need to release memory back to the garbage collector
+ * quickly. We also need to maintain the mutations for leaf data, for which leaves occupied a given path, and for the
+ * internal node hashes at a given path.
  * <p>
  * To fulfill these design requirements, each "chain" of caches share three different indexes:
- * {@link #keyToDirtyLeafIndex}, {@link #pathToDirtyKeyIndex}, and {@link #idToDirtyHashChunkIndex}.
- * Each of these is a map from either the leaf key or a path (long) to a custom linked list data structure. Each element
- * in the list is a {@link Mutation} with a reference to the data item (either a {@link VirtualHashChunk}
- * or a {@link VirtualLeafBytes}, depending on the list), and a reference to the next {@link Mutation}
- * in the list. In this way, given a leaf key or path (based on the index), you can get the linked list and
- * walk the links from mutation to mutation. The most recent mutation is first in the list, the oldest mutation
- * is last. There is at most one mutation per cache per entry in one of these indexes. If a leaf value is modified
- * twice in a single cache, only a single mutation exists recording the most recent change. There is no need to
- * keep track of multiple mutations per cache instance for the same leaf or internal node.
+ * {@link #keyToDirtyLeafIndex}, {@link #pathToDirtyKeyIndex}, and {@link #idToDirtyHashChunkIndex}. Each of these is a
+ * map from either the leaf key or a path (long) to a custom linked list data structure. Each element in the list is a
+ * {@link Mutation} with a reference to the data item (either a {@link VirtualHashChunk} or a {@link VirtualLeafBytes},
+ * depending on the list), and a reference to the next {@link Mutation} in the list. In this way, given a leaf key or
+ * path (based on the index), you can get the linked list and walk the links from mutation to mutation. The most recent
+ * mutation is first in the list, the oldest mutation is last. There is at most one mutation per cache per entry in one
+ * of these indexes. If a leaf value is modified twice in a single cache, only a single mutation exists recording the
+ * most recent change. There is no need to keep track of multiple mutations per cache instance for the same leaf or
+ * internal node.
  * <p>
- * If there is one non-obvious gotcha that you *MUST* be aware of to use this class, it is that a record
- * (leaf or hash chunk) *MUST NOT BE REUSED ACROSS CACHE INSTANCES*. If I create a leaf record, and put it
- * into {@code cache0}, and then create a copy of {@code cache0} called {@code cache1}, I *MUST NOT* put
- * the same leaf record into {@code cache1} or modify the old leaf record, otherwise I will pollute
- * {@code cache0} with a leaf modified outside of the lifecycle for that cache. Instead, I must make a
- * fast copy of the leaf record and put *that* copy into {@code cache1}.
+ * If there is one non-obvious gotcha that you *MUST* be aware of to use this class, it is that a record (leaf or hash
+ * chunk) *MUST NOT BE REUSED ACROSS CACHE INSTANCES*. If I create a leaf record, and put it into {@code cache0}, and
+ * then create a copy of {@code cache0} called {@code cache1}, I *MUST NOT* put the same leaf record into {@code cache1}
+ * or modify the old leaf record, otherwise I will pollute {@code cache0} with a leaf modified outside of the lifecycle
+ * for that cache. Instead, I must make a fast copy of the leaf record and put *that* copy into {@code cache1}.
  */
 @SuppressWarnings("rawtypes")
 public final class VirtualNodeCache {
@@ -101,9 +99,9 @@ public final class VirtualNodeCache {
     private static final Logger logger = LogManager.getLogger(VirtualNodeCache.class);
 
     /**
-     * A special {@link VirtualLeafBytes} that represents a deleted leaf. At times, the {@link VirtualMap}
-     * will ask the cache for a leaf either by key or path. At such times, if we determine by looking at
-     * the mutation that the leaf has been deleted, we will return this singleton instance.
+     * A special {@link VirtualLeafBytes} that represents a deleted leaf. At times, the {@link VirtualMap} will ask the
+     * cache for a leaf either by key or path. At such times, if we determine by looking at the mutation that the leaf
+     * has been deleted, we will return this singleton instance.
      */
     public static final VirtualLeafBytes<?> DELETED_LEAF_RECORD = new VirtualLeafBytes<>(-1, Bytes.EMPTY, null, null);
 
@@ -113,9 +111,9 @@ public final class VirtualNodeCache {
     private final Executor cleaningPool;
 
     /**
-     * The fast-copyable version of the cache. This version number is auto-incrementing and set
-     * at construction time and cannot be changed, unless the cache is created through deserialization,
-     * in which case it is set during deserialization and not changed thereafter.
+     * The fast-copyable version of the cache. This version number is auto-incrementing and set at construction time and
+     * cannot be changed, unless the cache is created through deserialization, in which case it is set during
+     * deserialization and not changed thereafter.
      */
     private final AtomicLong fastCopyVersion = new AtomicLong(0L);
 
@@ -125,14 +123,14 @@ public final class VirtualNodeCache {
     // We only use these references during merging, otherwise we wouldn't even need them...
 
     /**
-     * A reference to the next (older) version in the chain of copies. The reference is null
-     * if this is the last copy in the chain.
+     * A reference to the next (older) version in the chain of copies. The reference is null if this is the last copy in
+     * the chain.
      */
     private final AtomicReference<VirtualNodeCache> next = new AtomicReference<>();
 
     /**
-     * A reference to the previous (newer) version in the chain of copies. The reference is
-     * null if this is the first copy in the chain. This is needed to support merging.
+     * A reference to the previous (newer) version in the chain of copies. The reference is null if this is the first
+     * copy in the chain. This is needed to support merging.
      */
     private final AtomicReference<VirtualNodeCache> prev = new AtomicReference<>();
 
@@ -147,13 +145,12 @@ public final class VirtualNodeCache {
     private final CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader;
 
     /**
-     * A shared index of keys (K) to the linked lists that contain the values for that key
-     * across different versions. The value is a reference to the
-     * first {@link Mutation} in the list.
+     * A shared index of keys (K) to the linked lists that contain the values for that key across different versions.
+     * The value is a reference to the first {@link Mutation} in the list.
      * <p>
-     * For example, the key "APPLE" might point to a {@link Mutation} that refers to the 3rd
-     * copy, where "APPLE" was first modified. We simply follow the {@link Mutation} to that
-     * {@link Mutation} and return the associated leaf value.
+     * For example, the key "APPLE" might point to a {@link Mutation} that refers to the 3rd copy, where "APPLE" was
+     * first modified. We simply follow the {@link Mutation} to that {@link Mutation} and return the associated leaf
+     * value.
      * <p>
      * <strong>ONE PER CHAIN OF CACHES</strong>.
      */
@@ -167,84 +164,79 @@ public final class VirtualNodeCache {
     private final Map<Long, Mutation<Long, Bytes>> pathToDirtyKeyIndex;
 
     /**
-     * A shared index of chunk IDs to hash chunks, via {@link Mutation}s. Works the same as {@link #keyToDirtyLeafIndex}.
+     * A shared index of chunk IDs to hash chunks, via {@link Mutation}s. Works the same as
+     * {@link #keyToDirtyLeafIndex}.
      *
      * <p><strong>ONE PER CHAIN OF CACHES</strong>.
      */
     private final Map<Long, Mutation<Long, VirtualHashChunk>> idToDirtyHashChunkIndex;
 
     /**
-     * Whether this instance is released. A released cache is often the last in the
-     * chain, but may be any in the middle of the chain. However, you cannot
-     * call {@link #release()} on any cache except <strong>the last</strong> one
-     * in the chain. To release an intermediate instance, call {@link #merge()}.
+     * Whether this instance is released. A released cache is often the last in the chain, but may be any in the middle
+     * of the chain. However, you cannot call {@link #release()} on any cache except <strong>the last</strong> one in
+     * the chain. To release an intermediate instance, call {@link #merge()}.
      */
     private final AtomicBoolean released = new AtomicBoolean(false);
 
     /**
-     * Whether the <strong>leaf</strong> indexes in this cache are immutable. We track
-     * immutability of leaves and internal nodes separately, because leaves are only
-     * modified on the head of the chain (the most recent version).
+     * Whether the <strong>leaf</strong> indexes in this cache are immutable. We track immutability of leaves and
+     * internal nodes separately, because leaves are only modified on the head of the chain (the most recent version).
      */
     private final AtomicBoolean leafIndexesAreImmutable = new AtomicBoolean(false);
 
     /**
-     * Whether the <strong>internal node</strong> indexes in this cache are immutable.
-     * It turns out that we do not have an easy way to know when a cache is no longer
-     * involved in hashing, unless the {@link VirtualMap} tells it. So we add a method,
-     * {@link #seal()}, to the virtual map which is called at the end of hashing to
-     * let us know that the cache should be immutable from this point forward. Note that
-     * an immutable cache can still be merged and released.
+     * Whether the <strong>internal node</strong> indexes in this cache are immutable. It turns out that we do not have
+     * an easy way to know when a cache is no longer involved in hashing, unless the {@link VirtualMap} tells it. So we
+     * add a method, {@link #seal()}, to the virtual map which is called at the end of hashing to let us know that the
+     * cache should be immutable from this point forward. Note that an immutable cache can still be merged and
+     * released.
      * <p>
-     * Since during the {@code handleTransaction} phase there should be no hashing going on,
-     * we start off with this being set to true, just to catch bugs or false assumptions.
+     * Since during the {@code handleTransaction} phase there should be no hashing going on, we start off with this
+     * being set to true, just to catch bugs or false assumptions.
      */
     private final AtomicBoolean hashesAreImmutable = new AtomicBoolean(true);
 
     /**
-     * A set of all modifications to leaves that occurred in this version of the cache.
-     * Note that this isn't actually a set, we have to sort and filter duplicates later.
+     * A set of all modifications to leaves that occurred in this version of the cache. Note that this isn't actually a
+     * set, we have to sort and filter duplicates later.
      * <p>
      * <strong>ONE PER CACHE INSTANCE</strong>.
      */
     private volatile ConcurrentArray<Mutation<Bytes, VirtualLeafBytes>> dirtyLeaves = new ConcurrentArray<>();
 
     /**
-     * A set of leaf path changes that occurred in this version of the cache. This is separate
-     * from dirtyLeaves because dirtyLeaves captures the history of changes to leaves, while
-     * this captures the history of which leaves lived at a given path.
-     * Note that this isn't actually a set, we have to sort and filter duplicates later.
+     * A set of leaf path changes that occurred in this version of the cache. This is separate from dirtyLeaves because
+     * dirtyLeaves captures the history of changes to leaves, while this captures the history of which leaves lived at a
+     * given path. Note that this isn't actually a set, we have to sort and filter duplicates later.
      * <p>
      * <strong>ONE PER CACHE INSTANCE</strong>.
      */
     private volatile ConcurrentArray<Mutation<Long, Bytes>> dirtyLeafPaths = new ConcurrentArray<>();
 
     /**
-     * A set of all modifications to hash chunks that occurred in this version of the cache.
-     * We use a list as an optimization, but it requires us to filter out mutations for the
-     * same key or path from multiple versions.
-     * Note that this isn't actually a set, we have to sort and filter duplicates later.
+     * A set of all modifications to hash chunks that occurred in this version of the cache. We use a list as an
+     * optimization, but it requires us to filter out mutations for the same key or path from multiple versions. Note
+     * that this isn't actually a set, we have to sort and filter duplicates later.
      *
      * <p><strong>ONE PER CACHE INSTANCE</strong>.
      */
     private volatile ConcurrentArray<Mutation<Long, VirtualHashChunk>> dirtyHashChunks = new ConcurrentArray<>();
 
     /**
-     * Estimated size of all leaf records in dirtyLeaves. This size is calculated lazily during
-     * the first call to {@link #getEstimatedSize()}. This method may only be called after
-     * {@link #leafIndexesAreImmutable} is updated to true.
+     * Estimated size of all leaf records in dirtyLeaves. This size is calculated lazily during the first call to
+     * {@link #getEstimatedSize()}. This method may only be called after {@link #leafIndexesAreImmutable} is updated to
+     * true.
      */
     private final AtomicLong estimatedLeavesSizeInBytes = new AtomicLong(0);
 
     /**
-     * Estimated size of all hashes in dirtyHashes. This size is updated on every hash operation
-     * (put, delete).
+     * Estimated size of all hashes in dirtyHashes. This size is updated on every hash operation (put, delete).
      */
     private final AtomicLong estimatedHashesSizeInBytes = new AtomicLong(0);
 
     /**
-     * Indicates if this virtual cache instance contains mutations from older cache versions
-     * as a result of cache merge operation.
+     * Indicates if this virtual cache instance contains mutations from older cache versions as a result of cache merge
+     * operation.
      */
     private final AtomicBoolean mergedCopy = new AtomicBoolean(false);
 
@@ -259,12 +251,12 @@ public final class VirtualNodeCache {
     private final AtomicLong lastReleased;
 
     /**
-     * Create a new VirtualNodeCache. The cache will be the first in the chain. It will get a
-     * fastCopyVersion of zero, and create the shared data structures.
+     * Create a new VirtualNodeCache. The cache will be the first in the chain. It will get a fastCopyVersion of zero,
+     * and create the shared data structures.
      *
      * @param virtualMapConfig platform configuration for VirtualMap
-     * @param hashChunkHeight virtual hash chunk height
-     * @param hashChunkLoader virtual hash chunk loader, must not be null
+     * @param hashChunkHeight  virtual hash chunk height
+     * @param hashChunkLoader  virtual hash chunk loader, must not be null
      */
     public VirtualNodeCache(
             final @NonNull VirtualMapConfig virtualMapConfig,
@@ -274,12 +266,12 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Create a new VirtualNodeCache. The cache will be the first in the chain. It will get the
-     * specified fastCopyVersion, and create the shared data structures.
+     * Create a new VirtualNodeCache. The cache will be the first in the chain. It will get the specified
+     * fastCopyVersion, and create the shared data structures.
      *
      * @param virtualMapConfig platform configuration for VirtualMap
-     * @param hashChunkHeight virtual hash chunk height
-     * @param hashChunkLoader virtual hash chunk loader, must not be null
+     * @param hashChunkHeight  virtual hash chunk height
+     * @param hashChunkLoader  virtual hash chunk loader, must not be null
      * @param fastCopyVersion  the version of this cache
      */
     public VirtualNodeCache(
@@ -291,14 +283,12 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Create a copy of the cache. The resulting copy will have a reference to the previous cache,
-     * and the previous cache will have a reference to the copy. The copy will have a fastCopyVersion
-     * that is one greater than the one it copied from. It will share some data structures. Critically,
-     * it will modify the {@link #hashesAreImmutable} to be false so that the older copy
-     * can be hashed.
+     * Create a copy of the cache. The resulting copy will have a reference to the previous cache, and the previous
+     * cache will have a reference to the copy. The copy will have a fastCopyVersion that is one greater than the one it
+     * copied from. It will share some data structures. Critically, it will modify the {@link #hashesAreImmutable} to be
+     * false so that the older copy can be hashed.
      *
-     * @param source
-     * 		Cannot be null and must be the most recent version!
+     * @param source Cannot be null and must be the most recent version!
      */
     @SuppressWarnings("CopyConstructorMissesField")
     private VirtualNodeCache(final VirtualNodeCache source) {
@@ -323,9 +313,8 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Create a new VirtualNodeCache with a provided cleaning pool.
-     * Used by {@link #snapshot()} to create snapshot caches that inherit
-     * the parent's pool instead of creating a new one.
+     * Create a new VirtualNodeCache with a provided cleaning pool. Used by {@link #snapshot()} to create snapshot
+     * caches that inherit the parent's pool instead of creating a new one.
      */
     private VirtualNodeCache(
             final int hashChunkHeight,
@@ -362,8 +351,8 @@ public final class VirtualNodeCache {
                     new LinkedBlockingQueue<>(),
                     new ThreadConfiguration(getStaticThreadManager())
                             .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
-                            .setComponent("virtual-map")
-                            .setThreadName("cache-cleaner")
+                            .setThreadNameProvider(
+                                    CompositeThreadNameProvider.createNumbered("virtual-map", "cache-cleaner"))
                             .setExceptionHandler((t, ex) -> logger.error(
                                     EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
                             .buildFactory());
@@ -373,8 +362,8 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Makes the cache immutable for leaf changes, but mutable for internal node changes.
-     * This method call is idempotent.
+     * Makes the cache immutable for leaf changes, but mutable for internal node changes. This method call is
+     * idempotent.
      */
     public void prepareForHashing() {
         this.leafIndexesAreImmutable.set(true);
@@ -467,9 +456,8 @@ public final class VirtualNodeCache {
      * <p>Threading: this method may not be called in parallel with {@link #release()} or
      * {@link #snapshot()}.
      *
-     * @throws IllegalStateException
-     * 		if there is nothing to merge into, or if both this cache and the one
-     * 		it is merging into are not sealed.
+     * @throws IllegalStateException if there is nothing to merge into, or if both this cache and the one it is merging
+     *                               into are not sealed.
      */
     public void merge() {
         // We only permit you to merge a cache if it is no longer being used for hashing.
@@ -508,8 +496,7 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Seals this cache, making it immutable. A sealed cache can still be merged with another sealed
-     * cache.
+     * Seals this cache, making it immutable. A sealed cache can still be merged with another sealed cache.
      */
     public void seal() {
         leafIndexesAreImmutable.set(true);
@@ -531,28 +518,23 @@ public final class VirtualNodeCache {
     // --------------------------------------------------------------------------------------------
 
     /**
-     * Puts a leaf into the cache. Called whenever there is a <strong>new</strong> leaf or
-     * whenever the <strong>value</strong> of the leaf has changed. Note that the caller is
-     * responsible for ensuring that this leaf instance does not exist in any older copies
-     * of caches. This is done by making fast-copies of the leaf as needed. This is the caller's
-     * responsibility!
+     * Puts a leaf into the cache. Called whenever there is a <strong>new</strong> leaf or whenever the
+     * <strong>value</strong> of the leaf has changed. Note that the caller is responsible for ensuring that this leaf
+     * instance does not exist in any older copies of caches. This is done by making fast-copies of the leaf as needed.
+     * This is the caller's responsibility!
      *
      * <p>The caller must <strong>also</strong> call this each time the path of the node changes,
-     * since we maintain a path-to-leaf mapping and need to be aware of the new path, even though
-     * the value has not necessarily changed. This is necessary so that we record the leaf record
-     * as dirty, since we need to include this leaf is the set that are involved in hashing, and
-     * since we need to include this leaf in the set that are written to disk (since paths are
-     * also written to disk).
+     * since we maintain a path-to-leaf mapping and need to be aware of the new path, even though the value has not
+     * necessarily changed. This is necessary so that we record the leaf record as dirty, since we need to include this
+     * leaf is the set that are involved in hashing, and since we need to include this leaf in the set that are written
+     * to disk (since paths are also written to disk).
      *
      * <p>This method should only be called from the <strong>HANDLE TRANSACTION THREAD</strong>.
      * It is NOT threadsafe!
      *
-     * @param leaf
-     * 		The leaf to put. Must not be null. Must have the correct key and path.
-     * @throws NullPointerException
-     * 		if the leaf is null
-     * @throws MutabilityException
-     * 		if the cache is immutable for leaf changes
+     * @param leaf The leaf to put. Must not be null. Must have the correct key and path.
+     * @throws NullPointerException if the leaf is null
+     * @throws MutabilityException  if the cache is immutable for leaf changes
      */
     public void putLeaf(@NonNull final VirtualLeafBytes leaf) {
         throwIfLeafImmutable();
@@ -573,19 +555,15 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Records that the given leaf was deleted in the cache. This creates a "delete" {@link Mutation} in the
-     * linked list for this leaf. The leaf must have a correct leaf path and key. This call will
-     * clear the leaf path for you.
+     * Records that the given leaf was deleted in the cache. This creates a "delete" {@link Mutation} in the linked list
+     * for this leaf. The leaf must have a correct leaf path and key. This call will clear the leaf path for you.
      *
      * <p>This method should only be called from the <strong>HANDLE TRANSACTION THREAD</strong>.
      * It is NOT threadsafe!
      *
-     * @param leaf
-     * 		the leaf to delete. Must not be null.
-     * @throws NullPointerException
-     * 		if the leaf argument is null
-     * @throws MutabilityException
-     * 		if the cache is immutable for leaf changes
+     * @param leaf the leaf to delete. Must not be null.
+     * @throws NullPointerException if the leaf argument is null
+     * @throws MutabilityException  if the cache is immutable for leaf changes
      */
     public void deleteLeaf(@NonNull final VirtualLeafBytes leaf) {
         throwIfLeafImmutable();
@@ -607,18 +585,15 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * A leaf that used to be at this {@code path} is no longer there. This should really only
-     * be called if there is no longer any leaf at this path. This happens when we add leaves
-     * and the leaf at firstLeafPath is moved and replaced by an internal node, or when a leaf
-     * is deleted and the lastLeafPath is moved or removed.
+     * A leaf that used to be at this {@code path} is no longer there. This should really only be called if there is no
+     * longer any leaf at this path. This happens when we add leaves and the leaf at firstLeafPath is moved and replaced
+     * by an internal node, or when a leaf is deleted and the lastLeafPath is moved or removed.
      *
      * <p>This method should only be called from the <strong>HANDLE TRANSACTION THREAD</strong>.
      * It is NOT threadsafe!
      *
-     * @param path
-     * 		The path to clear. After this call, there is no longer a leaf at this path.
-     * @throws MutabilityException
-     * 		if the cache is immutable for leaf changes
+     * @param path The path to clear. After this call, there is no longer a leaf at this path.
+     * @throws MutabilityException if the cache is immutable for leaf changes
      */
     public void clearLeafPath(final long path) {
         throwIfLeafImmutable();
@@ -627,23 +602,19 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code key}.
-     * For example, suppose {@code cache2} has a leaf record for the key "A", but we have {@code cache4}.
-     * By calling this method on {@code cache4}, it will find the record in {@code cache2}.
-     * If the leaf record exists, it is returned. If the leaf was deleted, {@link #DELETED_LEAF_RECORD}
-     * is returned. If there is no mutation record at all, null is returned, indicating a cache miss,
-     * and that the caller should consult on-disk storage.
+     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code key}. For example,
+     * suppose {@code cache2} has a leaf record for the key "A", but we have {@code cache4}. By calling this method on
+     * {@code cache4}, it will find the record in {@code cache2}. If the leaf record exists, it is returned. If the leaf
+     * was deleted, {@link #DELETED_LEAF_RECORD} is returned. If there is no mutation record at all, null is returned,
+     * indicating a cache miss, and that the caller should consult on-disk storage.
      * <p>
      * This method may be called concurrently from multiple threads.
      *
-     * @param key
-     * 		The key to use to lookup. Cannot be null.
-     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous
-     * 		copy in the chain), or null if there is not one.
-     * @throws NullPointerException
-     * 		if the key is null
-     * @throws ReferenceCountException
-     * 		if the cache has already been released
+     * @param key The key to use to lookup. Cannot be null.
+     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous copy in the chain),
+     * or null if there is not one.
+     * @throws NullPointerException    if the key is null
+     * @throws ReferenceCountException if the cache has already been released
      */
     public VirtualLeafBytes lookupLeafByKey(final Bytes key) {
         requireNonNull(key);
@@ -673,20 +644,18 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code path}.
-     * If the leaf record exists, it is returned. If the leaf was deleted, {@link #DELETED_LEAF_RECORD}
-     * is returned. If there is no mutation record at all, null is returned, indicating a cache miss,
-     * and that the caller should consult on-disk storage.
+     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code path}. If the leaf
+     * record exists, it is returned. If the leaf was deleted, {@link #DELETED_LEAF_RECORD} is returned. If there is no
+     * mutation record at all, null is returned, indicating a cache miss, and that the caller should consult on-disk
+     * storage.
      * <p>
-     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
-     * be called concurrently for the same path! It is NOT fully threadsafe!
+     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong> be called
+     * concurrently for the same path! It is NOT fully threadsafe!
      *
-     * @param path
-     * 		The path to use to lookup.
-     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous
-     * 		copy in the chain), or null if there is not one.
-     * @throws ReferenceCountException
-     * 		if the cache has already been released
+     * @param path The path to use to lookup.
+     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous copy in the chain),
+     * or null if there is not one.
+     * @throws ReferenceCountException if the cache has already been released
      */
     public VirtualLeafBytes lookupLeafByPath(final long path) {
         // The only way to be released is to be in a condition where the data source has
@@ -710,15 +679,12 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Returns a stream of dirty leaves from this cache instance to hash this virtual map copy. The stream
-     * is sorted by paths.
+     * Returns a stream of dirty leaves from this cache instance to hash this virtual map copy. The stream is sorted by
+     * paths.
      *
-     * @param firstLeafPath
-     * 		The first leaf path to include to the stream
-     * @param lastLeafPath
-     *      The last leaf path to include to the stream
-     * @return
-     *      A stream of dirty leaves for hashing
+     * @param firstLeafPath The first leaf path to include to the stream
+     * @param lastLeafPath  The last leaf path to include to the stream
+     * @return A stream of dirty leaves for hashing
      */
     public Stream<VirtualLeafBytes> dirtyLeavesForHash(final long firstLeafPath, final long lastLeafPath) {
         if (mergedCopy.get()) {
@@ -731,43 +697,39 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Returns a stream of dirty leaves from this cache instance to flush this virtual map copy and all
-     * previous copies merged into this one to disk.
+     * Returns a stream of dirty leaves from this cache instance to flush this virtual map copy and all previous copies
+     * merged into this one to disk.
      *
-     * @param firstLeafPath
-     * 		The first leaf path to include to the stream
-     * @param lastLeafPath
-     *      The last leaf path to include to the stream
-     * @return
-     *      A stream of dirty leaves for flushes
+     * @param firstLeafPath The first leaf path to include to the stream
+     * @param lastLeafPath  The last leaf path to include to the stream
+     * @return A stream of dirty leaves for flushes
      */
     public Stream<VirtualLeafBytes> dirtyLeavesForFlush(final long firstLeafPath, final long lastLeafPath) {
         return dirtyLeaves(firstLeafPath, lastLeafPath, true);
     }
 
     /**
-     * Gets a stream of dirty leaves <strong>from this cache instance</strong>. Deleted leaves are not included
-     * in this stream.
+     * Gets a stream of dirty leaves <strong>from this cache instance</strong>. Deleted leaves are not included in this
+     * stream.
      *
      * <p>
      * This method is called for two purposes. First, to get dirty leaves to hash a single virtual map copy. The
-     * resulting stream is expected to be sorted. No duplicate entries are expected in this case, as within a
-     * single version there may not be duplicates. Second, to get dirty leaves to flush them to disk. In this
-     * case, the stream doesn't need to be sorted, but there may be duplicated entries from different versions.
+     * resulting stream is expected to be sorted. No duplicate entries are expected in this case, as within a single
+     * version there may not be duplicates. Second, to get dirty leaves to flush them to disk. In this case, the stream
+     * doesn't need to be sorted, but there may be duplicated entries from different versions.
      *
      * <p>
      * This method may be called concurrently from multiple threads (although in practice, this should never happen).
      *
-     * @param firstLeafPath
-     * 		The first leaf path to receive in the results. It is possible, through merging of multiple rounds,
-     * 		for the data to have leaf data that is outside the expected range for the {@link VirtualMap} of
-     * 		this cache. We need to provide the leaf boundaries to compensate for this.
-     * @param lastLeafPath
-     * 		The last leaf path to receive in the results. It is possible, through merging of multiple rounds,
-     * 		for the data to have leaf data that is outside the expected range for the {@link VirtualMap} of
-     * 		this cache. We need to provide the leaf boundaries to compensate for this.
-     * 	@param dedupe
-     *      Indicates if the duplicated entries should be removed from the stream
+     * @param firstLeafPath The first leaf path to receive in the results. It is possible, through merging of multiple
+     *                      rounds, for the data to have leaf data that is outside the expected range for the
+     *                      {@link VirtualMap} of this cache. We need to provide the leaf boundaries to compensate for
+     *                      this.
+     * @param lastLeafPath  The last leaf path to receive in the results. It is possible, through merging of multiple
+     *                      rounds, for the data to have leaf data that is outside the expected range for the
+     *                      {@link VirtualMap} of this cache. We need to provide the leaf boundaries to compensate for
+     *                      this.
+     * @param dedupe        Indicates if the duplicated entries should be removed from the stream
      * @return A non-null stream of dirty leaves. May be empty. Will not contain duplicate records
      * @throws MutabilityException if called on a cache that still allows dirty leaves to be added
      */
@@ -799,8 +761,7 @@ public final class VirtualNodeCache {
      * This method may be called concurrently from multiple threads (although in practice, this should never happen).
      *
      * @return A non-null stream of deleted leaves. May be empty. Will not contain duplicate records.
-     * @throws MutabilityException
-     * 		if called on a cache that still allows dirty leaves to be added
+     * @throws MutabilityException if called on a cache that still allows dirty leaves to be added
      */
     public Stream<VirtualLeafBytes> deletedLeaves() {
         if (!dirtyLeaves.isImmutable()) {
@@ -834,9 +795,8 @@ public final class VirtualNodeCache {
     // --------------------------------------------------------------------------------------------
 
     /**
-     * Put a hash chunk to the cache. This method is usually called by virtual hasher, when
-     * a chunk is completely hashed. This method may be called from multiple threads even for
-     * a single chunk.
+     * Put a hash chunk to the cache. This method is usually called by virtual hasher, when a chunk is completely
+     * hashed. This method may be called from multiple threads even for a single chunk.
      *
      * @param chunk the virtual hash chunk
      */
@@ -877,16 +837,16 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Gets a stream of dirty hashes <strong>from this cache instance</strong>. Deleted hashes are
-     * not included in this stream. Must be called <strong>after</strong> the cache has been sealed.
+     * Gets a stream of dirty hashes <strong>from this cache instance</strong>. Deleted hashes are not included in this
+     * stream. Must be called <strong>after</strong> the cache has been sealed.
      *
      * <p>This method may be called concurrently from multiple threads (although in practice, this should
      * never happen).
      *
-     * @param lastLeafPath
-     * 		The last leaf path at and above which no node results should be returned. It is possible,
-     * 		through merging of multiple rounds, for the data to have data that is outside the expected range
-     * 		for the {@link VirtualMap} of this cache. We need to provide the leaf boundaries to compensate for this.
+     * @param lastLeafPath The last leaf path at and above which no node results should be returned. It is possible,
+     *                     through merging of multiple rounds, for the data to have data that is outside the expected
+     *                     range for the {@link VirtualMap} of this cache. We need to provide the leaf boundaries to
+     *                     compensate for this.
      * @return A non-null stream of dirty hashes. May be empty. Will not contain duplicate records.
      * @throws MutabilityException if called on a non-sealed cache instance.
      */
@@ -949,8 +909,7 @@ public final class VirtualNodeCache {
      *     |    Cache v3    | #-----# |    Cache v2    | #-----# |    Cache v1    |
      *     +----------------+         +----------------+         +----------------+
      * </pre>
-     * We should be able to remove any of the above caches. If "Cache v3" is removed, we
-     * should see:
+     * We should be able to remove any of the above caches. If "Cache v3" is removed, we should see:
      * <pre>
      *     +----------------+         +----------------+
      *     |    Cache v2    | #-----# |    Cache v1    |
@@ -969,9 +928,8 @@ public final class VirtualNodeCache {
      *     +----------------+         +----------------+
      * </pre>
      * <p>
-     * This method IS NOT threadsafe! Control access via locks. It would be bad if a merge
-     * and a release were to happen concurrently, or two merges happened concurrently,
-     * among neighbors in the chain.
+     * This method IS NOT threadsafe! Control access via locks. It would be bad if a merge and a release were to happen
+     * concurrently, or two merges happened concurrently, among neighbors in the chain.
      */
     private void wirePrevAndNext() {
         final VirtualNodeCache n = this.next.get();
@@ -1004,16 +962,13 @@ public final class VirtualNodeCache {
     /**
      * Updates the mutation for {@code value} at the given {@code path}.
      * <p>
-     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
-     * be called concurrently for the same record! It is NOT fully threadsafe!
+     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong> be called
+     * concurrently for the same record! It is NOT fully threadsafe!
      *
-     * @param value
-     * 		The value to store in the mutation. If null, then we interpret this to mean the path was deleted.
-     * 		The value is a leaf key, or an internal record.
-     * @param path
-     * 		The path to update
-     * @throws NullPointerException
-     * 		if {@code dirtyPaths} is null.
+     * @param value The value to store in the mutation. If null, then we interpret this to mean the path was deleted.
+     *              The value is a leaf key, or an internal record.
+     * @param path  The path to update
+     * @throws NullPointerException if {@code dirtyPaths} is null.
      */
     private void updateKeyAtPath(final Bytes value, final long path) {
         pathToDirtyKeyIndex.compute(path, (key, mutation) -> {
@@ -1036,19 +991,17 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Preload a hash chunk for the given path. This method is used by virtual hasher to
-     * load partially clean/dirty chunks before updating any hashes in them. Completely
-     * dirty chunks are not preloaded.
+     * Preload a hash chunk for the given path. This method is used by virtual hasher to load partially clean/dirty
+     * chunks before updating any hashes in them. Completely dirty chunks are not preloaded.
      *
      * <p>Important: this method must be thread-safe as it can be called for the same
-     * chunk from multiple hashing tasks. Also, it must return the same VirtualHashChunk
-     * object for all paths in the same chunk.
+     * chunk from multiple hashing tasks. Also, it must return the same VirtualHashChunk object for all paths in the
+     * same chunk.
      *
      * <p>Implementation is pretty straightforward. If there is a recent mutation of the
-     * given chunk in the cache, a copy of this mutation is returned, otherwise the chunk
-     * preloader (which is usually the current data source) is used. In some cases the
-     * preloader can't find the chunk either, this may happen when new leaves are added
-     * to the virtual map. In this case, a new empty hash chunk is created and returned.
+     * given chunk in the cache, a copy of this mutation is returned, otherwise the chunk preloader (which is usually
+     * the current data source) is used. In some cases the preloader can't find the chunk either, this may happen when
+     * new leaves are added to the virtual map. In this case, a new empty hash chunk is created and returned.
      */
     public VirtualHashChunk preloadHashChunk(final long path) {
         final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
@@ -1083,15 +1036,13 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Given a mutation list, look up the most recent mutation to this version, but no newer than this
-     * cache's version. This method is very fast. Newer mutations are closer to the head of the mutation list,
-     * making lookup very fast for the most recent version (O(n)).
+     * Given a mutation list, look up the most recent mutation to this version, but no newer than this cache's version.
+     * This method is very fast. Newer mutations are closer to the head of the mutation list, making lookup very fast
+     * for the most recent version (O(n)).
      *
-     * @param mutation
-     * 		The mutation list, can be null.
-     * @param <K> The key type held by the mutation. Either a Key or a path.
-     * @param <V>>
-     * 		The value type held by the mutation. It will be either a Key, leaf record, or a hash.
+     * @param mutation The mutation list, can be null.
+     * @param <K>      The key type held by the mutation. Either a Key or a path.
+     * @param <V>>     The value type held by the mutation. It will be either a Key, leaf record, or a hash.
      * @return null if the mutation could be found, or the mutation.
      */
     private <K, V> Mutation<K, V> lookup(Mutation<K, V> mutation) {
@@ -1111,13 +1062,11 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Record a mutation for the given leaf. If the specified mutation is null, or is of a different version
-     * than this cache, then a new mutation will be created and added to the mutation list.
+     * Record a mutation for the given leaf. If the specified mutation is null, or is of a different version than this
+     * cache, then a new mutation will be created and added to the mutation list.
      *
-     * @param leaf
-     * 		The leaf record. This cannot be null.
-     * @param mutation
-     * 		The list of mutations for this leaf. This can be null.
+     * @param leaf     The leaf record. This cannot be null.
+     * @param mutation The list of mutations for this leaf. This can be null.
      * @return The mutation for this leaf.
      */
     private Mutation<Bytes, VirtualLeafBytes> mutate(
@@ -1152,17 +1101,14 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Called by one of the purge threads to purge entries from the index that no longer have a referent
-     * for the mutation list. This can be called concurrently.
+     * Called by one of the purge threads to purge entries from the index that no longer have a referent for the
+     * mutation list. This can be called concurrently.
      *
      * <p>BE AWARE: this method is called from the other NON-static method with providing the configuration.
      *
-     * @param index
-     * 		The index to look through for entries to purge
-     * @param <K>
-     * 		The key type used in the index
-     * @param <V>
-     * 		The value type referenced by the mutation list
+     * @param index The index to look through for entries to purge
+     * @param <K>   The key type used in the index
+     * @param <V>   The value type referenced by the mutation list
      */
     private <K, V> void purge(final ConcurrentArray<Mutation<K, V>> array, final Map<K, Mutation<K, V>> index) {
         array.parallelTraverse(cleaningPool, (i, element) -> {
@@ -1190,22 +1136,19 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Node cache contains lists of hash and leaf mutations for every cache version. When caches
-     * are merged, the lists are merged, too. To make merges very fast, duplicates aren't removed
-     * from the lists on merge. On flush / hash, no duplicates are allowed, so duplicated entries
-     * need to be removed.
+     * Node cache contains lists of hash and leaf mutations for every cache version. When caches are merged, the lists
+     * are merged, too. To make merges very fast, duplicates aren't removed from the lists on merge. On flush / hash, no
+     * duplicates are allowed, so duplicated entries need to be removed.
      *
      * <p>This method iterates over the given list of mutations and marks all obsolete mutations
-     * as filtered. Later all marked mutations can be easily removed. A mutation is considered
-     * obsolete, if there is a newer mutation for the same key.
+     * as filtered. Later all marked mutations can be easily removed. A mutation is considered obsolete, if there is a
+     * newer mutation for the same key.
      *
      * <p>BE AWARE: this method is called from the other NON-static method with providing the configuration.
      *
      * @param array the list of mutations to process
-     * @param <K>
-     * 		The key type used in the index
-     * @param <V>
-     * 		The value type referenced by the mutation list
+     * @param <K>   The key type used in the index
+     * @param <V>   The value type referenced by the mutation list
      */
     private <K, V> void filterMutations(final ConcurrentArray<Mutation<K, V>> array) {
         final BiConsumer<Integer, Mutation<K, V>> action = (i, mutation) -> {
@@ -1225,8 +1168,7 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Copies the mutations from {@code src} into {@code dst}
-     * with the following constraints:
+     * Copies the mutations from {@code src} into {@code dst} with the following constraints:
      * <ul>
      *     <li>Only one mutation per key is copied</li>
      *     <li>Only the latest mutation with version less than or equal to the
@@ -1263,8 +1205,8 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Get estimated size of this cache copy. The size includes all leaf records in dirtyLeaves,
-     * all keys in dirtyLeafPaths, and all hashes in dirtyHashes.
+     * Get estimated size of this cache copy. The size includes all leaf records in dirtyLeaves, all keys in
+     * dirtyLeafPaths, and all hashes in dirtyHashes.
      */
     public long getEstimatedSize() {
         return estimatedLeavesSizeInBytes.get() + estimatedHashesSizeInBytes.get();
@@ -1289,8 +1231,9 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * A mutation. Mutations are linked together within the mutation list. Each mutation
-     * has a pointer to the next oldest mutation in the list.
+     * A mutation. Mutations are linked together within the mutation list. Each mutation has a pointer to the next
+     * oldest mutation in the list.
+     *
      * @param <K> The key type of data held by the mutation.
      * @param <V> The type of data held by the mutation.
      */
@@ -1345,8 +1288,8 @@ public final class VirtualNodeCache {
     }
 
     /**
-     * Given some cache, print out the contents of all the data structures and mark specially the set of mutations
-     * that apply to this cache.
+     * Given some cache, print out the contents of all the data structures and mark specially the set of mutations that
+     * apply to this cache.
      *
      * @return A string representation of all the data structures of this cache.
      */

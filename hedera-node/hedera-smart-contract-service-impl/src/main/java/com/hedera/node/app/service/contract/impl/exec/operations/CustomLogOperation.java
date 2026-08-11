@@ -8,12 +8,12 @@ import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hyperledger.besu.datatypes.Log;
-import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.log.Log;
+import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 
 /**

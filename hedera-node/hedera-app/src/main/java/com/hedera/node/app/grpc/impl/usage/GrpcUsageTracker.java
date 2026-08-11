@@ -52,6 +52,11 @@ public class GrpcUsageTracker implements ServerInterceptor {
     private static final Logger accessLogger = LogManager.getLogger("grpc-access-log");
 
     /**
+     * Logger used for operational messages related to usage tracking.
+     */
+    private static final Logger log = LogManager.getLogger(GrpcUsageTracker.class);
+
+    /**
      * Key used to extract the {@code X-User-Agent} header from the GRPC metadata.
      */
     private static final Key<String> userAgentHeaderKey = Key.of("X-User-Agent", Metadata.ASCII_STRING_MARSHALLER);
@@ -126,23 +131,28 @@ public class GrpcUsageTracker implements ServerInterceptor {
     public <ReqT, RespT> Listener<ReqT> interceptCall(
             final ServerCall<ReqT, RespT> call, final Metadata headers, final ServerCallHandler<ReqT, RespT> next) {
 
-        if (isEnabled.get()) {
-            final MethodDescriptor<?, ?> descriptor = call.getMethodDescriptor();
-            final String userAgentString = headers.get(userAgentHeaderKey);
-            final String uaString;
+        try {
+            if (isEnabled.get()) {
+                final MethodDescriptor<?, ?> descriptor = call.getMethodDescriptor();
+                final String userAgentString = headers.get(userAgentHeaderKey);
+                final String uaString;
 
-            if (userAgentString != null && userAgentString.length() > MAX_UA_LENGTH) {
-                uaString = userAgentString.substring(0, MAX_UA_LENGTH);
-            } else {
-                uaString = userAgentString;
+                if (userAgentString != null && userAgentString.length() > MAX_UA_LENGTH) {
+                    uaString = userAgentString.substring(0, MAX_UA_LENGTH);
+                } else {
+                    uaString = userAgentString;
+                }
+
+                final RpcEndpointName rpcEndpointName = RpcEndpointName.from(descriptor);
+                final UserAgent userAgent = uaString == null || uaString.isBlank()
+                        ? UserAgent.UNSPECIFIED
+                        : userAgentCache.get(uaString, UserAgent::from);
+
+                bucketRef.get().recordInteraction(rpcEndpointName, userAgent);
             }
-
-            final RpcEndpointName rpcEndpointName = RpcEndpointName.from(descriptor);
-            final UserAgent userAgent = uaString == null || uaString.isBlank()
-                    ? UserAgent.UNSPECIFIED
-                    : userAgentCache.get(uaString, UserAgent::from);
-
-            bucketRef.get().recordInteraction(rpcEndpointName, userAgent);
+        } catch (final RuntimeException e) {
+            // Usage tracking is best-effort and must never impact request handling
+            log.debug("Failed to record gRPC usage data", e);
         }
 
         return next.startCall(call, headers);

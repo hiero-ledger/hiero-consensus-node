@@ -58,7 +58,7 @@ Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensu
 
 ## `uptime.*` — UptimeConfig
 
-Module: `consensus-utility`. Source: [UptimeConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/UptimeConfig.java).
+Module: `consensus-status-monitor`. Source: [UptimeConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/UptimeConfig.java).
 
 |   ID    |              Key              |   Type   | Default |                                            Effect                                             | Range | Fragility |
 |---------|-------------------------------|----------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
@@ -81,7 +81,7 @@ Selects consensus module implementations via ServiceLoader. Each value is a JPMS
 
 ## `platformStatus.*` — PlatformStatusConfig
 
-Module: `consensus-utility`. Source: [PlatformStatusConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java).
+Module: `consensus-status-monitor`. Source: [PlatformStatusConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/PlatformStatusConfig.java).
 These delays drive the status state machine; see [architecture/topics/platform-status.md](architecture/topics/platform-status.md).
 
 |   ID    |                        Key                         |   Type   | Default |                                                Effect                                                 | Range | Fragility |

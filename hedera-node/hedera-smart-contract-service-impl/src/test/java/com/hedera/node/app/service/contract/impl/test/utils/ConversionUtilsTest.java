@@ -83,7 +83,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.datatypes.LogsBloomFilter;
+import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -272,8 +272,7 @@ class ConversionUtilsTest {
     @Test
     void returnsMissingIfSmallLongZeroAddressIsMissing() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        final var address =
-                asHeadlongAddress(Address.fromHexString("0x1234").getBytes().toArray());
+        final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(MISSING_ENTITY_NUMBER, actual);
     }
@@ -300,8 +299,7 @@ class ConversionUtilsTest {
 
     @Test
     void returnsNonCanonicalRefIfSmallLongZeroAddressRefersToAliasedAccount() {
-        final var address =
-                asHeadlongAddress(Address.fromHexString("0x1234").getBytes().toArray());
+        final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var actual = accountNumberForEvmReference(address, nativeOperations);
@@ -328,8 +326,8 @@ class ConversionUtilsTest {
     @Test
     void returnsMissingOnAbsentAliasReference() {
         given(nativeOperations.configuration()).willReturn(configuration);
-        final var address = asHeadlongAddress(
-                Address.fromHexString("0x010000000000000000").getBytes().toArray());
+        final var address =
+                asHeadlongAddress(Address.fromHexString("0x010000000000000000").toArray());
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         final var actual = ConversionUtils.accountNumberForEvmReference(address, nativeOperations);
         assertEquals(-1L, actual);
@@ -499,6 +497,6 @@ class ConversionUtilsTest {
     }
 
     private byte[] bloomFor() {
-        return LogsBloomFilter.builder().insertLog(BESU_LOG).build().getBytes().toArray();
+        return LogsBloomFilter.builder().insertLog(BESU_LOG).build().toArray();
     }
 }
