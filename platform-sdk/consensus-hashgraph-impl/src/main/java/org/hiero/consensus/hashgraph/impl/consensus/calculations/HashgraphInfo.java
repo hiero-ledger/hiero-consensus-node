@@ -1245,7 +1245,6 @@ public final class HashgraphInfo {
                         consensusEventsArray, // sort by timeCon(r,d,x) which is just gen plus a constant
                         Comparator.comparingLong((EventInfo e) -> e.gen)
                                 .thenComparingInt((EventInfo e) -> e.searchOrder)); // tiebreaker is searchOrder
-                //                Arrays.sort(consensusEventsArray,Comparator.comparingInt(EventInfo::getCoin)); /**/
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = 1 + i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(1 + i);
