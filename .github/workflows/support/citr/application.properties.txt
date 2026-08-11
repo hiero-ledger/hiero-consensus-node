@@ -8,17 +8,6 @@ networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
 
-tss.forceMockSignatures=false
-hedera.recordStream.computeHashesFromWrappedRecordBlocks=true
-hedera.recordStream.liveWritePrevWrappedRecordHashes=true
 blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config
-blockStream.buffer.isBufferPersistenceEnabled=true
-tss.hintsEnabled=true
-tss.historyEnabled=true
-tss.wrapsEnabled=true
-blockStream.enableStateProofs=true
-
-tss.wrapsProvingKeyPath=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps-archive
-tss.wrapsProvingKeyDownloadUrl=https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz
 
 staking.periodMins=360
