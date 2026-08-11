@@ -287,9 +287,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         contractMetrics
                 .opsDurationMetrics()
                 .recordSystemContractOpsDuration(
-                        systemContract.getName(),
-                        systemContractAddress.getBytes().toHexString(),
-                        opsDurationCost);
+                        systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
 
         if (frame.getRemainingGas() < gasRequirement) {
             // TODO Glib: charge gasRequirement from parentFrame if parent frame exists?

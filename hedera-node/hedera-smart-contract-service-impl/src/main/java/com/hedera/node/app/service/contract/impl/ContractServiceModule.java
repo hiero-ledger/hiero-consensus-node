@@ -13,7 +13,6 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_070;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV034;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV038;
@@ -90,12 +89,6 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 public interface ContractServiceModule {
     @Provides
     @Singleton
-    static AssetsLoader provideAssetsLoader() {
-        return new AssetsLoader();
-    }
-
-    @Provides
-    @Singleton
     static ContractHandlers provideHandlers(
             @NonNull final ContractCallHandler contractCallHandler,
             @NonNull final ContractCallLocalHandler contractCallLocalHandler,
@@ -154,7 +147,7 @@ public interface ContractServiceModule {
     @Provides
     @Singleton
     static EvmConfiguration provideEvmConfiguration() {
-        return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED, true);
+        return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED);
     }
 
     /**

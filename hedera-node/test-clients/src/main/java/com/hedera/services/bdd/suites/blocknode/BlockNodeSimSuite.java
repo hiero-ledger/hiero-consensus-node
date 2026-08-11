@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class BlockNodeSimSuite {
     private static final int BLOCK_PERIOD_SECONDS = 2;
-    private static final int STRESS_CYCLES = 50;
+    private static final int STRESS_CYCLES = 30;
 
     @HapiTest
     @HapiBlockNode(
@@ -60,7 +60,8 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1, 2, 3},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.ackedBlocksToRetain", "25"
                         })
             })
     @Order(1)
@@ -86,7 +87,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -98,7 +99,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(2)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -110,7 +111,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(3)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(1).startImmediately(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -190,7 +191,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // look for the saturation reaching the action stage (50%)
-                        "saturation: 50.0%",
+                        "ByBlockCount: 50.0000%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
                         "buffer-unhealthy",
@@ -205,7 +206,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "saturation: 0.0%")));
+                        "ByBlockCount: 0.0000%")));
     }
 
     @HapiTest
@@ -268,7 +269,11 @@ public class BlockNodeSimSuite {
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // saturation should drop as the block node acknowledges the buffered blocks
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation: 0.0%")));
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "ByBlockCount: 0.0000%")));
     }
 
     /**

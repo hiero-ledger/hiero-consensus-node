@@ -12,7 +12,10 @@
 #      in resources/0.76|0.77 application.properties (public builds.hedera.com URL); no host-side
 #      pre-download or local nginx server. Per-node download times are reported from hgcaa.log.
 #- [x] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
-#- [x] Optional Step 13: SDK TCK regression suite vs the cutover network (819-call-tck-regression.yaml parity; ENABLE_TCK_TESTS=true)
+#- [x] Optional Step 12: SDK TCK regression suite vs the cutover network (819-call-tck-regression.yaml parity; ENABLE_TCK_TESTS=true)
+#- [x] Post-cutover validation (Step 13): MinIO record-object count stable (record-file uploads ceased),
+#      MN top block strictly advancing, BN getBlock serves the observed span (SUCCESS + non-empty items),
+#      and every txId submitted across all phases is visible in the mirror node (zero transaction loss)
 
 set -eo pipefail
 set +m
@@ -87,12 +90,21 @@ Environment:
                             Matches Solo's own persist-port-forward for the explorer pod (38080 -> 8080),
                             so our forward short-circuits to Solo's auto-managed tunnel when present.
   EXPLORER_INGRESS_SERVICE_NAME Explorer service name (default: hiero-explorer-1-solo)
+  MN_BLOCK_PROGRESS_MIN_DELTA    Step 13: required cumulative advance of the mirror node's top
+                            block number during the post-cutover watch (default: 3)
+  MN_BLOCK_PROGRESS_TIMEOUT_SECS Step 13: max seconds to wait for that advance (default: 180)
+  MN_BLOCK_PROGRESS_POLL_SECS    Step 13: poll interval of the top-block watch (default: 5)
+  BN_GET_BLOCK_MAX_PER_CHECK     Step 13: cap on blocks fetched via Block Node getBlock when
+                            verifying the observed span (default: 25)
+  RECORD_CESSATION_SETTLE_SECS   Step 13: gap between the two MinIO record-object counts that
+                            establish record-file uploads have ceased (default: 15)
   START_STEP                 Step number to resume from (1..13; default: 1).
                             Skips earlier steps; caller is responsible for cluster state matching
                             the end of step (START_STEP - 1). When >1, a resume prelude rebuilds
                             the SDK runtime and re-establishes the CN/mirror port-forwards.
-                            START_STEP=13 implies ENABLE_TCK_TESTS=true unless it was set explicitly.
-  ENABLE_TCK_TESTS           true|false (default: false). Adds Step 13: run the SDK team's TCK suite
+                            START_STEP=12 implies ENABLE_TCK_TESTS=true unless it was set explicitly;
+                            START_STEP=13 runs only the post-cutover validations.
+  ENABLE_TCK_TESTS           true|false (default: false). Enables Step 12: run the SDK team's TCK suite
                             (hiero-ledger/hiero-sdk-tck driven through the hiero-sdk-js tck JSON-RPC
                             server) against the cutover network, replicating the XTS panel in
                             .github/workflows/819-call-tck-regression.yaml. A TCK failure fails the
@@ -116,9 +128,9 @@ Environment:
   MIRROR_GRPC_LOCAL_PORT     Local port forwarded to svc/mirror-1-grpc for MIRROR_NETWORK (default: 5600)
   MIRROR_RESTJAVA_LOCAL_PORT Local port forwarded to svc/mirror-1-restjava (default: 8084)
   MIRROR_RESTJAVA_READY_TIMEOUT_SECS
-                            Bound on waiting for the mirror-1-restjava rollout in Step 13 (default: 300)
+                            Bound on waiting for the mirror-1-restjava rollout in Step 12 (default: 300)
   TCK_TEST_TIMEOUT_SECS      Timeout for the full suite / each test:file invocation (default: 3600)
-  TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 13 (default: 900)
+  TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 12 (default: 900)
 EOF
       exit 0
       ;;
@@ -333,11 +345,11 @@ MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 # version, satisfying Solo's no-downgrade guard (assertUpgradeVersionNotOlder). Block-cutover env
 # wiring needs MN >= 0.153.1 to honor the HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_* keys; 0.156.0 does.
 # COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
-# currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
+# currently 0.79.1 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
 # itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.158.0}"
 
-# --- Step 13: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
+# --- Step 12: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
 # TCK/JS-SDK version defaults come from the CITR pin file so a default run tests exactly the
 # tags the XTS SDK TCK Regression Panel runs (855-call-extract-citr-vars.yaml reads the same file).
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
@@ -354,7 +366,19 @@ MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
 TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
 TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
 # ENABLE_TCK_TESTS is deliberately not defaulted here: the START_STEP block below needs to
-# distinguish "unset" (auto-implied by START_STEP=13) from an explicit false.
+# distinguish "unset" (auto-implied by START_STEP=12) from an explicit false.
+
+# Step 13 post-cutover validation knobs.
+# MN top-block watch: require a cumulative advance of MIN_DELTA blocks (no
+# regressions) within TIMEOUT_SECS, sampling every POLL_SECS.
+MN_BLOCK_PROGRESS_MIN_DELTA="${MN_BLOCK_PROGRESS_MIN_DELTA:-3}"
+MN_BLOCK_PROGRESS_TIMEOUT_SECS="${MN_BLOCK_PROGRESS_TIMEOUT_SECS:-180}"
+MN_BLOCK_PROGRESS_POLL_SECS="${MN_BLOCK_PROGRESS_POLL_SECS:-5}"
+# Cap on how many blocks of the observed span are fetched via BN getBlock.
+BN_GET_BLOCK_MAX_PER_CHECK="${BN_GET_BLOCK_MAX_PER_CHECK:-25}"
+# Gap between the two baseline MinIO record-object counts that establish the
+# post-cutover count is no longer moving.
+RECORD_CESSATION_SETTLE_SECS="${RECORD_CESSATION_SETTLE_SECS:-15}"
 
 # Step at which to start; lower-numbered steps are skipped. Default 1 = full run.
 START_STEP="${START_STEP:-1}"
@@ -364,16 +388,13 @@ if ! [[ "${START_STEP}" =~ ^[1-9]$|^1[0-3]$ ]]; then
 fi
 should_run_step() { (( START_STEP <= $1 )); }
 
-# START_STEP=13 is the standalone-TCK entry point; without ENABLE_TCK_TESTS the run would be a
-# no-op after the resume prelude, so imply it unless the caller set it explicitly.
-if [[ "${START_STEP}" == "13" && -z "${ENABLE_TCK_TESTS:-}" ]]; then
-  echo "START_STEP=13: enabling ENABLE_TCK_TESTS=true (set ENABLE_TCK_TESTS=false explicitly to suppress)"
+# START_STEP=12 is the standalone-TCK entry point, so imply ENABLE_TCK_TESTS unless the caller
+# explicitly disabled it. START_STEP=13 intentionally skips TCK and runs validation only.
+if [[ "${START_STEP}" == "12" && -z "${ENABLE_TCK_TESTS:-}" ]]; then
+  echo "START_STEP=12: enabling ENABLE_TCK_TESTS=true (set ENABLE_TCK_TESTS=false explicitly to suppress)"
   ENABLE_TCK_TESTS=true
 fi
 ENABLE_TCK_TESTS="${ENABLE_TCK_TESTS:-false}"
-if [[ "${START_STEP}" == "13" && "${ENABLE_TCK_TESTS}" != "true" ]]; then
-  echo "WARNING: START_STEP=13 with ENABLE_TCK_TESTS=false — this run will do nothing after the resume prelude" >&2
-fi
 
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
@@ -406,8 +427,22 @@ BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
 BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/verification/tss-parameters.bin}"
 PORT_FORWARD_WATCHDOG_SCRIPT="${WORK_DIR}/post-run-port-forward-watchdog.sh"
 PORT_FORWARD_WATCHDOG_LOG="${WORK_DIR}/post-run-port-forward-watchdog.log"
+# Per-invocation handoff file for the SDK verifier's submitted txIds; each
+# verifier run appends mirror-format ids here and collect_submitted_tx_ids
+# folds them into SUBMITTED_TX_IDS right after.
+TX_ID_OUT_FILE="${WORK_DIR}/last-submitted-tx-ids.txt"
 
-# Step 13 (SDK TCK) artifacts. Clones land in WORK_DIR; the mochawesome report is exported to
+# Every mirror-format transactionId submitted by this run's SDK verifier
+# invocations (creates + flushes), accumulated across all phases and verified
+# against the mirror node after the 0.77 cutover (Step 13).
+SUBMITTED_TX_IDS=()
+
+# One line per Step 13 post-cutover validation result (each check appends its
+# own), replayed as a summary block at the very end of the run so a log reader
+# can confirm at a glance which checks ran and what they measured.
+VALIDATION_SUMMARY_LINES=()
+
+# Step 12 (SDK TCK) artifacts. Clones land in WORK_DIR; the mochawesome report is exported to
 # GENERATED_DIR so it survives WORK_DIR removal on a successful non-keep run.
 TCK_CLONE_DIR="${WORK_DIR}/hiero-sdk-tck"
 JS_SDK_CLONE_DIR="${WORK_DIR}/hiero-sdk-js"
@@ -416,6 +451,8 @@ TCK_REPORT_EXPORT_DIR="${TCK_REPORT_EXPORT_DIR:-${GENERATED_DIR}/tck-report}"
 # Resolved by prepare_tck_repos (either the *_REPO_PATH overrides or the clones above).
 TCK_REPO_DIR=""
 JS_SDK_REPO_DIR=""
+# Filled by print_tck_report_summary after aggregating every exported report.
+TCK_STATS_SUMMARY=""
 
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
@@ -504,7 +541,7 @@ cleanup() {
     cp "${TCK_SDK_SERVER_LOG}" "${TCK_REPORT_EXPORT_DIR}/tck-sdk-server.log" >/dev/null 2>&1 || true
   fi
 
-  # TCK helpers (Step 13) are host-local only — the JSON-RPC sdk-server and the mirror
+  # TCK helpers (Step 12) are host-local only — the JSON-RPC sdk-server and the mirror
   # grpc/restjava forwards exist solely for the TCK client. Kill them regardless of exit
   # code / KEEP_NETWORK; pnpm spawns nodemon which spawns the node that owns the socket,
   # so TERM the child tree first, then the pid, then sweep the port for the grandchild.
@@ -1752,6 +1789,168 @@ download_solo_minio_record_streams() {
   rm -f "${names_file}"
 }
 
+# Pinned in-pod mc context for the Step 13 record-object counts. Discovered
+# once (pod + endpoint + credentials, same fallback order as the record-stream
+# downloader) and reused for every count so all samples measure the same
+# endpoint with the same credentials.
+MINIO_COUNT_POD=""
+MINIO_COUNT_ENDPOINT=""
+MINIO_COUNT_USER=""
+MINIO_COUNT_PASS=""
+
+resolve_minio_count_context() {
+  if [[ -n "${MINIO_COUNT_POD}" ]]; then
+    return 0
+  fi
+  local pod svc svc_port creds_file creds_tmp cfg_full server_url
+  local endpoint_try u p list_ok=0
+
+  pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
+    .items[].metadata.name
+    | select(test("^minio-"))
+  ' | head -n 1)"
+  if [[ -z "${pod}" ]]; then
+    echo "resolve_minio_count_context: could not find MinIO pod in namespace ${MINIO_NAMESPACE}" >&2
+    return 1
+  fi
+
+  creds_file="$(mktemp)"
+  creds_tmp="$(mktemp)"
+  if minio_discover_pod_credentials "${MINIO_NAMESPACE}" >"${creds_tmp}"; then
+    paste -sd '\t' "${creds_tmp}" >>"${creds_file}"
+  fi
+  : >"${creds_tmp}"
+  if minio_discover_secret_env_credentials "${MINIO_NAMESPACE}" "minio-secrets" >"${creds_tmp}"; then
+    paste -sd '\t' "${creds_tmp}" >>"${creds_file}"
+  fi
+  : >"${creds_tmp}"
+  if minio_discover_secret_env_credentials "${MINIO_NAMESPACE}" "myminio-env-configuration" >"${creds_tmp}"; then
+    paste -sd '\t' "${creds_tmp}" >>"${creds_file}"
+  fi
+  rm -f "${creds_tmp}"
+  if [[ ! -s "${creds_file}" ]]; then
+    rm -f "${creds_file}"
+    echo "resolve_minio_count_context: could not discover MinIO credentials in namespace ${MINIO_NAMESPACE}" >&2
+    return 1
+  fi
+
+  cfg_full="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -c \
+    "cat \"\${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}\" 2>/dev/null || true" 2>/dev/null || true)"
+  server_url="$(echo "${cfg_full}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_SERVER_URL=//p' | head -1 | tr -d '"\r')"
+  svc="$(minio_discover_service "${MINIO_NAMESPACE}" 2>/dev/null || true)"
+  svc_port=""
+  if [[ -n "${svc}" ]]; then
+    svc_port="$(minio_discover_service_port "${MINIO_NAMESPACE}" "${svc}" 2>/dev/null || true)"
+  fi
+  local svc_endpoint=""
+  if [[ -n "${svc}" && -n "${svc_port}" ]]; then
+    svc_endpoint="http://${svc}.${MINIO_NAMESPACE}.svc.cluster.local:${svc_port}"
+  fi
+
+  # Probe endpoints x credentials with a cheap bucket listing until one works,
+  # then pin the combination. Retries ride out transient DNS/service hiccups.
+  for _ in 1 2 3; do
+    for endpoint_try in \
+      "${server_url}" \
+      "${svc_endpoint}" \
+      "http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000"; do
+      [[ -n "${endpoint_try}" ]] || continue
+      while IFS=$'\t' read -r u p; do
+        [[ -n "${u}" && -n "${p}" ]] || continue
+        if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -c \
+          "mc alias set local '${endpoint_try}' '${u}' '${p}' >/dev/null 2>&1 && mc ls 'local/${MINIO_BUCKET}' >/dev/null 2>&1"; then
+          MINIO_COUNT_POD="${pod}"
+          MINIO_COUNT_ENDPOINT="${endpoint_try}"
+          MINIO_COUNT_USER="${u}"
+          MINIO_COUNT_PASS="${p}"
+          list_ok=1
+          break
+        fi
+      done < "${creds_file}"
+      (( list_ok == 1 )) && break
+    done
+    (( list_ok == 1 )) && break
+    sleep 2
+  done
+  rm -f "${creds_file}"
+  if (( list_ok == 0 )); then
+    echo "resolve_minio_count_context: no MinIO endpoint/credential combination could list bucket ${MINIO_BUCKET}" >&2
+    return 1
+  fi
+  # stderr: callers of count_minio_record_stream_objects capture stdout as the count.
+  echo "  pinned MinIO count context: pod=${MINIO_COUNT_POD} endpoint=${MINIO_COUNT_ENDPOINT}" >&2
+}
+
+# Print the number of record-stream objects (*.rcd, *.rcd.gz, *.rcd_sig,
+# sidecars) under the recordstreams prefix. Listing failures return non-zero —
+# never a silent 0 — so "count stopped growing" cannot be faked by a broken
+# listing. The find output is counted host-side because the in-pod sh has no
+# pipefail and `mc find | wc -l` would swallow an mc error as 0.
+count_minio_record_stream_objects() {
+  resolve_minio_count_context || return 1
+  local listing
+  if ! listing="$(kubectl -n "${MINIO_NAMESPACE}" exec "${MINIO_COUNT_POD}" -c minio -- sh -c \
+    "mc alias set local '${MINIO_COUNT_ENDPOINT}' '${MINIO_COUNT_USER}' '${MINIO_COUNT_PASS}' >/dev/null 2>&1 && mc find 'local/${MINIO_BUCKET}/recordstreams' --name '*.rcd*'" 2>/dev/null)"; then
+    return 1
+  fi
+  printf '%s' "${listing}" | grep -c . || true
+}
+
+# One count with a few retries around transient exec/listing failures.
+minio_record_object_count_with_retries() {
+  local count
+  for _ in 1 2 3; do
+    if count="$(count_minio_record_stream_objects)" && [[ "${count}" =~ ^[0-9]+$ ]]; then
+      echo "${count}"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "minio_record_object_count_with_retries: could not obtain a record-object count after 3 attempts" >&2
+  return 1
+}
+
+# Gap check (Step 13, part 1): after the 0.77 BLOCKS-only cutover no NEW record
+# objects may appear in MinIO. Pre-cutover phases legitimately filled the
+# bucket, so the assert is stability, not emptiness: two samples
+# RECORD_CESSATION_SETTLE_SECS apart must match (and be > 0 — zero would mean
+# we are counting the wrong bucket/prefix). The stable value is kept in
+# RECORD_OBJECT_COUNT_BASELINE for the end-of-step re-check.
+RECORD_OBJECT_COUNT_BASELINE=""
+
+verify_record_uploads_ceased_baseline() {
+  local a b
+  a="$(minio_record_object_count_with_retries)" || return 1
+  echo "  record-object count sample 1: ${a}; re-sampling in ${RECORD_CESSATION_SETTLE_SECS}s"
+  sleep "${RECORD_CESSATION_SETTLE_SECS}"
+  b="$(minio_record_object_count_with_retries)" || return 1
+  echo "  record-object count sample 2: ${b}"
+  if [[ "${a}" != "${b}" ]]; then
+    echo "Record-stream objects are STILL being uploaded to MinIO after the 0.77 cutover (count ${a} -> ${b} across ${RECORD_CESSATION_SETTLE_SECS}s)" >&2
+    return 1
+  fi
+  if (( a == 0 )); then
+    echo "Unexpected: zero record-stream objects under ${MINIO_BUCKET}/recordstreams — pre-cutover phases should have uploaded records (wrong bucket/prefix?)" >&2
+    return 1
+  fi
+  RECORD_OBJECT_COUNT_BASELINE="${a}"
+  echo "Record-object count stable at ${RECORD_OBJECT_COUNT_BASELINE} post-cutover (pre-cutover records are expected to remain)"
+}
+
+# Gap check (Step 13, part 2): re-count after the post-cutover validation
+# traffic (cryptoCreate + block watch + txId sweep). Any growth means a
+# record-file writer/uploader survived the BLOCKS-only cutover.
+verify_record_uploads_ceased_final() {
+  local final
+  final="$(minio_record_object_count_with_retries)" || return 1
+  if [[ "${final}" != "${RECORD_OBJECT_COUNT_BASELINE}" ]]; then
+    echo "Record-stream object count grew ${RECORD_OBJECT_COUNT_BASELINE} -> ${final} across the post-cutover validation window — record-file uploads did NOT cease" >&2
+    return 1
+  fi
+  echo "Record-file upload cessation confirmed: count ${final} unchanged across the post-cutover validation window"
+  VALIDATION_SUMMARY_LINES+=("✓ Record-file upload cessation: MinIO record-object count stable at ${final} (${RECORD_CESSATION_SETTLE_SECS}s settle check + unchanged across the post-cutover validation traffic)")
+}
+
 local_build_implementation_version() {
   unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
     | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1
@@ -2067,6 +2266,7 @@ run_076_upgrade() {
   echo "--- Step 10 check 3/4: submit cryptoCreate to nudge consensus + confirm mirror sees the new account ---"
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
+  collect_submitted_tx_ids
 
   echo "--- Step 10 check 4/4: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
@@ -2141,6 +2341,7 @@ run_077_upgrade() {
   echo "--- Step 11 check 3/4: submit cryptoCreate post-cutover and confirm mirror sees the new account ---"
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
+  collect_submitted_tx_ids
 
   echo "--- Step 11 check 4/4: verify WRAPS runtime + real (non-mock) proof construction ---"
   verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
@@ -2503,6 +2704,7 @@ print_end_of_run_diagnostics() {
 
 write_sdk_verifier() {
   cat > "${NODE_SCRIPT}" <<'EOF'
+const fs = require("fs");
 const {
   Client,
   AccountCreateTransaction,
@@ -2514,6 +2716,26 @@ const {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Mirror REST transaction-id form: payer-seconds-nanos (nanos zero-padded to 9).
+// Built from the TransactionId parts rather than munging toString(), whose
+// "payer@sec.nanos" rendering is SDK-version dependent.
+function toMirrorTxId(txId) {
+  const nanos = String(txId.validStart.nanos).padStart(9, "0");
+  return `${txId.accountId.toString()}-${txId.validStart.seconds.toString()}-${nanos}`;
+}
+
+// Record every SUCCESS-receipted transaction (creates AND flushes) so the
+// driver script can assert zero transaction loss across the record->block
+// cutover: it collects these ids and, post-0.77, queries the mirror node for
+// each. No-op unless the driver passes TX_ID_OUT_FILE.
+function recordSubmittedTxId(txId) {
+  const outFile = process.env.TX_ID_OUT_FILE;
+  if (!outFile) {
+    return;
+  }
+  fs.appendFileSync(outFile, `${toMirrorTxId(txId)}\n`);
 }
 
 async function ensureAccountVisibleInMirror(mirrorUrl, accountId, timeoutMs = 180000, intervalMs = 5000) {
@@ -2553,6 +2775,7 @@ async function flushRecordStream(client, operatorAccountId) {
   if (flushReceipt.status !== Status.Success) {
     throw new Error(`Flush tx returned non-success status: ${flushReceipt.status.toString()}`);
   }
+  recordSubmittedTxId(flushResp.transactionId);
 }
 
 async function main() {
@@ -2591,8 +2814,9 @@ async function main() {
     if (!accountId) {
       throw new Error(`tx ${i}/${txCount}: receipt did not include a new accountId`);
     }
+    recordSubmittedTxId(response.transactionId);
     accountIds.push(accountId);
-    console.log(`  submitted cryptoCreate ${i}/${txCount} -> ${accountId}`);
+    console.log(`  submitted cryptoCreate ${i}/${txCount} -> ${accountId} (txId ${toMirrorTxId(response.transactionId)})`);
 
     // Flush after each create so its block closes and is streamed to the BN
     // (and would have been uploaded to MinIO, were MinIO up).
@@ -3252,6 +3476,24 @@ prepare_js_sdk_runtime() {
   export MIRROR_REST_URL="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
   export OPERATOR_ACCOUNT_ID
   export OPERATOR_PRIVATE_KEY
+  export TX_ID_OUT_FILE
+}
+
+# Fold the txIds the SDK verifier just wrote (one mirror-format id per line in
+# TX_ID_OUT_FILE) into SUBMITTED_TX_IDS, then truncate the handoff file for the
+# next invocation. Called right after every `node "${NODE_SCRIPT}"` so partial
+# batches (e.g. a Step 9 failure mid-run) are still collected.
+collect_submitted_tx_ids() {
+  [[ -s "${TX_ID_OUT_FILE}" ]] || return 0
+  local txid added=0
+  while IFS= read -r txid; do
+    if [[ -n "${txid}" ]]; then
+      SUBMITTED_TX_IDS+=("${txid}")
+      added=$((added + 1))
+    fi
+  done < "${TX_ID_OUT_FILE}"
+  : > "${TX_ID_OUT_FILE}"
+  echo "  collected ${added} submitted txId(s) (total tracked: ${#SUBMITTED_TX_IDS[@]})"
 }
 
 write_mirror_node_values_override() {
@@ -3659,6 +3901,243 @@ wait_for_block_node_caught_up() {
   return 1
 }
 
+# --- Step 13 post-cutover validation helpers ---------------------------------
+
+# Explicit start/stop pair for a BN gRPC port-forward, shared by the Step 13
+# checks (the ad-hoc forwards in verify_block_node_has_blocks /
+# wait_for_block_node_caught_up stay as they are).
+BN_CHECK_PORT_FORWARD_PID=""
+
+start_bn_port_forward() {
+  local svc="block-node-${BLOCK_NODE_ID}"
+  local remote_port="${BLOCK_NODE_GRPC_PORT:-40840}"
+  local local_port="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
+  local pf_log="${WORK_DIR}/port-forward-bn-check.log"
+  kill_processes_on_local_port "${local_port}"
+  : > "${pf_log}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${svc}" "${local_port}:${remote_port}" >"${pf_log}" 2>&1 < /dev/null &
+  BN_CHECK_PORT_FORWARD_PID=$!
+  disown "${BN_CHECK_PORT_FORWARD_PID}" 2>/dev/null || true
+  if ! wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 \
+        "Waiting for BN gRPC port-forward on 127.0.0.1:${local_port}"; then
+    echo "start_bn_port_forward: could not establish port-forward to ${svc} (last 20 lines of ${pf_log}):" >&2
+    tail -n 20 "${pf_log}" >&2 2>/dev/null || true
+    stop_bn_port_forward
+    return 1
+  fi
+}
+
+stop_bn_port_forward() {
+  if [[ -n "${BN_CHECK_PORT_FORWARD_PID}" ]]; then
+    kill "${BN_CHECK_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+    BN_CHECK_PORT_FORWARD_PID=""
+  fi
+}
+
+# grpcurl against the port-forwarded BN. The BN has no gRPC reflection, so each
+# call needs the proto + import paths from the block-node checkout. -max-msg-sz
+# is raised because a single getBlock response can carry several MB.
+bn_grpc_call() {
+  local proto_file="$1" method="$2" request_json="$3"
+  local local_port="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
+  grpcurl -plaintext -max-msg-sz 67108864 \
+    -import-path "${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto" \
+    -import-path "${BLOCK_NODE_REPO_PATH}/protobuf-sources/block-node-protobuf" \
+    -proto "${proto_file}" \
+    -d "${request_json}" \
+    "127.0.0.1:${local_port}" \
+    "${method}"
+}
+
+# Post-0.77 combined check: (a) the mirror node's top block number keeps
+# increasing — polled from /api/v1/blocks?limit=1&order=desc, hard-failing on
+# any regression and requiring a cumulative advance of
+# MN_BLOCK_PROGRESS_MIN_DELTA within MN_BLOCK_PROGRESS_TIMEOUT_SECS; then
+# (b) the Block Node serves every block of the observed span via
+# BlockAccessService/getBlock with status SUCCESS and a non-empty item list.
+# In BLOCKS mode the CN closes blocks on its block-period timer, so the top
+# advances even without fresh transactions (and the Step 13 cryptoCreate just
+# provided some anyway).
+verify_mn_blocks_advancing_and_bn_serves() {
+  local blocks_url="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1&order=desc"
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  if [[ ! -f "${proto_api_root}/block-node/api/block_access_service.proto" ]]; then
+    echo "verify_mn_blocks_advancing_and_bn_serves: block_access_service.proto not found under ${proto_api_root}" >&2
+    echo "  Ensure BLOCK_NODE_REPO_PATH points at a hiero-block-node checkout." >&2
+    return 1
+  fi
+
+  local deadline=$((SECONDS + MN_BLOCK_PROGRESS_TIMEOUT_SECS))
+  local first_top="" prev_top="" cur_top="" sample=""
+  local bad_samples=0 samples=0
+  echo "Watching MN top block for a cumulative advance of >= ${MN_BLOCK_PROGRESS_MIN_DELTA} (poll ${MN_BLOCK_PROGRESS_POLL_SECS}s, up to ${MN_BLOCK_PROGRESS_TIMEOUT_SECS}s)"
+  while (( SECONDS < deadline )); do
+    sample="$(curl -sf "${blocks_url}" 2>/dev/null | jq -r '.blocks[0].number // empty' 2>/dev/null)" || true
+    if [[ ! "${sample}" =~ ^[0-9]+$ ]]; then
+      # A curl/jq blip is not a regression; only give up after several in a row.
+      bad_samples=$((bad_samples + 1))
+      if (( bad_samples >= 6 )); then
+        echo "verify_mn_blocks_advancing_and_bn_serves: ${bad_samples} consecutive unusable samples from ${blocks_url} (last: '${sample:-<empty>}')" >&2
+        return 1
+      fi
+      sleep "${MN_BLOCK_PROGRESS_POLL_SECS}"
+      continue
+    fi
+    bad_samples=0
+    samples=$((samples + 1))
+    cur_top="${sample}"
+    if [[ -z "${first_top}" ]]; then
+      first_top="${cur_top}"
+      echo "  initial MN top block: ${first_top}"
+    fi
+    if [[ -n "${prev_top}" ]] && (( cur_top < prev_top )); then
+      echo "verify_mn_blocks_advancing_and_bn_serves: MN top block REGRESSED ${prev_top} -> ${cur_top}" >&2
+      return 1
+    fi
+    if [[ -n "${prev_top}" && "${cur_top}" != "${prev_top}" ]]; then
+      echo "  MN top block: ${cur_top} (+$((cur_top - first_top)) since watch start)"
+    fi
+    prev_top="${cur_top}"
+    if (( cur_top - first_top >= MN_BLOCK_PROGRESS_MIN_DELTA )); then
+      break
+    fi
+    sleep "${MN_BLOCK_PROGRESS_POLL_SECS}"
+  done
+  if [[ -z "${first_top}" ]] || (( cur_top - first_top < MN_BLOCK_PROGRESS_MIN_DELTA )); then
+    echo "verify_mn_blocks_advancing_and_bn_serves: MN top block advanced only $(( ${cur_top:-0} - ${first_top:-0} )) (< ${MN_BLOCK_PROGRESS_MIN_DELTA}) within ${MN_BLOCK_PROGRESS_TIMEOUT_SECS}s (first=${first_top:-none}, last=${cur_top:-none}) — mirror ingestion from the BN appears stalled" >&2
+    return 1
+  fi
+  echo "MN top block advanced ${first_top} -> ${cur_top} (+$((cur_top - first_top))) across ${samples} samples with no regression"
+  VALIDATION_SUMMARY_LINES+=("✓ MN block progress: top block advanced ${first_top} -> ${cur_top} (+$((cur_top - first_top))) across ${samples} samples with no regression")
+
+  # (b) BN getBlock over the observed span (first_top, cur_top], clamped to the
+  # BN's own available range and capped at BN_GET_BLOCK_MAX_PER_CHECK.
+  start_bn_port_forward || return 1
+  local sweep_rc=0
+  local span_first=$((first_top + 1)) span_last="${cur_top}"
+  local status_json bn_first bn_last
+  status_json="$(bn_grpc_call "block-node/api/node_service.proto" \
+    org.hiero.block.api.BlockNodeService/serverStatus '{}' 2>/dev/null)" || true
+  # uint64s arrive as JSON strings; zero-valued fields are omitted entirely.
+  bn_first="$(echo "${status_json}" | jq -r '.firstAvailableBlock // empty' 2>/dev/null)" || true
+  bn_last="$(echo "${status_json}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null)" || true
+  [[ "${bn_first}" =~ ^[0-9]+$ ]] || bn_first=0
+  if [[ ! "${bn_last}" =~ ^[0-9]+$ ]]; then
+    echo "verify_mn_blocks_advancing_and_bn_serves: BN serverStatus did not return a numeric lastAvailableBlock (response: ${status_json:-<empty>})" >&2
+    sweep_rc=1
+  else
+    local get_first="${span_first}" get_last="${span_last}"
+    if (( get_first < bn_first )); then
+      echo "  clamping sweep start ${get_first} -> ${bn_first} (BN firstAvailableBlock)"
+      get_first="${bn_first}"
+    fi
+    if (( get_last > bn_last )); then
+      echo "  clamping sweep end ${get_last} -> ${bn_last} (BN lastAvailableBlock)"
+      get_last="${bn_last}"
+    fi
+    if (( get_first > get_last )); then
+      echo "verify_mn_blocks_advancing_and_bn_serves: observed MN span ${span_first}..${span_last} has no overlap with BN available range ${bn_first}..${bn_last}" >&2
+      sweep_rc=1
+    else
+      if (( get_last - get_first + 1 > BN_GET_BLOCK_MAX_PER_CHECK )); then
+        echo "  capping getBlock sweep to the most recent ${BN_GET_BLOCK_MAX_PER_CHECK} of $((get_last - get_first + 1)) in-range blocks"
+        get_first=$((get_last - BN_GET_BLOCK_MAX_PER_CHECK + 1))
+      fi
+      echo "Calling BN getBlock for blocks ${get_first}..${get_last} (BN available range ${bn_first}..${bn_last})"
+      local n resp status items ok_count=0
+      local getblock_failures=()
+      local getblock_err="${WORK_DIR}/bn-getblock.err"
+      for (( n = get_first; n <= get_last; n++ )); do
+        resp="$(bn_grpc_call "block-node/api/block_access_service.proto" \
+          org.hiero.block.api.BlockAccessService/getBlock "{\"block_number\": ${n}}" 2>"${getblock_err}")" || true
+        status="$(echo "${resp}" | jq -r '.status // empty' 2>/dev/null)" || true
+        items="$(echo "${resp}" | jq -r '.block.items | length' 2>/dev/null)" || true
+        if [[ "${status}" == "SUCCESS" && "${items}" =~ ^[0-9]+$ ]] && (( items > 0 )); then
+          ok_count=$((ok_count + 1))
+        else
+          getblock_failures+=("block ${n}: status=${status:-<none>} items=${items:-?} grpcurl_err=$(tail -n 1 "${getblock_err}" 2>/dev/null || true)")
+        fi
+      done
+      if (( ${#getblock_failures[@]} > 0 )); then
+        echo "verify_mn_blocks_advancing_and_bn_serves: BN failed to serve ${#getblock_failures[@]}/$((get_last - get_first + 1)) blocks of the observed span:" >&2
+        printf '  %s\n' "${getblock_failures[@]}" >&2
+        sweep_rc=1
+      else
+        echo "BN served all ${ok_count} observed blocks (${get_first}..${get_last}) with SUCCESS and non-empty items"
+        VALIDATION_SUMMARY_LINES+=("✓ BN getBlock: served all ${ok_count} observed blocks (${get_first}..${get_last}) with SUCCESS and non-empty items")
+      fi
+    fi
+  fi
+  stop_bn_port_forward
+  return "${sweep_rc}"
+}
+
+# Post-0.77 zero-transaction-loss sweep: every txId collected in
+# SUBMITTED_TX_IDS across the run's phases must be visible in the mirror node
+# with result SUCCESS. One full pass, then up to two retry passes over the
+# misses (recent Step 13 ids may need a few seconds of ingestion lag).
+verify_submitted_transactions_visible_in_mirror() {
+  local total="${#SUBMITTED_TX_IDS[@]}"
+  if (( total == 0 )); then
+    echo "WARN: no submitted txIds collected in this run (resume from a late step?); skipping the zero-transaction-loss sweep" >&2
+    VALIDATION_SUMMARY_LINES+=("- Zero transaction loss: SKIPPED — no txIds collected this run (resumed from a late step)")
+    return 0
+  fi
+  local mirror_base="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
+  local pass txid body seen
+  local misses=("${SUBMITTED_TX_IDS[@]}")
+  local next_misses=()
+  echo "Verifying all ${total} submitted transactionIds are visible in the mirror node"
+  for pass in 1 2 3; do
+    next_misses=()
+    for txid in "${misses[@]}"; do
+      seen="false"
+      if body="$(curl -sf "${mirror_base}/api/v1/transactions/${txid}" 2>/dev/null)"; then
+        seen="$(echo "${body}" | jq -r 'any(.transactions[]?; .result == "SUCCESS")' 2>/dev/null)" || true
+      fi
+      if [[ "${seen}" != "true" ]]; then
+        next_misses+=("${txid}")
+      fi
+    done
+    misses=()
+    if (( ${#next_misses[@]} > 0 )); then
+      misses=("${next_misses[@]}")
+    fi
+    if (( ${#misses[@]} == 0 )); then
+      break
+    fi
+    if (( pass < 3 )); then
+      echo "  ${#misses[@]}/${total} txIds not visible yet (pass ${pass}/3); retrying in 5s"
+      sleep 5
+    fi
+  done
+  if (( ${#misses[@]} > 0 )); then
+    echo "TRANSACTION LOSS: ${#misses[@]}/${total} submitted txIds are not visible in the mirror node after the 0.77 cutover:" >&2
+    printf '  %s\n' "${misses[@]}" >&2
+    return 1
+  fi
+  echo "Zero transaction loss: all ${total} submitted txIds visible in the mirror node with result SUCCESS"
+  VALIDATION_SUMMARY_LINES+=("✓ Zero transaction loss: all ${total} submitted txIds (creates + flushes through final validation) visible in MN with result SUCCESS")
+}
+
+# Replay the Step 13 post-cutover validation results as one block at the very
+# end of the log, so a reader can confirm the checks ran — and what they
+# measured — without scrolling back through the step output. Only reached on a
+# fully green run (a failing check aborts the script at its step).
+print_post_cutover_validation_summary() {
+  echo
+  echo "------------- Post-cutover validation summary (Steps 12-13) -------------"
+  if (( ${#VALIDATION_SUMMARY_LINES[@]} == 0 )); then
+    echo "  (no post-cutover validations recorded this run)"
+  else
+    local line
+    for line in "${VALIDATION_SUMMARY_LINES[@]}"; do
+      echo "  ${line}"
+    done
+  fi
+  echo "----------------------------------------------------------------------"
+}
+
 write_mirror_node_block_cutover_values() {
   # Enable block-stream ingestion and point the importer at the Block Node. Per Mirror Node
   # guidance: in v0.154 hiero.mirror.importer.block.enabled defaults FALSE so it MUST be set true,
@@ -3728,7 +4207,7 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
-# ---------- Step 13: SDK TCK regression helpers (819-call-tck-regression.yaml parity) ----------
+# ---------- Step 12: SDK TCK regression helpers (819-call-tck-regression.yaml parity) ----------
 
 # pnpm is only needed by the tck server install; require it lazily so runs without
 # ENABLE_TCK_TESTS keep working on hosts that never installed it (819 L142-144 parity).
@@ -4059,12 +4538,28 @@ export_tck_report() {
 # Structured recap after the run: per-report stats plus every failed test with its reason.
 # (Live per-test spec output already streamed to the console while the suite ran.)
 print_tck_report_summary() {
-  local json failures found=0
+  local json failures stats found=0 report_count=0
+  local total_tests=0 total_passes=0 total_failures=0 total_pending=0 total_skipped=0 total_duration_ms=0
+  TCK_STATS_SUMMARY=""
   echo "--- TCK report summary ---"
   for json in "${TCK_REPORT_EXPORT_DIR}"/mochawesome*.json; do
     [[ -e "${json}" ]] || continue
     found=1
-    echo "$(basename "${json}"): $(jq -r '.stats | "tests=\(.tests) passes=\(.passes) failures=\(.failures) pending=\(.pending) skipped=\(.skipped // 0) duration=\(.duration)ms"' "${json}" 2>/dev/null || echo "unparseable stats")"
+    stats="$(jq -r '.stats | [(.tests // 0), (.passes // 0), (.failures // 0), (.pending // 0), (.skipped // 0), (.duration // 0)] | @tsv' "${json}" 2>/dev/null || true)"
+    if [[ "${stats}" =~ ^[0-9]+$'\t'[0-9]+$'\t'[0-9]+$'\t'[0-9]+$'\t'[0-9]+$'\t'[0-9]+$ ]]; then
+      local tests passes failed pending skipped duration_ms
+      IFS=$'\t' read -r tests passes failed pending skipped duration_ms <<< "${stats}"
+      echo "$(basename "${json}"): tests=${tests} passes=${passes} failures=${failed} pending=${pending} skipped=${skipped} duration=${duration_ms}ms"
+      total_tests=$((total_tests + tests))
+      total_passes=$((total_passes + passes))
+      total_failures=$((total_failures + failed))
+      total_pending=$((total_pending + pending))
+      total_skipped=$((total_skipped + skipped))
+      total_duration_ms=$((total_duration_ms + duration_ms))
+      report_count=$((report_count + 1))
+    else
+      echo "$(basename "${json}"): unparseable stats"
+    fi
     # mochawesome nests suites arbitrarily deep — recursive descent finds every failed test.
     failures="$(jq -r '[.. | objects | select(.state? == "failed")] | .[] | "  ✗ \(.fullTitle // .title // "unnamed test") — \((.err.message // "no message") | split("\n")[0])"' "${json}" 2>/dev/null || true)"
     if [[ -n "${failures}" ]]; then
@@ -4074,6 +4569,9 @@ print_tck_report_summary() {
   if (( found == 0 )); then
     echo "WARNING: no exported mochawesome JSON under ${TCK_REPORT_EXPORT_DIR} (test runner may have crashed before reporting)" >&2
     return 0
+  fi
+  if (( report_count > 0 )); then
+    TCK_STATS_SUMMARY="tests=${total_tests} passes=${total_passes} failures=${total_failures} pending=${total_pending} skipped=${total_skipped} duration=$(((total_duration_ms + 999) / 1000))s (${report_count} report(s))"
   fi
   echo "Full browsable report(s): ${TCK_REPORT_EXPORT_DIR} (mochawesome*.html)"
 }
@@ -4237,6 +4735,7 @@ if should_run_step 3; then
   echo "Testing mirror-node readiness via a simple cryptoCreate (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms for mirror visibility)"
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
+  collect_submitted_tx_ids
   sleep 45
   print_step_complete "Step 3/13"
 fi
@@ -4256,6 +4755,7 @@ if should_run_step 4; then
   echo "Testing mirror-node readiness via a simple cryptoCreate after the 0.74 upgrade (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
+  collect_submitted_tx_ids
 
   sleep 5
   print_step_complete "Step 4/13"
@@ -4344,6 +4844,7 @@ if should_run_step 9; then
   export VALIDATION_TX_COUNT="${STEP9_VALIDATION_TX_COUNT:-5}"
   step9_rc=0
   node "${NODE_SCRIPT}" || step9_rc=$?
+  collect_submitted_tx_ids
   unset VALIDATION_TX_COUNT
 
   echo "Restoring MinIO so subsequent steps (and CN-side record-stream uploaders) recover"
@@ -4384,23 +4885,10 @@ if should_run_step 11; then
   print_step_complete "Step 11/13"
 fi
 
-if should_run_step 12; then
-  print_banner "Step 12/13: Post-upgrade readiness and end-to-end transaction verification"
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  restart_post_upgrade_port_forwards
-  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
-  wait_for_sdk_responsive 180
-  echo "Testing mirror-node readiness via a simple cryptoCreate at end-of-run (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
-  export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
-  node "${NODE_SCRIPT}"
-  print_step_complete "Step 12/13"
-fi
-
-if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
-  print_banner "Step 13/13: SDK TCK regression suite (819-call-tck-regression.yaml parity)"
+if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 12; then
+  print_banner "Step 12/13: SDK TCK regression suite (819-call-tck-regression.yaml parity)"
   # CN gRPC + Mirror REST forwards: no-op probe if healthy, re-establish if not (covers the
-  # START_STEP=13 standalone path right after the resume prelude).
+  # START_STEP=12 standalone path right after the resume prelude).
   restart_post_upgrade_port_forwards
   wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
   wait_for_sdk_responsive 180
@@ -4419,15 +4907,55 @@ if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
   fi
   print_tck_report_summary || true
   if (( tck_rc != 0 )); then
-    echo "Step 13 TCK tests FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
+    echo "Step 12 TCK tests FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
     # Network stays up for debugging: cleanup() early-returns on a non-zero exit code.
     exit "${tck_rc}"
   fi
-  print_step_complete "Step 13/13"
-elif should_run_step 13; then
+  if [[ -n "${TCK_STATS_SUMMARY}" ]]; then
+    VALIDATION_SUMMARY_LINES+=("✓ TCK regression suite: ${TCK_STATS_SUMMARY}")
+  else
+    VALIDATION_SUMMARY_LINES+=("✓ TCK regression suite: PASSED (report statistics unavailable)")
+  fi
+  print_step_complete "Step 12/13"
+elif should_run_step 12; then
   echo
-  echo "Step 13/13 (SDK TCK regression suite) skipped — set ENABLE_TCK_TESTS=true to enable."
+  echo "Step 12/13 (SDK TCK regression suite) skipped — set ENABLE_TCK_TESTS=true to enable."
+  VALIDATION_SUMMARY_LINES+=("- TCK regression suite: SKIPPED (ENABLE_TCK_TESTS=false)")
+fi
+
+if should_run_step 13; then
+  print_banner "Step 13/13: Post-TCK readiness and end-to-end transaction verification"
+  wait_for_consensus_pods_ready 600
+  wait_for_haproxy_ready 600
+  restart_post_upgrade_port_forwards
+  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
+  wait_for_sdk_responsive 180
+
+  # The baseline count is taken BEFORE the final cryptoCreate so the re-count
+  # in check 5/5 brackets all the post-TCK validation traffic: were a
+  # record-file writer/uploader still alive, the new blocks produced in
+  # between would surface as new .rcd* objects.
+  echo "--- Step 13 check 1/5: record-object count in MinIO is stable post-cutover ---"
+  verify_record_uploads_ceased_baseline
+
+  echo "--- Step 13 check 2/5: submit final cryptoCreate and confirm mirror sees the new account ---"
+  echo "Testing mirror-node readiness via a simple cryptoCreate after TCK (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
+  export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
+  node "${NODE_SCRIPT}"
+  collect_submitted_tx_ids
+
+  echo "--- Step 13 check 3/5: MN top block advancing + BN getBlock serves the observed span ---"
+  verify_mn_blocks_advancing_and_bn_serves
+
+  echo "--- Step 13 check 4/5: zero transaction loss — all submitted txIds visible in MN ---"
+  verify_submitted_transactions_visible_in_mirror
+
+  echo "--- Step 13 check 5/5: record-object count unchanged after post-TCK validation traffic ---"
+  verify_record_uploads_ceased_final
+
+  print_step_complete "Step 13/13"
 fi
 start_post_run_keepalive
 print_end_of_run_diagnostics
+print_post_cutover_validation_summary
 print_banner "Completed: block stream cutover scenario finished successfully"

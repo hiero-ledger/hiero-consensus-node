@@ -171,7 +171,7 @@ public class TipsetTracker {
                     EXCEPTION.getMarker(),
                     "Rejecting ancient event from {} with threshold {}. Current event window is {}",
                     eventDescriptorWrapper.creator(),
-                    eventDescriptorWrapper.eventDescriptor().birthRound(),
+                    eventDescriptorWrapper.birthRound(),
                     eventWindow);
         }
     }

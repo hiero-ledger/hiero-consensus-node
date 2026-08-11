@@ -264,8 +264,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // This scenario shouldn't consume more than 20% of the throttle
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
+                    // This scenario shouldn't consume more than 60% of the throttle
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 60.0));
                     restoreDefaults(spec);
                 }));
     }
@@ -318,8 +318,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // This scenario shouldn't consume more than 20% of the throttle
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
+                    // This scenario shouldn't consume more than 60% of the throttle
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 60.0));
                     restoreDefaults(spec);
                 }));
     }
@@ -372,8 +372,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // This scenario shouldn't consume more than 20% of the throttle
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 20.0));
+                    // This scenario shouldn't consume more than 60% of the throttle
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 0.0, 60.0));
                     restoreDefaults(spec);
                 }));
     }

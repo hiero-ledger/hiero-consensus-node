@@ -7,12 +7,6 @@ import static org.hiero.consensus.iss.detection.internal.IssDetector.DO_NOT_IGNO
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +28,12 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Module for the Iss Detection component.
@@ -146,6 +146,24 @@ public class IssDetectionModule {
     }
 
     /**
+     * Get the input wire for overriding state.
+     *
+     * @return the input wire for overriding state
+     */
+    @InputWireLabel("overriding state")
+    @NonNull
+    public InputWire<ReservedSignedState> overridingStateInputWire() {
+        return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::overridingState);
+    }
+
+    @InputWireLabel("signal end of preconsensus replay")
+    @NonNull
+    public InputWire<NoInput> signalEndOfPreconsensusReplayInputWire() {
+        return requireNonNull(issDetectorWiring, "Not initialized")
+                .getInputWire(IssDetector::signalEndOfPreconsensusReplay);
+    }
+
+    /**
      * Get the output wire for ISS notifications.
      *
      * @return the output wire for ISS notifications
@@ -153,25 +171,5 @@ public class IssDetectionModule {
     @NonNull
     public OutputWire<IssNotification> issNotificationOutputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getSplitOutput();
-    }
-
-    /**
-     * Pass an overriding state to the ISS detector.
-     *
-     * @param state the overriding state
-     */
-    public void overrideIssDetectorState(@NonNull final ReservedSignedState state) {
-        requireNonNull(issDetectorWiring, "Not initialized")
-                .getInputWire(IssDetector::overridingState)
-                .put(state);
-    }
-
-    /**
-     * Signal the end of the preconsensus replay to the ISS detector.
-     */
-    public void signalEndOfPcesReplay() {
-        requireNonNull(issDetectorWiring, "Not initialized")
-                .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
-                .put(NoInput.getInstance());
     }
 }

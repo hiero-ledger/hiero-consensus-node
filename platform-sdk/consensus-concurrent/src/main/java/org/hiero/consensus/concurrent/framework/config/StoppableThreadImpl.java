@@ -22,7 +22,6 @@ import org.hiero.base.StackTrace;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.utility.DurationUtils;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 
 /**
@@ -148,23 +147,6 @@ class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStopp
         logStackTracePauseDuration = configuration.getLogAfterPauseDuration();
 
         configuration.setRunnable(this::run);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public synchronized ThreadSeed buildSeed() {
-        if (injected) {
-            throw new IllegalStateException("this StoppableThread has already built a seed");
-        }
-        if (thread.get() != null) {
-            throw new IllegalStateException("can not build seed after thread is started");
-        }
-
-        injected = true;
-
-        return configuration.buildStoppableThreadSeed(this);
     }
 
     /**
@@ -646,7 +628,11 @@ class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStopp
      * Get the name of this thread.
      */
     public String getName() {
-        return configuration.getThreadName();
+        final Thread t = thread.get();
+        if (t == null) {
+            return "Unknown, not started";
+        }
+        return t.getName();
     }
 
     /**
