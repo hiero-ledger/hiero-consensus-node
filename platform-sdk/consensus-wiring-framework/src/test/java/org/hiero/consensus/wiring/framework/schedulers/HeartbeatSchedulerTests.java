@@ -9,7 +9,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;

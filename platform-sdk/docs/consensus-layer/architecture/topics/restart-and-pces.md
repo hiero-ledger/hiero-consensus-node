@@ -38,7 +38,7 @@ The writer is synchronous: it accepts a `PlatformEvent` on its input wire and em
 only after the write completes. The interface is `InlinePcesWriter` (
 `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/InlinePcesWriter.java`); the
 default implementation is `DefaultInlinePcesWriter` (
-`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java:58`).
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java#writeEvent`).
 `writeEvent` writes the event to the current mutable file unconditionally (`DefaultInlinePcesWriter.java:71-75`); the
 underlying file writer is either a `PcesFileChannelWriter` (Linux default) or `PcesOutputStreamFileWriter` (macOS
 default, where `FileChannel` is ~150× slower).
@@ -79,8 +79,8 @@ despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observi
 
 "Persisted" here means the event's bytes have been handed to the OS, not that `fsync()` has returned. The
 `event.preconsensus.inlinePcesSyncOption` config (
-`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java:91`, enum at
-`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java:15`) defaults to
+`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java#inlinePcesSyncOption`, enum at
+`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java#EVERY_SELF_EVENT`) defaults to
 `DONT_SYNC`: no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java:77-84`). `EVERY_EVENT` and
 `EVERY_SELF_EVENT` are available as alternatives but are not the production defaults.
 
@@ -130,7 +130,7 @@ on-disk PCES files rather than gossip.
   to `PcesCoordinator.replayPcesEvents` (
   `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/PcesCoordinator.java:69`).
 - **Read side.** `PcesFileTracker.getEventIterator(...)` (
-  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/PcesFileTracker.java:147`) opens
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/PcesFileTracker.java#getEventIterator`) opens
   an iterator over the PCES files for the requested round window. The coordinator injects this iterator into the
   replayer's input wire.
 - **Emit side.** `PcesReplayer.replayPces(...)` (
@@ -139,7 +139,7 @@ on-disk PCES files rather than gossip.
   through the same intake pipeline that gossip-delivered events use.
 - **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java:172`, implementation at `:206-214`)
   before emitting, blocking when the wiring model reports an unhealthy duration above `replayHealthThreshold` (
-  `PcesConfig.java:88`). Because the iterator is lazy — `PcesMultiFileIterator` opens the next file only when the
+  `PcesConfig.java#replayHealthThreshold`). Because the iterator is lazy — `PcesMultiFileIterator` opens the next file only when the
   current one is exhausted (`PcesMultiFileIterator.java:70`), and `PcesFileIterator` reads one event at a time from a
   `BufferedInputStream` (`PcesFileIterator.java:38-39, 56-83`) — files are read just in time. While
   `waitUntilHealthy()` blocks, the iterator does not advance, no further events are read, and no new files are opened;

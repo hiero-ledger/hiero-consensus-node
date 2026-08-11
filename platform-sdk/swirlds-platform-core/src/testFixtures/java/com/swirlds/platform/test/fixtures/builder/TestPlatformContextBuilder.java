@@ -17,9 +17,9 @@ import java.util.Objects;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * A simple builder to create a {@link PlatformContext} for unit tests.

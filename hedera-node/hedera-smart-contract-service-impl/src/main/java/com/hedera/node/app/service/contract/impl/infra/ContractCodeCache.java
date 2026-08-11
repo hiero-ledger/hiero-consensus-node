@@ -12,6 +12,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.code.CodeFactory;
+import org.hyperledger.besu.evm.code.CodeV0;
 
 /**
  * A process-wide cache of parsed {@link Code} objects and their Tuweni bytecode representation, keyed by the
@@ -40,18 +42,19 @@ public class ContractCodeCache {
      */
     private static final long MAX_WEIGHT_BYTES = 256L * 1024L * 1024L;
 
-    private final LoadingCache<BytecodeContentKey, CachedBytecode> cache = Caffeine.newBuilder()
-            .maximumWeight(MAX_WEIGHT_BYTES)
-            .weigher((BytecodeContentKey key, CachedBytecode value) ->
-                    (int) Math.min(Integer.MAX_VALUE, key.content().length()))
-            .build(key -> CachedBytecode.fromPbj(key.content()));
+    private final LoadingCache<BytecodeContentKey, CachedBytecode> cache;
 
     /**
      * Default constructor for injection.
+     * @param codeFactory the code factory to use
      */
     @Inject
-    public ContractCodeCache() {
-        // Dagger2
+    public ContractCodeCache(@NonNull final CodeFactory codeFactory) {
+        this.cache = Caffeine.newBuilder()
+                .maximumWeight(MAX_WEIGHT_BYTES)
+                .weigher((BytecodeContentKey key, CachedBytecode _) ->
+                        (int) Math.min(Integer.MAX_VALUE, key.content().length()))
+                .build(key -> CachedBytecode.fromPbj(codeFactory, key.content()));
     }
 
     /**
@@ -86,7 +89,7 @@ public class ContractCodeCache {
      */
     public @NonNull Code getCodeFromTuweni(@NonNull final org.apache.tuweni.bytes.Bytes bytecode) {
         if (bytecode.isEmpty()) {
-            return Code.EMPTY_CODE;
+            return CodeV0.EMPTY_CODE;
         }
         return getCode(tuweniToPbjBytes(bytecode));
     }
@@ -115,9 +118,10 @@ public class ContractCodeCache {
             requireNonNull(tuweniBytes);
         }
 
-        private static @NonNull CachedBytecode fromPbj(@NonNull final Bytes bytecode) {
+        private static @NonNull CachedBytecode fromPbj(
+                @NonNull final CodeFactory codeFactory, @NonNull final Bytes bytecode) {
             final var tuweniBytes = pbjToTuweniBytes(bytecode);
-            return new CachedBytecode(new Code(tuweniBytes), tuweniBytes);
+            return new CachedBytecode(codeFactory.createCode(tuweniBytes, false), tuweniBytes);
         }
     }
 }

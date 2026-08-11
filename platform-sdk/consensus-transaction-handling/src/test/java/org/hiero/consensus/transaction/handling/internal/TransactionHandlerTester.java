@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;

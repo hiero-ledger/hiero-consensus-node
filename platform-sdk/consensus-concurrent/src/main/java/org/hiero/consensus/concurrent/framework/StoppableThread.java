@@ -26,26 +26,6 @@ public interface StoppableThread extends Stoppable {
 
     /**
      * <p>
-     * Build a "seed" that can be planted in a thread. When the runnable is executed, it takes over the calling thread
-     * and configures that thread the way it would configure a newly created thread. When work
-     * is finished, the calling thread is restored back to its original configuration.
-     * </p>
-     *
-     * <p>
-     * Note that this seed will be unable to change the thread group or daemon status of the calling thread,
-     * regardless of configuration.
-     * </p>
-     *
-     * <p>
-     * Should only be called once. Should not be called if {@link #start()} has been called.
-     * </p>
-     *
-     * @return a seed that can be used to inject this thread configuration onto an existing thread.
-     */
-    ThreadSeed buildSeed();
-
-    /**
-     * <p>
      * Interrupt this thread.
      * </p>
      *
