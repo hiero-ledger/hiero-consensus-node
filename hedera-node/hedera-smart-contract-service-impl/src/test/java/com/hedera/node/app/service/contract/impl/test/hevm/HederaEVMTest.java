@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerShanghaiOperations;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -13,7 +14,6 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import java.math.BigInteger;
@@ -26,7 +26,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
@@ -63,8 +62,7 @@ class HederaEVMTest {
         final var opsDurationSchedule = OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG);
 
         final var operationRegistry = new OperationRegistry();
-        HederaOperationsRegistry.forVersion(EvmSpecVersion.SHANGHAI)
-                .register(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO, EvmConfiguration.DEFAULT);
+        registerShanghaiOperations(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO);
 
         final var hederaEvm = new HederaEVM(
                 operationRegistry,
@@ -96,7 +94,7 @@ class HederaEVMTest {
     }
 
     private MessageFrame prepareTestFrame(final String byteCode, final OpsDurationCounter opsDurationCounter) {
-        final var code = new Code(Bytes.fromHexString(byteCode));
+        final var code = TestHelpers.CODE_FACTORY.createCode(Bytes.fromHexString(byteCode));
         WorldUpdater world = mock(WorldUpdater.class);
         Address address = randomAddress();
         MutableAccount mutableAccount = mock(MutableAccount.class);
@@ -246,8 +244,7 @@ class HederaEVMTest {
         final var opsDurationSchedule = OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG);
 
         final var operationRegistry = new OperationRegistry();
-        HederaOperationsRegistry.forVersion(EvmSpecVersion.SHANGHAI)
-                .register(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO, EvmConfiguration.DEFAULT);
+        registerShanghaiOperations(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO);
 
         final var hederaEvm = new HederaEVM(
                 operationRegistry,

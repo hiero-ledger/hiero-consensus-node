@@ -2124,7 +2124,6 @@ public class LambdaplexCoreOrderTypesTest implements InitcodeTransform {
         var registryAddress = asLongZeroAddress(spec.registry()
                         .getContractId(MOCK_SUPRA_REGISTRY.name())
                         .getContractNum())
-                .getBytes()
                 .toHexString()
                 .toLowerCase();
         if (registryAddress.startsWith("0x")) {
