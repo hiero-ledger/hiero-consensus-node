@@ -901,6 +901,7 @@ jobs:
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -1078,6 +1079,7 @@ jobs:
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -1343,6 +1345,7 @@ jobs:
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-HCSLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-NftTransferLoadTest-report
@@ -1361,6 +1364,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
 
   performance-CryptoTransferLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-HCSLoadTest
@@ -1379,6 +1383,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
 
   performance-SmartContractLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-CryptoTransferLoadTest
@@ -1397,6 +1402,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
 
   performance-HeliSwapLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-SmartContractLoadTest
@@ -1416,6 +1422,7 @@ jobs:
 
   performance-post-test-validation:
     name: Consensus Node State Validator
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     runs-on: hl-cn-sdpt-lin-lg
     needs:
       - acquire-kubernetes-resources
@@ -1617,6 +1624,7 @@ jobs:
   delete-namespace:
     name: Delete namespace
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -1684,6 +1692,7 @@ jobs:
       needs.performance-HeliSwapLoadTest.result != 'success' ||
       needs.performance-SmartContractLoadTest.result != 'success' ||
       needs.single-day-performance-test-result.result != 'success' ||
+      needs.acquire-kubernetes-resources.result != 'success' ||
       needs.single-day-performance-test-result.outputs.result == 'failure') &&
       !cancelled() && always() }}
     steps:
@@ -1701,6 +1710,7 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
+            echo "- Acquire Kubernetes Resources: ${{ needs.acquire-kubernetes-resources.result }}"
             echo "- Performance Tests Start: ${{ needs.performance-tests-start.result }}"
             echo "- Performance NFT Transfer Load Test (Watch 1): ${{ needs.performance-NftTransferLoadTest-watch1.result }}"
             echo "- Performance NFT Transfer Load Test (Report): ${{ needs.performance-NftTransferLoadTest-report.result }}"
@@ -1735,7 +1745,6 @@ jobs:
       - performance-SmartContractLoadTest
       - performance-post-test-validation
       - single-day-performance-test-result
-
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
