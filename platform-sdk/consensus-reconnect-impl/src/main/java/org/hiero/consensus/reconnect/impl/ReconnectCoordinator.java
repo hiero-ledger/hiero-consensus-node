@@ -131,7 +131,7 @@ public class ReconnectCoordinator {
      * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
      *
      * @param configuration the configuration to read necessary config values from
-     * @param signedState the signed state to load into the platform
+     * @param signedState   the signed state to load into the platform
      */
     public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
         buildingBlocks
@@ -158,12 +158,13 @@ public class ReconnectCoordinator {
         final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         this.injectRosterHistory(rosterHistory);
 
-        final int roundsNonAncient =
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        final ConsensusConfig configData = configuration.getConfigData(ConsensusConfig.class);
+        final int roundsNonAncient = configData.roundsNonAncient();
+        final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
         buildingBlocks
                 .initialEventWindowDispatcher()
                 .getInputWire()
-                .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+                .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient, useDABAlgorithm));
         // Peer threads read the shadowgraph outside the gossip scheduler, so it must ingest the new window
         // before gossip resumes. Ordering already holds today, since pausing gossip drains all sync permits
         // and the sequential scheduler runs this update ahead of the resume that follows. The flush keeps

@@ -56,6 +56,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     private final ConsensusEngineMetrics consensusEngineMetrics;
 
     private final FreezeRoundController freezeRoundController;
+    private final boolean useDABAlgorithm;
 
     /**
      * Constructor
@@ -79,7 +80,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
         final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
-        if (consensusConfig.useDABConsensusAlgorithm()) {
+        useDABAlgorithm = consensusConfig.useDABConsensusAlgorithm();
+        if (useDABAlgorithm) {
             consensus = new ConsensusImplDAB(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
         } else {
             consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
@@ -211,7 +213,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshot snapshot) {
-        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient, useDABAlgorithm);
         linker.clear();
         linker.setEventWindow(eventWindow);
         futureEventBuffer.clear();

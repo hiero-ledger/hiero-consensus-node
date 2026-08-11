@@ -194,8 +194,11 @@ public class TestGuiSource {
     @SuppressWarnings("unused") // useful for debugging
     public void loadSnapshot(final ConsensusSnapshot snapshot) {
         System.out.println("Loading snapshot for round: " + snapshot.round());
-        final EventWindow currentEventWindow = EventWindowUtils.createEventWindow(
-                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
+        final ConsensusConfig configData = configuration.getConfigData(ConsensusConfig.class);
+        final int roundsNonAncient = configData.roundsNonAncient();
+        final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
+        final EventWindow currentEventWindow =
+                EventWindowUtils.createEventWindow(snapshot, roundsNonAncient, useDABAlgorithm);
         eventStorage.handleSnapshotOverride(snapshot);
         orphanBuffer.setEventWindow(currentEventWindow);
     }

@@ -136,8 +136,11 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        final EventWindow currentEventWindow = EventWindowUtils.createEventWindow(
-                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
+        final ConsensusConfig configData = configuration.getConfigData(ConsensusConfig.class);
+        final int roundsNonAncient = configData.roundsNonAncient();
+        final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
+        final EventWindow currentEventWindow =
+                EventWindowUtils.createEventWindow(snapshot, roundsNonAncient, useDABAlgorithm);
         linker.setEventWindow(currentEventWindow);
         lastConsensusRound = null;
         branchDetector.clear();

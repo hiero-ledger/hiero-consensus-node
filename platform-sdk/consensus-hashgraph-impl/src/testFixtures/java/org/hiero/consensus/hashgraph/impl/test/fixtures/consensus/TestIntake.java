@@ -59,6 +59,7 @@ public class TestIntake {
     private final int roundsNonAncient;
     private final AtomicReference<FreezePeriodChecker> freezeCheckHolder = new AtomicReference<>(i -> false);
     private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
+    private final boolean useDABAlgorithm;
 
     /**
      * Constructor. Uses default configuration, metrics, and time.
@@ -94,6 +95,7 @@ public class TestIntake {
             @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
         roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        useDABAlgorithm = configuration.getConfigData(ConsensusConfig.class).useDABConsensusAlgorithm();
 
         output = new ConsensusOutput();
 
@@ -172,7 +174,7 @@ public class TestIntake {
     }
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
-        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient, useDABAlgorithm);
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)

@@ -2,7 +2,9 @@
 package org.hiero.consensus.round;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -23,8 +25,19 @@ public final class EventWindowUtils {
      * @return a new instance of {@link EventWindow}
      */
     public static @NonNull EventWindow createEventWindow(
-            @NonNull final ConsensusSnapshot snapshot, final int roundsNonAncient) {
-        final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
+            @NonNull final ConsensusSnapshot snapshot, final int roundsNonAncient, final boolean useDABAlgorithm) {
+        final long ancientThreshold;
+        if (useDABAlgorithm) {
+            final MinimumJudgeInfo oldestMinJudgeInfo =
+                    snapshot.minimumJudgeInfoList().getFirst();
+            ancientThreshold = oldestMinJudgeInfo == null
+                    ? ConsensusConstants.ROUND_FIRST
+                    : Math.max(
+                            ConsensusConstants.ROUND_FIRST,
+                            oldestMinJudgeInfo.minimumJudgeBirthRound() - roundsNonAncient);
+        } else {
+            ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
+        }
         return new EventWindow(
                 snapshot.round(),
                 // by default, we set the birth round to the pending round

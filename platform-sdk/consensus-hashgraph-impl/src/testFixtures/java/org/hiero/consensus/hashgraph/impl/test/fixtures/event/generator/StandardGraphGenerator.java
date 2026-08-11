@@ -568,10 +568,10 @@ public class StandardGraphGenerator implements GraphGenerator {
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);
-        final int roundsNonAncient =
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-        EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient);
-        linker.setEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+        final ConsensusConfig configData = configuration.getConfigData(ConsensusConfig.class);
+        final int roundsNonAncient = configData.roundsNonAncient();
+        final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
+        linker.setEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient, useDABAlgorithm));
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
             updateConsensus(event.getBaseEvent());

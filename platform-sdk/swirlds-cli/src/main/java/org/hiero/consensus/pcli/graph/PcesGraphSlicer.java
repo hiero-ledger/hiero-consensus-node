@@ -91,10 +91,11 @@ public class PcesGraphSlicer {
         final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, metrics);
 
         if (builder.consensusSnapshot != null) {
-            final int roundsNonAncient =
-                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+            final ConsensusConfig configData = configuration.getConfigData(ConsensusConfig.class);
+            final int roundsNonAncient = configData.roundsNonAncient();
+            final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
             final EventWindow eventWindow =
-                    EventWindowUtils.createEventWindow(builder.consensusSnapshot, roundsNonAncient);
+                    EventWindowUtils.createEventWindow(builder.consensusSnapshot, roundsNonAncient, useDABAlgorithm);
             orphanBufferSource.setEventWindow(eventWindow);
         }
 

@@ -110,12 +110,13 @@ public class InitialStateLoader {
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
-            final int roundsNonAncient =
-                    inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
+            final ConsensusConfig configData = inputs.configuration().getConfigData(ConsensusConfig.class);
+            final int roundsNonAncient = configData.roundsNonAncient();
+            final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
             buildingBlocks
                     .initialEventWindowDispatcher()
                     .getInputWire()
-                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient, useDABAlgorithm));
             // No flush is required here. The dispatcher is a DIRECT_THREADSAFE transformer, so inject() delivers the
             // event window on the calling thread: by the time it returns, every downstream component has either
             // handled it or has it queued ahead of anything sent later. Gossip is the case that matters, as its start

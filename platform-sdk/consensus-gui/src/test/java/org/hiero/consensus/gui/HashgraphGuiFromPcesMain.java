@@ -85,9 +85,11 @@ public class HashgraphGuiFromPcesMain {
             consensusSnapshot = ConsensusSnapshot.JSON.parse(
                     new ReadableStreamingData(new FileInputStream(consensusSnapshotPath.toFile())));
             startingRound = consensusSnapshot.round();
-            final int roundsNonAncient =
-                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-            minimumNonAncientRound = EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient)
+            final ConsensusConfig configData = configuration.getConfigData(ConsensusConfig.class);
+            final int roundsNonAncient = configData.roundsNonAncient();
+            final boolean useDABAlgorithm = configData.useDABConsensusAlgorithm();
+            minimumNonAncientRound = EventWindowUtils.createEventWindow(
+                            consensusSnapshot, roundsNonAncient, useDABAlgorithm)
                     .ancientThreshold();
         } else {
             startingRound = 0;

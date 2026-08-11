@@ -224,17 +224,20 @@ public class ConsensusImplDAB implements Consensus {
         // until we implement roster changes, we will just use the use this roster
         this.rosterLookup = new RosterLookup(roster);
 
-        this.minimumJudgeStorage =
-                new SequentialRingBuffer<>(ConsensusConstants.ROUND_FIRST, config.roundsExpired() * 2);
+        this.minimumJudgeStorage = new SequentialRingBuffer<>(ConsensusConstants.ROUND_FIRST, 2);
 
         this.noSuperMajorityLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.noJudgeLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
-        this.roundInfo = createNewRosterInfo(ConsensusConstants.ROUND_FIRST);
+        this.roundInfo = createNewRoundInfo(ConsensusConstants.ROUND_FIRST);
     }
 
     /**
      * Load consensus from a snapshot. This will continue consensus from the round of the snapshot once all the required
      * events are provided.
+     *
+     * We must store 2 minimum judge infos. For state 100, we need the minimum judge birth round for judges in 100 in order to populate
+     * the minimum judge birth round for roundInfoPrev when calculating round 101. We need the minimum judge birth round for judges in 99
+     * to calculate the minimum non-ancient round for the same roundInfoPrev.
      */
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
@@ -256,14 +259,14 @@ public class ConsensusImplDAB implements Consensus {
                 minimumJudgeStorage.add(minimumJudgeInfo.round(), minimumJudgeInfo);
             }
 
-            roundInfo = createNewRosterInfo(snapshot.round() + 1);
+            roundInfo = createNewRoundInfo(snapshot.round() + 1);
 
-            numConsensus = snapshot.nextConsensusNumber();
+            numConsensus = snapshot.nextConsensusNumber() - 1;
             lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
         }
     }
 
-    private RoundInfo createNewRosterInfo(final long pendingRound) {
+    private RoundInfo createNewRoundInfo(final long pendingRound) {
         final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
         final long[] nodeIds =
                 rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
@@ -349,13 +352,20 @@ public class ConsensusImplDAB implements Consensus {
                         .min()
                         .orElseThrow();
 
+                final MinimumJudgeInfo minimumJudgeInfo = getMinimumJudgeInfo(roundInfo.pendingRound() - 2);
+                final long prevMinNonAncientRound = minimumJudgeInfo == null
+                        ? ConsensusConstants.ROUND_FIRST
+                        : Math.max(
+                                ConsensusConstants.ROUND_FIRST,
+                                minimumJudgeInfo.minimumJudgeBirthRound() - config.roundsNonAncient());
+
                 roundInfoPrev = new RoundInfoPrev(
                         roundInfo.pendingRound(),
                         false,
                         judgeInfos,
                         false,
-                        minJudgeBirthRound - config.roundsNonAncient() + 1,
-                        numConsensus - 1,
+                        prevMinNonAncientRound,
+                        numConsensus,
                         minJudgeBirthRound);
 
                 initJudges = null;
@@ -441,18 +451,22 @@ public class ConsensusImplDAB implements Consensus {
 
         // Before calculating the new expired threshold, update the minimum judge storage
         final RoundInfoPrev decidedRoundInfo = results.nextRoundInfoPrev();
-        final MinimumJudgeInfo minimumJudgeInfo = MinimumJudgeInfo.newBuilder()
+        final MinimumJudgeInfo mostRecentMinimumJudgeInfo = MinimumJudgeInfo.newBuilder()
                 .round(consensusRoundNum)
                 .minimumJudgeBirthRound(decidedRoundInfo.prevMinJudgeBirthRound())
                 .build();
-        updateMinimumJudgeInfo(minimumJudgeInfo);
+        updateMinimumJudgeInfo(mostRecentMinimumJudgeInfo);
 
         // Calculate the ancient and expired thresholds for the newly decided round
-        final MinimumJudgeInfo minJudgeInfo = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
-        final long nonExpiredThreshold = minJudgeInfo == null
+        final MinimumJudgeInfo oldestMinJudgeInfo = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
+        final long nonExpiredThreshold = oldestMinJudgeInfo == null
                 ? EventConstants.ANCIENT_THRESHOLD_UNDEFINED
-                : minJudgeInfo.minimumJudgeBirthRound();
-        final long nonAncientThreshold = decidedRoundInfo.prevMinNonAncientRound();
+                : Math.max(
+                        ConsensusConstants.ROUND_FIRST,
+                        oldestMinJudgeInfo.minimumJudgeBirthRound() - config.roundsExpired());
+
+        updateRoundInfo(results);
+        final long nonAncientThreshold = HashgraphInfo.minNonAncientRound(roundInfo, roundInfoPrev);
 
         // Extract the judge ids for the consensus snapshot
         final List<JudgeId> judgeIds = judges.stream()
@@ -462,15 +476,12 @@ public class ConsensusImplDAB implements Consensus {
                         .build())
                 .toList();
 
-        // Extract the minimum judge info objects for all non-ancient rounds for the snapshot.
-        // In the future, only the minimum judge info for the lastest consensus round needs to be stored
-        // in state. This is cleanup to do later.
-        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(nonAncientThreshold, pendingRound)
+        // Extract the minimum judge into for the previous 2 rounds (i.e. if we are creating the ConsensusRound
+        // objects for round 100, we need to include minimum judge info from round 99 and 100.
+        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(pendingRound - 2, pendingRound)
                 .mapToObj(this::getMinimumJudgeInfo)
                 .filter(Objects::nonNull)
                 .toList();
-
-        updateRoundInfo(results);
 
         // lastConsensusTime is updated above with the last transaction in the last event that reached consensus
         // if no events reach consensus, then we need to calculate the lastConsensusTime differently
@@ -487,6 +498,10 @@ public class ConsensusImplDAB implements Consensus {
             }
         }
 
+        final long nextConsensusNumber = consensusEvents.isEmpty()
+                ? FIRST_CONSENSUS_NUMBER
+                : consensusEvents.getLast().getConsensusOrder() + 1;
+
         return new ConsensusRound(
                 rosterLookup.getRoster(),
                 consensusEvents,
@@ -499,7 +514,7 @@ public class ConsensusImplDAB implements Consensus {
                 new ConsensusSnapshot(
                         consensusRoundNum,
                         minimumJudgeInfos,
-                        numConsensus,
+                        nextConsensusNumber,
                         toPbjTimestamp(lastConsensusTime),
                         judgeIds),
                 pcesMode,
@@ -546,8 +561,8 @@ public class ConsensusImplDAB implements Consensus {
 
     private void updateMinimumJudgeInfo(@NonNull final MinimumJudgeInfo minimumJudgeInfo) {
         minimumJudgeStorage.add(roundInfo.pendingRound(), minimumJudgeInfo);
-        // Delete the oldest rounds with round number which is expired
-        minimumJudgeStorage.removeOlderThan(roundInfo.pendingRound() - config.roundsExpired());
+        // Delete any round data older than 2 rounds ago
+        minimumJudgeStorage.removeOlderThan(roundInfo.pendingRound() - 2);
     }
 
     @Nullable
