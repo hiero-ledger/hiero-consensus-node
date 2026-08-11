@@ -27,6 +27,11 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
     public static final int UNLIMITED_CAPACITY = -1;
 
     /**
+     * Name of the queue for metric purposes
+     */
+    private final String queueName;
+
+    /**
      * The maximum capacity of the queue. If -1 then there is no maximum capacity.
      */
     private int capacity = DEFAULT_CAPACITY;
@@ -62,11 +67,12 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      */
     private Duration waitForWorkDuration = Duration.ofMillis(10);
 
-    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager) {
+    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager, @NonNull final String queueName) {
         super(threadManager);
 
         // Queue threads are not interruptable by default
         setStopBehavior(Stoppable.StopBehavior.BLOCKING);
+        this.queueName = Objects.requireNonNull(queueName);
     }
 
     /**
@@ -82,6 +88,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
         this.handler = that.handler;
         this.queue = that.queue;
         this.metricsConfiguration = that.metricsConfiguration;
+        this.queueName = that.queueName;
     }
 
     /**
@@ -105,6 +112,14 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      */
     public int getCapacity() {
         return capacity;
+    }
+
+    /**
+     * Returns queue name
+     * @return name of the queue
+     */
+    public @NonNull String getQueueName() {
+        return queueName;
     }
 
     /**
