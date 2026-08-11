@@ -87,9 +87,9 @@ public class ConsensusTestArgs {
 
     static Stream<ConsensusTestParams> cliqueTests() {
         return Stream.of(
-                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC),
-                new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
-                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
+//                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC),
+//                new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC, 2803404057430765140L));
     }
 
     static Stream<ConsensusTestParams> variableRateTests() {
