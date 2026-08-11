@@ -77,6 +77,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -94,6 +95,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -237,6 +239,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * exactly once across the handler thread and the status-thread fallback.
      */
     private final Object fatalShutdownLock = new Object();
+    /**
+     * Contents files ({@code .pnd.gz}/{@code .iss.gz}) written by the triage flush, for upload by the ISS-block-upload
+     * pipeline. Written under the flush locks; read after {@link #awaitFatalShutdown}. Thread-safe for the lock-free read.
+     */
+    private final List<Path> flushedTriageBlockFiles = new CopyOnWriteArrayList<>();
 
     /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
@@ -706,6 +713,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Always clear the in-progress flag, even if endRoundInternal threw, so a concurrent fatal-shutdown
             // waiter does not block on a round boundary that will never arrive.
             roundInProgress = false;
+            // A fatal shutdown can be signalled AFTER endRoundInternal's own fatalShutdownRequested check (so it took
+            // the normal path and did not flush). Capture the open/pending blocks now, on the handler thread that owns
+            // the writer: this completes fatalShutdownFuture so awaitFatalShutdown's waiter is released immediately
+            // (rather than stalling the whole timeout) and the open block is not lost. Idempotent, and a no-op on the
+            // normal, non-fatal path.
+            if (fatalShutdownRequested) {
+                flushOpenAndPendingBlocksForTriage();
+            }
         }
     }
 
@@ -1505,7 +1520,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 if (writer != null) {
                     log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
                     try {
-                        writer.flushIncompleteBlock();
+                        final Path flushed = writer.flushIncompleteBlock();
+                        if (flushed != null) {
+                            flushedTriageBlockFiles.add(flushed);
+                        }
                     } catch (final Exception e) {
                         log.fatal("Failed to flush in-progress block {}", blockNumber, e);
                     }
@@ -1540,12 +1558,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         while ((block = pendingBlocks.poll()) != null) {
             log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
             try {
-                block.writer().flushPendingBlock(block.asPendingProof());
+                final Path flushed = block.writer().flushPendingBlock(block.asPendingProof());
+                if (flushed != null) {
+                    flushedTriageBlockFiles.add(flushed);
+                }
             } catch (final Exception e) {
                 log.fatal("Failed to flush pending block #{}", block.number(), e);
             }
             markPendingBlockProofComplete(block);
         }
+    }
+
+    @Override
+    @NonNull
+    public List<Path> flushedTriageBlockFiles() {
+        return List.copyOf(flushedTriageBlockFiles);
     }
 
     @Override
