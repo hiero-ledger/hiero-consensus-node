@@ -191,6 +191,38 @@ class GrpcUsageTrackerTest {
         assertThat(usageBucket.usageData()).isEmpty();
     }
 
+    @Test
+    void testRecordInteractionCapsDistinctUserAgentsPerEndpoint() {
+        final UsageBucket bucket = new UsageBucket(Instant.parse("2025-04-03T15:30:00.000Z"));
+        final RpcEndpointName endpoint = new RpcEndpointName("MyService", "Commit");
+
+        final int cap = GrpcUsageTracker.MAX_AGENTS_PER_ENDPOINT;
+        final int overflow = 500;
+        final int distinctAgents = cap + overflow;
+
+        // Record more distinct user-agents for a single endpoint than the per-endpoint cap allows
+        for (int i = 0; i < distinctAgents; i++) {
+            bucket.recordInteraction(endpoint, new UserAgent(UserAgentType.HIERO_SDK_JAVA, "1.0." + i));
+        }
+
+        final ConcurrentMap<UserAgent, LongAdder> agentData = bucket.usageData().get(endpoint);
+
+        // Distinct keys are bounded to the cap plus the single UNKNOWN overflow bucket - not the number sent
+        assertThat(agentData).hasSize(cap + 1);
+
+        // Overflow interactions beyond the cap are folded into UNKNOWN
+        final LongAdder unknownCounter = agentData.get(UserAgent.UNKNOWN);
+        assertThat(unknownCounter).isNotNull();
+        assertThat(unknownCounter.sum()).isEqualTo(overflow);
+
+        // No interactions are lost - the total count across all keys is preserved
+        long total = 0;
+        for (final LongAdder counter : agentData.values()) {
+            total += counter.sum();
+        }
+        assertThat(total).isEqualTo(distinctAgents);
+    }
+
     @ParameterizedTest
     @MethodSource("testTimeCalculationArgs")
     void testTimeCalculation(final Instant time, final Instant expectedTime) {
