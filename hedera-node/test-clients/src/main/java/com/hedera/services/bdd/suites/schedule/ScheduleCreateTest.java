@@ -18,10 +18,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreateFunctionless;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.hbarLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.maxCustomFee;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
@@ -37,6 +43,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoAccountUpdateSuite.ALIAS
 import static com.hedera.services.bdd.suites.crypto.AutoAccountUpdateSuite.INITIAL_BALANCE;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
+import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.A_TOKEN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.BASIC_XFER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.CONTINUE;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.COPYCAT;
@@ -54,6 +61,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SECOND_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SENDER;
+import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SUPPLY_KEY;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.VALID_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -68,12 +76,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULED_TRAN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SOME_SIGNATURES_WERE_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -485,6 +497,57 @@ public class ScheduleCreateTest {
                 scheduleCreate("ok", createTopic(NEVER_TO_BE))
                         // prevent multiple runs of this test causing duplicates
                         .withEntityMemo("" + new SecureRandom().nextLong()));
+    }
+
+    @HapiTest
+    @DisplayName("TokenAirdrop is rejected by the scheduling whitelist")
+    final Stream<DynamicTest> whitelistRejectsScheduledTokenAirdrop() {
+        return hapiTest(
+                cryptoCreate(SENDER),
+                cryptoCreate(RECEIVER),
+                tokenCreate(A_TOKEN).treasury(SENDER),
+                scheduleCreate("scheduledAirdrop", tokenAirdrop(moving(1, A_TOKEN).between(SENDER, RECEIVER)))
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+    }
+
+    @HapiTest
+    @DisplayName("TokenClaimAirdrop is rejected by the scheduling whitelist")
+    final Stream<DynamicTest> whitelistRejectsScheduledTokenClaimAirdrop() {
+        return hapiTest(
+                cryptoCreate(SENDER),
+                cryptoCreate(RECEIVER),
+                tokenCreate(A_TOKEN).treasury(SENDER),
+                scheduleCreate(
+                                "scheduledClaimAirdrop",
+                                tokenClaimAirdrop(HapiTokenClaimAirdrop.pendingAirdrop(SENDER, RECEIVER, A_TOKEN)))
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+    }
+
+    @HapiTest
+    @DisplayName("TokenCancelAirdrop is rejected by the scheduling whitelist")
+    final Stream<DynamicTest> whitelistRejectsScheduledTokenCancelAirdrop() {
+        return hapiTest(
+                cryptoCreate(SENDER),
+                cryptoCreate(RECEIVER),
+                tokenCreate(A_TOKEN).treasury(SENDER),
+                scheduleCreate(
+                                "scheduledCancelAirdrop",
+                                tokenCancelAirdrop(HapiTokenCancelAirdrop.pendingAirdrop(SENDER, RECEIVER, A_TOKEN)))
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+    }
+
+    @HapiTest
+    @DisplayName("TokenUpdateNfts is rejected by the scheduling whitelist")
+    final Stream<DynamicTest> whitelistRejectsScheduledTokenUpdateNfts() {
+        final String nftToken = "nftToken";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                tokenCreate(nftToken)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .initialSupply(0L),
+                scheduleCreate("scheduledNftUpdate", tokenUpdateNfts(nftToken, "newMetadata", List.of(1L)))
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
     }
 
     @HapiTest
