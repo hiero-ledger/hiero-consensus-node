@@ -78,7 +78,8 @@ If any field is an array, it is represented by its length followed by all elemen
 
   UpdateResults (type 5)
     int64       pendingRound
-    EventInfo[] consensusEvents
+    EventInfo[] searchOrder // consensus events in search order (not in the record)
+    EventInfo[] consensusEvents // consensus events in consensus order
     Instant     roundTimestamp
     int32       voteD // either 1 or 2
     boolean     usedCoin // were there any coin rounds while deciding this round?
