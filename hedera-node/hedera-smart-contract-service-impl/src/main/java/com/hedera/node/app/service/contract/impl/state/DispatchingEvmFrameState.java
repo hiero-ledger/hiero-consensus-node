@@ -376,7 +376,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void finalizeHollowAccount(@NonNull final Address address) {
-        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address.getBytes()));
+        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address));
     }
 
     @Override
@@ -416,7 +416,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 to.hederaId(),
                 new ActiveContractVerificationStrategy(
                         from.hederaContractId(),
-                        tuweniToPbjBytes(from.getAddress().getBytes()),
+                        tuweniToPbjBytes(from.getAddress()),
                         delegateCall,
                         UseTopLevelSigs.YES));
         if (status != OK) {
@@ -441,7 +441,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (maybeValidationError.isPresent()) {
             return maybeValidationError;
         }
-        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address.getBytes()));
+        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address));
         return accountCreationStatusToResult(status);
     }
 
@@ -456,11 +456,11 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             return maybeValidationError;
         }
         final var status = nativeOperations.createAccountWithKeyAndCodeDelegation(
-                tuweniToPbjBytes(address.getBytes()),
+                tuweniToPbjBytes(address),
                 Key.newBuilder()
                         .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(ecdsaPublicKey))
                         .build(),
-                tuweniToPbjBytes(delegationAddress.getBytes()));
+                tuweniToPbjBytes(delegationAddress));
         return accountCreationStatusToResult(status);
     }
 
