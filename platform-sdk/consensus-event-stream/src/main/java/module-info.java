@@ -25,6 +25,8 @@ module org.hiero.consensus.event.stream {
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.utility;
+    requires java.xml;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

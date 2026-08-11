@@ -52,6 +52,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
@@ -141,8 +142,8 @@ public class FrameBuilder {
                     accessListWarmStorage.putAll(address, accessList.storageKeys());
                 }
             }
-            builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
-            builder.eip2930AccessListWarmStorage(accessListWarmStorage);
+            builder.accessListWarmAddresses(accessListWarmAddresses);
+            builder.accessListWarmStorage(accessListWarmStorage);
         }
         // finish initial frame
         if (transaction.isCreate()) {
@@ -228,7 +229,7 @@ public class FrameBuilder {
                     .address(to)
                     .contract(to)
                     .inputData(transaction.evmPayload())
-                    .code(Code.EMPTY_CODE)
+                    .code(CodeV0.EMPTY_CODE)
                     .build();
         }
 
@@ -247,7 +248,7 @@ public class FrameBuilder {
 
                 final HederaEvmAccount targetAccount = worldUpdater.getHederaAccount(targetAddress);
                 if (targetAccount == null || gasCalculator.isPrecompile(targetAddress)) {
-                    code = Code.EMPTY_CODE;
+                    code = CodeV0.EMPTY_CODE;
                 } else {
                     code = codeFor(targetAccount);
                 }
@@ -260,7 +261,7 @@ public class FrameBuilder {
                     // The code is empty.
                     // First validate if this is allowed, and if so, proceed.
                     validateTrue(emptyCodePossiblyAllowed(contractMustBePresent, transaction), INVALID_CONTRACT_ID);
-                    code = Code.EMPTY_CODE;
+                    code = CodeV0.EMPTY_CODE;
                 }
             }
         } else {
@@ -270,7 +271,7 @@ public class FrameBuilder {
             if (contractMustBePresent) {
                 validateTrue(transaction.permitsMissingContract(), INVALID_ETHEREUM_TRANSACTION);
             }
-            code = Code.EMPTY_CODE;
+            code = CodeV0.EMPTY_CODE;
         }
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
@@ -311,19 +312,19 @@ public class FrameBuilder {
     }
 
     private @NonNull Code codeForInitCode(@NonNull final Bytes initCode) {
-        return initCode.isEmpty() ? Code.EMPTY_CODE : codeCache.getCodeFromTuweni(initCode);
+        return initCode.isEmpty() ? CodeV0.EMPTY_CODE : codeCache.getCodeFromTuweni(initCode);
     }
 
     private @NonNull Code codeFor(@NonNull final HederaEvmAccount account) {
         if (account instanceof AbstractMutableEvmAccount mutable) {
             try {
                 final var pbjCode = mutable.getCodePBJ();
-                return pbjCode.length() == 0 ? Code.EMPTY_CODE : codeCache.getCode(pbjCode);
+                return pbjCode.length() == 0 ? CodeV0.EMPTY_CODE : codeCache.getCode(pbjCode);
             } catch (UnsupportedOperationException ignored) {
                 // Token/schedule facades without getCodePBJ — fall through
             }
         }
         final var tuweniCode = account.getCode();
-        return tuweniCode.isEmpty() ? Code.EMPTY_CODE : codeCache.getCodeFromTuweni(tuweniCode);
+        return tuweniCode.isEmpty() ? CodeV0.EMPTY_CODE : codeCache.getCodeFromTuweni(tuweniCode);
     }
 }
