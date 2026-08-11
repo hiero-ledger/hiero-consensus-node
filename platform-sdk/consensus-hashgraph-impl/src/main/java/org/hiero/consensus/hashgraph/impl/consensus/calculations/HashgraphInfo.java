@@ -1235,6 +1235,13 @@ public final class HashgraphInfo {
             graphSearch(h, judgesArray, r.judgeCon1, h.consensusEvents);
             h.consensusEventsCapacity = Math.max(h.consensusEventsCapacity, h.consensusEvents.size());
             consensusEventsArray = h.consensusEvents.toArray(new EventInfo[0]);
+            // function gen /-------------------------------------------------------------------------------------
+            // events with birth round less than min judge are defined to have gen=1, but might not have it set yet
+            for (EventInfo event : consensusEventsArray) {
+                if (event.birthRound < rp.prevMinJudgeBirthRound) {
+                    event.gen = 1;
+                }
+            }
             // function timeCon /---------------------------------------------------------------------------------
             // timeCon is gen + t (if judgeCon1 is true) or the median of sorted receivedTime (if false)
             // function before /----------------------------------------------------------------------------------
