@@ -2,7 +2,6 @@
 package com.swirlds.common.threading;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
@@ -35,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
@@ -43,7 +41,6 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +57,7 @@ class QueueThreadTests {
     static final String METRIC_CATEGORY = "myCategory";
     static final String MAX_SIZE_METRIC_NAME = THREAD_NAME + "_queueMaxSize";
     static final String MIN_SIZE_METRIC_NAME = THREAD_NAME + "_queueMinSize";
+    static final String QUEUE_NAME = "myQueue";
 
     private static Stream<Arguments> queueTypes() {
         return Stream.of(
@@ -76,10 +74,10 @@ class QueueThreadTests {
 
         final int capacity = 10;
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
                 .setCapacity(capacity)
                 .setHandler((item) -> {})
+                .setSingleThreadName(THREAD_NAME)
                 .build();
 
         // Should be able to fill to capacity
@@ -120,8 +118,8 @@ class QueueThreadTests {
             Thread.sleep(1);
         };
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setExceptionHandler(exceptionHandler)
                 .setCapacity(10)
                 .setHandler(handler)
@@ -161,8 +159,8 @@ class QueueThreadTests {
             Thread.sleep(1);
         };
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setExceptionHandler(exceptionHandler)
                 .setCapacity(1000)
                 .setHandler(handler)
@@ -210,8 +208,8 @@ class QueueThreadTests {
         final InterruptableConsumer<Integer> handler = (final Integer item) -> {
             MILLISECONDS.sleep(10_000);
         };
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .setMaxBufferSize(1)
                 .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
@@ -251,8 +249,8 @@ class QueueThreadTests {
             handledValue.set(item);
         };
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setMaxBufferSize(10)
                 .setCapacity(1000)
                 .setHandler(handler)
@@ -296,8 +294,9 @@ class QueueThreadTests {
     @DisplayName("UnlimitedCapacityTest Test")
     void unlimitedCapacityTest() throws InterruptedException {
 
-        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(
+                        getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setUnlimitedCapacity()
                 .setHandler((i) -> {})
                 .build();
@@ -322,8 +321,8 @@ class QueueThreadTests {
         final Semaphore lock = new Semaphore(1);
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
                 .build();
@@ -357,8 +356,8 @@ class QueueThreadTests {
         final Semaphore lock = new Semaphore(1);
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .build();
 
@@ -391,8 +390,8 @@ class QueueThreadTests {
         final Semaphore lock = new Semaphore(1);
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
                 .build();
@@ -427,8 +426,8 @@ class QueueThreadTests {
         final Semaphore lock = new Semaphore(1);
         final InterruptableConsumer<Integer> handler = (value) -> lock.acquire();
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler(handler)
                 .build();
 
@@ -459,8 +458,8 @@ class QueueThreadTests {
 
         final Queue<Integer> handledInts = new LinkedList<>();
 
-        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThread<Integer> qt = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setQueue(queue)
                 .setHandler(handledInts::add)
                 .build();
@@ -476,77 +475,12 @@ class QueueThreadTests {
     }
 
     @Test
-    @DisplayName("Seed Test")
-    void seedTest() throws InterruptedException {
-        final AtomicLong count = new AtomicLong();
-        final AtomicBoolean enableLongSleep = new AtomicBoolean();
-        final CountDownLatch longSleepStarted = new CountDownLatch(1);
-
-        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName("queue-thread")
-                .setUnlimitedCapacity()
-                .setStopBehavior(Stoppable.StopBehavior.INTERRUPTABLE)
-                .setHandler((final Integer next) -> {
-                    count.set(next);
-                    // Disable long sleep for subsequent calls
-                    if (enableLongSleep.getAndSet(false)) {
-                        longSleepStarted.countDown();
-                        SECONDS.sleep(999999999);
-                    }
-                })
-                .build();
-
-        final ThreadSeed seed = queueThread.buildSeed();
-
-        final AtomicBoolean seedHasYieldedControl = new AtomicBoolean();
-        final CountDownLatch exitLatch = new CountDownLatch(1);
-
-        // This thread will have the seed injected into it.
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("inject-into-this-thread")
-                .setInterruptableRunnable(() -> {
-                    // The seed will take over this thread for a while
-
-                    seed.inject();
-
-                    seedHasYieldedControl.set(true);
-                    exitLatch.await();
-                })
-                .build(true);
-
-        assertEventuallyTrue(
-                () -> thread.getName().equals("<queue-thread>"),
-                Duration.ofSeconds(1),
-                "queue thread should eventually take over");
-
-        for (int i = 0; i < 1001; i++) {
-            queueThread.add(i);
-        }
-
-        assertEventuallyTrue(
-                () -> count.get() >= 1_000, Duration.ofSeconds(1), "count should have increased more by now");
-
-        enableLongSleep.set(true);
-        for (int i = 1001; i < 2001; i++) {
-            queueThread.add(i);
-        }
-        longSleepStarted.await();
-
-        queueThread.stop();
-
-        assertEventuallyTrue(seedHasYieldedControl::get, Duration.ofSeconds(1), "seed should have yielded");
-        assertEquals("<inject-into-this-thread>", thread.getName(), "original settings should have been restored");
-
-        exitLatch.countDown();
-    }
-
-    @Test
     @DisplayName("Configuration Mutability Test")
     void configurationMutabilityTest() {
         // Build should make the configuration immutable
         final QueueThreadConfiguration<Integer> configuration = new QueueThreadConfiguration<Integer>(
-                        getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+                        getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler((final Integer element) -> {});
 
         assertTrue(configuration.isMutable(), "configuration should be mutable");
@@ -569,9 +503,9 @@ class QueueThreadTests {
     void singleUsePerConfigTest() {
 
         // build() should cause future calls to build() to fail, and start() should cause buildSeed() to fail.
-        final QueueThreadConfiguration<?> configuration0 = new QueueThreadConfiguration<Integer>(
-                        getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThreadConfiguration<Integer> configuration0 = new QueueThreadConfiguration<Integer>(
+                        getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setHandler((final Integer i) -> {
                     MILLISECONDS.sleep(1);
                 });
@@ -581,24 +515,6 @@ class QueueThreadTests {
         assertThrows(MutabilityException.class, configuration0::build, "configuration has already been used");
 
         queueThread0.start();
-
-        assertThrows(IllegalStateException.class, queueThread0::buildSeed, "configuration has already been used");
-
-        queueThread0.stop();
-
-        // buildSeed() should cause future calls to buildSeed() and start() to fail.
-        final QueueThreadConfiguration<?> configuration1 = new QueueThreadConfiguration<Integer>(
-                        getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
-                .setHandler((final Integer i) -> {
-                    MILLISECONDS.sleep(1);
-                });
-
-        final QueueThread<?> queueThread1 = configuration1.build();
-        queueThread1.buildSeed();
-
-        assertThrows(IllegalStateException.class, queueThread1::buildSeed, "configuration has already been used");
-        assertThrows(IllegalStateException.class, queueThread1::start, "configuration has already been used");
     }
 
     @Test
@@ -606,15 +522,15 @@ class QueueThreadTests {
     void copyTest() {
         final InterruptableConsumer<Integer> handler = (final Integer x) -> {};
 
-        final QueueThreadConfiguration<?> configuration = new QueueThreadConfiguration<Integer>(
-                        getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
+        final QueueThreadConfiguration<Integer> configuration = new QueueThreadConfiguration<Integer>(
+                        getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName(THREAD_NAME)
                 .setCapacity(1234)
                 .setMaxBufferSize(1234)
                 .setHandler(handler)
                 .setQueue(new LinkedBlockingDeque<>());
 
-        final QueueThreadConfiguration<?> copy1 = configuration.copy();
+        final QueueThreadConfiguration<Integer> copy1 = configuration.copy();
 
         assertEquals(configuration.getCapacity(), copy1.getCapacity(), "copy configuration should match");
         assertEquals(configuration.getMaxBufferSize(), copy1.getMaxBufferSize(), "copy configuration should match");
@@ -624,7 +540,7 @@ class QueueThreadTests {
         // It shouldn't matter if the original is immutable.
         configuration.build();
 
-        final QueueThreadConfiguration<?> copy2 = configuration.copy();
+        final QueueThreadConfiguration<Integer> copy2 = configuration.copy();
         assertTrue(copy2.isMutable(), "copy should be mutable");
 
         assertEquals(configuration.getCapacity(), copy2.getCapacity(), "copy configuration should match");
@@ -637,8 +553,8 @@ class QueueThreadTests {
     @DisplayName("waitUntilNotBusy() Test")
     void waitUntilNotBusyTest() throws InterruptedException {
 
-        final QueueThread<Runnable> queue = new QueueThreadConfiguration<Runnable>(getStaticThreadManager())
-                .setThreadName("test")
+        final QueueThread<Runnable> queue = new QueueThreadConfiguration<Runnable>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName("test")
                 .setHandler(Runnable::run)
                 .build(true);
 
@@ -700,8 +616,8 @@ class QueueThreadTests {
             }
         };
 
-        final QueueThread<Runnable> queue = new QueueThreadConfiguration<Runnable>(getStaticThreadManager())
-                .setThreadName("test")
+        final QueueThread<Runnable> queue = new QueueThreadConfiguration<Runnable>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName("test")
                 .setIdleCallback(idleCallback)
                 .setHandler(Runnable::run)
                 .setWaitForWorkDuration(Duration.ofMillis(1))
@@ -771,8 +687,8 @@ class QueueThreadTests {
 
         final int bufferSize = 100;
 
-        final QueueThread<Integer> queue = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName("test")
+        final QueueThread<Integer> queue = new QueueThreadConfiguration<Integer>(getStaticThreadManager(), QUEUE_NAME)
+                .setSingleThreadName("test")
                 .setBatchHandledCallback(count::getAndIncrement)
                 .setHandler(x -> {})
                 .setCapacity(UNLIMITED_CAPACITY)

@@ -9,8 +9,7 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
 /**
  * An object responsible for configuring and constructing {@link StoppableThread}s.
  *
- * @param <T>
- * 		the type of instance that will do work
+ * @param <T> the type of instance that will do work
  */
 public class StoppableThreadConfiguration<T extends InterruptableRunnable>
         extends AbstractStoppableThreadConfiguration<StoppableThreadConfiguration<T>, T> {
@@ -18,8 +17,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
     /**
      * Build a new stoppable thread configuration with default values.
      *
-     * @param threadManager
-     * 		responsible for creating threads
+     * @param threadManager responsible for creating threads
      */
     public StoppableThreadConfiguration(final ThreadManager threadManager) {
         super(threadManager);
@@ -28,16 +26,15 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
     /**
      * Copy constructor.
      *
-     * @param that
-     * 		the configuration to copy.
+     * @param that the configuration to copy.
      */
     private StoppableThreadConfiguration(final StoppableThreadConfiguration<T> that) {
         super(that);
     }
 
     /**
-     * Get a copy of this configuration. New copy is always mutable,
-     * and the mutability status of the original is unchanged.
+     * Get a copy of this configuration. New copy is always mutable, and the mutability status of the original is
+     * unchanged.
      *
      * @return a copy of this configuration
      */
@@ -51,8 +48,7 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads.
+     * After calling this method, this configuration object should not be modified or used to construct other threads.
      * </p>
      *
      * @return a stoppable thread built using this configuration
@@ -67,12 +63,10 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
      * </p>
      *
      * <p>
-     * After calling this method, this configuration object should not be modified or used to construct other
-     * threads.
+     * After calling this method, this configuration object should not be modified or used to construct other threads.
      * </p>
      *
-     * @param start
-     * 		if true then start the thread before returning it
+     * @param start if true then start the thread before returning it
      * @return a stoppable thread built using this configuration
      */
     public TypedStoppableThread<T> build(final boolean start) {

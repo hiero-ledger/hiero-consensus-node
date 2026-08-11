@@ -167,7 +167,7 @@ public class BlockNodeBackPressureSuite {
                                 time::get,
                                 Duration.ofMinutes(2),
                                 Duration.ofMinutes(2),
-                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.")),
+                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(60), PlatformStatus.ACTIVE),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
@@ -183,7 +183,7 @@ public class BlockNodeBackPressureSuite {
 
     /**
      * Smoke test: a healthy block node combined with a low
-     * {@code blockStream.buffer.minAckedBlocksToBuffer} value should never engage backpressure and
+     * {@code blockStream.buffer.ackedBlocksToRetain} value should never engage backpressure and
      * the node should remain ACTIVE throughout. Verifies the new property wires through end-to-end
      * without regressing the happy path. The unit tests in {@code BlockBufferServiceTest} verify the
      * pruning algorithm itself.
@@ -200,7 +200,7 @@ public class BlockNodeBackPressureSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks",
                             "50",
-                            "blockStream.buffer.minAckedBlocksToBuffer",
+                            "blockStream.buffer.ackedBlocksToRetain",
                             "3"
                         })
             })

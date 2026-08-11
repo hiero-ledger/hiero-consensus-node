@@ -58,7 +58,10 @@ public class BlockNodeSimSuite {
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3},
-                        applicationPropertiesOverrides = {"blockStream.streamMode", "BOTH"})
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.buffer.ackedBlocksToRetain", "25"
+                        })
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
@@ -181,7 +184,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // look for the saturation reaching the action stage (50%)
-                        "saturation: 50.0%",
+                        "ByBlockCount: 50.0000%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
                         "buffer-unhealthy",
@@ -196,7 +199,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "saturation: 0.0%")));
+                        "ByBlockCount: 0.0000%")));
     }
 
     @HapiTest
@@ -253,7 +256,11 @@ public class BlockNodeSimSuite {
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // saturation should drop as the block node acknowledges the buffered blocks
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation: 0.0%")));
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "ByBlockCount: 0.0000%")));
     }
 
     /**
