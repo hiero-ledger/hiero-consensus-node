@@ -506,7 +506,9 @@ public class ScheduleCreateTest {
                 cryptoCreate(SENDER),
                 cryptoCreate(RECEIVER),
                 tokenCreate(A_TOKEN).treasury(SENDER),
-                scheduleCreate("scheduledAirdrop", tokenAirdrop(moving(1, A_TOKEN).between(SENDER, RECEIVER)))
+                scheduleCreate(
+                                "scheduledAirdrop",
+                                tokenAirdrop(moving(1, A_TOKEN).between(SENDER, RECEIVER)))
                         .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
     }
 
