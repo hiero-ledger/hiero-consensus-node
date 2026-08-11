@@ -72,7 +72,7 @@ final class ReconnectTest {
 
     @Test
     @DisplayName("Successfully reconnects multiple times and stats are updated")
-    void statsTrackSuccessfulReconnect(@TempDir Path tempDir) throws IOException, InterruptedException {
+    void statsTrackSuccessfulReconnect(final @TempDir Path tempDir) throws IOException, InterruptedException {
         final int numberOfReconnects = 11;
 
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
