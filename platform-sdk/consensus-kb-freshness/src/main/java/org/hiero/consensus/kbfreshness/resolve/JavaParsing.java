@@ -65,6 +65,15 @@ public final class JavaParsing {
     public record MethodSig(String name, List<String> paramTypes, String returnType, int line) {}
 
     /**
+     * One declared non-method member — a field, an enum constant, or a record component — as a nameable
+     * symbol for {@code File.java#member} references.
+     *
+     * @param name the member's simple name.
+     * @param line the 1-based line of the member declaration.
+     */
+    public record MemberDecl(String name, int line) {}
+
+    /**
      * The {@code @ConfigProperty(defaultValue = …)} of a record component, modeled by how it can be
      * compared: a plain string {@link Literal} (a compile-time fact), a non-literal {@link Expr} constant
      * reference (compared only when whitelisted by the caller), or {@link None} when no {@code defaultValue}
@@ -102,6 +111,8 @@ public final class JavaParsing {
      * @param declLine         1-based line of the type declaration.
      * @param kind             the declaration flavor.
      * @param methods          every declared method, in source order (overloads share a name).
+     * @param members          every declared field, enum constant, and record component (nameable
+     *                         non-method symbols), in declaration order.
      * @param configPrefix     the {@code @ConfigData} value as written ({@code ""} for a bare
      *                         {@code @ConfigData}), or {@code null} when the type carries no
      *                         {@code @ConfigData} annotation.
@@ -112,6 +123,7 @@ public final class JavaParsing {
             int declLine,
             Kind kind,
             List<MethodSig> methods,
+            List<MemberDecl> members,
             String configPrefix,
             List<ConfigComponent> configComponents) {
 
@@ -135,6 +147,29 @@ public final class JavaParsing {
             return methods.stream()
                     .filter(m -> m.name().equals(name))
                     .mapToInt(MethodSig::line)
+                    .findFirst();
+        }
+
+        /**
+         * Whether the type declares a field, enum constant, or record component with the given name.
+         *
+         * @param name the member name.
+         * @return true if such a member is declared.
+         */
+        public boolean hasMember(final String name) {
+            return members.stream().anyMatch(m -> m.name().equals(name));
+        }
+
+        /**
+         * The 1-based declaration line of a named field, enum constant, or record component.
+         *
+         * @param name the member name.
+         * @return the member's line, or empty if it is not declared.
+         */
+        public OptionalInt memberLine(final String name) {
+            return members.stream()
+                    .filter(m -> m.name().equals(name))
+                    .mapToInt(MemberDecl::line)
                     .findFirst();
         }
 
@@ -179,6 +214,84 @@ public final class JavaParsing {
 
     /** Declared types of a parsed file, keyed by simple type name (nested types included). */
     public record ParsedFile(Map<String, TypeInfo> types) {}
+
+    /**
+     * The name of the declaration whose start line is exactly {@code line} — a type, a method, or a
+     * field/enum-constant/record component — or {@code null} when no declaration starts there. Drives the
+     * {@code File.java:NN}→{@code File.java#symbol} migration: NN is a symbol only when it lands on a
+     * declaration line.
+     *
+     * @param parsed the parsed source file.
+     * @param line   the 1-based line to match.
+     * @return the declared symbol's simple name, or {@code null} when {@code line} is not a declaration.
+     */
+    public static String symbolAtLine(final ParsedFile parsed, final int line) {
+        for (final Map.Entry<String, TypeInfo> e : parsed.types().entrySet()) {
+            final TypeInfo t = e.getValue();
+            if (t.declLine() == line) {
+                return e.getKey();
+            }
+            for (final MethodSig m : t.methods()) {
+                if (m.line() == line) {
+                    return citableSymbol(m, e.getKey());
+                }
+            }
+            for (final MemberDecl mem : t.members()) {
+                if (mem.line() == line) {
+                    return mem.name();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The name of the declaration that encloses {@code line} — the nearest method, type, or
+     * field/enum-constant/record component whose declaration starts at or before {@code line} — or
+     * {@code null} when no declaration precedes it. Approximate (start lines only, no end positions): the
+     * intended enclosing symbol of a body line, for the "cite {@code File.java#symbol} instead" hint.
+     *
+     * @param parsed the parsed source file.
+     * @param line   the 1-based line.
+     * @return the enclosing declaration's simple name, or {@code null}.
+     */
+    public static String enclosingSymbolAtLine(final ParsedFile parsed, final int line) {
+        String best = null;
+        int bestLine = 0;
+        for (final Map.Entry<String, TypeInfo> e : parsed.types().entrySet()) {
+            final TypeInfo t = e.getValue();
+            if (t.declLine() > bestLine && t.declLine() <= line) {
+                best = e.getKey();
+                bestLine = t.declLine();
+            }
+            for (final MethodSig m : t.methods()) {
+                if (m.line() > bestLine && m.line() <= line) {
+                    best = citableSymbol(m, e.getKey());
+                    bestLine = m.line();
+                }
+            }
+            for (final MemberDecl mem : t.members()) {
+                if (mem.line() > bestLine && mem.line() <= line) {
+                    best = mem.name();
+                    bestLine = mem.line();
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The citable name of a method at a line: its own name, except a constructor ({@code <init>}), which is
+     * reported as its enclosing type — the type name is a real {@code #symbol} anchor, whereas {@code <init>}
+     * is not extractable and would resolve to nothing.
+     *
+     * @param method   the method whose line matched.
+     * @param typeName the simple name of the type declaring it.
+     * @return the method name, or the type name for a constructor.
+     */
+    private static String citableSymbol(final MethodSig method, final String typeName) {
+        return method.name().equals("<init>") ? typeName : method.name();
+    }
 
     /**
      * The per-compilation-unit parse state threaded through the collectors: the unit, its source-position
@@ -246,6 +359,7 @@ public final class JavaParsing {
         }
         final String name = ct.getSimpleName().toString();
         final List<MethodSig> methods = new ArrayList<>();
+        final List<MemberDecl> members = new ArrayList<>();
         final List<ConfigComponent> components = new ArrayList<>();
         final boolean isRecord = kindOf(ct) == Kind.RECORD;
         for (final Tree member : ct.getMembers()) {
@@ -253,12 +367,14 @@ public final class JavaParsing {
                 methods.add(signatureOf(ctx, mt));
             } else if (member instanceof ClassTree nested) {
                 collectType(ctx, nested, out);
-            } else if (isRecord
-                    && member instanceof VariableTree vt
-                    && !vt.getModifiers().getFlags().contains(Modifier.STATIC)) {
-                // A record's non-static variable members are exactly its components (the parser lowers
-                // the record header into member declarations; instance fields are illegal in records).
-                components.add(configComponentOf(ctx, vt));
+            } else if (member instanceof VariableTree vt) {
+                // A field, enum constant, or record component — all nameable members for `#member` refs.
+                members.add(new MemberDecl(vt.getName().toString(), declLine(ctx, vt, vt.getModifiers())));
+                if (isRecord && !vt.getModifiers().getFlags().contains(Modifier.STATIC)) {
+                    // A record's non-static variable members are exactly its components (the parser lowers
+                    // the record header into member declarations; instance fields are illegal in records).
+                    components.add(configComponentOf(ctx, vt));
+                }
             }
         }
         if (!name.isEmpty()) {
@@ -268,6 +384,7 @@ public final class JavaParsing {
                             declLine(ctx, ct, ct.getModifiers()),
                             kindOf(ct),
                             methods,
+                            members,
                             annotationValue(ct.getModifiers(), "ConfigData"),
                             components));
         }

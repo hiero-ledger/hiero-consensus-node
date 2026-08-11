@@ -132,35 +132,19 @@ public interface BasicCustomCallOperation {
         final var outputOffset = outputDataOffset(frame);
         final var outputLength = outputDataLength(frame);
         final var transferValue = value(frame);
-        final var recipientAddress = address(frame);
-
-        final var staticCost = gasCalculator()
-                .callOperationStaticGasCost(
-                        frame,
-                        stipend,
-                        inputOffset,
-                        inputLength,
-                        outputOffset,
-                        outputLength,
-                        transferValue,
-                        recipientAddress,
-                        false);
-
-        if (isDeficientGas(frame, staticCost)) {
-            return staticCost;
-        }
-
+        final var recipient = frame.getWorldUpdater().get(this.address(frame));
+        final var to = to(frame);
         return gasCalculator()
                 .callOperationGasCost(
                         frame,
-                        staticCost,
                         stipend,
                         inputOffset,
                         inputLength,
                         outputOffset,
                         outputLength,
                         transferValue,
-                        recipientAddress,
+                        recipient,
+                        to,
                         false);
     }
 

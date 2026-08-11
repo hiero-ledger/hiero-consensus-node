@@ -3,12 +3,13 @@ package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.CREATE;
 import static java.util.Objects.requireNonNull;
-import static org.hyperledger.besu.evm.Code.EMPTY_CODE;
+import static org.hyperledger.besu.evm.code.CodeV0.EMPTY_CODE;
 
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.operation.CreateOperation;
@@ -20,9 +21,10 @@ public class CustomCreateOperation extends AbstractCustomCreateOperation {
     /**
      * Constructor for custom create operations.
      * @param gasCalculator the gas calculator to use
+     * @param codeFactory the code factory to use
      */
-    public CustomCreateOperation(@NonNull final GasCalculator gasCalculator) {
-        super(CREATE.opcode(), "ħCREATE", 3, 1, gasCalculator);
+    public CustomCreateOperation(@NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
+        super(CREATE.opcode(), "ħCREATE", 3, 1, gasCalculator, codeFactory);
     }
 
     @Override
