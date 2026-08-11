@@ -9,7 +9,7 @@ dependencies {
 }
 
 val besu = "25.7.0"
-val bouncycastle = "1.85"
+val bouncycastle = "1.84"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
@@ -112,9 +112,6 @@ dependencies.constraints {
     api("org.hyperledger.besu:arithmetic:1.3.1")
     api("org.hyperledger.besu:blake2bf:1.3.1") {
         because("org.hyperledger.besu.nativelib.blake2bf")
-    }
-    api("org.hyperledger.besu:boringssl:1.3.1") {
-        because("org.hyperledger.besu.nativelib.boringssl")
     }
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
