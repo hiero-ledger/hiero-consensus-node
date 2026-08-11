@@ -64,7 +64,15 @@ public class IssBufferBlockReader {
         requireNonNull(targetDir);
         final long earliest = blockBufferService.getEarliestAvailableBlockNumber();
         final long last = blockBufferService.getLastBlockNumberProduced();
+        final long highestAcked = blockBufferService.getHighestAckedBlockNumber();
         if (earliest < 0 || last < earliest) {
+            // ISS-DIAG (investigation): buffer empty at detection, so the ISS block cannot be located here.
+            log.warn(
+                    "ISS-DIAG round={} issBlock=-1 currentBlock={} lag=-1 earliestBuffered={} highestAcked={} inBuffer=false acked=false",
+                    round,
+                    last,
+                    earliest,
+                    highestAcked);
             log.warn("Block buffer is empty; cannot locate block for ISS round {}", round);
             return List.of();
         }
@@ -86,6 +94,18 @@ public class IssBufferBlockReader {
                 break; // first-round is monotonic across block numbers, so no later block can contain the round
             }
         }
+        // ISS-DIAG (investigation): the load-bearing observation — at ISS detection, is the ISS-round block still
+        // buffered, how far behind the current block it is, and whether it has already been acked (hence prunable)?
+        log.warn(
+                "ISS-DIAG round={} issBlock={} currentBlock={} lag={} earliestBuffered={} highestAcked={} inBuffer={} acked={}",
+                round,
+                issBlockNumber,
+                last,
+                issBlockNumber >= 0 ? last - issBlockNumber : -1,
+                earliest,
+                highestAcked,
+                issBlockNumber >= 0,
+                issBlockNumber >= 0 && issBlockNumber <= highestAcked);
         if (issBlockNumber < 0) {
             log.warn(
                     "ISS round {} is not in the block buffer (earliest buffered #{}); nothing to upload",

@@ -440,6 +440,12 @@ tasks.register<Test>("testSubprocess") {
         System.getProperty("hapi.spec.quiet.mode")
             ?: if (ciTagExpression.isNotBlank()) "true" else "false",
     )
+    // Forward an explicit block-node mode (e.g. -Dhapi.spec.blocknode.mode=SIMULATOR for a
+    // Docker-free local run) to
+    // the test JVM; when unset, the shared-network launcher defaults to REAL.
+    System.getProperty("hapi.spec.blocknode.mode")?.let {
+        systemProperty("hapi.spec.blocknode.mode", it)
+    }
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
@@ -657,6 +663,12 @@ tasks.register<Test>("testRemote") {
         System.getProperty("hapi.spec.quiet.mode")
             ?: if (ciTagExpression.isNotBlank()) "true" else "false",
     )
+    // Forward an explicit block-node mode (e.g. -Dhapi.spec.blocknode.mode=SIMULATOR for a
+    // Docker-free local run) to
+    // the test JVM; when unset, the shared-network launcher defaults to REAL.
+    System.getProperty("hapi.spec.blocknode.mode")?.let {
+        systemProperty("hapi.spec.blocknode.mode", it)
+    }
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
