@@ -10,12 +10,10 @@ import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.util.encoders.Hex;
@@ -100,8 +98,7 @@ class HederaEVMTest {
                 .blockValues(mock(BlockValues.class))
                 .isStatic(false)
                 .maxStackSize(100)
-                .completer(unused -> {
-                })
+                .completer(unused -> {})
                 .blockHashLookup((unusedFrame, unused) -> {
                     throw new IllegalStateException();
                 })
