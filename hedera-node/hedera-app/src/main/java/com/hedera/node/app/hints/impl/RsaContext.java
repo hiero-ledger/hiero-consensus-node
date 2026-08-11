@@ -55,7 +55,10 @@ public class RsaContext {
     private volatile Bytes rosterHash = Bytes.EMPTY;
     private volatile Map<Long, PublicKey> publicKeys = Map.of();
     private volatile Map<Long, Long> weights = Map.of();
-    private final ThreadLocal<Map<Long, BytesSignatureVerifier>> verifiers = ThreadLocal.withInitial(HashMap::new);
+    // Per-thread cache keyed by public key, so a rotated key is rebuilt against the new key on next
+    // use. Thread-local because JcaVerifier wraps a stateful, non-thread-safe java.security.Signature
+    // that must not be shared across the concurrent (parallel pre-handle) verification threads.
+    private final ThreadLocal<Map<PublicKey, BytesSignatureVerifier>> verifiers = ThreadLocal.withInitial(HashMap::new);
 
     @Inject
     public RsaContext(@NonNull final Supplier<Configuration> configProvider) {
@@ -82,7 +85,6 @@ public class RsaContext {
         rosterHash = RosterUtils.hash(roster).getBytes();
         publicKeys = Map.copyOf(keys);
         weights = publicKeys.keySet().stream().collect(toMap(identity(), nodeId -> weightFor(weightFn, nodeId)));
-        verifiers.remove();
     }
 
     /**
@@ -125,8 +127,7 @@ public class RsaContext {
             return false;
         }
         try {
-            final var verifier =
-                    verifiers.get().computeIfAbsent(nodeId, ignore -> SigningFactory.createVerifier(publicKey));
+            final var verifier = verifiers.get().computeIfAbsent(publicKey, SigningFactory::createVerifier);
             return verifier.verify(message, signature);
         } catch (final CryptographyException e) {
             log.debug("Failed to validate RSA signature from node {}", nodeId, e);
