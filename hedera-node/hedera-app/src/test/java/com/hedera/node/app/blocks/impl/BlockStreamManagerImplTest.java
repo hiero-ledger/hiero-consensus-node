@@ -104,7 +104,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.bouncycastle.util.Arrays;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -2185,7 +2184,7 @@ class BlockStreamManagerImplTest {
 
     private void mockRound(Instant timestamp, long roundNum) {
         given(round.getRoundNum()).willReturn(roundNum);
-        lenient().when(round.iterator()).thenReturn(new Arrays.Iterator<>(new ConsensusEvent[] {mockEvent}));
+        lenient().when(round.iterator()).thenReturn(List.of(mockEvent).iterator());
         lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
     }
 
@@ -2217,7 +2216,7 @@ class BlockStreamManagerImplTest {
         txn.setConsensusTimestamp(timestamp);
         lenient()
                 .when(mockEvent.consensusTransactionIterator())
-                .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
+                .thenReturn(List.<ConsensusTransaction>of(txn).iterator());
     }
 
     @Test
