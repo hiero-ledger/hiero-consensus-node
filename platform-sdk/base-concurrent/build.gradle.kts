@@ -8,17 +8,24 @@ plugins {
 
 description = "Base Concurrent"
 
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+
 testModuleInfo {
-    requires("org.hiero.consensus.concurrent")
+    requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.model")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
 }
 
 timingSensitiveModuleInfo {
     requires("com.swirlds.base")
-    requires("org.hiero.consensus.concurrent")
     requires("com.swirlds.logging")
     requires("com.swirlds.logging.test.fixtures")
     requires("org.hiero.base.concurrent")

@@ -8,7 +8,7 @@ import static com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats.estima
 import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
 import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
@@ -37,9 +37,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.io.IORunnable;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * Coordinates compaction tasks for a {@link MerkleDbDataSource}. Manages two kinds of background tasks:
