@@ -610,7 +610,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("A fresh cache is mutable for leaves but immutable for hashes")
     void freshCacheIsMutableForLeaves() {
-        assertFalse(cache.isImmutable(), "Cache was just instantiated");
+        assertFalse(cache.isImmutableForLeafChanges(), "Cache was just instantiated");
         assertFalse(cache.isDestroyed(), "Cache was just instantiated");
         final VirtualHashChunk virtualHashChunk = new VirtualHashChunk(0, HASH_CHUNK_HEIGHT);
         assertThrows(
@@ -631,8 +631,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         final VirtualNodeCache latest = cache;
-        assertTrue(original.isImmutable(), "After a round, a copy is created");
-        assertFalse(latest.isImmutable(), "The latest cache is mutable");
+        assertTrue(original.isImmutableForLeafChanges(), "After a round, a copy is created");
+        assertFalse(latest.isImmutableForLeafChanges(), "The latest cache is mutable");
         assertThrows(
                 MutabilityException.class,
                 () -> original.putLeaf(appleLeaf(A_PATH)),
@@ -867,7 +867,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     void canReleaseOnlyCacheEvenIfNeverCopied() {
         cache.release();
         assertTrue(cache.isDestroyed(), "cache should be destroyed");
-        assertTrue(cache.isImmutable(), "cache should be immutable");
+        assertTrue(cache.isImmutableForLeafChanges(), "cache should be immutable");
     }
 
     /**
@@ -1782,7 +1782,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         // Release the older caches
         caches.forEach(cacheInfo -> {
-            if (cacheInfo.cache.isImmutable()) {
+            if (cacheInfo.cache.isImmutableForLeafChanges()) {
                 cacheInfo.cache.release();
             }
         });
