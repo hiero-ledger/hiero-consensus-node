@@ -135,6 +135,7 @@ class WrapsProvingKeyVerificationTest {
         setArtifactsEnvVar(environment);
 
         assertDoesNotThrow(() -> subject.ensureProvingKey(configuration, downloader));
+        verify(downloader).download(DOWNLOAD_URL, path);
     }
 
     @Test
