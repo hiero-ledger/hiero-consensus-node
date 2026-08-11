@@ -24,6 +24,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
@@ -434,20 +435,18 @@ public final class ReplayPcesWorkflow {
                 return;
             }
             if (System.nanoTime() >= deadline) {
-                log.warn(
-                        "Timed out after {} waiting for block finalization under {}; first unfinalized: {}. "
-                                + "The final block stream may be incomplete (missing proof/.mf marker).",
-                        timeout,
-                        blockStreamsDir,
-                        pending.get());
-                return;
+                throw new IllegalStateException(String.format(
+                        "Timed out after %s waiting for block finalization under %s; first unfinalized: %s. "
+                                + "The final block stream is incomplete (missing proof/.mf marker); failing so the "
+                                + "output is not mistaken for a valid equivalence result.",
+                        timeout, blockStreamsDir, pending.get()));
             }
             try {
                 Thread.sleep(BLOCK_FINALIZE_POLL.toMillis());
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Interrupted while awaiting block finalization", e);
-                return;
+                throw new IllegalStateException(
+                        "Interrupted while awaiting block finalization under " + blockStreamsDir, e);
             }
         }
     }
@@ -459,18 +458,19 @@ public final class ReplayPcesWorkflow {
      */
     private static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
         if (!Files.isDirectory(blockStreamsDir)) {
-            // No block output produced yet (e.g. nothing replayed) — nothing to wait for.
+            // No block output dir at all -> nothing was produced to finalize. This is itself suspicious for a
+            // normal replay; treat as "nothing pending" ONLY if no blocks were expected. If blocks were
+            // expected, the caller's own check (below) will catch an empty output. Keep returning empty here
+            // so a genuinely block-free replay does not hang, but see the caller note in step 3.
             return Optional.empty();
         }
         try (final Stream<Path> files = Files.walk(blockStreamsDir)) {
             return files.filter(Files::isRegularFile)
                     .map(Path::toString)
                     .filter(name -> {
-                        // A pending-proof json means a block is still awaiting its proof.
                         if (name.endsWith(".pnd.json") || name.endsWith(".pnd.gz") || name.endsWith(".pnd")) {
                             return true;
                         }
-                        // A complete block file without its .mf marker is not finalized yet.
                         if (name.endsWith(".blk.gz")) {
                             return !Files.exists(
                                     Path.of(name.substring(0, name.length() - ".blk.gz".length()) + ".mf"));
@@ -482,10 +482,9 @@ public final class ReplayPcesWorkflow {
                     })
                     .findFirst();
         } catch (final IOException e) {
-            log.warn("Error scanning block output for finalization under {}", blockStreamsDir, e);
-            // On scan error, don't block forever — treat as "can't confirm"; caller's timeout still applies
-            // on subsequent iterations. Return empty to avoid a tight error loop.
-            return Optional.empty();
+            // Do NOT treat a scan failure as success. Surface it so the command fails rather than reporting a
+            // possibly-incomplete block stream as valid.
+            throw new UncheckedIOException("Failed scanning block output for finalization under " + blockStreamsDir, e);
         }
     }
 }

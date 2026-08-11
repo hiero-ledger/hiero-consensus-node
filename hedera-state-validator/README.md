@@ -678,8 +678,7 @@ the resulting state and block hashes against the originals.
 ### Usage
 
 ```shell
-java -jar ./validator-<version>.jar replay-pces \
-     --state-dir <path-to-state-round> \
+java -jar ./validator-<version>.jar <path-to-state-round> replay-pces \
      --pces-dir <path-to-pces-files> \
      --target-round <round> \
      [--out <output-dir>] \
@@ -691,8 +690,7 @@ java -jar ./validator-<version>.jar replay-pces \
 #### Example
 
 ```shell
-java -jar ./validator-<version>.jar replay-pces \
-      --state-dir ./211155071 \
+java -jar ./validator-<version>.jar ./211155071 replay-pces \
       --pces-dir ./out/pces-211155071-211422945 \
       --target-round 211422945 \
       --out ./replay-out \
