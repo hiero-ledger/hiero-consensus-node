@@ -4,6 +4,7 @@ package com.hedera.node.app.grpc.impl.usage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -266,6 +267,39 @@ class GrpcUsageTrackerTest {
         assertThat(entry.getKey()).hasSize(250);
         assertThat(entry.getKey()).isEqualTo(expectedUaString);
         assertThat(entry.getValue()).isEqualTo(new UserAgent(UserAgentType.HIERO_SDK_JAVA, "2.3.1"));
+    }
+
+    @Test
+    void interceptCallProceedsWhenUsageTrackingThrows() {
+        final Clock clock = Clock.fixed(Instant.parse("2025-04-03T15:32:32.426457Z"), ZoneOffset.UTC);
+        final GrpcUsageTrackerConfig config = new GrpcUsageTrackerConfig(true, 15, 100);
+        final ConfigProvider configProvider = mock(ConfigProvider.class);
+        final VersionedConfiguration configuration = mock(VersionedConfiguration.class);
+        final ServerCall<String, String> serverCall = mock(ServerCall.class);
+        final ServerCallHandler<String, String> handler = mock(ServerCallHandler.class);
+        final ServerCall.Listener<String> listener = mock(ServerCall.Listener.class);
+        final Metadata metadata = new Metadata();
+        metadata.put(userAgentHeaderKey, "hiero-sdk-java/2.3.1");
+
+        when(configProvider.getConfiguration()).thenReturn(configuration);
+        when(configuration.getConfigData(GrpcUsageTrackerConfig.class)).thenReturn(config);
+        // Simulate a failure on the usage-tracking path (e.g. a parsing bug); it must not reach the caller
+        when(serverCall.getMethodDescriptor()).thenThrow(new RuntimeException("usage tracking boom"));
+        when(handler.startCall(serverCall, metadata)).thenReturn(listener);
+
+        final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
+
+        // The tracking failure must be swallowed and the real call must still be started (a thrown
+        // exception here would fail the test, which is exactly the contract under test).
+        final ServerCall.Listener<String> result = usageTracker.interceptCall(serverCall, metadata, handler);
+
+        verify(handler).startCall(serverCall, metadata);
+        assertThat(result).isSameAs(listener);
+
+        // the failed interaction records nothing
+        final AtomicReference<UsageBucket> bucketRef =
+                (AtomicReference<UsageBucket>) usageBucketRefHandle.get(usageTracker);
+        assertThat(bucketRef.get().usageData()).isEmpty();
     }
 
     static MethodDescriptor<String, String> newDescriptor(final String fullMethodName) {
