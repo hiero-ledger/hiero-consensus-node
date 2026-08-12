@@ -105,7 +105,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
-import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -131,15 +130,16 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.math.BigInteger;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
@@ -808,8 +808,8 @@ public class EthereumSuite {
                     final var getBytecode = getContractBytecode(contract).saveResultTo("contractByteCode");
                     allRunFor(spec, getBytecode);
 
-                    final var originalBytecode =
-                            Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
+                    final var originalBytecode = HexFormat.of()
+                            .parseHex(Files.readString(new File(getResourcePath(contract, ".bin")).toPath()));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
                     // The original bytecode is modified on deployment
                     final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);
@@ -1483,13 +1483,13 @@ public class EthereumSuite {
         final byte[] nonce = Integers.toBytes(1);
         final byte[] gasPrice = new byte[] {0x2f};
         final byte[] gasLimit = Integers.toBytes(GAS_LIMIT);
-        final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
+        final byte[] to = HexFormat.of().parseHex("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
         final byte[] value = new byte[0];
         final byte[] callData = new byte[] {0x76, 0x53};
         // v = 1: not in {27, 28} and not >= 35
         final byte[] v = new byte[] {0x01};
-        final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
-        final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+        final byte[] r = HexFormat.of().parseHex("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
+        final byte[] s = HexFormat.of().parseHex("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
         final ByteString rawTx =
                 ByteString.copyFrom(RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s)));
 
