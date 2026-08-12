@@ -33,6 +33,8 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private final Set<String> allIds;
     private final VisibleItemsValidator validator;
     private final Map<String, VisibleItems> items = new ConcurrentHashMap<>();
+    // [block-assert-diag] Last unseen-id set logged, so the "waiting on" diagnostic only fires on change.
+    private List<String> lastLoggedMissing = null;
     private final boolean withLogging = true;
     private final boolean viewAll;
 
@@ -185,6 +187,29 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         // genuine validation mismatch is reported rather than silently swallowed.
         if (!allIdsHaveItems) {
             allIdsHaveItems = allIds.stream().allMatch(items::containsKey);
+        }
+        if (!allIdsHaveItems && withLogging) {
+            // [block-assert-diag] When the set of not-yet-collected ids changes, log which expected
+            // ids are still unseen and whether the spec registry can resolve them. Resolvable-but-unseen
+            // points to a stream/translation gap (the matching record never arrives); unresolvable
+            // points to a registry/wiring gap. This is the state in which the assertion times out.
+            final var missing = allIds.stream()
+                    .filter(id -> !items.containsKey(id))
+                    .sorted()
+                    .toList();
+            if (!missing.equals(lastLoggedMissing)) {
+                lastLoggedMissing = missing;
+                final var resolvable = missing.stream()
+                        .filter(id -> registry.getMaybeTxnId(id).isPresent())
+                        .sorted()
+                        .toList();
+                log.info(
+                        "[block-assert-diag] waiting on {} unseen id(s): {} (registry-resolvable of those: {}); collected: {}",
+                        missing.size(),
+                        missing,
+                        resolvable,
+                        items.keySet());
+            }
         }
         if (allIdsHaveItems) {
             // Only re-run the validator when collected state has changed since the
