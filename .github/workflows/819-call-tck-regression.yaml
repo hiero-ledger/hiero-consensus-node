@@ -179,7 +179,7 @@ jobs:
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
+          pnpm add @hiero-ledger/sdk@${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
           pnpm install
           nohup pnpm start &
           server_pid=$!
