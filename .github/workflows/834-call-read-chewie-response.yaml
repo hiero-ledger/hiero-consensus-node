@@ -42,7 +42,7 @@ on:
       owner:
         value: ${{ jobs.acquire-kubernetes-resources.outputs.owner }}
       request-expiration:
-        value: ${{ jobs.create-allocation-request.outputs.expiration }}
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.expiration }}
 
 permissions:
   contents: read

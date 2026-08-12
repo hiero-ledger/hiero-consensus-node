@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -64,6 +65,15 @@ public class WrapsProvingKeyVerification {
      * already in place. Must match the file produced by the published proving-key image build.
      */
     static final String WRAPS_HASH_FILE_NAME = "wraps.sha384";
+
+    /**
+     * Name of the per-file artifact manifest written into the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH}
+     * directory. Each line is {@code <sha384hex>  <filename>} (sha384sum(1) format) covering the
+     * four required artifact files. Written by both the published image build and the CN after a
+     * successful extraction, so that {@link #artifactsAlreadyPresent} can detect a corrupt or
+     * incomplete installation.
+     */
+    static final String WRAPS_ARTIFACTS_MANIFEST_FILE_NAME = "wraps-artifacts.sha384";
 
     public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
     static final Set<String> REQUIRED_ARTIFACT_FILES =
@@ -184,6 +194,16 @@ public class WrapsProvingKeyVerification {
                     artifactsDir);
             return false;
         }
+        // If a manifest is present, verify it lists all required artifacts. An absent manifest is
+        // accepted (e.g. an older image without the manifest file) to preserve backwards compatibility
+        // with read-only mounts that cannot be updated.
+        final var manifestFile = artifactsDir.resolve(WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
+        if (Files.isRegularFile(manifestFile) && !manifestListsAllArtifacts(manifestFile)) {
+            log.warn(
+                    "WRAPS artifacts manifest {} is incomplete or unreadable; will re-download and extract",
+                    manifestFile);
+            return false;
+        }
         return true;
     }
 
@@ -199,7 +219,14 @@ public class WrapsProvingKeyVerification {
             asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
             return;
         }
-        final Bytes fileHash = hashFile(provingKeyPath);
+        final Bytes fileHash;
+        try {
+            fileHash = hashFile(provingKeyPath);
+        } catch (final UncheckedIOException e) {
+            log.warn("Failed to read WRAPS proving key file at {}; initiating download", provingKeyPath, e);
+            asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+            return;
+        }
         if (!fileHash.equals(expectedHash)) {
             log.warn(
                     "WRAPS proving key hash mismatch at {} (expected={}, actual={}), initiating download",
@@ -347,6 +374,7 @@ public class WrapsProvingKeyVerification {
             log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, extractionDir);
             verifyArtifactsDirectoryExists();
             writeHashFile(extractionDir, expectedHashHex);
+            writeArtifactsManifest(extractionDir);
         } catch (final IOException e) {
             log.error("Failed to extract WRAPS proving key archive {}", tarGzPath, e);
         }
@@ -368,6 +396,58 @@ public class WrapsProvingKeyVerification {
             log.info("Wrote WRAPS proving key hash file {} ({})", hashFile, hashHex);
         } catch (final IOException e) {
             log.error("Failed to write WRAPS proving key hash file {}", hashFile, e);
+        }
+    }
+
+    /**
+     * Writes the per-file artifact manifest ({@value #WRAPS_ARTIFACTS_MANIFEST_FILE_NAME}) into the
+     * extraction directory. Each line is {@code <sha384hex>  <filename>} (sha384sum(1) format).
+     * Written after every successful extraction so subsequent startups can detect an incomplete or
+     * corrupt installation via {@link #manifestListsAllArtifacts}. A write failure (e.g. a read-only
+     * mount) is logged but non-fatal: the extracted artifacts remain usable.
+     */
+    private static void writeArtifactsManifest(@NonNull final Path extractionDir) {
+        final var manifestPath = extractionDir.resolve(WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
+        final var sb = new StringBuilder();
+        for (final var name : REQUIRED_ARTIFACT_FILES) {
+            final var filePath = extractionDir.resolve(name);
+            if (!Files.isRegularFile(filePath)) {
+                log.warn("Skipping missing artifact {} while writing WRAPS manifest", name);
+                continue;
+            }
+            try {
+                sb.append(hashFile(filePath).toHex()).append("  ").append(name).append('\n');
+            } catch (final UncheckedIOException e) {
+                log.warn("Failed to hash artifact {} while writing WRAPS manifest; skipping", name, e);
+            }
+        }
+        try {
+            Files.writeString(manifestPath, sb.toString());
+            log.info("Wrote WRAPS artifacts manifest {}", manifestPath);
+        } catch (final IOException e) {
+            log.error("Failed to write WRAPS artifacts manifest {}", manifestPath, e);
+        }
+    }
+
+    /**
+     * Returns {@code true} if the manifest file lists all {@link #REQUIRED_ARTIFACT_FILES}.
+     * Parses each {@code <sha384hex>  <filename>} line and collects the filenames; a parse error
+     * or missing entry causes the method to return {@code false} so the caller triggers
+     * re-extraction.
+     */
+    private static boolean manifestListsAllArtifacts(@NonNull final Path manifestFile) {
+        try {
+            final var listed = new HashSet<String>();
+            for (final var line : Files.readAllLines(manifestFile)) {
+                final int sep = line.indexOf("  ");
+                if (sep > 0) {
+                    listed.add(line.substring(sep + 2).trim());
+                }
+            }
+            return listed.containsAll(REQUIRED_ARTIFACT_FILES);
+        } catch (final IOException e) {
+            log.warn("Could not read WRAPS artifacts manifest {}; treating as incomplete", manifestFile, e);
+            return false;
         }
     }
 
