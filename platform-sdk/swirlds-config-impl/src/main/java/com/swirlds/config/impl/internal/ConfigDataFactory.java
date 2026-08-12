@@ -11,7 +11,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -40,16 +40,23 @@ class ConfigDataFactory {
         this.converterService = Objects.requireNonNull(converterService, "converterService must not be null");
     }
 
-    @SuppressWarnings("unchecked")
     @NonNull
     <T extends Record> T createConfigInstance(@NonNull final Class<T> type)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        Objects.requireNonNull(type, "type must not be null");
+        validateIsRecord(type);
 
         if (!type.isAnnotationPresent(ConfigData.class)) {
             throw new IllegalArgumentException("Can not create config instance for '" + type + "' since "
                     + ConfigData.class.getName() + "' " + "annotation is missing");
         }
+
+        final String namePrefix = getNamePrefix(type);
+        return instantiateRecord(namePrefix, type, new HashSet<>());
+    }
+
+    private void validateIsRecord(@NonNull final Class<?> type) {
+        Objects.requireNonNull(type, "type must not be null");
+
         if (!type.isRecord()) {
             throw new IllegalArgumentException(
                     "Can not create config instance for '" + type + "' since it is not record");
@@ -62,21 +69,53 @@ class ConfigDataFactory {
             throw new IllegalArgumentException(
                     "Can not create config instance for '" + type + "' since it has not exactly 1 constructor");
         }
+    }
 
-        final String namePrefix = getNamePrefix(type);
-        final Object[] paramValues = Arrays.stream(type.getRecordComponents())
-                .map(component -> getValueForRecordComponent(namePrefix, component))
-                .toArray(Object[]::new);
+    @SuppressWarnings("unchecked")
+    @NonNull
+    private <T extends Record> T instantiateRecord(
+            @NonNull final String namePrefix,
+            @NonNull final Class<T> type,
+            @NonNull final Set<Class<?>> circularRefStack)
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        if (!circularRefStack.add(type)) {
+            throw new IllegalStateException("Circular reference detected for record type '" + type + "'");
+        }
+
+        final RecordComponent[] recordComponents = type.getRecordComponents();
+        final Object[] paramValues = new Object[recordComponents.length];
+
+        for (int i = 0; i < recordComponents.length; i++) {
+            paramValues[i] = getValueForRecordComponent(namePrefix, recordComponents[i], circularRefStack);
+        }
+
+        circularRefStack.remove(type);
         final Constructor<T> constructor = (Constructor<T>) type.getConstructors()[0];
         return constructor.newInstance(paramValues);
     }
 
     @Nullable
     private Object getValueForRecordComponent(
-            @NonNull final String namePrefix, @NonNull final RecordComponent component) {
+            @NonNull final String namePrefix,
+            @NonNull final RecordComponent component,
+            @NonNull Set<Class<?>> circularRefStack) {
         Objects.requireNonNull(component, "component must not be null");
         final String name = createPropertyName(namePrefix, component);
         final Class<?> valueType = component.getType();
+
+        // only process nested record if it does not have a converter registered for it, otherwise the converter will be
+        // used to convert the value
+        if (valueType.isRecord() && converterService.getConverterForType(valueType) == null) {
+            Class<? extends Record> recordType = valueType.asSubclass(Record.class);
+            validateIsRecord(recordType);
+
+            try {
+                return instantiateRecord(name, recordType, circularRefStack);
+            } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                throw new IllegalStateException("Unable to instantiate record for '" + name + "'", e);
+            }
+        }
+
         if (hasDefaultValue(component)) {
             if (Objects.equals(List.class, component.getType())) {
                 final Class<?> genericType = getGenericListType(component);
@@ -111,6 +150,7 @@ class ConfigDataFactory {
         return Objects.equals(type, stringSetType.getRawType());
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> Class<T> getGenericSetType(@NonNull final RecordComponent component) {
         if (!isGenericType(component, Set.class)) {
             throw new IllegalArgumentException("Only Set interface is supported");
@@ -135,6 +175,7 @@ class ConfigDataFactory {
     }
 
     @Nullable
+    @SuppressWarnings("unchecked")
     private <T> Set<T> getDefaultValueSet(@NonNull final RecordComponent component) {
         Objects.requireNonNull(component, "component must not be null");
         final Class<?> type = getGenericSetType(component);

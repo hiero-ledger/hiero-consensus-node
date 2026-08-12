@@ -30,11 +30,11 @@ public class ConstraintMethodConstraintsValidation implements ConfigValidator {
             final ConfigReflectionUtils.AnnotatedProperty<ConstraintMethod, ?> annotatedProperty) {
         try {
             final String methodName = annotatedProperty.annotation().value();
-            final Class<Record> recordType =
-                    (Class<Record>) annotatedProperty.component().getDeclaringRecord();
-            final Object recordInstance = configuration.getConfigData(recordType);
-            final Method method =
-                    annotatedProperty.component().getDeclaringRecord().getMethod(methodName, Configuration.class);
+            // The owner is the record instance that declares the property. For a property of a nested config data
+            // object this is the nested instance, which can not be resolved via Configuration#getConfigData.
+            final Record recordInstance = annotatedProperty.owner();
+            final Class<?> recordType = recordInstance.getClass();
+            final Method method = recordType.getMethod(methodName, Configuration.class);
             final Object violation = method.invoke(recordInstance, configuration);
             if (violation == null) {
                 return null;
