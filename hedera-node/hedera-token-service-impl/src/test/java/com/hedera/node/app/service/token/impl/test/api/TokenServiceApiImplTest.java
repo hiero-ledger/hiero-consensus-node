@@ -863,6 +863,41 @@ class TokenServiceApiImplTest {
             assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isZero();
         }
 
+        @Test
+        void reverseNodeFeeDissipatesWhenFeeCollectionEnabled() {
+            // Given fee collection is enabled and a node fee was accumulated (as chargeFees would do)
+            final var config = configBuilder.getOrCreateConfig();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 2L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we reverse the accumulated node fee
+            subject.reverseNodeFee(NODE_ACCOUNT_ID, 2L);
+
+            // Then the accumulation is undone (no ledger movement is involved)
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isZero();
+        }
+
+        @Test
+        void reverseNodeFeeIsNoopWhenFeeCollectionDisabled() {
+            // Given fee collection is disabled - node fees are credited directly to the node account in
+            // state (and rolled back by the savepoint), so there is nothing accumulated to reverse
+            final var config = configBuilder
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
+                    .getOrCreateConfig();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 2L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we reverse the accumulated node fee
+            subject.reverseNodeFee(NODE_ACCOUNT_ID, 2L);
+
+            // Then nothing is dissipated - the guard mirrors the accumulate guard in chargeFees()
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
+        }
+
         private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
             private final Map<AccountID, Long> accumulatedFees = new HashMap<>();
 
