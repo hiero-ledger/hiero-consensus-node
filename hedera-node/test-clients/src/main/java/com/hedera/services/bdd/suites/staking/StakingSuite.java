@@ -77,7 +77,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class StakingSuite {
-    private static final long NODE = 2L;
     private static final long WHALE_STAKE = ONE_HUNDRED_HBARS;
     private static final long DIRECT_CREATE_STAKE = 25L * ONE_HBAR;
     private static final long MAX_STAKE_REWARDED = ONE_HUNDRED_HBARS;
@@ -475,6 +474,8 @@ public class StakingSuite {
         final var deletedStakee = "tc01DirectCreateDeletedStakee";
         final var whale = "tc01DirectCreateWhale";
         final var directCreatedStaker = "tc01DirectCreatedStaker";
+        final long NODE = 2L;
+
 
         return hapiTest(
                 cryptoCreate(attackerPayer).balance(ONE_MILLION_HBARS),
@@ -510,7 +511,7 @@ public class StakingSuite {
 
                 // The node's stakeToReward must reflect only the whale — the rejected create
                 // must not have introduced phantom stake.
-                doingContextual(spec -> assertThat(nodeInfo(spec).stakeToReward())
+                doingContextual(spec -> assertThat(nodeInfo(spec, NODE).stakeToReward())
                         .as("node stake must remain at the whale's 100 HBAR; no phantom stake from the rejected create")
                         .isEqualTo(WHALE_STAKE)));
     }
@@ -527,6 +528,7 @@ public class StakingSuite {
         final var whale = "tc02Whale";
         final var stakee = "tc02Stakee"; // W — staked to node, will be deleted
         final var staker = "tc02Staker"; // A — staked to W
+        final long NODE = 2L;
 
         return hapiTest(
                 cryptoCreate(payer).balance(ONE_MILLION_HBARS),
@@ -562,12 +564,12 @@ public class StakingSuite {
 
                 // The node's stakeToReward must remain at WHALE_STAKE: deleting the stakee and
                 // then touching the staker must not cause a spurious withdrawal from the node.
-                doingContextual(spec -> assertThat(nodeInfo(spec).stakeToReward())
+                doingContextual(spec -> assertThat(nodeInfo(spec, NODE).stakeToReward())
                         .as("node stake must remain at whale's stake after stakee deletion and subsequent staker tx")
                         .isEqualTo(WHALE_STAKE)));
     }
 
-    private static StakingNodeInfo nodeInfo(@NonNull final HapiSpec spec) {
+    private static StakingNodeInfo nodeInfo(@NonNull final HapiSpec spec, long NODE) {
         final var info = spec.embeddedStakingInfosOrThrow()
                 .get(EntityNumber.newBuilder().number(NODE).build());
         assertThat(info).as("staking info for node %s", NODE).isNotNull();
