@@ -228,9 +228,6 @@ public class HandleHederaOperations implements HederaOperations {
     @Override
     public void collectGasFee(@NonNull final AccountID payerId, final long amount, final boolean withNonceIncrement) {
         requireNonNull(payerId);
-        // tryToCharge silently caps the debit at the payer's balance and returns false on a shortfall.
-        // Callers pre-validate solvency, so a shortfall here means an invariant was violated upstream;
-        // fail closed rather than under-collect (which would otherwise be refunded from nominal charges).
         final var chargedInFull = context.tryToCharge(payerId, amount);
         validateTrue(chargedInFull, INSUFFICIENT_PAYER_BALANCE);
         gasChargingEvents.add(new GasChargingEvent(GasChargingAction.CHARGE, payerId, amount, withNonceIncrement));
