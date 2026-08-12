@@ -684,7 +684,7 @@ jobs:
           #export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
 
           #dedicate top-3 nodes for BN
-          NETWORK_ID="$(echo "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
 
           #create local-path-storage
