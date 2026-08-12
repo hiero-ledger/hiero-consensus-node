@@ -155,6 +155,7 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       ref: "${{ inputs.ref || github.ref }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.block-node-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
