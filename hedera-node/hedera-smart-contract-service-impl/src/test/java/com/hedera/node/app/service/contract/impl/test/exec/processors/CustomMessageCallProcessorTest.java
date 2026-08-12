@@ -262,6 +262,22 @@ class CustomMessageCallProcessorTest {
     }
 
     @Test
+    void haltsIfInvalidInput() {
+        final var isHalted = new AtomicBoolean();
+        givenHaltableFrame(isHalted);
+        givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
+        given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getInputData()).willReturn(Bytes.wrap(new byte[] {1, 2}));
+
+        subject.start(frame, operationTracer);
+
+        verify(frame).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        verify(frame, never()).setState(MessageFrame.State.CODE_EXECUTING);
+        verify(operationTracer).traceNotExecuting(eq(frame));
+    }
+
+    @Test
     void updatesFrameBySuccessfulPrecompileResultWithGasRefund() {
         final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
         givenEvmPrecompileCall();
