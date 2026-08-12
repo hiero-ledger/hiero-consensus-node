@@ -202,7 +202,7 @@ class RsaContextTest {
                     worker.submit(() -> subject.validate(1L, MESSAGE, oldSig)).get());
 
             // Rotate node 1's gossip key. initialize() runs on this (main) thread, so it cannot clear
-            // the worker thread's cache; correctness must come from keying the cache by the key itself.
+            // the worker thread's cache; correctness must come from detecting the key change on validate.
             subject.initialize(newRoster, nodeId -> 10L);
 
             // The worker must now accept a signature from the new key and reject the rotated-out key.
