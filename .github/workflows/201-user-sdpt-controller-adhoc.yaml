@@ -164,7 +164,7 @@ jobs:
       crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
       duration-minutes: ${{ fromJSON(inputs.duration-minutes) }}
-      delete-namespace: false # chewie automatically deletes the namespace after duration-minutes
+      delete-namespace: true
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

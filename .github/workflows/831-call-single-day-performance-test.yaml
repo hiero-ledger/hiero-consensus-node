@@ -66,7 +66,16 @@ on:
         type: string
         required: true
         default: ""
-
+      java-version:
+        required: true
+        default: "25.0.2"
+        description: "Java Version:"
+        type: string
+      nlg-version:
+        required: true
+        default: "0.14.3"
+        description: "NLG Version:"
+        type: string
     secrets:
       slack-report-webhook:
         required: true
@@ -97,11 +106,7 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   GRAFANA_SYSADM_DAL: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P5C24830FD6F1746E&var-job=performance-dallas-node-exporter
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
-
-  #Release version from jFrog
-  NLG_VERSION: 0.14.3
   NUM_OF_BLOCK_NODES: 3
-  java-version: "25.0.2"
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
@@ -399,7 +404,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ env.java-version }}"
+          java-version: "${{ inputs.java-version }}"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
@@ -943,7 +948,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ inputs.nlg-version }}" --values nlg-values.yaml -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
@@ -1341,7 +1346,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ env.java-version }}"
+          java-version: "${{ inputs.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -1535,7 +1540,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ env.java-version }}"
+          java-version: "${{ inputs.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
