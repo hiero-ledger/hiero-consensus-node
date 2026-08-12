@@ -121,7 +121,6 @@ module com.hedera.node.app {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.metrics;
