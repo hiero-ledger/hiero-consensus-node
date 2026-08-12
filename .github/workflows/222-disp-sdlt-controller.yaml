@@ -103,6 +103,7 @@ jobs:
     with:
       test-asset: "SDLT2" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "100000000"
       nlg-time: "720"
