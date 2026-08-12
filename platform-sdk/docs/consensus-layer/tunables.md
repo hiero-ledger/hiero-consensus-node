@@ -143,7 +143,7 @@ Module: `base-crypto`. Source: [CryptoConfig.java](../../base-crypto/src/main/ja
 
 ## BasicCommonConfig (no prefix)
 
-Module: `consensus-concurrent`. Source: [BasicCommonConfig.java](../../consensus-concurrent/src/main/java/org/hiero/consensus/concurrent/config/BasicCommonConfig.java).
+Module: `base-concurrent`. Source: [BasicCommonConfig.java](../../base-concurrent/src/main/java/org/hiero/base/concurrent/config/BasicCommonConfig.java).
 
 General properties that don't belong to a specific subsystem. Keys are bare property names.
 

@@ -15,7 +15,8 @@ import org.apache.logging.log4j.Logger;
  * @param agentType the type of user-agent
  * @param version the version of the user-agent used
  */
-public record UserAgent(@NonNull UserAgentType agentType, @NonNull String version) {
+public record UserAgent(
+        @NonNull UserAgentType agentType, @NonNull String version) {
     // Simple SemVer regex, taken from https://ihateregex.io/expr/semver/
     private static final Pattern VERSION_REGEX = Pattern.compile(
             "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$");
@@ -53,13 +54,17 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
         final String[] tokens = userAgentStr.split("\\s"); // split on spaces
         for (final String token : tokens) {
             final String[] subTokens = token.split("/"); // split on forward-slash '/'
-            if (subTokens.length == 0 && userAgent == null) {
+            if (subTokens.length == 0) {
                 // the user-agent is missing
-                userAgent = UserAgent.UNSPECIFIED;
+                if (userAgent == null) {
+                    userAgent = UserAgent.UNSPECIFIED;
+                }
                 continue;
-            } else if (subTokens.length > 2 && userAgent == null) {
+            } else if (subTokens.length > 2) {
                 // the user-agent is not formatted properly
-                userAgent = UserAgent.UNKNOWN;
+                if (userAgent == null) {
+                    userAgent = UserAgent.UNKNOWN;
+                }
                 continue;
             }
 
@@ -81,8 +86,9 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
                 userAgent = new UserAgent(type, version);
             } else if (type.isKnownType() && userAgent.agentType.isKnownType()) {
                 // we just parsed a known user-agent AND we parsed another known user-agent previously
-                // because of this, we now have multiple types and can't be certain what is real
-                logger.warn("Multiple known user-agent types found: {}", userAgentStr);
+                // because of this, we now have multiple types and can't be certain what is real.
+                // Logged at debug to block log-spam vector.
+                logger.debug("Multiple known user-agent types found: {}", userAgentStr);
                 userAgent = UserAgent.UNKNOWN;
             } else if (!type.isKnownType() && userAgent.agentType.isKnownType()) {
                 // do not override the already known agent type
