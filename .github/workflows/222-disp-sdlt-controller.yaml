@@ -111,6 +111,7 @@ jobs:
       reconnect-uptime: "600"
       delete-namespace: true
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
