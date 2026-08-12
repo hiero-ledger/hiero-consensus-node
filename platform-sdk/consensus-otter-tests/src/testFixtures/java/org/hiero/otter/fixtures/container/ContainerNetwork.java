@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.BandwidthControlSupport.BANDWIDTH_CONTROL_SUPPORTED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -73,7 +74,7 @@ public class ContainerNetwork extends AbstractNetwork {
             final boolean proxyEnabled,
             final boolean gcLoggingEnabled,
             @NonNull final List<String> jvmArgs) {
-        super(new Random(), useRandomNodeIds);
+        super(new Random(), useRandomNodeIds, BANDWIDTH_CONTROL_SUPPORTED);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);

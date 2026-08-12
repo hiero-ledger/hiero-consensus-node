@@ -23,5 +23,8 @@ public enum Capability {
     USES_REAL_NETWORK,
 
     /** The test requires deterministic execution (e.g. no random delays). */
-    DETERMINISTIC_EXECUTION;
+    DETERMINISTIC_EXECUTION,
+
+    /** The test requires the ability to control the bandwidth of the network. */
+    BANDWIDTH_CONTROL;
 }

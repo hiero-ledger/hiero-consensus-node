@@ -2,7 +2,6 @@
 package org.hiero.consensus.roster;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,17 +27,6 @@ public class RosterHistory {
         final var hash = RosterUtils.hash(roster).getBytes();
         return new RosterHistory(
                 List.of(RoundRosterPair.newBuilder().activeRosterHash(hash).build()), Map.of(hash, roster));
-    }
-
-    /**
-     * Constructs a fake RosterHistory for utilities that do not require a fully functional object.
-     *
-     * @return a fake RosterHistory
-     */
-    public static RosterHistory fakeRoster() {
-        final RosterEntry entry = RosterEntry.newBuilder().nodeId(0).weight(1).build();
-        final Roster roster = Roster.newBuilder().rosterEntries(entry).build();
-        return fromGenesis(roster);
     }
 
     /**
