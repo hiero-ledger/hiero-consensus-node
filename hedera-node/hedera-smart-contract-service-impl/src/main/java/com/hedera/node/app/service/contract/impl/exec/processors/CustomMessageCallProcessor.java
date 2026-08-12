@@ -290,9 +290,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             contractMetrics
                     .opsDurationMetrics()
                     .recordSystemContractOpsDuration(
-                            systemContract.getName(),
-                            systemContractAddress.toHexString(),
-                            opsDurationCost);
+                            systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
         }
         finishPrecompileExecution(context, result, SYSTEM);
     }
