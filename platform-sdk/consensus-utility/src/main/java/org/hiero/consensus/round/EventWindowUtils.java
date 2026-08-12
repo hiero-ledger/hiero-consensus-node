@@ -28,13 +28,12 @@ public final class EventWindowUtils {
             @NonNull final ConsensusSnapshot snapshot, final int roundsNonAncient, final boolean useDABAlgorithm) {
         final long ancientThreshold;
         if (useDABAlgorithm) {
-            final MinimumJudgeInfo oldestMinJudgeInfo =
-                    snapshot.minimumJudgeInfoList().getFirst();
-            ancientThreshold = oldestMinJudgeInfo == null
+            final MinimumJudgeInfo minimumJudgeInfo = snapshot.minimumJudgeInfoList().getLast();
+            ancientThreshold = minimumJudgeInfo == null
                     ? ConsensusConstants.ROUND_FIRST
                     : Math.max(
                             ConsensusConstants.ROUND_FIRST,
-                            oldestMinJudgeInfo.minimumJudgeBirthRound() - roundsNonAncient);
+                            minimumJudgeInfo.minimumJudgeBirthRound() - roundsNonAncient);
         } else {
             ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
         }
