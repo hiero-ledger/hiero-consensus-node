@@ -650,7 +650,13 @@ public abstract class AbstractNetwork implements Network {
         doFreeze(DEFAULT_TIMEOUT);
     }
 
-    private void doFreeze(@NonNull final Duration timeout) {
+    /**
+     * The actual implementation of the freeze logic. Subclasses of environments that do not support freezing override
+     * this method to throw, which covers the asynchronous variant as well.
+     *
+     * @param timeout the maximum duration to wait for all nodes to freeze
+     */
+    protected void doFreeze(@NonNull final Duration timeout) {
         throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
@@ -679,7 +685,13 @@ public abstract class AbstractNetwork implements Network {
         doTriggerCatastrophicIss(DEFAULT_TIMEOUT);
     }
 
-    private void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
+    /**
+     * The actual implementation of the catastrophic ISS logic. Subclasses of environments that do not support ISS
+     * override this method to throw, which covers the asynchronous variant as well.
+     *
+     * @param defaultTimeout the maximum duration to wait for the ISS to be triggered
+     */
+    protected void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
         throwIfNotInLifecycle(Lifecycle.RUNNING, "Network must be running to trigger an ISS.");
 
         log.info("Sending Catastrophic ISS triggering transaction...");
@@ -851,7 +863,13 @@ public abstract class AbstractNetwork implements Network {
         doShutdown(DEFAULT_TIMEOUT);
     }
 
-    private void doShutdown(@NonNull final Duration timeout) {
+    /**
+     * The actual implementation of the shutdown logic. Subclasses of environments that do not support shutting nodes
+     * down override this method to throw, which covers the asynchronous variant as well.
+     *
+     * @param timeout the maximum duration to wait for all nodes to shut down
+     */
+    protected void doShutdown(@NonNull final Duration timeout) {
         throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has already been shut down.");
 

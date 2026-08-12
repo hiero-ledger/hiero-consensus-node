@@ -113,11 +113,11 @@ public class FalconWiring implements TimeTickReceiver {
         orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
         final OutputWire<ConsensusEngineOutput> consensusOutput = consensusEngineWiring.getOutputWire();
-        final OutputWire<ConsensusRound> consensusRoundOutput = consensusOutput
+        final OutputWire<EventWindow> eventWindowOutputWire = consensusOutput
                 .buildTransformer("ConsensusRound", "consensus output", ConsensusEngineOutput::consensusRounds)
-                .buildSplitter("ConsensusRoundSplitter", "consensus rounds");
-        final OutputWire<EventWindow> eventWindowOutputWire =
-                consensusRoundOutput.buildTransformer("EventWindow", "consensus round", ConsensusRound::getEventWindow);
+                .<ConsensusRound>buildSplitter("ConsensusRoundSplitter", "consensus rounds")
+                .buildTransformer("EventWindow", "consensus round", ConsensusRound::getEventWindow);
+
         eventWindowOutputWire.solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow));
         eventWindowOutputWire.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::setEventWindow));
 

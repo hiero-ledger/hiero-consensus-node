@@ -4,12 +4,13 @@ package org.hiero.otter.fixtures.falcon;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +32,7 @@ import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
@@ -105,8 +107,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
         final Configuration currentConfiguration = nodeConfiguration.current();
         final Time time = timeManager.time();
-        final SecureRandom secureRandom = new SecureRandom();
-        secureRandom.setSeed(random.nextLong());
+        final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
         wiring.sentGossipEventsOutputWire()
@@ -127,14 +128,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
      */
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
-        wiring = null;
-        lifeCycle = SHUTDOWN;
-        platformStatus = null;
-
-        // Wait a bit to allow a simulated gossip cycle to pass.
-        // This is important to ensure that the node receives all
-        // necessary events when/if it is restarted.
-        timeManager.waitFor(Duration.ofSeconds(1));
+        throw new UnsupportedOperationException("Killing a node is not supported in FalconNode.");
     }
 
     /**
@@ -166,7 +160,39 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
      */
     @Override
     public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
-        // Do nothing. We ignore transactions in Falcon entirely.
+        throw new UnsupportedOperationException("Transactions are not supported in FalconNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doTriggerSelfIss(@NonNull final Duration timeout) {
+        throw new UnsupportedOperationException("Self ISS is not supported in FalconNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startFromSavedState(@NonNull final Path savedStateDirectory) {
+        throw new UnsupportedOperationException("Starting from a saved state is not supported in FalconNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void version(@NonNull final SemanticVersion version) {
+        throw new UnsupportedOperationException("Versions are not supported in FalconNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void bumpConfigVersion() {
+        throw new UnsupportedOperationException("Versions are not supported in FalconNode.");
     }
 
     /**
@@ -193,7 +219,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
     @Override
     @NonNull
     public SingleNodeLogResult newLogResult() {
-        return resultsCollector.newLogResult();
+        throw new UnsupportedOperationException("Log results are not supported in FalconNode.");
     }
 
     /**
