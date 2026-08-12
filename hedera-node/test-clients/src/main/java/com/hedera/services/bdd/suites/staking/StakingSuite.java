@@ -527,7 +527,7 @@ public class StakingSuite {
         final var whale = "tc02Whale";
         final var stakee = "tc02Stakee"; // W — staked to node, will be deleted
         final var staker = "tc02Staker"; // A — staked to W
-        final long NODE = 2L;
+        final long NODE = 3L;
 
         return hapiTest(
                 cryptoCreate(payer).balance(ONE_MILLION_HBARS),
