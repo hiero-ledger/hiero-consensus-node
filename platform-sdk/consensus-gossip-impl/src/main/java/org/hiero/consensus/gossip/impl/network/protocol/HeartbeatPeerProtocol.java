@@ -12,7 +12,9 @@ import java.util.Objects;
 import org.hiero.consensus.gossip.impl.network.ByteConstants;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 
 /**
  * Sends a heartbeat to the other node and measures the time it takes to receive a response.

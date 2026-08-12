@@ -2,7 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.communication.handshake;
 
 
-import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 
 /**
  * Thrown when a handshake fails on a new connection

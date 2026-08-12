@@ -2,8 +2,8 @@
 package org.hiero.consensus.gossip.impl.network.communication.states;
 
 import java.io.IOException;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 
 /**
  * Represents a single state in a negotiation state machine

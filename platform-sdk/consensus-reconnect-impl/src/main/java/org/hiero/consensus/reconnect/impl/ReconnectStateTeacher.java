@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.signed.SigSet;
@@ -208,8 +208,8 @@ public class ReconnectStateTeacher {
         connection.getDis().byteCounter().getAndReset();
 
         synchronizer.synchronize(
-                new DataInputStream(connection.getDis()),
-                new DataOutputStream(connection.getDos()),
+                new DataInputStream(connection.getDis().asInputStream()),
+                new DataOutputStream(connection.getDos().asOutputStream()),
                 connection::disconnect);
         connection.getDos().flush();
 
@@ -233,7 +233,7 @@ public class ReconnectStateTeacher {
                 .append(hash);
 
         logger.info(RECONNECT.getMarker(), sb);
-        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
+        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos().asOutputStream());
         signatures.serialize(wsd);
         connection.getDos().flush();
     }

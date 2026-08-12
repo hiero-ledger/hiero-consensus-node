@@ -9,9 +9,12 @@ import java.io.IOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.main.model.Connection;
-import org.hiero.consensus.main.model.NetworkProtocolException;
-import org.hiero.consensus.main.model.ProtocolRunnable;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.ProtocolRunnable;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
 
 /**
  * Exchanges software versions with the peer, either throws a {@link HandshakeException} or logs an error if the versions
@@ -46,9 +49,9 @@ public class VersionCompareHandshake implements ProtocolRunnable {
     @Override
     public void runProtocol(final Connection connection)
             throws NetworkProtocolException, IOException, InterruptedException {
-        connection.getDos().writePbjRecord(version, SemanticVersion.PROTOBUF);
+        ((SyncOutputStreamImpl) connection.getDos()).writePbjRecord(version, SemanticVersion.PROTOBUF);
         connection.getDos().flush();
-        final SemanticVersion peerVersion = connection.getDis().readPbjRecord(SemanticVersion.PROTOBUF);
+        final SemanticVersion peerVersion = ((SyncInputStreamImpl) connection.getDis()).readPbjRecord(SemanticVersion.PROTOBUF);
         if (SEMANTIC_VERSION_COMPARATOR.compare(version, peerVersion) != 0) {
             final String message = String.format(
                     "Incompatible versions. Self version is '%s', peer version is '%s'", version, peerVersion);

@@ -26,7 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
@@ -191,8 +191,8 @@ public class ReconnectStateLearner {
     private ReservedSignedState reconnect() throws InterruptedException {
         statistics.incrementReceiverStartTimes();
 
-        final DataInputStream in = new DataInputStream(connection.getDis());
-        final DataOutputStream out = new DataOutputStream(connection.getDos());
+        final DataInputStream in = new DataInputStream(connection.getDis().asInputStream());
+        final DataOutputStream out = new DataOutputStream(connection.getDos().asOutputStream());
 
         connection.getDis().byteCounter().getAndReset();
         VirtualMap syncedVirtualMap;
@@ -245,7 +245,7 @@ public class ReconnectStateLearner {
         logger.info(RECONNECT.getMarker(), "Receiving signed state signatures");
 
         sigSet = new SigSet();
-        final ReadableStreamingData streamingData = new ReadableStreamingData(connection.getDis());
+        final ReadableStreamingData streamingData = new ReadableStreamingData(connection.getDis().asInputStream());
         sigSet.deserialize(streamingData);
 
         final StringBuilder sb = new StringBuilder();

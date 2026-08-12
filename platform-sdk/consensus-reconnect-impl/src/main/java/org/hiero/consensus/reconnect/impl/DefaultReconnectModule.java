@@ -14,7 +14,6 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
@@ -23,7 +22,7 @@ import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocolFactory;
+import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 

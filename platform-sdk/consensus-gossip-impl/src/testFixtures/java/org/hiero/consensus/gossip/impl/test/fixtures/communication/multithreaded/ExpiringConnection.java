@@ -4,9 +4,9 @@ package org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreade
 import java.io.IOException;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.consensus.main.model.Connection;
-import org.hiero.consensus.main.model.SyncInputStream;
-import org.hiero.consensus.main.model.SyncOutputStream;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
+import org.hiero.consensus.main.model.reconnect.SyncOutputStream;
 import org.hiero.consensus.main.model.NodeId;
 
 /**

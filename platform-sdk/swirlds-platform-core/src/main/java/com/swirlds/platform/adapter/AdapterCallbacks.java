@@ -105,9 +105,4 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
 
     @Override
     public void onSealConsensusRound(Round consensusRound) {}
-
-    @Override
-    public void onUnhealthySignal(@NonNull final Duration unhealthyDuration) {
-        executionLayer.reportUnhealthyDuration(unhealthyDuration);
-    }
 }

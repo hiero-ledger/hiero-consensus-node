@@ -2,10 +2,10 @@
 package org.hiero.consensus.gossip.impl.network.connection;
 
 import java.net.SocketException;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * An implementation of {@link Connection} that is used to avoid returning null if there is no connection. This
@@ -52,7 +52,7 @@ public class NotConnectedConnection implements Connection {
      * @return never returns, always throws
      */
     @Override
-    public SyncInputStream getDis() {
+    public SyncInputStreamImpl getDis() {
         throw new UnsupportedOperationException("Not implemented");
     }
 
@@ -62,7 +62,7 @@ public class NotConnectedConnection implements Connection {
      * @return never returns, always throws
      */
     @Override
-    public SyncOutputStream getDos() {
+    public SyncOutputStreamImpl getDos() {
         throw new UnsupportedOperationException("Not implemented");
     }
 

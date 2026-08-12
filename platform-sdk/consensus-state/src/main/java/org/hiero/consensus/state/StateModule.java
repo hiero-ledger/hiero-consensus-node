@@ -110,8 +110,9 @@ public class StateModule {
             @NonNull final SavedStateController savedStateController) {
 
         // Set up wiring
-        this.eventWindowExtractor = new WireTransformer<>(
-                model, "State_EventWindowExtractor", "consensus round", Round::getEventWindow);
+//        this.eventWindowExtractor = new WireTransformer<>(
+//                model, "State_EventWindowExtractor", "consensus round", Round::getEventWindow);
+        this.eventWindowExtractor = null;
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 

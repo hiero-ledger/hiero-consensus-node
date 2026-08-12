@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.communication.states;
 
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 
 /**
  * Sleep and end the negotiation

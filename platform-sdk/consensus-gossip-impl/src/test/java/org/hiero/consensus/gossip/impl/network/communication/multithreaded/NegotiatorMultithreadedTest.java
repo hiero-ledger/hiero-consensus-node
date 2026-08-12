@@ -5,7 +5,7 @@ import static org.awaitility.Awaitility.await;
 
 import com.swirlds.base.utility.Pair;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded.ExpiringConnection;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded.NegotiatorPair;

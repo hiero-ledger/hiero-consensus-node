@@ -10,7 +10,7 @@ import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * Manages a connection that is initiated by the peer. If a new connection is established by the peer, the previous one

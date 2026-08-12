@@ -18,15 +18,15 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.gossip.config.SocketConfig;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
-import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.NetworkPeerIdentifier;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * Accept inbound connections and executes the platform handshake. This class is thread-safe
@@ -94,9 +94,9 @@ public class InboundConnectionHandler {
             }
             final NodeId otherId = connectedPeer.nodeId();
 
-            final SyncInputStream sis = SyncInputStream.createSyncInputStream(
+            final SyncInputStreamImpl sis = SyncInputStreamImpl.createSyncInputStream(
                     configuration, clientSocket.getInputStream(), socketConfig.bufferSize());
-            final SyncOutputStream sos = SyncOutputStream.createSyncOutputStream(
+            final SyncOutputStreamImpl sos = SyncOutputStreamImpl.createSyncOutputStream(
                     configuration, clientSocket.getOutputStream(), socketConfig.bufferSize());
 
             final SocketConnection sc = SocketConnection.create(

@@ -123,7 +123,7 @@ class ConsensusLayerWiringTests {
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
         final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final ConsensusLayerAdapterBuildingBlocks buildingBlocks = new ConsensusLayerAdapterBuildingBlocks(

@@ -5,11 +5,13 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.SyncInputStream;
-import org.hiero.consensus.main.model.SyncOutputStream;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
+import org.hiero.consensus.main.model.reconnect.SyncOutputStream;
 
 /**
  * An implementation of {@link Connection} that is local to a machine and does not use sockets.
@@ -35,8 +37,8 @@ public class LocalConnection implements Connection {
             final boolean outbound) {
         this.selfId = selfId;
         this.otherId = otherId;
-        dis = SyncInputStream.createSyncInputStream(configuration, in, bufferSize);
-        dos = SyncOutputStream.createSyncOutputStream(configuration, out, bufferSize);
+        dis = SyncInputStreamImpl.createSyncInputStream(configuration, in, bufferSize);
+        dos = SyncOutputStreamImpl.createSyncOutputStream(configuration, out, bufferSize);
         this.outbound = outbound;
     }
 

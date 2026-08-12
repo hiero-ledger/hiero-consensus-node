@@ -7,9 +7,9 @@ import static org.hiero.consensus.gossip.impl.network.communication.NegotiatorBy
 
 import java.io.IOException;
 import java.io.InputStream;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 
 /**
  * We have already sent a keepalive, this state waits for, and handles, the byte sent by the peer in parallel

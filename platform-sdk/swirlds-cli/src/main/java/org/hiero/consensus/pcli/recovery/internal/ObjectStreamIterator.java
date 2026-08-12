@@ -13,7 +13,7 @@ import java.util.NoSuchElementException;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.io.counting.ByteCounter;
+import org.hiero.consensus.main.model.reconnect.ByteCounter;
 import org.hiero.consensus.io.counting.CounterType;
 import org.hiero.consensus.io.counting.CountingInputStream;
 

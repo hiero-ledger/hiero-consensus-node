@@ -3,7 +3,7 @@ package org.hiero.consensus.gossip.impl.network.communication;
 
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;

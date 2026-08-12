@@ -6,8 +6,7 @@ import java.io.OutputStream;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
-import org.hiero.consensus.main.model.NetworkProtocolException;
-import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 
 /**
  * Responds to a protocol initiation by the peer

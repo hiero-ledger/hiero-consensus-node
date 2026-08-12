@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.hiero.consensus.gossip.impl.gossip.SyncException;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.junit.jupiter.api.Test;
 
 class SyncExceptionTests {

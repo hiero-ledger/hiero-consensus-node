@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.junit.jupiter.api.Test;
 
 class InboundConnectionManagerTest {

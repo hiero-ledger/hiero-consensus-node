@@ -3,10 +3,10 @@ package org.hiero.consensus.gossip.impl.network.communication.states;
 
 import java.io.IOException;
 import java.io.InputStream;
-import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 
 /**
  * Waits for, and handles, an ACCEPT or REJECT to a protocol initiated by us

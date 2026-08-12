@@ -11,9 +11,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
-import org.hiero.consensus.main.model.SyncInputStream;
-import org.hiero.consensus.main.model.SyncOutputStream;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
+import org.hiero.consensus.main.model.reconnect.SyncOutputStream;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.main.model.NodeId;
@@ -37,8 +39,8 @@ public class DummyConnection extends SocketConnection {
         this(
                 selfId,
                 otherId,
-                SyncInputStream.createSyncInputStream(configuration, in, 1024 * 8),
-                SyncOutputStream.createSyncOutputStream(configuration, out, 1024 * 8),
+                SyncInputStreamImpl.createSyncInputStream(configuration, in, 1024 * 8),
+                SyncOutputStreamImpl.createSyncOutputStream(configuration, out, 1024 * 8),
                 mock(Socket.class));
     }
 
@@ -47,8 +49,8 @@ public class DummyConnection extends SocketConnection {
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out) {
         this(
-                SyncInputStream.createSyncInputStream(configuration, in, 1024 * 8),
-                SyncOutputStream.createSyncOutputStream(configuration, out, 1024 * 8),
+                SyncInputStreamImpl.createSyncInputStream(configuration, in, 1024 * 8),
+                SyncOutputStreamImpl.createSyncOutputStream(configuration, out, 1024 * 8),
                 mock(Socket.class));
     }
 

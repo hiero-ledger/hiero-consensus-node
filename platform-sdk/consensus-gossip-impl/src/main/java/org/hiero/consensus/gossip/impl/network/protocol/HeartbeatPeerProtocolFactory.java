@@ -9,7 +9,7 @@ import java.util.Objects;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocolFactory;
+import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -64,13 +64,5 @@ public class HeartbeatPeerProtocolFactory implements PeerProtocolFactory {
     @NonNull
     public HeartbeatPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
         return new HeartbeatPeerProtocol(Objects.requireNonNull(peerId), heartbeatPeriod, networkMetrics, time);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
-        // no-op, we don't care
     }
 }

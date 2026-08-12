@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.io.counting.internal;
 
-import org.hiero.consensus.io.counting.ByteCounter;
+import org.hiero.consensus.main.model.reconnect.ByteCounter;
 
 /**
  * An interface that allows to add to the {@link ByteCounter}.

@@ -3,8 +3,8 @@ package org.hiero.consensus.gossip.impl.gossip.modular;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.main.model.PeerProtocol;
-import org.hiero.consensus.main.model.PeerProtocolFactory;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 

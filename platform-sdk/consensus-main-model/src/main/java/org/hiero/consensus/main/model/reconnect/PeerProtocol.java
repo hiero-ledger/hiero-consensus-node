@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.main.model;
+package org.hiero.consensus.main.model.reconnect;
 
 /**
  * A network protocol that run over a provided connection. The decision to run the protocol is made outside it, it can

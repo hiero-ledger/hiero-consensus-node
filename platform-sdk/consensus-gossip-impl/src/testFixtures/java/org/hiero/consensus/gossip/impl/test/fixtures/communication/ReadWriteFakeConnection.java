@@ -7,9 +7,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import org.hiero.base.io.IOConsumer;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
-import org.hiero.consensus.main.model.SyncInputStream;
-import org.hiero.consensus.main.model.SyncOutputStream;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
+import org.hiero.consensus.main.model.reconnect.SyncOutputStream;
 
 public class ReadWriteFakeConnection extends FakeConnection {
     private final SyncInputStream in;
@@ -20,8 +22,8 @@ public class ReadWriteFakeConnection extends FakeConnection {
 
     public ReadWriteFakeConnection(final InputStream in, final OutputStream out) {
         super();
-        this.in = SyncInputStream.createSyncInputStream(configuration, in, 100);
-        this.out = SyncOutputStream.createSyncOutputStream(configuration, out, 100);
+        this.in = SyncInputStreamImpl.createSyncInputStream(configuration, in, 100);
+        this.out = SyncOutputStreamImpl.createSyncOutputStream(configuration, out, 100);
     }
 
     /**
@@ -38,7 +40,7 @@ public class ReadWriteFakeConnection extends FakeConnection {
             final InputStream in, final OutputStream out, final IOConsumer<Integer> outputInterceptor) {
 
         super();
-        this.in = SyncInputStream.createSyncInputStream(configuration, in, 100);
+        this.in = SyncInputStreamImpl.createSyncInputStream(configuration, in, 100);
         final OutputStream baseOutput = new OutputStream() {
             @Override
             public void write(final int b) throws IOException {
@@ -48,7 +50,7 @@ public class ReadWriteFakeConnection extends FakeConnection {
                 out.write(b);
             }
         };
-        this.out = SyncOutputStream.createSyncOutputStream(configuration, baseOutput, 100);
+        this.out = SyncOutputStreamImpl.createSyncOutputStream(configuration, baseOutput, 100);
     }
 
     @Override

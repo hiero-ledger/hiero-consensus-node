@@ -3,9 +3,9 @@ package org.hiero.consensus.gossip.impl.network.communication.states;
 
 import java.io.IOException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
-import org.hiero.consensus.main.model.Connection;
-import org.hiero.consensus.main.model.NetworkProtocolException;
-import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 
 /**
  * Runs a protocol previously negotiated

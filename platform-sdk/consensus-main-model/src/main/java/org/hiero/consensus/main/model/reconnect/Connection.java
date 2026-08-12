@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.main.model;
+package org.hiero.consensus.main.model.reconnect;
 
 import java.io.IOException;
 import java.net.SocketException;

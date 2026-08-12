@@ -6,8 +6,7 @@ import java.io.InputStream;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
-import org.hiero.consensus.main.model.NetworkProtocolException;
-import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 
 /**
  * A protocol initiate was sent, this state waits for and handles the byte sent by the peer in parallel

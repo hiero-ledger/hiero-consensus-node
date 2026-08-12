@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.io.counting;
+package org.hiero.consensus.main.model.reconnect;
 
 import com.swirlds.base.units.UnitConstants;
 

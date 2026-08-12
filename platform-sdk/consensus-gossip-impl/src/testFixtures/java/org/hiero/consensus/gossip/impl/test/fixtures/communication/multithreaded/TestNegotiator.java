@@ -8,7 +8,7 @@ import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.ProtocolNegotiatorThread;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * Used to run a negotiator in a separate thread and capture any exceptions it might throw

@@ -3,8 +3,8 @@ package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * Handler for exceptions happening inside rpc sync handling. Normally redirected to

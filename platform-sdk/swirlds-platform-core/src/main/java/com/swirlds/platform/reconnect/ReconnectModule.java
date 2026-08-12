@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocolFactory;
+import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**

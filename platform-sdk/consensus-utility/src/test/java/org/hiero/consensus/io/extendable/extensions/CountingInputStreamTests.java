@@ -11,7 +11,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import org.hiero.base.utility.test.fixtures.io.StreamSanityChecks;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.io.counting.ByteCounter;
+import org.hiero.consensus.main.model.reconnect.ByteCounter;
 import org.hiero.consensus.io.counting.CounterType;
 import org.hiero.consensus.io.counting.CountingInputStream;
 import org.hiero.consensus.io.counting.CountingOutputStream;

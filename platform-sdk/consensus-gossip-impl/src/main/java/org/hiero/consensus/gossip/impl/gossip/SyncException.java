@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip;
 
-import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * Thrown if any issue occurs during a sync that is not connection related

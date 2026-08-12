@@ -2,7 +2,7 @@
 package org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded;
 
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 
 /**
  * A connection manager that returns a connection once after which it throws an interrupted exception every time

@@ -7,8 +7,8 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocol;
-import org.hiero.consensus.main.model.PeerProtocolFactory;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 public class ReconnectProxyProtocolFactory implements PeerProtocolFactory {

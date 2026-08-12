@@ -24,6 +24,7 @@ import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.gossip.impl.network.connectivity.TlsFactory;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
 public final class NetworkUtils {

@@ -40,15 +40,17 @@ import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncPhase;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
-import org.hiero.consensus.main.model.Connection;
-import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocol;
-import org.hiero.consensus.main.model.SyncInputStream;
-import org.hiero.consensus.main.model.SyncOutputStream;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
+import org.hiero.consensus.main.model.reconnect.SyncOutputStream;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -364,7 +366,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
         Objects.requireNonNull(connection);
 
-        final SyncOutputStream output = connection.getDos();
+        final SyncOutputStreamImpl output = (SyncOutputStreamImpl) connection.getDos();
 
         syncMetrics.rpcWriteThreadRunning(+1);
         try {
@@ -427,7 +429,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      */
     private void readMessages(@NonNull final Connection connection) throws IOException, SyncTimeoutException {
 
-        final SyncInputStream input = connection.getDis();
+        final SyncInputStreamImpl input = (SyncInputStreamImpl) connection.getDis();
         syncMetrics.rpcReadThreadRunning(+1);
         try {
             while (true) {
@@ -594,5 +596,5 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
  */
 @FunctionalInterface
 interface StreamWriter {
-    void write(SyncOutputStream syncOutputStream) throws IOException;
+    void write(SyncOutputStreamImpl syncOutputStream) throws IOException;
 }

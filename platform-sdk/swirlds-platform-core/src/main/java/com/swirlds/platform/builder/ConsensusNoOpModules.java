@@ -88,7 +88,7 @@ public class ConsensusNoOpModules {
 
         final EventCreatorModule eventCreatorModule = createModule(EventCreatorModule.class, configuration);
         eventCreatorModule.initialize(
-                model, configuration, metrics, time, random, keysAndCerts, roster, selfId, List::of, () -> false);
+                model, configuration, metrics, time, random, keysAndCerts, roster, selfId, List::of);
         return eventCreatorModule;
     }
 
@@ -293,8 +293,7 @@ public class ConsensusNoOpModules {
     public static TransactionHandlingModule createNoOpTransactionHandlingModule(
             @NonNull final WiringModel model,
             @NonNull final Configuration configuration,
-            @NonNull final FileSystemManager fileSystemManager,
-            @NonNull final StatusMonitorModule statusMonitorModule) {
+            @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -312,7 +311,6 @@ public class ConsensusNoOpModules {
                 latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
-                statusMonitorModule,
                 appVersion,
                 selfId,
                 transactionOffsetNanos);
@@ -375,7 +373,8 @@ public class ConsensusNoOpModules {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final FreezePeriodChecker freezePeriodChecker = new FreezePeriodChecker(null);
 
-        return new StatusMonitorModule(model, configuration, metrics, time, selfId);
+        return new StatusMonitorModule(model, configuration, metrics, time, selfId, freezePeriodChecker);
     }
 }

@@ -15,8 +15,8 @@ import org.hiero.consensus.gossip.impl.network.communication.states.SentInitiate
 import org.hiero.consensus.gossip.impl.network.communication.states.SentKeepalive;
 import org.hiero.consensus.gossip.impl.network.communication.states.Sleep;
 import org.hiero.consensus.gossip.impl.network.communication.states.WaitForAcceptReject;
-import org.hiero.consensus.main.model.Connection;
-import org.hiero.consensus.main.model.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
 
 /**
  * A state machine responsible for negotiating the protocol to run over the provided connection
@@ -42,8 +42,8 @@ public class Negotiator {
         this.protocols = protocols;
         protocolNegotiated = new ProtocolNegotiated(connection);
         sleep = new Sleep(sleepMs);
-        final InputStream in = connection.getDis();
-        final OutputStream out = connection.getDos();
+        final InputStream in = connection.getDis().asInputStream();
+        final OutputStream out = connection.getDos().asOutputStream();
         final ReceivedInitiate receivedInitiate = new ReceivedInitiate(protocols, out, protocolNegotiated, sleep);
         final WaitForAcceptReject waitForAcceptReject =
                 new WaitForAcceptReject(protocols, in, protocolNegotiated, sleep);

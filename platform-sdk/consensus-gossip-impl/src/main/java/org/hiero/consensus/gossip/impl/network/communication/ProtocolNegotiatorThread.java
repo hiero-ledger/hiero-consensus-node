@@ -9,9 +9,9 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
-import org.hiero.consensus.main.model.Connection;
-import org.hiero.consensus.main.model.NetworkProtocolException;
-import org.hiero.consensus.main.model.ProtocolRunnable;
+import org.hiero.consensus.main.model.reconnect.Connection;
+import org.hiero.consensus.main.model.reconnect.NetworkProtocolException;
+import org.hiero.consensus.main.model.reconnect.ProtocolRunnable;
 
 /**
  * Continuously runs protocol negotiation and protocols over connections supplied by the connection manager

@@ -9,6 +9,7 @@ import java.io.InputStream;
 import org.hiero.consensus.io.counting.internal.FastByteCounter;
 import org.hiero.consensus.io.counting.internal.ModifiableByteCounter;
 import org.hiero.consensus.io.counting.internal.ThreadSafeByteCounter;
+import org.hiero.consensus.main.model.reconnect.ByteCounter;
 
 /**
  * An {@link InputStream} that counts the number of bytes read from it. The count can be retrieved

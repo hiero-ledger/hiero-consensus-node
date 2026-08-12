@@ -28,12 +28,14 @@ import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.gossip.config.SocketConfig;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.SyncInputStream;
-import org.hiero.consensus.main.model.SyncOutputStream;
+import org.hiero.consensus.main.model.reconnect.SyncInputStream;
+import org.hiero.consensus.main.model.reconnect.SyncOutputStream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
 public class OutboundConnectionManager implements ConnectionManager {
@@ -135,9 +137,9 @@ public class OutboundConnectionManager implements ConnectionManager {
             clientSocket = socketFactory.createClientSocket(
                     networkEndpoint.hostname().getHostAddress(), networkEndpoint.port());
 
-            dos = SyncOutputStream.createSyncOutputStream(
+            dos = SyncOutputStreamImpl.createSyncOutputStream(
                     configuration, clientSocket.getOutputStream(), socketConfig.bufferSize());
-            dis = SyncInputStream.createSyncInputStream(
+            dis = SyncInputStreamImpl.createSyncInputStream(
                     configuration, clientSocket.getInputStream(), socketConfig.bufferSize());
 
             logger.debug(NETWORK.getMarker(), "`connect` : finished, {} connected to {}", selfId, otherPeer.nodeId());

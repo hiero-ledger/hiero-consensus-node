@@ -16,8 +16,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -25,7 +27,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
@@ -65,7 +66,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(metrics);
         requireNonNull(selfId);
         requireNonNull(recycleBin);
-        requireNonNull(flushPrimaryPipeline);
+        requireNonNull(flushGossipModule);
         requireNonNull(statusMonitorModule);
 
         final var scheduler = model.<PlatformEvent>schedulerBuilder("InlinePcesWriter")

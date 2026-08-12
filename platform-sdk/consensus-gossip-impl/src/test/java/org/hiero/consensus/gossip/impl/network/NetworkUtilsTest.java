@@ -6,7 +6,7 @@ import java.time.Duration;
 import javax.net.ssl.SSLException;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

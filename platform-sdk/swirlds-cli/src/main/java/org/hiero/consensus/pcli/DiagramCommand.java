@@ -174,7 +174,7 @@ public final class DiagramCommand extends AbstractCommand {
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
         final StateModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
 

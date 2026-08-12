@@ -2,7 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.communication;
 
 import java.util.List;
-import org.hiero.consensus.main.model.PeerProtocol;
+import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 
 /**
  * Manages protocols during a protocol negotiation

@@ -33,10 +33,10 @@ import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHan
 import org.hiero.consensus.gossip.impl.network.topology.ConnectionManagerFactory;
 import org.hiero.consensus.gossip.impl.network.topology.DynamicConnectionManagers;
 import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;
-import org.hiero.consensus.main.model.Connection;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.main.model.NodeId;
-import org.hiero.consensus.main.model.PeerProtocolFactory;
-import org.hiero.consensus.main.model.ProtocolRunnable;
+import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
+import org.hiero.consensus.main.model.reconnect.ProtocolRunnable;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
