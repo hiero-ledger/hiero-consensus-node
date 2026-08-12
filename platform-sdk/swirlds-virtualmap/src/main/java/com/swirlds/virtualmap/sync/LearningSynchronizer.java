@@ -6,12 +6,12 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
 import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
@@ -29,9 +29,9 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * Performs reconnect in the role of the learner.
@@ -220,7 +220,7 @@ public class LearningSynchronizer {
     private void exchangeRootNode(
             LearnerTreeExchanger exchanger, final AsyncInputStream in, final AsyncOutputStream out) {
         logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
-        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash());
+        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash());
         final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
         rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
         try {
@@ -238,7 +238,7 @@ public class LearningSynchronizer {
         }
         final PullVirtualTreeResponse rootResponse =
                 PullVirtualTreeResponse.parseFrom(BufferedData.wrap(rootResponseBytes));
-        if (rootResponse.path() != Path.ROOT_PATH) {
+        if (rootResponse.path() != MerklePathUtils.ROOT_PATH) {
             throw new MerkleSynchronizationException(
                     "Expected root node response, but received response for path " + rootResponse.path());
         }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
 import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
@@ -20,6 +20,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.futures.FutureUtils;
 import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
@@ -27,7 +29,6 @@ import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningFactory;
 import org.hiero.base.crypto.SigningSchema;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -50,8 +51,8 @@ public class KeysAndCertsGenerator {
     private KeysAndCertsGenerator() {}
 
     /**
-     * Creates an instance holding all the keys and certificates. The key pairs are generated as a function of the
-     * node ID.
+     * Creates an instance holding all the keys and certificates. The key pairs are generated as a function of the node
+     * ID.
      *
      * @param nodeId the node identifier
      */
@@ -61,8 +62,8 @@ public class KeysAndCertsGenerator {
     }
 
     /**
-     * Creates an instance holding all the keys and certificates. The key pairs are generated as a function of the
-     * node ID.
+     * Creates an instance holding all the keys and certificates. The key pairs are generated as a function of the node
+     * ID.
      *
      * @param nodeId the node identifier
      * @param schema the signing shema that determines the type of signing keys to generate
@@ -141,9 +142,9 @@ public class KeysAndCertsGenerator {
      *
      * @param nodeIds the node IDs to generate keys for
      * @return a map of node IDs to their generated keys and certificates
-     * @throws ExecutionException if key generation throws an exception
+     * @throws ExecutionException   if key generation throws an exception
      * @throws InterruptedException if this thread is interrupted
-     * @throws KeyStoreException if there is no provider that supports the required keystore type
+     * @throws KeyStoreException    if there is no provider that supports the required keystore type
      */
     @NonNull
     public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(@NonNull final Collection<NodeId> nodeIds)
@@ -151,8 +152,7 @@ public class KeysAndCertsGenerator {
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
                 Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                        .setComponent("crypto")
-                        .setThreadName("crypto-generate")
+                        .setThreadNameProvider(CompositeThreadNameProvider.createNumbered("crypto", "crypto-generate"))
                         .setDaemon(false)
                         .buildFactory())) {
             for (final NodeId nodeId : nodeIds) {

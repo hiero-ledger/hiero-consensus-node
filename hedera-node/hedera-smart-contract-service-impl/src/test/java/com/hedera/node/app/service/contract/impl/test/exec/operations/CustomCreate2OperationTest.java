@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -70,7 +71,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomCreate2Operation(gasCalculator, featureFlags);
+        subject = new CustomCreate2Operation(gasCalculator, featureFlags, CODE_FACTORY);
     }
 
     @Test

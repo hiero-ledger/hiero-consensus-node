@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 
 /**
  * <p>

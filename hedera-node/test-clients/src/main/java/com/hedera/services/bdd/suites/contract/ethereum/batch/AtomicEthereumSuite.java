@@ -96,7 +96,6 @@ import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -122,13 +121,14 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.math.BigInteger;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -843,25 +843,19 @@ class AtomicEthereumSuite {
                     final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
-                            .has(contractWith()
-                                    .addressOrAlias(expectedParentContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()));
+                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+
                     final var firstChildContractInfo = getContractInfo(firstChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedFirstChildContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()));
+                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+
                     final var secondChildContractInfo = getContractInfo(secondChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedSecondChildContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()));
+                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+
                     final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedThirdChildContractAddress
-                                            .getBytes()
-                                            .toUnprefixedHexString()))
+                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(
@@ -894,8 +888,8 @@ class AtomicEthereumSuite {
                     final var getBytecode = getContractBytecode(contract).saveResultTo("contractByteCode");
                     allRunFor(spec, getBytecode);
 
-                    final var originalBytecode =
-                            Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
+                    final var originalBytecode = HexFormat.of()
+                            .parseHex(Files.readString(new File(getResourcePath(contract, ".bin")).toPath()));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
                     // The original bytecode is modified on deployment
                     final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);

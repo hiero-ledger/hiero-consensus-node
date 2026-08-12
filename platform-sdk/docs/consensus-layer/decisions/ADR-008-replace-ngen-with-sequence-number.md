@@ -17,6 +17,7 @@ deciders:
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Michael Heinrichs (@netopyr)
 provenance: hiero-consensus-node#24618
+last_reviewed: TBD
 ---
 
 # ADR-008 — Adopt a monotonic event sequence number as the local ordering key, replacing nGen

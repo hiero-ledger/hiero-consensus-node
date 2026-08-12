@@ -6,7 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -85,7 +85,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
-import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -104,7 +103,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
-    private final SimulatedNetwork network;
+    private final SimulatedGossip gossip;
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
@@ -135,7 +134,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param timeManager the time manager for this test
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
-     * @param network the simulated network
+     * @param gossip the simulated gossip instance
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
@@ -146,7 +145,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetwork network,
+            @NonNull final SimulatedGossip gossip,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration,
@@ -158,7 +157,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             this.randotron = requireNonNull(randotron);
             this.timeManager = requireNonNull(timeManager);
-            this.network = requireNonNull(network);
+            this.gossip = requireNonNull(gossip);
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
@@ -265,8 +264,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             this.executionLayer =
                     new OtterExecutionLayer(new Random(randotron.nextLong()), metrics, timeManager.time());
-
-            final SimulatedGossip gossip = network.getGossipInstance(selfId);
 
             final TestPlatformBuilder builder = new TestPlatformBuilder(
                             currentConfiguration,

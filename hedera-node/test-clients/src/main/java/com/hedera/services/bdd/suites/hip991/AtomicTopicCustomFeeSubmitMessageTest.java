@@ -792,6 +792,28 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         }
 
         @HapiTest
+        @DisplayName("Submits a message when aggregated hbar custom fees overflow a long")
+        final Stream<DynamicTest> submitFailsWhenAggregatedHbarFeesOverflow() {
+            final var collector = "collector";
+            // Two hbar fees whose sum exceeds Long.MAX_VALUE
+            final long halfMaxPlusOne = Long.MAX_VALUE / 2 + 1;
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                    cryptoCreate(collector).balance(ONE_HBAR),
+                    atomicBatch(createTopic(TOPIC)
+                                    .withConsensusCustomFee(fixedConsensusHbarFee(halfMaxPlusOne, collector))
+                                    .withConsensusCustomFee(fixedConsensusHbarFee(halfMaxPlusOne, collector))
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR),
+                    submitMessageTo(TOPIC)
+                            .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                            .message("TEST")
+                            .payingWith(SUBMITTER)
+                            .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED),
+                    getAccountBalance(collector).hasTinyBars(ONE_HBAR));
+        }
+
+        @HapiTest
         @DisplayName("Submits a message to a topic with custom fee FT with 4 layer fees")
         // TOPIC_FEE_144
         final Stream<DynamicTest> submitToTopicWithFourLayersOfFees() {
