@@ -384,17 +384,17 @@ public class TestHashgraphInfo {
             boolean newHashgraph = true;
             boolean newRound = true;
             RoundInfo roundInfo = null;
+            long minNonAncientRound = 1;
 
-            //fields for the next roundInfo
+            //fields for the next roundInfo (default values that match old code on mainnet)
             long[] roundInfoNodes = new long[] {100, 200, 300, 400};
             long[] roundInfoStake = new long[] {101, 102, 103, 104};
             int roundInfoCoinInterval = 10;
-            int roundInfoSeeNum = 2; /**/
-            int roundInfoSeeDen = 3;
-            boolean roundInfoJudgeCon1 = true; /**/
-            int roundInfoTargetNumRoundsNonAncient = 5;
+            int roundInfoSeeNum = 300;
+            int roundInfoSeeDen = 300;
+            boolean roundInfoJudgeCon1 = false;
+            int roundInfoTargetNumRoundsNonAncient = 25;
             int roundInfoNumRoundsAddressBook = 2;
-
             RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
@@ -413,16 +413,31 @@ public class TestHashgraphInfo {
 //                        roundInfoNodes[p] = t1;
 //                        roundInfoStake[p] = t2;
 //                    }
+                    // choose random values for every RoundInfo field except nodes and stake
+                    roundInfoCoinInterval = random.nextInt(4,11);
+                    roundInfoSeeDen = 3 * random.nextInt(1,1000);
+                    roundInfoSeeNum =
+                            (random.nextInt(100) < 20) ? 2 * roundInfoSeeDen / 3
+                                    : (random.nextInt(100) < 20) ? roundInfoSeeDen
+                                    : random.nextInt(2 * roundInfoSeeDen / 3, roundInfoSeeDen + 1);
+                    roundInfoJudgeCon1 = random.nextBoolean();
+                    roundInfoTargetNumRoundsNonAncient = random.nextInt(1,6);
+                    roundInfoNumRoundsAddressBook = random.nextInt(1,4);
+                    //TODO randomly decide whether to make a new hashgraph
+                    //TODO randomly choose address book (and randomly shuffle it)
+                    //TODO randomly choose other parents, including branching
+
                     roundInfo = new RoundInfo(roundInfoPrev.pendingRound(),
                             roundInfoNodes.clone(), roundInfoStake.clone(), roundInfoCoinInterval, roundInfoSeeNum,
                             roundInfoSeeDen, roundInfoJudgeCon1, roundInfoTargetNumRoundsNonAncient,
                             roundInfoNumRoundsAddressBook);
                     writeRoundInfoPrev(out, roundInfoPrev);
                     writeRoundInfo(out, roundInfo);
+                    minNonAncientRound = HashgraphInfo.minNonAncientRound(roundInfo,roundInfoPrev);
                     Iterator<EventInfo> iterator = recentEventsToRecalculate.iterator();
                     while (iterator.hasNext()) {
                          EventInfo event = iterator.next();
-                         if (event.getBirthRound() < roundInfoPrev.prevMinJudgeBirthRound()) {
+                         if (event.getBirthRound() < minNonAncientRound) {
                             iterator.remove();
                         } else {
                             updateResults = event.update(roundInfo, roundInfoPrev);
