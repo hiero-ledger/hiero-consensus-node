@@ -422,6 +422,217 @@ class IssBufferRaceSimTest implements LifecycleTest {
                 freezeSurvivors());
     }
 
+    // C10 — SELF_ISS, simulator, retain=0, acks on. With retain=0 the acked ISS block is prunable as soon as it is
+    // acknowledged (retention threshold = highestAcked + 1), so by the time the async ISS capture reads the buffer the
+    // block is already gone → only a .txt pointer is written. This deterministically recreates the "notification is
+    // late / ISS block already pruned" loss. node1 also runs a fast buffer worker (workerInterval=100ms) so the prune
+    // reliably fires before the async capture snapshot; at the default 1s interval it is a coin-flip the capture often
+    // wins.
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.buffer.workerInterval", "100ms",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        })
+            })
+    final Stream<DynamicTest> selfIssRetain0Pruned() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 0, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up the stream so the block node's acks are flowing before the ISS: the ISS block must be
+                // acknowledged for retain=0 pruning to drop it (an unacked block is never pruned, so it would be kept).
+                sleepForSeconds(8),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                verify(() -> {
+                    IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
+                    final boolean kept =
+                            IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
+                    final boolean lost = IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".txt");
+                    log.warn(
+                            "C10 SELF/SIM/retain=0 outcome: blockCaptured(.iss.gz)={} blockLost(.txt)={} keys={}",
+                            kept,
+                            lost,
+                            RECEIVED_OBJECT_KEYS);
+                    // retain=0 ⇒ the acked ISS block is pruned before the async capture reads the buffer ⇒ the block
+                    // is lost and only a .txt pointer is written. This is the "late notification / already pruned"
+                    // case.
+                    assertTrue(
+                            lost,
+                            "with retain=0 the acked ISS block should be pruned before capture → .txt pointer; saw "
+                                    + RECEIVED_OBJECT_KEYS);
+                }),
+                freezeSurvivors());
+    }
+
+    // C11 — SELF_ISS, simulator, keep=1 (a normal retention window), but the ISS notification arrives LATE relative to
+    // block production. blockPeriod=0 + roundsPerBlock=1 means one block per round, so the several rounds it takes to
+    // detect the ISS span several blocks: the ISS block ends up many blocks behind the current one (lag > keep). Once
+    // lag > keep the ISS block is below the acked-retention threshold and is pruned before the capture → LOST. This is
+    // the doc's real-world trigger (a slow/late notification), tested at a normal keep instead of keep=0 (see C10).
+    // node1 also runs a fast buffer worker (workerInterval=100ms) so keep=1 is actually enforced despite the fast
+    // one-block-per-round production; otherwise the prune lags the block rate and transiently retains far more than 1.
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "blockStream.buffer.workerInterval", "100ms",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        })
+            })
+    final Stream<DynamicTest> selfIssLateNotification() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 1, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up so the block node's acks are flowing before the ISS (an unacked block is never pruned).
+                sleepForSeconds(8),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                verify(() -> {
+                    IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
+                    final boolean kept =
+                            IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
+                    final boolean lost = IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".txt");
+                    log.warn(
+                            "C11 SELF/SIM/keep=1/late-notification outcome: blockCaptured(.iss.gz)={} blockLost(.txt)={} keys={}",
+                            kept,
+                            lost,
+                            RECEIVED_OBJECT_KEYS);
+                    // Late notification: detection lags several one-round blocks, so lag > keep=1 and the ISS block is
+                    // pruned before the capture → a .txt pointer (loss) even at a normal retention window.
+                    assertTrue(
+                            lost,
+                            "a late ISS notification (lag > keep) should lose the ISS block → .txt pointer; saw "
+                                    + RECEIVED_OBJECT_KEYS);
+                }),
+                freezeSurvivors());
+    }
+
     // --- shared step builders (kept local to avoid touching existing tests) ---
 
     /** 1 debit + 6 credits = 7 balance adjustments — above node1's maxLen=5, within the others'. */

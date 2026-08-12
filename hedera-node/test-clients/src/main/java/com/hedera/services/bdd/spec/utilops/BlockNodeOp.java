@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.utilops;
 
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class BlockNodeOp extends UtilOp {
     @Override
     protected boolean submitOp(final HapiSpec spec) throws Throwable {
         final BlockNodeMode mode =
-                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeModeById().get(nodeIndex);
+                BlockNodeReader.activeNetwork().getBlockNodeModeById().get(nodeIndex);
         if (mode == BlockNodeMode.SIMULATOR) {
             return submitSimulatorOp();
         } else if (mode == BlockNodeMode.REAL) {
@@ -120,8 +121,7 @@ public class BlockNodeOp extends UtilOp {
     }
 
     private boolean submitSimulatorOp() {
-        final BlockNodeController controller =
-                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeController();
+        final BlockNodeController controller = BlockNodeReader.activeNetwork().getBlockNodeController();
         long verifiedBlock = 0;
 
         switch (action) {
@@ -278,8 +278,7 @@ public class BlockNodeOp extends UtilOp {
     }
 
     private boolean submitContainerOp() {
-        final BlockNodeController controller =
-                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeController();
+        final BlockNodeController controller = BlockNodeReader.activeNetwork().getBlockNodeController();
 
         switch (action) {
             case START:
