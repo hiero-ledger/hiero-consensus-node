@@ -16,9 +16,17 @@ import org.hiero.consensus.kbfreshness.model.Outcome;
  * @param resolvedPath for a package/path move with exactly one candidate, the repo-relative path the
  *                     cited source actually resolves at (drives a path-rewrite auto-fix proposal);
  *                     otherwise {@code null}.
+ * @param autoFixSymbol for a {@code File.java:NN} reference on a declaration line, the symbol name it
+ *                     migrates to (drives a {@code :NN}→{@code #symbol} auto-fix); otherwise {@code null}.
  */
 public record Resolution(
-        Outcome outcome, Lane lane, String question, String evidence, Integer autoFixLine, String resolvedPath) {
+        Outcome outcome,
+        Lane lane,
+        String question,
+        String evidence,
+        Integer autoFixLine,
+        String resolvedPath,
+        String autoFixSymbol) {
 
     /**
      * A clean resolution that emits no finding (present and correct).
@@ -28,7 +36,7 @@ public record Resolution(
      * @return a resolution with no lane, no evidence, and no auto-fix line.
      */
     public static Resolution ok(final Outcome outcome, final String question) {
-        return new Resolution(outcome, null, question, "", null, null);
+        return new Resolution(outcome, null, question, "", null, null, null);
     }
 
     /**
@@ -42,7 +50,7 @@ public record Resolution(
      */
     public static Resolution finding(
             final Outcome outcome, final Lane lane, final String question, final String evidence) {
-        return new Resolution(outcome, lane, question, evidence, null, null);
+        return new Resolution(outcome, lane, question, evidence, null, null, null);
     }
 
     /**
@@ -54,7 +62,21 @@ public record Resolution(
      * @return a {@link Outcome#PRESENT} resolution in {@link Lane#AUTO_FIX} carrying the corrected line.
      */
     public static Resolution autoFix(final String question, final String evidence, final int correctedLine) {
-        return new Resolution(Outcome.PRESENT, Lane.AUTO_FIX, question, evidence, correctedLine, null);
+        return new Resolution(Outcome.PRESENT, Lane.AUTO_FIX, question, evidence, correctedLine, null, null);
+    }
+
+    /**
+     * A present-but-line-cited resolution that migrates a {@code File.java:NN} reference to
+     * {@code File.java#symbol}: line NN is a declaration, so the reference should name the symbol and drop
+     * the volatile line. Routed to the auto-fix lane carrying the symbol name.
+     *
+     * @param question the question asked.
+     * @param evidence the curator-verifiable justification.
+     * @param symbol   the declaration's name the reference migrates to.
+     * @return a {@link Outcome#PRESENT} resolution in {@link Lane#AUTO_FIX} carrying the migration symbol.
+     */
+    public static Resolution autoFixSymbol(final String question, final String evidence, final String symbol) {
+        return new Resolution(Outcome.PRESENT, Lane.AUTO_FIX, question, evidence, null, null, symbol);
     }
 
     /**
@@ -68,7 +90,7 @@ public record Resolution(
      * @return a {@link Outcome#PRESENT} resolution in {@link Lane#ASSERT} carrying the resolved path.
      */
     public static Resolution moved(final String question, final String evidence, final String resolvedPath) {
-        return new Resolution(Outcome.PRESENT, Lane.ASSERT, question, evidence, null, resolvedPath);
+        return new Resolution(Outcome.PRESENT, Lane.ASSERT, question, evidence, null, resolvedPath, null);
     }
 
     /**

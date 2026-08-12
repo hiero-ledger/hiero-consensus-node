@@ -77,8 +77,8 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.stream;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.iss.detection;

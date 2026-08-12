@@ -253,7 +253,7 @@ samples the flag both before and after `consensus.addEvent`
 `DefaultConsensusEngine.java:140-144`); the post-add check is the
 transition point out of waiting. When the last init judge arrives,
 `ConsensusImpl.checkInitJudges`
-(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
+(`ConsensusImpl.java#checkInitJudges`) takes the judges' common ancestors that are
 neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
 under the `nonConsensusNonAncient` predicate) and marks each
 `setConsensus(true)` while deliberately leaving `roundReceived` unset:

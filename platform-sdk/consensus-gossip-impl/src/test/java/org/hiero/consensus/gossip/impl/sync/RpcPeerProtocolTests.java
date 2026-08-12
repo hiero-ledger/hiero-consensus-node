@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.sync;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,9 +15,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
-import org.hiero.consensus.concurrent.pool.ParallelExecutor;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
+import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.base.concurrent.pool.ParallelExecutor;
+import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;

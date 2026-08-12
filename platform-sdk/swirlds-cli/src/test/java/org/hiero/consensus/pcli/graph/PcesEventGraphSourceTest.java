@@ -24,7 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
-import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
