@@ -12,7 +12,8 @@ module org.hiero.consensus.state {
     exports org.hiero.consensus.state.persistence to
             com.swirlds.platform.core,
             org.hiero.consensus.reconnect.impl,
-            org.hiero.consensus.pcli;
+            org.hiero.consensus.pcli,
+            com.hedera.state.validator;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
