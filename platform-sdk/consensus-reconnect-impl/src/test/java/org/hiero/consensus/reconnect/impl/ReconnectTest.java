@@ -2,6 +2,7 @@
 package org.hiero.consensus.reconnect.impl;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -26,7 +27,6 @@ import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -37,6 +37,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,24 +60,26 @@ final class ReconnectTest {
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
 
-    @TempDir
-    Path tempDir;
-
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerSyncConstructables();
     }
 
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+    }
+
     @Test
     @DisplayName("Successfully reconnects multiple times and stats are updated")
-    void statsTrackSuccessfulReconnect() throws IOException, InterruptedException {
+    void statsTrackSuccessfulReconnect(final @TempDir Path tempDir) throws IOException, InterruptedException {
         final int numberOfReconnects = 11;
 
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
             // Use a different data dir for every reconnect attempt
-            final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir.resolve("" + index));
+            final FileSystemManager fileSystemManager = new FileSystemManager(tempDir.resolve("" + index));
             executeReconnect(fileSystemManager, reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
@@ -135,6 +138,9 @@ final class ReconnectTest {
             final ReservedSignedState receivedState = receiver.execute();
             receivedState.get().getState().release();
             thread.join();
+            assertTrue(
+                    receivedState.get().getState().getRoot().waitUntilFamilyDestroyed(Duration.ofSeconds(3)),
+                    "reconnect state is not destroyed within the timeout");
         } finally {
             TestStateUtils.destroyStateLifecycleManager(stateLifecycleManager);
         }

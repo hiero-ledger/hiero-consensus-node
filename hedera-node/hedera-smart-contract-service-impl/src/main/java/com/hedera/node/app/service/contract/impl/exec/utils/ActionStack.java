@@ -39,7 +39,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -287,15 +287,14 @@ public class ActionStack {
         // account id for the recipient; only later when we know whether the call attempted a lazy creation
         // can we decide to either leave this address (on failure) or replace it with the created account id
         if (targetsMissingAddress(frame)) {
-            builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress().getBytes()));
-        } else if (Code.EMPTY_CODE.equals(frame.getCode())) {
+            builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress()));
+        } else if (CodeV0.EMPTY_CODE.equals(frame.getCode())) {
             builder.recipientAccount(accountIdWith(frame, hederaIdNumOfContractIn(frame)));
         } else {
             try {
                 builder.recipientContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)));
             } catch (NullPointerException ignore) {
-                builder.targetedAddress(
-                        tuweniToPbjBytes(frame.getContractAddress().getBytes()));
+                builder.targetedAddress(tuweniToPbjBytes(frame.getContractAddress()));
             }
         }
         final var wrappedAction = new ActionWrapper(builder.build());
@@ -394,8 +393,7 @@ public class ActionStack {
     }
 
     private static String formatFrameContextForLog(@NonNull final MessageFrame frame) {
-        final Function<Address, String> addressToString =
-                address -> address.getBytes().toUnprefixedHexString();
+        final Function<Address, String> addressToString = address -> address.toUnprefixedHexString();
 
         final var originator = get(frame, MessageFrame::getOriginatorAddress, addressToString);
         final var sender = get(frame, MessageFrame::getSenderAddress, addressToString);

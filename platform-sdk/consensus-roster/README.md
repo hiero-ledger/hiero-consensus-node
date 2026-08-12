@@ -17,7 +17,7 @@ May depend on:
 Must not depend on:
 - Other supporting modules (`consensus-concurrent`, `consensus-metrics`, `consensus-utility`,
 `consensus-platformstate`)
-- Any functional-api or impl module
+- Any functional-api, functional-impl, or self-contained functional module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
 - `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-virtualmap`

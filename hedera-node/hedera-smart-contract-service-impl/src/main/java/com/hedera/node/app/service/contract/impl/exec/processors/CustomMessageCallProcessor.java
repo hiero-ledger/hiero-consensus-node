@@ -282,9 +282,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         contractMetrics
                 .opsDurationMetrics()
                 .recordSystemContractOpsDuration(
-                        systemContract.getName(),
-                        systemContractAddress.getBytes().toHexString(),
-                        opsDurationCost);
+                        systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
 
         if (frame.getRemainingGas() < gasRequirement) {
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));

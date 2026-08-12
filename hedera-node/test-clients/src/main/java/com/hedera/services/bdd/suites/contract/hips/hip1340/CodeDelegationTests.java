@@ -47,10 +47,10 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
 import java.math.BigInteger;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -104,7 +104,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
             assertEquals(caller.evmAddress(), senderInEvent);
             assertEquals(delegatingEoa.evmAddress(), thisAddressInEvent);
             assertEquals(BigInteger.ZERO, valueInEvent);
-            assertArrayEquals(Hex.decode(callData), callDataInEvent);
+            assertArrayEquals(HexFormat.of().parseHex(callData), callDataInEvent);
         }));
     }
 
@@ -130,7 +130,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
             allRunFor(
                     spec,
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(callData))
+                            .withExplicitParams(() -> HexFormat.of().formatHex(callData))
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
                             .exposingEventDataTo(logInfo::set)
@@ -161,9 +161,10 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
             allRunFor(
                     spec,
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(new Function("getValue()")
-                                    .encodeCall(Tuple.EMPTY)
-                                    .array()))
+                            .withExplicitParams(() -> HexFormat.of()
+                                    .formatHex(new Function("getValue()")
+                                            .encodeCall(Tuple.EMPTY)
+                                            .array()))
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
                             .exposingRawResultTo(getValueResult::set)
@@ -219,7 +220,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
 
                     /* Trigger an HTS token transfer by sending a transaction from the owner account */
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(callData))
+                            .withExplicitParams(() -> HexFormat.of().formatHex(callData))
                             .payingWith(payer.name())
                             .signingWith(delegatingEoa.keyName())
                             .hasKnownStatus(ResponseCodeEnum.SUCCESS),
@@ -228,7 +229,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
 
                     /* Trigger an HTS token transfer by sending a transaction from an unrelated account */
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(callData))
+                            .withExplicitParams(() -> HexFormat.of().formatHex(callData))
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
                             .hasKnownStatus(ResponseCodeEnum.SUCCESS),
@@ -259,13 +260,13 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                     .encodeCall(Tuple.of(
                             delegatingEoa.evmAddress() /* call target */,
                             BigInteger.valueOf(0L) /* hbar value to pass */,
-                            Hex.decode("cafebabe") /* call data */))
+                            HexFormat.of().parseHex("cafebabe") /* call data */))
                     .array();
 
             allRunFor(
                     spec,
                     HapiEthereumCall.explicitlyTo(delegationTargetContract.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(callData))
+                            .withExplicitParams(() -> HexFormat.of().formatHex(callData))
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
                             .exposingEventDataTo(logInfo::set)
@@ -289,7 +290,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
             assertEquals(delegationTargetContract.address(), senderInEvent);
             assertEquals(delegatingEoa.evmAddress(), thisAddressInEvent);
             assertEquals(BigInteger.ZERO, valueInEvent);
-            assertArrayEquals(Hex.decode("cafebabe"), callDataInEvent);
+            assertArrayEquals(HexFormat.of().parseHex("cafebabe"), callDataInEvent);
         }));
     }
 
@@ -340,7 +341,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                             .hasTokenBalance(token, 1000),
                     getAccountBalance(wouldBeTokenReceiver.name()).hasTokenBalance(token, 0L),
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(callData))
+                            .withExplicitParams(() -> HexFormat.of().formatHex(callData))
                             .sending(tinyBarsAmount)
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
@@ -376,12 +377,15 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                                         Address.wrap(toChecksumAddress("0x0000000000000000000000000000000000001234"))))
                                 .array(),
                         // SUCCESS status (0x16 == 22 decimal) followed by 32-zeros (boolean false)
-                        Hex.decode("0000000000000000000000000000000000000000000000000000000000000016"
-                                + "0000000000000000000000000000000000000000000000000000000000000000")),
+                        HexFormat.of()
+                                .parseHex("0000000000000000000000000000000000000000000000000000000000000016"
+                                        + "0000000000000000000000000000000000000000000000000000000000000000")),
                 new TestCase(
                         "0000000000000000000000000000000000000002", // SHA256 precompile
-                        Hex.decode("cafebabe"),
-                        Hashing.sha256().hashBytes(Hex.decode("cafebabe")).asBytes()));
+                        HexFormat.of().parseHex("cafebabe"),
+                        Hashing.sha256()
+                                .hashBytes(HexFormat.of().parseHex("cafebabe"))
+                                .asBytes()));
 
         return testCases.stream()
                 .flatMap(testCase -> hapiTest(withOpContext((spec, opLog) -> {
@@ -407,7 +411,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                     allRunFor(
                             spec,
                             HapiEthereumCall.explicitlyTo(targetAddressBytes.toByteArray(), 0)
-                                    .withExplicitParams(() -> Hex.toHexString(testCase.validCallData()))
+                                    .withExplicitParams(() -> HexFormat.of().formatHex(testCase.validCallData()))
                                     .payingWith(payer.name())
                                     .signingWith(caller.keyName())
                                     .hasKnownStatus(ResponseCodeEnum.SUCCESS)
@@ -415,7 +419,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                             getAccountBalance(caller.name()).exposingBalanceTo(callerBalanceBefore::set),
                             getAccountBalance(delegatingEoa.name()).exposingBalanceTo(delegatingEoaBalanceBefore::set),
                             HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
-                                    .withExplicitParams(() -> Hex.toHexString(testCase.validCallData()))
+                                    .withExplicitParams(() -> HexFormat.of().formatHex(testCase.validCallData()))
                                     .sending(tinyBarsAmount)
                                     .payingWith(payer.name())
                                     .signingWith(caller.keyName())
@@ -467,7 +471,9 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                     cryptoTransfer((unused, builder) -> {
                                 final var registry = spec.registry();
                                 final var hookData = TupleType.parse("(address,bytes)")
-                                        .encode(Tuple.of(delegatingEoa.evmAddress(), Hex.decode("cafebabe")));
+                                        .encode(Tuple.of(
+                                                delegatingEoa.evmAddress(),
+                                                HexFormat.of().parseHex("cafebabe")));
                                 final var hookCall = HookCall.newBuilder()
                                         .hookId(hookId)
                                         .evmHookCall(EvmHookCall.newBuilder()
@@ -520,7 +526,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                                 assertEquals(owner.evmAddress(), senderInEvent);
                                 assertEquals(delegatingEoa.evmAddress(), thisAddressInEvent);
                                 assertEquals(BigInteger.ZERO, valueInEvent);
-                                assertArrayEquals(Hex.decode("cafebabe"), callDataInEvent);
+                                assertArrayEquals(HexFormat.of().parseHex("cafebabe"), callDataInEvent);
                             }));
         }));
     }
@@ -559,7 +565,9 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                     cryptoTransfer((unused, builder) -> {
                                 final var registry = spec.registry();
                                 final var hookData = TupleType.parse("(address,bytes)")
-                                        .encode(Tuple.of(delegatingEoa.evmAddress(), Hex.decode("cafebabe")));
+                                        .encode(Tuple.of(
+                                                delegatingEoa.evmAddress(),
+                                                HexFormat.of().parseHex("cafebabe")));
                                 final var hookCall = HookCall.newBuilder()
                                         .hookId(hookId)
                                         .evmHookCall(EvmHookCall.newBuilder()
