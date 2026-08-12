@@ -13,9 +13,9 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.rethrowIO;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 

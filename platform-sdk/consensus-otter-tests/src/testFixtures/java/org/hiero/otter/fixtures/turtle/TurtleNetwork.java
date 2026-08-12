@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.BandwidthControlSupport.BANDWIDTH_CONTROL_NOT_SUPPORTED;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -71,7 +72,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean useRandomNodeIds) {
-        super(randotron, useRandomNodeIds);
+        super(randotron, useRandomNodeIds, BANDWIDTH_CONTROL_NOT_SUPPORTED);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);

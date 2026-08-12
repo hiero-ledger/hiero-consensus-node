@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.internal.cache;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
@@ -34,11 +34,11 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.exceptions.PlatformException;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * A cache for virtual merkle trees.

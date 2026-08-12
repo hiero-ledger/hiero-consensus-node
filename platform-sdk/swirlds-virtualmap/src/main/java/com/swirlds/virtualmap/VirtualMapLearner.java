@@ -4,7 +4,7 @@ package com.swirlds.virtualmap;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
@@ -27,9 +27,9 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * This class encapsulates all state and logic of the reconnect process on the learner side for a {@link VirtualMap}.
