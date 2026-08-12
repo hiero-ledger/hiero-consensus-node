@@ -7,7 +7,6 @@ import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
-import com.hederahashgraph.api.proto.java.TokenBalance;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 import java.util.function.Function;
@@ -67,15 +66,19 @@ public class BalanceSnapshot extends UtilOp {
         }
 
         if (token == null) {
-            long balance = delegate.getResponse().getCryptogetAccountBalance().getBalance();
+            long balance = delegate.getResponse()
+                    .getAccountDetails()
+                    .getAccountDetails()
+                    .getBalance();
             spec.registry().saveBalanceSnapshot(snapshot, balance);
         } else {
             final var tokenId = asTokenId(token, spec);
-            final long balance = delegate.getResponse().getCryptogetAccountBalance().getTokenBalancesList().stream()
-                    .filter(tb -> tb.getTokenId().equals(tokenId))
-                    .findFirst()
-                    .map(TokenBalance::getBalance)
-                    .orElse(0L);
+            final long balance =
+                    delegate.getResponse().getAccountDetails().getAccountDetails().getTokenRelationshipsList().stream()
+                            .filter(relationship -> relationship.getTokenId().equals(tokenId))
+                            .findFirst()
+                            .map(relationship -> relationship.getBalance())
+                            .orElse(0L);
             spec.registry().saveTokenBalanceSnapshot(token, snapshot, balance);
         }
         return false;

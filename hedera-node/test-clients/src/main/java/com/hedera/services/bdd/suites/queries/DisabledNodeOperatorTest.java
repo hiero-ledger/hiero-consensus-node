@@ -67,26 +67,6 @@ public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements
     }
 
     @HapiTest
-    final Stream<DynamicTest> nodeOperatorQueryPortNotAccessibleForAccountBalance() {
-        return hapiTest(flattened(
-                nodeOperatorAccount(),
-                payerAccount(),
-                // perform getAccountBalance() query, pay for the query with payer account
-                getAccountBalance(NODE_OPERATOR).payingWith(PAYER),
-                sleepFor(3000),
-                // assert payer is charged
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS),
-                withOpContext((spec, opLog) -> assertThatThrownBy(() -> {
-                            final var getAccountBalanceAsNodeOperator = getAccountBalance(NODE_OPERATOR)
-                                    .payingWith(PAYER)
-                                    .asNodeOperator();
-                            allRunFor(spec, getAccountBalanceAsNodeOperator);
-                        })
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("io.grpc.StatusRuntimeException: UNAVAILABLE: io exception"))));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> nodeOperatorQueryPortNotAccessibleForAccountInfo() {
         return hapiTest(flattened(
                 nodeOperatorAccount(),

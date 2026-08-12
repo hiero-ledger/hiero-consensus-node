@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.common.base.MoreObjects;
@@ -16,13 +15,11 @@ import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
-import com.hederahashgraph.api.proto.java.CryptoGetAccountBalanceQuery;
+import com.hederahashgraph.api.proto.java.GetAccountDetailsQuery;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.TokenBalance;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -42,14 +38,15 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * Get the balance of an account.
- * NOTE: Since we don't return token balances from getAccountBalance query, we are using getAccountDetails query
- * if there are any assertions about token balances to get token balances for internal testing.
+ * Gets the balance of an account from the account details query.
+ *
+ * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+ *     {@link QueryVerbs#getAccountDetails(String)} with an authorized payer instead.
  */
+@Deprecated(forRemoval = true)
 public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     private static final Logger log = LogManager.getLogger(HapiGetAccountBalance.class);
 
@@ -180,7 +177,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
     @Override
     public HederaFunctionality type() {
-        return HederaFunctionality.CryptoGetAccountBalance;
+        return HederaFunctionality.GetAccountDetails;
     }
 
     @Override
@@ -189,16 +186,20 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     }
 
     @Override
+    protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
+        payer = Optional.of(spec.setup().genesisAccountName());
+        return super.submitOp(spec);
+    }
+
+    @Override
     protected void assertExpectationsGiven(HapiSpec spec) throws Throwable {
-        final var balanceResponse = response.getCryptogetAccountBalance();
-        long actual = balanceResponse.getBalance();
+        final var details = response.getAccountDetails().getAccountDetails();
+        long actual = details.getBalance();
         if (balanceObserver != null) {
             balanceObserver.accept(actual);
         }
         if (verboseLoggingOn) {
-            String message = String.format(
-                    "Explicit token balances: %s",
-                    response.getCryptogetAccountBalance().getTokenBalancesList());
+            String message = String.format("Explicit token balances: %s", details.getTokenRelationshipsList());
             log.info(message);
         }
 
@@ -208,11 +209,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                             .getKey(aliasKeySource)
                             .toByteString()
                             .toStringUtf8());
-            assertEquals(expectedID, response.getCryptogetAccountBalance().getAccountID());
+            assertEquals(expectedID, details.getAccountId());
         }
 
         if (expectedId != null) {
-            assertEquals(expectedId, response.getCryptogetAccountBalance().getAccountID(), "Wrong account id");
+            assertEquals(expectedId, details.getAccountId(), "Wrong account id");
         }
 
         if (expectedTinybarCondition.isPresent()) {
@@ -226,22 +227,9 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             assertEquals(expected.get().longValue(), actual, "Wrong balance!");
         }
 
-        // Since we don't support token balances from getAccountBalance query, for internal testing
-        // we are using getAccountDetails query to get token balances.
         if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent() || expectedTokenConditions != null) {
-            final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(balanceResponse.getAccountID()))
-                    .payingWith(GENESIS);
-            allRunFor(spec, detailsLookup);
-            final var response = detailsLookup.getResponse();
-            Map<TokenID, Pair<Long, Integer>> actualTokenBalances =
-                    response.getAccountDetails().getAccountDetails().getTokenRelationshipsList().stream()
-                            .map(tr -> TokenBalance.newBuilder()
-                                    .setTokenId(tr.getTokenId())
-                                    .setBalance(tr.getBalance())
-                                    .setDecimals(tr.getDecimals())
-                                    .build())
-                            .collect(Collectors.toMap(
-                                    TokenBalance::getTokenId, tb -> Pair.of(tb.getBalance(), tb.getDecimals())));
+            Map<TokenID, Pair<Long, Integer>> actualTokenBalances = details.getTokenRelationshipsList().stream()
+                    .collect(Collectors.toMap(tr -> tr.getTokenId(), tr -> Pair.of(tr.getBalance(), tr.getDecimals())));
             if (expectedTokenConditions != null) {
                 expectedTokenConditions.forEach((key, value) -> {
                     final var tokenId = asTokenId(key, spec);
@@ -302,12 +290,13 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
     @Override
     protected void processAnswerOnlyResponse(@NonNull final HapiSpec spec) {
-        final var status = response.getCryptogetAccountBalance().getHeader().getNodeTransactionPrecheckCode();
+        final var detailsResponse = response.getAccountDetails();
+        final var status = detailsResponse.getHeader().getNodeTransactionPrecheckCode();
         if (status == ResponseCodeEnum.ACCOUNT_DELETED) {
             String message = String.format("%s%s was actually deleted!", spec.logPrefix(), repr);
             log.info(message);
         } else {
-            long balance = response.getCryptogetAccountBalance().getBalance();
+            long balance = detailsResponse.getAccountDetails().getBalance();
             long TINYBARS_PER_HBAR = 100_000_000L;
             long hBars = balance / TINYBARS_PER_HBAR;
             if (!loggingOff) {
@@ -329,57 +318,59 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             @NonNull final HapiSpec spec,
             @NonNull final Transaction payment,
             @NonNull final ResponseType responseType) {
-        return getAccountBalanceQuery(spec, payment, responseType == ResponseType.COST_ANSWER);
+        return getAccountDetailsQuery(spec, payment, responseType == ResponseType.COST_ANSWER);
     }
 
-    private Query getAccountBalanceQuery(HapiSpec spec, Transaction payment, boolean costOnly) {
+    private Query getAccountDetailsQuery(HapiSpec spec, Transaction payment, boolean costOnly) {
         if (entityFn.isPresent()) {
             account = entityFn.get().get();
             repr = account;
         }
 
-        Consumer<CryptoGetAccountBalanceQuery.Builder> config;
+        AccountID target;
         if (isContract || spec.registry().hasContractId(account)) {
-            config = b -> b.setContractID(TxnUtils.asContractId(account, spec));
+            final var contractId = TxnUtils.asContractId(account, spec);
+            final var targetBuilder =
+                    AccountID.newBuilder().setShardNum(contractId.getShardNum()).setRealmNum(contractId.getRealmNum());
+            if (contractId.hasEvmAddress()) {
+                targetBuilder.setAlias(contractId.getEvmAddress());
+            } else {
+                targetBuilder.setAccountNum(contractId.getContractNum());
+            }
+            target = targetBuilder.build();
         } else if (referenceType == ReferenceType.HEXED_CONTRACT_ALIAS) {
-            final var cid = ContractID.newBuilder()
+            target = AccountID.newBuilder()
                     .setShardNum(spec.shard())
                     .setRealmNum(spec.realm())
-                    .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(literalHexedAlias)))
+                    .setAlias(TxnUtils.asLiteralEvmAddress(literalHexedAlias))
                     .build();
-            config = b -> b.setContractID(cid);
         } else {
-            AccountID id;
             if (referenceType == ReferenceType.REGISTRY_NAME) {
-                id = TxnUtils.asId(account, spec);
+                target = TxnUtils.asId(account, spec);
             } else if (referenceType == ReferenceType.LITERAL_ACCOUNT_ALIAS) {
-                id = AccountID.newBuilder()
+                target = AccountID.newBuilder()
                         .setShardNum(spec.shard())
                         .setRealmNum(spec.realm())
                         .setAlias(rawAlias)
                         .build();
             } else {
-                id = spec.registry().keyAliasIdFor(spec, aliasKeySource);
+                target = spec.registry().keyAliasIdFor(spec, aliasKeySource);
             }
-            config = b -> b.setAccountID(id);
         }
-        CryptoGetAccountBalanceQuery.Builder query = CryptoGetAccountBalanceQuery.newBuilder()
-                .setHeader(costOnly ? answerCostHeader(payment) : answerHeader(payment));
-        config.accept(query);
-        return Query.newBuilder().setCryptogetAccountBalance(query).build();
+        final var query = GetAccountDetailsQuery.newBuilder()
+                .setHeader(costOnly ? answerCostHeader(payment) : answerHeader(payment))
+                .setAccountId(target)
+                .build();
+        return Query.newBuilder().setAccountDetails(query).build();
     }
 
     @Override
     protected boolean needsPayment() {
-        return false;
+        return true;
     }
 
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         return super.toStringHelper().add("account", account);
-    }
-
-    private String toEntityId(AccountID accountID) {
-        return accountID.getShardNum() + "." + accountID.getRealmNum() + "." + accountID.getAccountNum();
     }
 }
