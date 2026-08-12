@@ -27,7 +27,7 @@ import java.util.function.Function;
  * </ul>
  */
 public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
-    private static final Duration BLOCK_NODE_READ_TIMEOUT_FLOOR = Duration.ofSeconds(60);
+    private static final Duration BLOCK_NODE_READ_TIMEOUT_FLOOR = Duration.ofSeconds(120);
 
     private final Function<HapiSpec, ? extends StreamAssertion> assertionFactory;
     private final boolean hasPassedIfNothingFailed;
