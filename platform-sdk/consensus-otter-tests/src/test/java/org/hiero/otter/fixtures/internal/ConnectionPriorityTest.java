@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.BandwidthControlSupport.BANDWIDTH_CONTROL_SUPPORTED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -274,7 +275,7 @@ class ConnectionPriorityTest {
         private final ControllableTopology controllableTopology;
 
         TestableNetwork() {
-            super(new java.util.Random(42), false);
+            super(new java.util.Random(42), false, BANDWIDTH_CONTROL_SUPPORTED);
             this.controllableTopology = new ControllableTopology(super.topology());
         }
 

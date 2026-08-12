@@ -60,8 +60,8 @@ module org.hiero.sloth.fixtures {
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.platform.core.test.fixtures;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
