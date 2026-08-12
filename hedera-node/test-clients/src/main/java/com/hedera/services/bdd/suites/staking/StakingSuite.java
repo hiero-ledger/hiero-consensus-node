@@ -476,7 +476,6 @@ public class StakingSuite {
         final var directCreatedStaker = "tc01DirectCreatedStaker";
         final long NODE = 2L;
 
-
         return hapiTest(
                 cryptoCreate(attackerPayer).balance(ONE_MILLION_HBARS),
                 cryptoCreate(deleteBeneficiary)
