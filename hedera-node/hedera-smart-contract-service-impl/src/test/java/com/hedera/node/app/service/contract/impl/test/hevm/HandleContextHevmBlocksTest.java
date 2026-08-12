@@ -44,8 +44,7 @@ class HandleContextHevmBlocksTest {
 
     @Test
     void blockHashDelegates() {
-        given(blockRecordInfo.blockHashByBlockNumber(123L))
-                .willReturn(ConversionUtils.tuweniToPbjBytes(Hash.EMPTY.getBytes()));
+        given(blockRecordInfo.blockHashByBlockNumber(123L)).willReturn(ConversionUtils.tuweniToPbjBytes(Hash.EMPTY));
         assertEquals(Hash.EMPTY, subject.blockHashOf(frame, 123L));
     }
 

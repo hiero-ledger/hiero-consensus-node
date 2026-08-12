@@ -14,7 +14,6 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -49,6 +48,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -95,6 +95,12 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  * environments.
  */
 public abstract class AbstractNetwork implements Network {
+
+    public enum BandwidthControlSupport {
+        BANDWIDTH_CONTROL_SUPPORTED,
+        BANDWIDTH_CONTROL_NOT_SUPPORTED
+    }
+
     /**
      * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
      */
@@ -133,6 +139,8 @@ public abstract class AbstractNetwork implements Network {
     private Topology currentTopology;
     protected final NetworkConfiguration networkConfiguration;
 
+    private final boolean bandwidthControlNotSupported;
+
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
@@ -144,13 +152,18 @@ public abstract class AbstractNetwork implements Network {
 
     private NodeId nextNodeId = NodeId.FIRST_NODE_ID;
 
-    protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
+    protected AbstractNetwork(
+            @NonNull final Random random,
+            final boolean useRandomNodeIds,
+            @NonNull final BandwidthControlSupport bandwidthControlSupport) {
         this.random = requireNonNull(random);
         this.useRandomNodeIds = useRandomNodeIds;
         // Initialize with default GeoMeshTopology
         this.currentTopology = new GeoMeshTopologyImpl(
                 GeoMeshTopologyConfiguration.DEFAULT, random, this::createNodes, this::createInstrumentedNode);
         this.networkConfiguration = new NetworkConfiguration();
+        this.bandwidthControlNotSupported =
+                bandwidthControlSupport != BandwidthControlSupport.BANDWIDTH_CONTROL_SUPPORTED;
     }
 
     /**
@@ -600,6 +613,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setBandwidthForAllConnections(@NonNull final Node node, @NonNull final BandwidthLimit bandwidthLimit) {
+        if (bandwidthControlNotSupported && !bandwidthLimit.isUnlimited()) {
+            throw new UnsupportedOperationException("Bandwidth control is not supported.");
+        }
         log.info("Setting bandwidth for all connections from node {} to {}", node.selfId(), bandwidthLimit);
         for (final Node otherNode : nodes()) {
             if (!node.equals(otherNode)) {
@@ -1330,6 +1346,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void bandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
             requireNonNull(bandwidthLimit);
+            if (bandwidthControlNotSupported && !bandwidthLimit.isUnlimited()) {
+                throw new UnsupportedOperationException("Bandwidth control is not supported.");
+            }
             log.info(
                     "Setting bandwidth limit from node {} to node {} to {}",
                     sender.selfId(),

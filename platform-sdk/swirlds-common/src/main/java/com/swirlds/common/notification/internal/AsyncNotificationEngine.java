@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.notification.Notification;
 
 public class AsyncNotificationEngine extends AbstractNotificationEngine {

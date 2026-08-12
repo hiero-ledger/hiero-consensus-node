@@ -22,7 +22,6 @@ module org.hiero.consensus.hashgraph.impl {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
@@ -30,9 +29,10 @@ module org.hiero.consensus.hashgraph.impl {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
-    requires org.hiero.consensus.concurrent;
+    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;

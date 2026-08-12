@@ -14,7 +14,7 @@ import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.code.CodeV0;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,6 +75,6 @@ class ProxyEvmAccountTest {
     @Test
     void getCodeHashShouldReturnCorrectHashWhenNoDelegation() {
         when(ACCOUNT.delegationAddress()).thenReturn(Bytes.EMPTY);
-        assertEquals(Code.EMPTY_CODE.getCodeHash(), subject.getCodeHash());
+        assertEquals(CodeV0.EMPTY_CODE.getCodeHash(), subject.getCodeHash());
     }
 }

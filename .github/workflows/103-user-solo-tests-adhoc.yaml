@@ -9,10 +9,10 @@ on:
         required: true
         type: string
       solo-version:
-        description: "[All] Solo version to install."
-        required: true
+        description: "[All] Solo version to install. Blank → the pinned adhoc-solo-version from .citr-env (recommended)."
+        required: false
         type: string
-        default: "0.79.0"
+        default: ""
       scenario:
         description: "Which Solo test scenario to run."
         required: true
@@ -105,7 +105,10 @@ jobs:
 
   extract-citr-vars:
     name: Extract CITR Vars
-    if: ${{ inputs.scenario == '077-to-078-cutover' }}
+    # Runs for every scenario. Non-cutover jobs read adhoc-solo-version from it as the default
+    # Solo version when the solo-version input is left blank; the 077-to-078 cutover job reads
+    # cutover-solo-version. It must stay unconditional: a gated job would be "skipped", and a
+    # skipped need skips its dependents, so gating it would skip every non-cutover scenario.
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -116,6 +119,7 @@ jobs:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'jumpstart' }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
@@ -139,7 +143,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -152,8 +156,13 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
@@ -315,6 +324,7 @@ jobs:
     name: "Solo E2E Block Stream Cutover"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
@@ -338,7 +348,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
           setup-go: "true"
           go-version: "1.26.4"
 
@@ -353,8 +363,13 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
@@ -528,6 +543,7 @@ jobs:
     name: "Solo 0.75 -> 0.76 TSS Upgrade"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == '075-to-076-tss' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -563,8 +579,13 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
@@ -785,6 +806,9 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
               "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log" \
+              > "${OUT_DIR}/${pod}-block-node-comms.log" 2>&1
           done
 
           if [[ -d "${HOME}/.solo/logs" ]]; then
@@ -822,6 +846,7 @@ jobs:
     name: "Solo E2E Backpressure (Block Node Outage)"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'e2e-backpressure' }}
     # Kind-only: the script provisions its own ephemeral Kind cluster on the runner
     # and scales block-node workloads directly, so cluster-target is ignored.
@@ -842,11 +867,18 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -916,6 +948,7 @@ jobs:
     name: "Solo WRB Streaming to Block Node"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
@@ -936,14 +969,19 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
           setup-go: "true"
           go-version: "1.26.4"
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
