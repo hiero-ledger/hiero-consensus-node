@@ -20,7 +20,6 @@ module org.hiero.consensus.wiring.framework {
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.concurrent;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

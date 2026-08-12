@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Michael Tinker (@tinker-michaelj)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-002 — Block `onSealConsensusRound` to Hand Off Freeze Block Signatures from Execution to Consensus
