@@ -41,7 +41,9 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
         lastDecisionTime = now;
 
         bucket.leak(effectiveLeak(elapsedNanos));
-        bucket.useCapacity(Math.min(bucket.brimfulCapacityFree(), unitsToConsume));
+        // Clamp to a non-negative amount so the bucket does not reject with an IllegalArgumentException.
+        final var nonNegativeUnits = Math.max(0L, unitsToConsume);
+        bucket.useCapacity(Math.min(bucket.brimfulCapacityFree(), nonNegativeUnits));
     }
 
     /**
