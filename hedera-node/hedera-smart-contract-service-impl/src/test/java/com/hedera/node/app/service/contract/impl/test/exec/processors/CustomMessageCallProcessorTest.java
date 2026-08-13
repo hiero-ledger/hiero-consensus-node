@@ -158,15 +158,24 @@ class CustomMessageCallProcessorTest {
     }
 
     @Test
-    void callPrngSystemContractInsufficientGas() {
+    void callPrngSystemContractInsufficientGasStillRecordsOpsDuration() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
         givenPrngCall(GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
+        lenient().when(frame.getMessageFrameStack()).thenReturn(stack);
+        lenient().when(stack.getLast()).thenReturn(frame);
+        lenient().when(frame.getContextVariable(OPS_DURATION_COUNTER)).thenReturn(opsDurationTestCounter);
+        lenient().when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
-        // The call cannot afford its gas requirement, so it does no work and must not record any ops duration.
-        verify(contractMetrics, never()).opsDurationMetrics();
+        // Unlike a native precompile, a system contract's computeFully() has already run by the time the
+        // affordability check fails - so the work was really performed and must still be metered.
         verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        Assertions.assertEquals(
+                GAS_REQUIREMENT,
+                opsDurationTestCounter.opsDurationUnitsConsumed(),
+                "work already performed by computeFully must be metered even when the call halts");
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }

@@ -272,25 +272,23 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
 
+        final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
+        final var opsDurationSchedule = opsDurationCounter.schedule();
+        final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
+                gasRequirement, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
+        opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
+        contractMetrics
+                .opsDurationMetrics()
+                .recordSystemContractOpsDuration(
+                        systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
+
         if (frame.getRemainingGas() < gasRequirement) {
-            // The call cannot afford its gas requirement, so no work is done and no ops duration is recorded.
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             if (!fullResult.isRefundGas()) {
                 frame.decrementRemainingGas(gasRequirement);
             }
             result = fullResult.result();
-
-            // ops duration recording (only for calls that actually execute)
-            final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
-            final var opsDurationSchedule = opsDurationCounter.schedule();
-            final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
-                    gasRequirement, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
-            opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
-            contractMetrics
-                    .opsDurationMetrics()
-                    .recordSystemContractOpsDuration(
-                            systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
         }
         finishPrecompileExecution(context, result, SYSTEM);
     }
