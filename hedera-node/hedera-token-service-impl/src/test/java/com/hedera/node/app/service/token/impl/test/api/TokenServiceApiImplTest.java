@@ -898,6 +898,22 @@ class TokenServiceApiImplTest {
             assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
         }
 
+        @Test
+        void reverseNodeFeeIsNoopWhenAmountIsZero() {
+            // Given fee collection is enabled and a node fee was accumulated
+            final var config = configBuilder.getOrCreateConfig();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 2L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we reverse a zero amount (the guard short-circuits before checking config)
+            subject.reverseNodeFee(NODE_ACCOUNT_ID, 0L);
+
+            // Then nothing is dissipated
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
+        }
+
         private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
             private final Map<AccountID, Long> accumulatedFees = new HashMap<>();
 
