@@ -902,8 +902,6 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
 
-          exit "${task_code}"
-
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
