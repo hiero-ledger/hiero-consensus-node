@@ -51,9 +51,6 @@ public class AsyncInputStream {
 
     private static final String THREAD_NAME = "async-input-stream";
 
-    // maximum message size in bytes - 256Mb
-    static final int MAX_MESSAGE_SIZE = 1 << 28;
-
     /** Lifecycle states of the background reader thread. Transitions are monotonic. */
     public enum Status {
         /** {@link #start(StandardWorkGroup)} has not been called yet. */
@@ -80,6 +77,8 @@ public class AsyncInputStream {
 
     private final long timeoutNanos;
 
+    private final long maxMessageSizeBytes;
+
     /**
      * Create a new async input stream.
      *
@@ -89,7 +88,10 @@ public class AsyncInputStream {
      *                              must be non-null and positive
      */
     public AsyncInputStream(
-            @NonNull final DataInputStream inputStream, final int queueSizeThreshold, @NonNull final Duration timeout) {
+            @NonNull final DataInputStream inputStream,
+            final int queueSizeThreshold,
+            @NonNull final Duration timeout,
+            final int maxMessageSizeBytes) {
         this.inputStream = Objects.requireNonNull(inputStream, "inputStream must not be null");
         Objects.requireNonNull(timeout, "timeout must not be null");
 
@@ -99,9 +101,13 @@ public class AsyncInputStream {
         if (!timeout.isPositive()) {
             throw new IllegalArgumentException("timeout must be positive");
         }
+        if (maxMessageSizeBytes <= 0) {
+            throw new IllegalArgumentException("maxMessageSizeBytes must be greater than 0");
+        }
 
         this.queueSizeThreshold = queueSizeThreshold;
         this.timeoutNanos = timeout.toNanos();
+        this.maxMessageSizeBytes = maxMessageSizeBytes;
     }
 
     /**
@@ -139,9 +145,9 @@ public class AsyncInputStream {
                 if (len < 0) {
                     logger.info(RECONNECT.getMarker(), "Async input stream is done");
                     return;
-                } else if (len > MAX_MESSAGE_SIZE) {
+                } else if (len > maxMessageSizeBytes) {
                     throw new MerkleSynchronizationException(
-                            "Message size exceeds maximum size of " + MAX_MESSAGE_SIZE);
+                            "Message size exceeds maximum size of " + maxMessageSizeBytes + " bytes");
                 }
 
                 final byte[] messageBytes = new byte[len];
