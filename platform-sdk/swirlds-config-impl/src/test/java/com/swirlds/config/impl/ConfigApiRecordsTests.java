@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -319,6 +320,7 @@ class ConfigApiRecordsTests {
         @ConfigData("circular")
         public record Root(Nested nested) {}
 
+        @ConfigData
         public record Nested(Root circular) {}
     }
 
@@ -335,8 +337,10 @@ class ConfigApiRecordsTests {
         @ConfigData("circular")
         public record Root(Nested1 nested1) {}
 
+        @ConfigData
         public record Nested1(Nested2 nested2) {}
 
+        @ConfigData
         public record Nested2(Nested1 circular) {}
     }
 
@@ -360,6 +364,7 @@ class ConfigApiRecordsTests {
         @ConfigData("nested")
         public record Root(Leaf left, Leaf right) {}
 
+        @ConfigData
         public record Leaf(String value) {}
     }
 
@@ -422,6 +427,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
+        @ConfigData
         public record Nested(
                 String stringProperty,
                 boolean boolProperty,
@@ -457,6 +463,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
+        @ConfigData
         public record Nested(
                 @ConfigProperty(value = "customName") String property,
                 @ConfigProperty(defaultValue = "val1") String stringProperty,
@@ -491,6 +498,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
+        @ConfigData
         public record Nested(Pair pair) {}
 
         public class Pair {
@@ -539,6 +547,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
+        @ConfigData
         public record Nested(@Positive int intProperty) {}
     }
 
@@ -582,6 +591,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Leaf left, Leaf right) {}
 
+        @ConfigData
         public record Leaf(@Positive int value) {}
     }
 
@@ -622,8 +632,10 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Level1 level1) {}
 
+        @ConfigData
         public record Level1(Level2 level2) {}
 
+        @ConfigData
         public record Level2(@Min(1) @Max(10) int value) {}
     }
 
@@ -644,6 +656,7 @@ class ConfigApiRecordsTests {
         public record Root(
                 @ConfigProperty(value = "customNested") Leaf nested) {}
 
+        @ConfigData
         public record Leaf(
                 @ConfigProperty(value = "customValue") @Positive
                 int value) {}
@@ -681,6 +694,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Leaf left, Leaf right) {}
 
+        @ConfigData
         public record Leaf(@ConstraintMethod("check") int value) {
 
             public ConfigViolation check(final Configuration configuration) {
@@ -690,6 +704,50 @@ class ConfigApiRecordsTests {
                 return new DefaultConfigViolation("root.check", value + "", true, "must be positive");
             }
         }
+    }
+
+    @Nested
+    class ConstraintMethodOnComponentHoldingNestedRecord {
+
+        /**
+         * A component that holds a nested config data object is not a property that can be set, but a constraint can
+         * still be defined for the group as a whole, so the validation has to see the component itself.
+         */
+        @Test
+        void test() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withValue("root.leaf.min", "10")
+                    .withValue("root.leaf.max", "5")
+                    .withConfigDataType(Root.class);
+
+            ConfigViolation violation = verifySingleViolation(builder);
+            assertEquals("root.leaf", violation.getPropertyName());
+            assertEquals("min must not be greater than max", violation.getMessage());
+        }
+
+        @Test
+        void testNoViolation() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withValue("root.leaf.min", "1")
+                    .withValue("root.leaf.max", "5")
+                    .withConfigDataType(Root.class);
+
+            assertDoesNotThrow(builder::build, "No violation should happen");
+        }
+
+        @ConfigData("root")
+        public record Root(@ConstraintMethod("checkRange") Leaf leaf) {
+
+            public ConfigViolation checkRange(final Configuration configuration) {
+                if (leaf.min() <= leaf.max()) {
+                    return null;
+                }
+                return new DefaultConfigViolation("root.leaf", leaf + "", true, "min must not be greater than max");
+            }
+        }
+
+        @ConfigData
+        public record Leaf(int min, int max) {}
     }
 
     @Nested
@@ -755,6 +813,375 @@ class ConfigApiRecordsTests {
                 Pair pair) {}
 
         public record Pair(@Positive int left) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsFromUsageSite {
+
+        @Test
+        void testDefaultIsUsedWhenNoValueIsDefined() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("fromSite", root.leaf().value());
+            assertEquals(42, root.leaf().count());
+        }
+
+        @Test
+        void testDefinedValueBeatsDefault() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.count", "7")
+                    .withConfigDataType(Root.class)
+                    .build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("fromSite", root.leaf().value());
+            assertEquals(7, root.leaf().count());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "value", defaultValue = "fromSite")
+                @ConfigDefault(property = "count", defaultValue = "42")
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(String value, int count) {}
+    }
+
+    @Nested
+    class SameNestedRecordWithDifferentDefaultsPerSite {
+
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("leftDefault", root.left().value());
+            assertEquals(1, root.left().count());
+            assertEquals("rightDefault", root.right().value());
+            assertEquals(2, root.right().count());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "value", defaultValue = "leftDefault")
+                @ConfigDefault(property = "count", defaultValue = "1")
+                Leaf left,
+
+                @ConfigDefault(property = "value", defaultValue = "rightDefault")
+                @ConfigDefault(property = "count", defaultValue = "2")
+                Leaf right) {}
+
+        @ConfigData
+        public record Leaf(String value, int count) {}
+    }
+
+    @Nested
+    class ConfigDefaultCallStyles {
+
+        /**
+         * A repeatable annotation is only visible through {@code getAnnotationsByType}, so all three ways of writing
+         * the defaults have to resolve the same way.
+         */
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("single", root.single().value());
+            assertEquals("repeated", root.repeated().value());
+            assertEquals(1, root.repeated().count());
+            assertEquals("container", root.container().value());
+            assertEquals(2, root.container().count());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "value", defaultValue = "single")
+                LeafWithDefault single,
+
+                @ConfigDefault(property = "value", defaultValue = "repeated")
+                @ConfigDefault(property = "count", defaultValue = "1")
+                Leaf repeated,
+
+                @ConfigDefault.List({
+                    @ConfigDefault(property = "value", defaultValue = "container"),
+                    @ConfigDefault(property = "count", defaultValue = "2")
+                })
+                Leaf container) {}
+
+        @ConfigData
+        public record Leaf(String value, int count) {}
+
+        @ConfigData
+        public record LeafWithDefault(
+                String value,
+                @ConfigProperty(defaultValue = "0") int count) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsWithSeparatorInValue {
+
+        /**
+         * The property and the value are separate annotation members, so a value containing the separator of the old
+         * {@code "property=value"} form needs no escaping.
+         */
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            assertEquals("a=b=c", configuration.getConfigData(Root.class).leaf().value());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "value", defaultValue = "a=b=c")
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(String value) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsWithDottedPath {
+
+        /**
+         * An entry of an enclosing config data object wins over an entry that is declared closer to the property, so a
+         * usage site can override the defaults of everything below it.
+         */
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("fromRoot", root.middle().leaf().value());
+            assertEquals("fromMiddle", root.middle().leaf().other());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "leaf.value", defaultValue = "fromRoot")
+                Middle middle) {}
+
+        @ConfigData
+        public record Middle(
+                @ConfigDefault(property = "value", defaultValue = "fromMiddle")
+                @ConfigDefault(property = "other", defaultValue = "fromMiddle")
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(String value, String other) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsBeatPropertyDefault {
+
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("fromSite", root.overridden().value());
+            assertEquals("fromRecord", root.untouched().value());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "value", defaultValue = "fromSite")
+                Leaf overridden,
+
+                Leaf untouched) {}
+
+        @ConfigData
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsRespectPropertyRenaming {
+
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals("fromSite", root.leaf().value());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "renamed", defaultValue = "fromSite")
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(
+                @ConfigProperty(value = "renamed") String value) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsForCollections {
+
+        /**
+         * The property and the value are separate annotation members, so a value can contain the commas that separate
+         * the items of a collection.
+         */
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertIterableEquals(List.of("a", "b", "c"), root.leaf().listProperty());
+            assertEquals(Set.of("x", "y", "z"), root.leaf().setProperty());
+            assertNull(root.leaf().nullProperty());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "listProperty", defaultValue = "a,b,c")
+                @ConfigDefault(property = "setProperty", defaultValue = "x,y,z")
+                @ConfigDefault(property = "nullProperty", defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(List<String> listProperty, Set<String> setProperty, String nullProperty) {}
+    }
+
+    @Nested
+    class NestedRecordDefaultsAreValidated {
+
+        @Test
+        void test() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(Root.class);
+
+            ConfigViolation violation = verifySingleViolation(builder);
+            assertEquals("root.leaf.value", violation.getPropertyName());
+            assertEquals("-1", violation.getPropertyValue());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "value", defaultValue = "-1")
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(@Positive int value) {}
+    }
+
+    @Nested
+    class NullDefaultForNestedRecordWithoutConverter {
+
+        @Test
+        void test() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            assertNull(configuration.getConfigData(Root.class).leaf());
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(String value) {}
+    }
+
+    @Nested
+    class InvalidNestedRecordDefaults {
+
+        @Test
+        void testEntryThatMatchesNoProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(UnknownEntryRoot.class);
+
+            verifyBuildFails(builder, "root.leaf.typo");
+        }
+
+        /**
+         * A property is addressed by its config name, so using the name of the record component of a renamed property
+         * is the mistake most likely to be made. The error has to name the property that does exist.
+         */
+        @Test
+        void testEntryUsingTheRecordComponentNameOfARenamedProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(RenamedPropertyRoot.class);
+
+            verifyBuildFails(builder, "root.leaf.value", "Known properties: [root.leaf.renamed]");
+        }
+
+        @Test
+        void testAnnotationOnComponentThatIsNotANestedRecord() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withValue("root.value", "x")
+                    .withConfigDataType(NotANestedRecordRoot.class);
+
+            verifyBuildFails(builder, "is not a nested config data object");
+        }
+
+        @Test
+        void testDefaultValueForNestedRecordWithoutConverter() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(DefaultValueRoot.class);
+
+            verifyBuildFails(builder, "is a nested config data object");
+        }
+
+        @ConfigData("root")
+        public record UnknownEntryRoot(
+                @ConfigDefault(property = "value", defaultValue = "1")
+                @ConfigDefault(property = "typo", defaultValue = "2")
+                Leaf leaf) {}
+
+        @ConfigData("root")
+        public record RenamedPropertyRoot(
+                @ConfigDefault(property = "value", defaultValue = "1")
+                RenamedLeaf leaf) {}
+
+        @ConfigData
+        public record RenamedLeaf(
+                @ConfigProperty(value = "renamed") String value) {}
+
+        @ConfigData("root")
+        public record NotANestedRecordRoot(
+                @ConfigDefault(property = "value", defaultValue = "1")
+                String value) {}
+
+        @Test
+        void testRecordComponentThatIsNeitherNestedNorConverted() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(UnmarkedRecordRoot.class);
+
+            verifyBuildFails(builder, "is neither annotated with ConfigData", "nor has a converter registered");
+        }
+
+        @ConfigData("root")
+        public record UnmarkedRecordRoot(UnmarkedLeaf leaf) {}
+
+        public record UnmarkedLeaf(String value) {}
+
+        @ConfigData("root")
+        public record DefaultValueRoot(
+                @ConfigProperty(defaultValue = "whatever") Leaf leaf) {}
+
+        @ConfigData
+        public record Leaf(String value) {}
+    }
+
+    private static void verifyBuildFails(final ConfigurationBuilder builder, final String... expectedMessageParts) {
+        IllegalStateException exception = assertThrows(IllegalStateException.class, builder::build);
+        Throwable cause = exception.getCause();
+        assertInstanceOf(IllegalArgumentException.class, cause, "Expected cause for " + exception.getMessage());
+        for (final String expectedMessagePart : expectedMessageParts) {
+            assertTrue(
+                    cause.getMessage().contains(expectedMessagePart),
+                    "Expected message to contain '" + expectedMessagePart + "' but was '" + cause.getMessage() + "'");
+        }
     }
 
     private static ConfigViolation verifySingleViolation(final ConfigurationBuilder builder) {

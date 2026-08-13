@@ -83,12 +83,18 @@ public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
                     recordSource.getCharContent(true).toString());
 
             if (!recordDefinitions.isEmpty()) {
+                // the source of the record is parsed on its own, so a component that holds a nested config data object
+                // declared elsewhere has to be resolved through the element model of the compiler
+                final ConfigDataRecordDefinition recordDefinition = new NestedRecordExpander(
+                                processingEnv.getElementUtils(), processingEnv.getTypeUtils())
+                        .expand(recordDefinitions.getFirst(), typeElement);
+
                 final JavaFileObject constantsSourceFile =
                         getConstantSourceFile(packageName, simpleClassName, typeElement);
                 log("generating config constants file: " + constantsSourceFile.getName());
-                ConstantClassFactory.doWork(recordDefinitions.getFirst(), constantsSourceFile);
+                ConstantClassFactory.doWork(recordDefinition, constantsSourceFile);
                 log("generating config doc file: " + configDocumentationFile.getFileName());
-                DocumentationFactory.doWork(recordDefinitions.getFirst(), configDocumentationFile);
+                DocumentationFactory.doWork(recordDefinition, configDocumentationFile);
             }
         } catch (final Exception e) {
             throw new RuntimeException("Error handling " + typeElement, e);

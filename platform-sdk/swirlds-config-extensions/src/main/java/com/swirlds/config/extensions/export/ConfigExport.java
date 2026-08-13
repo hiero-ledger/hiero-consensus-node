@@ -6,17 +6,11 @@ import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.reflect.RecordComponent;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Class that provides functionality to print information about the config.
@@ -46,7 +40,8 @@ public final class ConfigExport {
         Objects.requireNonNull(lineConsumer, ERROR_LINE_CONSUMER_IS_NULL);
 
         // Properties defined in record configs, including values overridden by configured sources
-        final Map<String, Object> recordProperties = getPropertiesForConfigDataRecords(configuration);
+        final Map<String, Object> recordProperties =
+                ConfigReflectionUtils.getAllPropertiesAsMap(configuration, property -> true);
 
         // Properties defined in property file but do not exist in record configs
         final Map<String, Object> nonRecordProperties = new HashMap<>();
@@ -54,8 +49,6 @@ public final class ConfigExport {
                 .getPropertyNames()
                 .filter(name -> !recordProperties.containsKey(name))
                 .forEach(name -> nonRecordProperties.put(name, configuration.getValue(name)));
-
-        final Set<Object> allConfigValues = combine(recordProperties.values(), nonRecordProperties.values());
 
         // Write all record defined values first, in alphabetical order
         recordProperties.keySet().stream().sorted().forEach(name -> {
@@ -92,10 +85,6 @@ public final class ConfigExport {
         printStream.write(builder.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    private static <T> Set<T> combine(final Collection<T> set1, final Collection<T> set2) {
-        return Stream.concat(set1.stream(), set2.stream()).collect(Collectors.toSet());
-    }
-
     private static String buildLine(final String name, final Object value, final String suffix) {
         final String valueString = String.valueOf(value);
         return name + ", " + valueString + suffix;
@@ -106,48 +95,5 @@ public final class ConfigExport {
         Objects.requireNonNull(configuration, ERROR_CONFIGURATION_IS_NULL);
         Objects.requireNonNull(builder, ERROR_BUILDER_IS_NULL);
         printConfig(configuration, line -> builder.append(line).append(System.lineSeparator()));
-    }
-
-    private static Map<String, Object> getPropertiesForConfigDataRecords(final Configuration configuration) {
-        final Map<String, Object> map = new HashMap<>();
-        configuration
-                .getConfigDataTypes()
-                .forEach(configDataType -> putValuesInMap(configuration.getConfigData(configDataType), map));
-        return map;
-    }
-
-    private static void putValuesInMap(final Record configData, final Map<String, Object> map) {
-        final Class<? extends Record> configDataType = configData.getClass();
-        final String propertyNamePrefix = ConfigReflectionUtils.getNamePrefixForConfigDataRecord(configDataType);
-        Arrays.stream(configDataType.getRecordComponents()).forEach(component -> {
-            final String name =
-                    ConfigReflectionUtils.getPropertyNameForConfigDataProperty(propertyNamePrefix, component);
-            final Object value = getComponentValue(configData, component);
-            map.put(name, value);
-        });
-    }
-
-    private static Object getComponentValue(final Record configData, final RecordComponent component) {
-        try {
-            return component.getAccessor().invoke(configData);
-        } catch (final Exception e) {
-            throw new IllegalStateException(
-                    "Can not access config value for record type '" + component.getClass() + "."
-                            + component.getAccessor().getName() + "'",
-                    e);
-        }
-    }
-
-    private static String createSpaces(final String value, final int maxLength) {
-        final int padCount = Math.max(0, maxLength - value.length());
-        return " ".repeat(padCount);
-    }
-
-    private static int getMaxPropertyLength(final Set<?> values) {
-        return values.stream()
-                .map(String::valueOf)
-                .mapToInt(String::length)
-                .max()
-                .orElse(0);
     }
 }

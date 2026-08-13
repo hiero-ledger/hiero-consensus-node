@@ -6,7 +6,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.validation.ConfigValidator;
 import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
-import com.swirlds.config.extensions.reflection.ConfigReflectionUtils.AnnotatedProperty;
+import com.swirlds.config.extensions.reflection.ConfigReflectionUtils.ConfigDataProperty;
 import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.ParameterizedType;
@@ -36,7 +36,7 @@ public class EmulatesMapValidator implements ConfigValidator {
     }
 
     @NonNull
-    private Optional<ConfigViolation> convert(@NonNull final AnnotatedProperty<EmulatesMap, ?> property) {
+    private Optional<ConfigViolation> convert(@NonNull final ConfigDataProperty property) {
         Objects.requireNonNull(property, "property cannot be null");
         final Class<?> type = property.propertyType();
         if (!List.class.isAssignableFrom(type) && !Set.class.isAssignableFrom(type)) {
@@ -58,21 +58,20 @@ public class EmulatesMapValidator implements ConfigValidator {
                     create(property, "Property is annotated with @EmulatesMap but is not a Collection of KeyValuePair");
             return Optional.of(violation);
         }
-        final var typedValue = (AnnotatedProperty<EmulatesMap, Collection<KeyValuePair>>) property;
+        final var typedValue = (Collection<KeyValuePair>) property.propertyValue();
 
         final long uniqueKeyCount =
-                typedValue.propertyValue().stream().map(p -> p.key()).distinct().count();
-        if (uniqueKeyCount != typedValue.propertyValue().size()) {
-            final ConfigViolation violation = create(typedValue, "Property contains duplicate keys");
+                typedValue.stream().map(KeyValuePair::key).distinct().count();
+        if (uniqueKeyCount != typedValue.size()) {
+            final ConfigViolation violation = create(property, "Property contains duplicate keys");
             return Optional.of(violation);
         }
         return Optional.empty();
     }
 
     @NonNull
-    private ConfigViolation create(
-            @NonNull final AnnotatedProperty<EmulatesMap, ?> property, @NonNull final String message) {
-        Objects.requireNonNull(property, "AnnotatedProperty cannot be null");
+    private ConfigViolation create(@NonNull final ConfigDataProperty property, @NonNull final String message) {
+        Objects.requireNonNull(property, "ConfigDataProperty cannot be null");
         Objects.requireNonNull(message, "Message cannot be null");
         return new DefaultConfigViolation(property.propertyName(), "VALUE_NOT_AVAILABLE", true, message);
     }

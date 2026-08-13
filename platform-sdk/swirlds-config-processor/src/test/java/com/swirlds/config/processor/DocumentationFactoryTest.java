@@ -38,7 +38,7 @@ public class DocumentationFactoryTest {
         Assertions.assertTrue(Files.exists(docFilePath));
         final List<String> lines = Files.readAllLines(docFilePath);
         final List<String> nonEmptyLines =
-                lines.stream().filter(l -> !l.isEmpty()).collect(Collectors.toList());
+                lines.stream().filter(l -> !l.isEmpty()).toList();
         Assertions.assertEquals(MarkdownSyntax.H2_PREFIX + "test.saveStatePeriod", nonEmptyLines.get(0));
         Assertions.assertEquals(RECORD_DEFINITION, nonEmptyLines.get(1));
         Assertions.assertEquals(MarkdownSyntax.TYPE + MarkdownSyntax.asCode("int"), nonEmptyLines.get(2));

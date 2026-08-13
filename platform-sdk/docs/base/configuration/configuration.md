@@ -302,6 +302,95 @@ final AppConfig appConfig = config.getConfigData(AppConfig.class);
 System.out.println("Starting " + appConfig.name() + " version " + appConfig.version());
 ```
 
+### Nested config data records
+
+A component of a config data record can be a record itself. Such a nested record does not have a value of its own that
+a config source could provide. Instead each of its components becomes a property, prefixed by the name of the component
+that holds the nested record. This allows related properties to be grouped and a group to be reused in several places:
+
+```
+@ConfigData("wiring")
+public record WiringConfig(
+    SchedulerConfig prehandler,
+    SchedulerConfig handler) {}
+
+@ConfigData
+public record SchedulerConfig(
+    @ConfigProperty(defaultValue = "SEQUENTIAL") SchedulerType type,
+    @ConfigProperty(defaultValue = "500") long capacity) {}
+```
+
+The record above defines 4 properties:
+
+- `wiring.prehandler.type`
+- `wiring.prehandler.capacity`
+- `wiring.handler.type`
+- `wiring.handler.capacity`
+
+A record type is only treated as a nested config data record if it is annotated with `@ConfigData`. The annotation is
+what distinguishes a group of properties from a value that is converted from a single property, and it is the only
+signal that is visible both at runtime and to the annotation processor. Its `value` is not used for a nested record,
+since the prefix always comes from the component that holds it. Like any config data record the type must be public and
+must have exactly one constructor. A record valued component whose type has neither `@ConfigData` nor a registered
+converter is rejected, so a forgotten annotation is reported instead of silently producing a property that cannot be
+set. Nesting can go any number of levels deep, and a cycle in the record types, where a record contains itself directly
+or through other records, is detected and fails the creation of the configuration.
+
+Because a nested record component groups properties rather than holding a value, it cannot have a `defaultValue`. The
+one exception is `ConfigProperty.NULL_DEFAULT_VALUE`, which makes the whole group optional and leaves the component
+`null` when it is not configured:
+
+```
+@ConfigData("wiring")
+public record WiringConfig(
+    @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE) SchedulerConfig optional) {}
+```
+
+**Note:** a record type without `@ConfigData` stays a single property whose raw string value is converted by a
+registered `ConfigConverter`, which keeps config data records that use record based value types working unchanged. The
+constraint annotations described below are still checked for the components of such a record, since a converter decides
+how a value is populated while a constraint is about the resolved value.
+
+#### Defining defaults at the place a nested record is used
+
+The defaults of a nested record are normally defined by the `@ConfigProperty` annotations of that record, which makes
+them the same everywhere the record is used. The `com.swirlds.config.api.ConfigDefault` annotation defines a default at
+the place where the nested record is used instead, so that the same record type can be used with different defaults:
+
+```
+@ConfigData("wiring")
+public record WiringConfig(
+    @ConfigDefault(property = "type", defaultValue = "CONCURRENT")
+    @ConfigDefault(property = "capacity", defaultValue = "500")
+    SchedulerConfig prehandler,
+
+    @ConfigDefault(property = "type", defaultValue = "SEQUENTIAL")
+    SchedulerConfig handler) {}
+
+@ConfigData
+public record SchedulerConfig(SchedulerType type, long capacity) {}
+```
+
+`wiring.prehandler.type` now defaults to `CONCURRENT` while `wiring.handler.type` defaults to `SEQUENTIAL`, and each
+property can still be set individually by a config source without restating the others. The annotation is repeatable, so
+it is simply written several times. `@ConfigDefault.List({...})` groups several of them explicitly where that reads
+better, but is never required.
+
+The value of a property is resolved in the following order, from most to least specific:
+
+1. the value that a config source defines for the full property name
+2. the `@ConfigDefault` for that property, where an annotation that is declared by an enclosing config data record wins
+   over one that is declared closer to the property
+3. the `defaultValue` of the `@ConfigProperty` of the property
+
+If none of them defines a value the configuration fails on init, as for any other property.
+
+The `property` of a `@ConfigDefault` is relative to the annotated component and uses the property names, so a renaming
+by `@ConfigProperty(value = ...)` has to be taken into account. It may contain dots to reach a property of a record that
+is nested more deeply, like `@ConfigDefault(property = "inner.capacity", defaultValue = "10")`. A `property` that does
+not match any property fails the creation of the configuration, and the error lists the properties that do exist, so a
+typo or a missed renaming is reported instead of being silently ignored.
+
 ### Validating values of a config data record
 
 The config API provides some annotations that can be used to validate values of properties that are defined in a config
@@ -327,6 +416,10 @@ public record AppConfig(
 The given code defines that the `version` value must always be a positive value (`version > 0`) and the `percentageDone`
 value must be in the range 0 to 100 (`0 <= percentageDone <= 100`).
 
+The annotations can be used on the components of a nested config data record as well. A violation is then reported under
+the full property name, so a constraint on a record that is used in several places is checked once per place and each
+violation names the property it belongs to.
+
 All the constraint annotations are checked when the `com.swirlds.config.api.Configuration` is created. At
 that moment a complete validation run is executed that contains all constraint annotations for all registered config
 data record types next to all registered `com.swirlds.config.api.validation.ConfigValidator` implementations. Like the
@@ -338,6 +431,32 @@ Internally, the support for constraint annotations is created by providing speci
 the `com.swirlds.config.api.validation.ConfigValidator` interface. The current implementations can be found in
 the `com.swirlds.config.impl.validators.annotation.internal` package of the `swirlds-config-impl` module and used as
 reference for custom or future constraints annotations.
+
+### Generated constants and documentation
+
+The `swirlds-config-processor` module provides an annotation processor that runs over every config data record at
+compile time. It is applied by the modules of `platform-sdk`, `hiero-observability` and the example apps, but not by
+the modules of `hedera-node`.
+
+For a config data record `FooConfig` the processor generates a class `FooConfig_` that holds the full name of each of
+its properties as a constant, so that code referring to a property by name does not have to repeat the string literal:
+
+```
+public static final String STATE_HASHER = "state.wiring.stateHasher";
+```
+
+The name of a constant is the property name without the prefix of the record, with camel case turned into upper snake
+case. The dots that separate the segments of a property of a nested config data record become underscores, so
+`root.leaf.value` becomes `LEAF_VALUE`.
+
+The processor also appends one entry per property to a `build/docs/config.md` file that lists the record, the type, the
+default value and the description of the property. The description is taken from the `@param` tag of the property in
+the javadoc of the record.
+
+A record component that holds a nested config data record is expanded into the properties that record really defines.
+The component itself is not a property that can be set, so it gets neither a constant nor an entry in the
+documentation. Where a property of a nested record has a default that is defined by a `@ConfigDefault` of the usage
+site, that default is the one that is documented.
 
 ## Customizing the configuration
 

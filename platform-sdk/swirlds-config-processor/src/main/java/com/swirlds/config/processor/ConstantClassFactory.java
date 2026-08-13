@@ -98,7 +98,9 @@ public final class ConstantClassFactory {
     }
 
     /**
-     * Converts a property name into a constant name. The conversion is based on changing from camel case to snake case
+     * Converts a property name into a constant name. The conversion is based on changing from camel case to snake case.
+     * The dots that separate the segments of the name of a property of a nested config data object become underscores
+     * as well, since a dot is not valid in a constant name.
      *
      * @param propertyName The property name to be converted. Must not be {@code null}.
      *
@@ -111,7 +113,9 @@ public final class ConstantClassFactory {
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < propertyName.length(); i++) {
             final char character = propertyName.charAt(i);
-            if (i > 0 && Character.isUpperCase(character)) {
+            if (character == '.') {
+                builder.append("_");
+            } else if (i > 0 && Character.isUpperCase(character) && builder.charAt(builder.length() - 1) != '_') {
                 builder.append("_");
                 builder.append(character);
             } else {

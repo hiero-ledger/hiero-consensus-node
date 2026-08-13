@@ -12,9 +12,13 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -95,64 +99,173 @@ public final class ConfigReflectionUtils {
     }
 
     /**
-     * Returns all {@link AnnotatedProperty} that can be found for the given constraint annotation.
+     * Returns all properties that are annotated with the given constraint annotation. The annotation itself can be read
+     * from a returned property by {@link ConfigDataProperty#annotation(Class)}.
      *
      * @param constraintAnnotationType the type of the constraint annotation
      * @param configuration            the configuration that should be used for the search
      * @param <A>                      the annotation type
-     * @param <V>                      the type of possible values
-     * @return all {@link AnnotatedProperty} that can be found for the given constraint annotation
+     * @return all properties that are annotated with the given constraint annotation
      */
-    @SuppressWarnings("unchecked")
-    public static <A extends Annotation, V>
-            List<AnnotatedProperty<A, V>> getAllMatchingPropertiesForConstraintAnnotation(
-                    final Class<A> constraintAnnotationType, final Configuration configuration) {
+    public static <A extends Annotation> List<ConfigDataProperty> getAllMatchingPropertiesForConstraintAnnotation(
+            final Class<A> constraintAnnotationType, final Configuration configuration) {
         Objects.requireNonNull(constraintAnnotationType, "annotationType can not be null");
         Objects.requireNonNull(configuration, "configuration can not be null");
 
-        return configuration.getConfigDataTypes().stream()
-                .flatMap(recordType -> collectMatchingProperties(
-                        constraintAnnotationType,
-                        getNamePrefixForConfigDataRecord(recordType),
-                        configuration.getConfigData(recordType)))
-                .map(property -> (AnnotatedProperty<A, V>) property)
+        // A record that is created by a converter is walked into as well. A converter decides how a value is
+        // populated, while a constraint is about the resolved value and is therefore enforced whatever populated it.
+        return collectAllProperties(configuration, Traversal.ALL_COMPONENTS)
+                .filter(property -> property.component().isAnnotationPresent(constraintAnnotationType))
                 .collect(Collectors.toList());
     }
 
     /**
-     * Recursively collects all properties of the given record instance that are annotated with the given annotation.
-     * Record components that are themselves records are treated as nested config data objects and are descended into,
-     * so that a nested property is reported with its full property name (like {@code "root.nested.value"}).
+     * Returns all properties of all config data objects that are registered for the given configuration, including the
+     * properties of nested config data objects.
+     * <p>
+     * Only the properties that can be set are reported. A component that holds a nested config data object is
+     * therefore replaced by the properties of that object, since the component itself has no value of its own, while a
+     * record valued property that a converter populates is a single settable property and is reported as it is.
+     * <p>
+     * The value of a property is read on demand by {@link ConfigDataProperty#propertyValue()}, so collecting the
+     * properties does not access any config data object. A config data object that lives in a package its module does
+     * not export to this one is therefore still reported, but reading the value of one of its properties fails.
+     *
+     * @param configuration the configuration
+     * @return all properties of all registered config data objects as stream, including the properties of nested config data objects
+     */
+    public static Stream<ConfigDataProperty> getAllProperties(final Configuration configuration) {
+        Objects.requireNonNull(configuration, "configuration can not be null");
+        return collectAllProperties(configuration, Traversal.SETTABLE_PROPERTIES);
+    }
+
+    /**
+     * Returns the value of every property that matches the given filter, keyed by the full name of the property and
+     * sorted by it. See {@link #getAllProperties(Configuration)} for the properties that are reported.
+     * <p>
+     * The values are read here, so unlike {@link #getAllProperties(Configuration)} this accesses every config data
+     * object that matches the filter.
+     * <p>
+     * Note that {@link java.util.stream.Collectors#toMap(java.util.function.Function, java.util.function.Function)} can
+     * not be used to build the result: it is implemented with {@link java.util.Map#merge}, which rejects a null value,
+     * while the value of a config property is allowed to be null (see {@link ConfigProperty#NULL_DEFAULT_VALUE}). Two
+     * config data objects can also define the same property name, in which case the last one wins.
+     *
+     * @param configuration the configuration
+     * @param filter        selects the properties to return
+     * @return the value of every matching property, keyed by the full name of the property
+     */
+    public static SortedMap<String, Object> getAllPropertiesAsMap(
+            final Configuration configuration, final Predicate<ConfigDataProperty> filter) {
+        Objects.requireNonNull(configuration, "configuration can not be null");
+        Objects.requireNonNull(filter, "filter can not be null");
+
+        final TreeMap<String, Object> values = new TreeMap<>();
+        getAllProperties(configuration)
+                .filter(filter)
+                .forEach(property -> values.put(property.propertyName(), property.propertyValue()));
+        return Collections.unmodifiableSortedMap(values);
+    }
+
+    /**
+     * Returns all properties of all config data objects that are registered for the given configuration.
+     *
+     * @param configuration the configuration
+     * @param traversal     which record components to report
+     * @return all properties of all registered config data objects as a stream
+     */
+    private static Stream<ConfigDataProperty> collectAllProperties(
+            final Configuration configuration, final Traversal traversal) {
+        return configuration.getConfigDataTypes().stream()
+                .flatMap(recordType -> collectProperties(
+                        getNamePrefixForConfigDataRecord(recordType),
+                        configuration.getConfigData(recordType),
+                        traversal));
+    }
+
+    /**
+     * Defines which record components a traversal reports. The two modes differ in what is reported and in what is
+     * walked into, and the two are not the same question: a record valued component can be a single value or a group
+     * of properties, depending on whether it is a nested config data object.
+     */
+    private enum Traversal {
+        /**
+         * Every component that is one value a config source can set, whichever type it has. This is not the same as
+         * every component that is not a record: a {@link java.util.List} property is set as {@code "404,500"} and a
+         * record that a converter populates is set as a single value like {@code "1:10"}, so both are reported as they
+         * are and are not walked into.
+         * <p>
+         * The only component that is not reported is one that holds a nested config data object. Such a component has
+         * no value of its own, since a config source defines {@code "nested.leaf.value"} and never
+         * {@code "nested.leaf"}, so it is replaced by the properties below it.
+         */
+        SETTABLE_PROPERTIES,
+        /**
+         * Every record component, walking into every record valued component, so that an annotation is found wherever
+         * it is declared.
+         * <p>
+         * This reports more than {@link #SETTABLE_PROPERTIES} in two ways. A record that a converter populates is
+         * walked into, so that a constraint on one of its components is enforced even though the record itself is a
+         * single value. And a component that holds a nested config data object is reported, so that a constraint can
+         * be defined for the group as a whole.
+         */
+        ALL_COMPONENTS
+    }
+
+    /**
+     * Recursively collects all properties of the given record instance.
      * <p>
      * The walk is done on the already created object graph instead of on the record types, since a record component of
      * a nested record does not identify a single config property: the same nested record type can be used several times
      * below one config data object, each time with its own property name and value.
      *
-     * @param annotationType the type of the constraint annotation
      * @param namePrefix     the property name prefix of the given record instance
      * @param recordInstance the record instance to collect the properties from
-     * @param <A>            the annotation type
-     * @return all annotated properties of the given record instance and all its nested records
+     * @param traversal      which record components to report
+     * @return all properties of the given record instance and of all records below it
      */
-    private static <A extends Annotation> Stream<AnnotatedProperty<A, Object>> collectMatchingProperties(
-            final Class<A> annotationType, final String namePrefix, final Record recordInstance) {
+    private static Stream<ConfigDataProperty> collectProperties(
+            final String namePrefix, final Record recordInstance, final Traversal traversal) {
         return Arrays.stream(recordInstance.getClass().getRecordComponents()).flatMap(component -> {
             final String propertyName = getPropertyNameForConfigDataProperty(namePrefix, component);
-            final Object propertyValue = getPropertyValue(component, recordInstance);
+            final boolean nested = isNestedConfigDataObject(component.getType());
 
-            Stream<AnnotatedProperty<A, Object>> properties = Stream.empty();
-            if (component.isAnnotationPresent(annotationType)) {
-                properties =
-                        Stream.of(createData(annotationType, component, propertyName, propertyValue, recordInstance));
+            // a component that holds a nested config data object has no value of its own, so it is not a property that
+            // can be set and is only reported when every component is asked for
+            final Stream<ConfigDataProperty> property = traversal == Traversal.ALL_COMPONENTS || !nested
+                    ? Stream.of(new ConfigDataProperty(propertyName, component, recordInstance))
+                    : Stream.empty();
+
+            // Reading the value is the only way to walk into a record, so a component that is not walked into is left
+            // alone and a caller that is only interested in the metadata of a property never causes the value to be
+            // read.
+            //
+            // The accessibility is checked first since a config data object may live in a package that its module does
+            // not export to this one. Nothing inside such a record can be read either, so there is nothing to report
+            // for it and it is treated as a leaf. A nested config data object can default to null, so the pattern
+            // match doubles as the null check.
+            final boolean descend =
+                    traversal == Traversal.ALL_COMPONENTS ? component.getType().isRecord() : nested;
+            if (descend
+                    && component.getAccessor().canAccess(recordInstance)
+                    && getPropertyValue(component, recordInstance) instanceof final Record nestedInstance) {
+                return Stream.concat(property, collectProperties(propertyName, nestedInstance, traversal));
             }
-            // A null value can only happen for a record that was created by a converter, an instance of a nested config
-            // data object is never null. The pattern match therefore doubles as the null check.
-            if (component.getType().isRecord() && propertyValue instanceof final Record nestedInstance) {
-                properties = Stream.concat(
-                        properties, collectMatchingProperties(annotationType, propertyName, nestedInstance));
-            }
-            return properties;
+            return property;
         });
+    }
+
+    /**
+     * Checks whether the given type is a nested config data object, meaning it holds properties of its own rather than
+     * being a single value. A record type has to be annotated with {@link ConfigData} to be treated as one, so that a
+     * record type that is populated from a single value by a converter is never mistaken for a group of properties.
+     *
+     * @param type the type
+     * @return true if the type is a nested config data object
+     */
+    public static boolean isNestedConfigDataObject(final Class<?> type) {
+        Objects.requireNonNull(type, "type can not be null");
+        return type.isRecord() && type.isAnnotationPresent(ConfigData.class);
     }
 
     /**
@@ -166,55 +279,51 @@ public final class ConfigReflectionUtils {
         try {
             return component.getAccessor().invoke(recordInstance);
         } catch (final IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalArgumentException("Can not get the needed metadata for the given type", e);
+            throw new IllegalArgumentException(
+                    "Can not read the value of the property '" + component.getName() + "' of '"
+                            + recordInstance.getClass().getName() + "'",
+                    e);
         }
     }
 
     /**
-     * Creates a {@link AnnotatedProperty} for the given values.
+     * A property of a config data object.
      *
-     * @param annotationType the type of the annotation
-     * @param component      the component
-     * @param propertyName   the full name of the property
-     * @param propertyValue  the value of the property
-     * @param owner          the record instance that declares the component
-     * @param <A>            type of the annotation
-     * @return the AnnotatedProperty
+     * @param propertyName the full name of the property, including the prefixes of all enclosing config data objects
+     * @param component    the record component that defines the property
+     * @param owner        the record instance that declares the property. For a property of a nested config data
+     *                     object this is the nested record instance and not the root config data object
      */
-    @SuppressWarnings("unchecked")
-    private static <A extends Annotation> AnnotatedProperty<A, Object> createData(
-            final Class<A> annotationType,
-            final RecordComponent component,
-            final String propertyName,
-            final Object propertyValue,
-            final Record owner) {
-        return new AnnotatedProperty<>(
-                component.getAnnotation(annotationType),
-                component,
-                propertyName,
-                propertyValue,
-                (Class<Object>) component.getType(),
-                owner);
-    }
+    public record ConfigDataProperty(String propertyName, RecordComponent component, Record owner) {
 
-    /**
-     * A property of a config data object that is annotated with a constraint annotation.
-     *
-     * @param annotation    the constraint annotation
-     * @param component     the record component that defines the property
-     * @param propertyName  the full name of the property, including the prefixes of all enclosing config data objects
-     * @param propertyValue the value of the property
-     * @param propertyType  the type of the property
-     * @param owner         the record instance that declares the property. For a property of a nested config data
-     *                      object this is the nested record instance and not the root config data object
-     * @param <A>           type of the annotation
-     * @param <V>           type of the value
-     */
-    public record AnnotatedProperty<A extends Annotation, V>(
-            A annotation,
-            RecordComponent component,
-            String propertyName,
-            V propertyValue,
-            Class<V> propertyType,
-            Record owner) {}
+        /**
+         * Returns the value of the property. The value is read on demand, so a caller that is only interested in the
+         * metadata of a property never accesses the config data object it belongs to.
+         *
+         * @return the value of the property
+         */
+        public Object propertyValue() {
+            return getPropertyValue(component, owner);
+        }
+
+        /**
+         * Returns the type of the property.
+         *
+         * @return the type of the property
+         */
+        public Class<?> propertyType() {
+            return component.getType();
+        }
+
+        /**
+         * Returns the annotation of the given type that the property is annotated with.
+         *
+         * @param annotationType the type of the annotation
+         * @param <A>            the annotation type
+         * @return the annotation, or null if the property is not annotated with it
+         */
+        public <A extends Annotation> A annotation(final Class<A> annotationType) {
+            return component.getAnnotation(annotationType);
+        }
+    }
 }

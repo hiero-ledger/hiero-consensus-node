@@ -129,10 +129,27 @@ public final class AntlrConfigRecordParser {
 
     @NonNull
     private static String getTypeForJavaLang(@NonNull final String type) {
-        if (!type.contains(".")) {
+        if (!type.contains(".") && isJavaLangType(type)) {
             return String.class.getPackageName() + "." + type;
         }
         return type;
+    }
+
+    /**
+     * Checks if the given simple name is the name of a type in {@code java.lang}. An unqualified name that is not, like
+     * a record that is declared in the same package, must be left alone instead of being reported as
+     * {@code java.lang.<name>}.
+     *
+     * @param type the simple name of the type
+     * @return true if the type is a type of {@code java.lang}
+     */
+    private static boolean isJavaLangType(@NonNull final String type) {
+        try {
+            Class.forName(String.class.getPackageName() + "." + type);
+            return true;
+        } catch (final ClassNotFoundException e) {
+            return false;
+        }
     }
 
     @NonNull
