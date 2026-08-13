@@ -114,7 +114,7 @@ jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -237,7 +237,7 @@ jobs:
   hapi-tests-misc-records-crypto-and-serial:
     name: "HAPI Tests (Misc Records, Crypto & Misc Serial)"
     if: ${{ inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -341,7 +341,7 @@ jobs:
   hapi-tests-token-time-consuming-and-node-staking:
     name: "HAPI Tests (Token, Time Consuming & Node Staking)"
     if: ${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -444,7 +444,7 @@ jobs:
   hapi-tests-simple-fees-and-nd-reconnect:
     name: "HAPI Tests (Simple Fees & ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -546,7 +546,7 @@ jobs:
   hapi-tests-smart-contracts-and-iss:
     name: "HAPI Tests (Smart Contracts & ISS)"
     if: ${{ inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}
-    runs-on: hl-cn-hapi-bn-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
