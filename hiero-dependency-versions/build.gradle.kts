@@ -13,7 +13,7 @@ val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.12.0"
+val hederaCryptography = "3.15.0"
 val helidon = "4.5.0"
 val jackson = "2.22.1"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
@@ -134,6 +134,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
         because("com.hedera.cryptography.libsecp256k1")
+    }
+    api("com.hedera.cryptography:libxkcp:$hederaCryptography") {
+        because("com.hedera.cryptography.libxkcp")
     }
 
     // Versions of additional tools that are not part of the product or test module paths
