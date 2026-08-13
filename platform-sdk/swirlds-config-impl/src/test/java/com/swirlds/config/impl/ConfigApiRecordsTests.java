@@ -16,6 +16,7 @@ import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.api.NestedConfig;
 import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.api.validation.ConfigViolationException;
 import com.swirlds.config.api.validation.annotation.ConstraintMethod;
@@ -308,7 +309,7 @@ class ConfigApiRecordsTests {
     }
 
     @Nested
-    class RootRecordCircularReference {
+    class NestedRecordDirectSelfReference {
 
         @Test
         void test() {
@@ -318,9 +319,31 @@ class ConfigApiRecordsTests {
         }
 
         @ConfigData("circular")
+        public record Root(SelfReferencing nested) {}
+
+        @NestedConfig
+        public record SelfReferencing(SelfReferencing circular) {}
+    }
+
+    @Nested
+    class ConfigDataRecordUsedAsANestedComponent {
+
+        /**
+         * A config data record is registered and brings its own prefix, so it can not double as a group of properties
+         * below another record. That makes a cycle back to the root structurally impossible, and it is reported as the
+         * missing {@link NestedConfig} it really is rather than as a circular reference.
+         */
+        @Test
+        void test() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(Root.class);
+
+            verifyBuildFails(builder, "is neither annotated with NestedConfig", "nor has a converter registered");
+        }
+
+        @ConfigData("circular")
         public record Root(Nested nested) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested(Root circular) {}
     }
 
@@ -337,10 +360,10 @@ class ConfigApiRecordsTests {
         @ConfigData("circular")
         public record Root(Nested1 nested1) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested1(Nested2 nested2) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested2(Nested1 circular) {}
     }
 
@@ -364,7 +387,7 @@ class ConfigApiRecordsTests {
         @ConfigData("nested")
         public record Root(Leaf left, Leaf right) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(String value) {}
     }
 
@@ -427,7 +450,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested(
                 String stringProperty,
                 boolean boolProperty,
@@ -463,7 +486,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested(
                 @ConfigProperty(value = "customName") String property,
                 @ConfigProperty(defaultValue = "val1") String stringProperty,
@@ -498,7 +521,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested(Pair pair) {}
 
         public class Pair {
@@ -547,7 +570,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Nested nested) {}
 
-        @ConfigData
+        @NestedConfig
         public record Nested(@Positive int intProperty) {}
     }
 
@@ -591,7 +614,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Leaf left, Leaf right) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(@Positive int value) {}
     }
 
@@ -632,10 +655,10 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Level1 level1) {}
 
-        @ConfigData
+        @NestedConfig
         public record Level1(Level2 level2) {}
 
-        @ConfigData
+        @NestedConfig
         public record Level2(@Min(1) @Max(10) int value) {}
     }
 
@@ -656,7 +679,7 @@ class ConfigApiRecordsTests {
         public record Root(
                 @ConfigProperty(value = "customNested") Leaf nested) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(
                 @ConfigProperty(value = "customValue") @Positive
                 int value) {}
@@ -694,7 +717,7 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(Leaf left, Leaf right) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(@ConstraintMethod("check") int value) {
 
             public ConfigViolation check(final Configuration configuration) {
@@ -746,7 +769,7 @@ class ConfigApiRecordsTests {
             }
         }
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(int min, int max) {}
     }
 
@@ -846,7 +869,7 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "count", defaultValue = "42")
                 Leaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(String value, int count) {}
     }
 
@@ -875,7 +898,7 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "count", defaultValue = "2")
                 Leaf right) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(String value, int count) {}
     }
 
@@ -914,10 +937,10 @@ class ConfigApiRecordsTests {
                 })
                 Leaf container) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(String value, int count) {}
 
-        @ConfigData
+        @NestedConfig
         public record LeafWithDefault(
                 String value,
                 @ConfigProperty(defaultValue = "0") int count) {}
@@ -943,7 +966,7 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "value", defaultValue = "a=b=c")
                 Leaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(String value) {}
     }
 
@@ -969,13 +992,13 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "leaf.value", defaultValue = "fromRoot")
                 Middle middle) {}
 
-        @ConfigData
+        @NestedConfig
         public record Middle(
                 @ConfigDefault(property = "value", defaultValue = "fromMiddle")
                 @ConfigDefault(property = "other", defaultValue = "fromMiddle")
                 Leaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(String value, String other) {}
     }
 
@@ -999,7 +1022,7 @@ class ConfigApiRecordsTests {
 
                 Leaf untouched) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(
                 @ConfigProperty(defaultValue = "fromRecord") String value) {}
     }
@@ -1021,7 +1044,7 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "renamed", defaultValue = "fromSite")
                 Leaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(
                 @ConfigProperty(value = "renamed") String value) {}
     }
@@ -1051,7 +1074,7 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "nullProperty", defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
                 Leaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(List<String> listProperty, Set<String> setProperty, String nullProperty) {}
     }
 
@@ -1072,19 +1095,79 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "value", defaultValue = "-1")
                 Leaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record Leaf(@Positive int value) {}
     }
 
     @Nested
-    class NullDefaultForNestedRecordWithoutConverter {
+    class OptionalNestedRecord {
 
+        /**
+         * A config source can only define the properties below the component and never the component itself, so whether
+         * an optional group is created is decided by the whole group rather than by the name of the component.
+         */
         @Test
-        void test() {
+        void testStaysNullWhenNothingBelowItIsDefined() {
             Configuration configuration =
                     ConfigurationBuilder.create().withConfigDataType(Root.class).build();
 
             assertNull(configuration.getConfigData(Root.class).leaf());
+        }
+
+        @Test
+        void testIsCreatedWhenAPropertyBelowItIsDefined() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.value", "defined")
+                    .withConfigDataType(Root.class)
+                    .build();
+
+            Leaf leaf = configuration.getConfigData(Root.class).leaf();
+            assertNotNull(leaf);
+            assertEquals("defined", leaf.value());
+            assertEquals(1, leaf.count());
+        }
+
+        /**
+         * Defining one property of the group is what asks for the group, so every other property of it has to resolve
+         * to a value like any other property.
+         */
+        @Test
+        void testFailsWhenASiblingPropertyHasNoDefault() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withValue("root.withoutDefaults.value", "defined")
+                    .withConfigDataType(NoDefaultsRoot.class);
+
+            assertThrows(IllegalStateException.class, builder::build);
+        }
+
+        /**
+         * A group that is nested inside an optional group is optional in its own right, so defining a property of the
+         * outer group does not force the inner one to exist.
+         */
+        @Test
+        void testNestedOptionalGroupIsDecidedOnItsOwn() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.outer.value", "defined")
+                    .withConfigDataType(DeepRoot.class)
+                    .build();
+
+            Outer outer = configuration.getConfigData(DeepRoot.class).outer();
+            assertNotNull(outer);
+            assertEquals("defined", outer.value());
+            assertNull(outer.inner());
+        }
+
+        @Test
+        void testDeeplyNestedPropertyCreatesEveryGroupAboveIt() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.outer.inner.value", "defined")
+                    .withConfigDataType(DeepRoot.class)
+                    .build();
+
+            Outer outer = configuration.getConfigData(DeepRoot.class).outer();
+            assertNotNull(outer);
+            assertNotNull(outer.inner());
+            assertEquals("defined", outer.inner().value());
         }
 
         @ConfigData("root")
@@ -1092,8 +1175,77 @@ class ConfigApiRecordsTests {
                 @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
                 Leaf leaf) {}
 
-        @ConfigData
-        public record Leaf(String value) {}
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value,
+                @ConfigProperty(defaultValue = "1") int count) {}
+
+        @ConfigData("root")
+        public record NoDefaultsRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                NoDefaultsLeaf withoutDefaults) {}
+
+        @NestedConfig
+        public record NoDefaultsLeaf(String value, int mandatory) {}
+
+        @ConfigData("root")
+        public record DeepRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Outer outer) {}
+
+        @NestedConfig
+        public record Outer(
+                @ConfigProperty(defaultValue = "outerDefault")
+                String value,
+
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Leaf inner) {}
+    }
+
+    @Nested
+    class NestedConfigIsNotAConfigDataType {
+
+        /**
+         * A nested config data object is a group of properties that takes its prefix from the component that holds it,
+         * so registering it on its own has no meaningful property names and has to be rejected.
+         */
+        @Test
+        void testRegisteringANestedConfigIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NestedOnly.class);
+
+            verifyBuildFails(builder, NestedConfig.class.getSimpleName(), "never registered on its own");
+        }
+
+        @Test
+        void testRecordWithBothAnnotationsIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(BothAnnotations.class);
+
+            verifyBuildFails(builder, NestedConfig.class.getSimpleName(), "never registered on its own");
+        }
+
+        /**
+         * A nested config data object is read property by property, so a converter for it would never be used. Leaving
+         * a converter registered while moving a type over to {@link NestedConfig} has to be an error rather than a
+         * silent change of behaviour.
+         */
+        @Test
+        void testNestedConfigWithARegisteredConverterIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withConfigDataType(Root.class)
+                    .withConverter(NestedOnly.class, _ -> new NestedOnly("converted"));
+
+            verifyBuildFails(builder, "also has a converter", "Remove one of the two");
+        }
+
+        @NestedConfig
+        public record NestedOnly(String value) {}
+
+        @ConfigData("both")
+        @NestedConfig
+        public record BothAnnotations(String value) {}
+
+        @ConfigData("root")
+        public record Root(NestedOnly nested) {}
     }
 
     @Nested
@@ -1144,7 +1296,7 @@ class ConfigApiRecordsTests {
                 @ConfigDefault(property = "value", defaultValue = "1")
                 RenamedLeaf leaf) {}
 
-        @ConfigData
+        @NestedConfig
         public record RenamedLeaf(
                 @ConfigProperty(value = "renamed") String value) {}
 
@@ -1157,7 +1309,7 @@ class ConfigApiRecordsTests {
         void testRecordComponentThatIsNeitherNestedNorConverted() {
             ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(UnmarkedRecordRoot.class);
 
-            verifyBuildFails(builder, "is neither annotated with ConfigData", "nor has a converter registered");
+            verifyBuildFails(builder, "is neither annotated with NestedConfig", "nor has a converter registered");
         }
 
         @ConfigData("root")
@@ -1169,7 +1321,54 @@ class ConfigApiRecordsTests {
         public record DefaultValueRoot(
                 @ConfigProperty(defaultValue = "whatever") Leaf leaf) {}
 
-        @ConfigData
+        @Test
+        void testEmptyProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(EmptyPropertyRoot.class);
+
+            verifyBuildFails(builder, "does not match any property", "Known properties: [root.leaf.value]");
+        }
+
+        @Test
+        void testPropertyWithATrailingDot() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(TrailingDotRoot.class);
+
+            verifyBuildFails(builder, "does not match any property");
+        }
+
+        /**
+         * A nested config data object has no value of its own, so a default value can only be defined for one of its
+         * properties. Addressing the group would otherwise silently null it out via
+         * {@link ConfigProperty#NULL_DEFAULT_VALUE}.
+         */
+        @Test
+        void testPropertyAddressingANestedConfigInsteadOfALeaf() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(AddressesGroupRoot.class);
+
+            verifyBuildFails(
+                    builder,
+                    "addresses a nested config data object instead of a single property",
+                    "root.middle.leaf.value");
+        }
+
+        @ConfigData("root")
+        public record EmptyPropertyRoot(
+                @ConfigDefault(property = "", defaultValue = "1")
+                Leaf leaf) {}
+
+        @ConfigData("root")
+        public record TrailingDotRoot(
+                @ConfigDefault(property = "value.", defaultValue = "1")
+                Leaf leaf) {}
+
+        @ConfigData("root")
+        public record AddressesGroupRoot(
+                @ConfigDefault(property = "leaf", defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Middle middle) {}
+
+        @NestedConfig
+        public record Middle(Leaf leaf) {}
+
+        @NestedConfig
         public record Leaf(String value) {}
     }
 

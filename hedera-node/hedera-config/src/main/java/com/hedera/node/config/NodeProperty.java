@@ -12,6 +12,10 @@ import java.lang.annotation.Target;
  * Annotates a specific configuration property (annotated with {@link ConfigProperty}) as being a property specific
  * to the node itself. Such properties can have (and almost certainly do have) different values for each node in the
  * network. This annotation is mutually exclusive with {@link NetworkProperty}.
+ * <p>
+ * The annotation belongs on the property itself, including a property of a nested config data object (see
+ * {@link com.swirlds.config.api.NestedConfig}). A record component that holds a nested config data object is not a
+ * property that can be set, so annotating it has no effect and does <b>not</b> mark the properties of the group.
  */
 @Retention(RUNTIME)
 @Target(RECORD_COMPONENT)

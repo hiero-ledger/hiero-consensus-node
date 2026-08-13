@@ -13,6 +13,10 @@ import java.lang.annotation.Target;
  * all nodes on the network. Such properties are expected to be saved in state. These properties <b>must</b> be the
  * same on all nodes in the network, or they will ISS at some point. This annotation is mutually exclusive with
  * {@link NodeProperty}.
+ * <p>
+ * The annotation belongs on the property itself, including a property of a nested config data object (see
+ * {@link com.swirlds.config.api.NestedConfig}). A record component that holds a nested config data object is not a
+ * property that can be set, so annotating it has no effect and does <b>not</b> mark the properties of the group.
  */
 @Retention(RUNTIME)
 @Target(RECORD_COMPONENT)

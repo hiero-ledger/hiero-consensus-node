@@ -10,7 +10,8 @@ import java.lang.annotation.Target;
 
 /**
  * Annotation that defines the default value of a single property of a nested config data object. A nested config data
- * object is a record component of a config data object (see {@link ConfigData}) whose type is itself a record.
+ * object is a record component of a config data object (see {@link ConfigData}) whose type is a record annotated with
+ * {@link NestedConfig}.
  * <p>
  * The defaults of a nested record are normally defined by the {@link ConfigProperty} annotations of that record, which
  * makes them the same for every place the record is used. This annotation defines a default at the place where the
@@ -29,6 +30,7 @@ import java.lang.annotation.Target;
  *         SchedulerConfig handler) {
  * }
  *
+ * &#64;NestedConfig
  * public record SchedulerConfig(SchedulerType type, long capacity) {}
  * </pre>
  * Here {@code "wiring.prehandler.type"} defaults to {@code "CONCURRENT"} while

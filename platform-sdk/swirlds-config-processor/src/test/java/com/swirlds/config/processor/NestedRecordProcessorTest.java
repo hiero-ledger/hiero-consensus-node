@@ -44,10 +44,16 @@ class NestedRecordProcessorTest {
     private static final String LEAF = """
             package test.cfg;
 
-            import com.swirlds.config.api.ConfigData;
             import com.swirlds.config.api.ConfigProperty;
+            import com.swirlds.config.api.NestedConfig;
 
-            @ConfigData
+            /**
+             * A scheduler.
+             *
+             * @param type     the type of the scheduler
+             * @param capacity the maximum number of unhandled tasks
+             */
+            @NestedConfig
             public record LeafConfig(
                     @ConfigProperty(defaultValue = "SEQUENTIAL") String type,
                     @ConfigProperty(defaultValue = "100") long capacity) {}
@@ -83,10 +89,7 @@ class NestedRecordProcessorTest {
     void documentedDefaultComesFromConfigDefaultOfTheUsageSite() throws IOException {
         compileAndReadConstants(ROOT, LEAF);
 
-        // the processor writes the documentation relative to the working directory
-        final Path doc = Path.of(System.getProperty("user.dir"), "build/docs/config.md");
-        assertTrue(Files.exists(doc), "no documentation was generated at " + doc);
-        final String generated = Files.readString(doc, StandardCharsets.UTF_8);
+        final String generated = Files.readString(documentationFile(), StandardCharsets.UTF_8);
 
         // the same nested record is used twice, and each usage site documents its own default
         assertTrue(generated.contains("## root.prehandler.capacity"), generated);
@@ -96,6 +99,46 @@ class NestedRecordProcessorTest {
         assertTrue(
                 generated.split("## root\\.handler\\.capacity")[1].contains("`100`"),
                 "the default of the nested record has to be used where the usage site defines none: " + generated);
+    }
+
+    @Test
+    void nestedOnlyRecordGetsNeitherConstantsNorDocumentation() throws IOException {
+        compileAndReadConstants(ROOT, LEAF);
+
+        // a nested config data object is never registered on its own, so a constants class for it would only hold
+        // property names that do not exist
+        assertFalse(
+                Files.exists(tempDir.resolve("out/test/cfg/LeafConfig_.java")),
+                "a nested config data object must not get its own constants class");
+
+        // and it must not add entries under the bare names of its own components either
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertFalse(documentation.contains("## type"), documentation);
+        assertFalse(documentation.contains("## capacity"), documentation);
+    }
+
+    @Test
+    void nestedPropertyIsDocumentedWithTheParamDescriptionOfItsRecord() throws IOException {
+        compileAndReadConstants(ROOT, LEAF);
+
+        // a record component carries no javadoc of its own, so the description has to come from the @param tag of the
+        // nested record
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertTrue(
+                documentation.split("## root\\.prehandler\\.capacity")[1].contains("the maximum number of unhandled"),
+                "the @param description of the nested record has to be documented: " + documentation);
+        assertTrue(
+                documentation.split("## root\\.handler\\.type")[1].contains("the type of the scheduler"),
+                "the @param description of the nested record has to be documented: " + documentation);
+    }
+
+    /**
+     * The processor writes the documentation relative to the working directory.
+     */
+    private static Path documentationFile() {
+        final Path doc = Path.of(System.getProperty("user.dir"), "build/docs/config.md");
+        assertTrue(Files.exists(doc), "no documentation was generated at " + doc);
+        return doc;
     }
 
     /**

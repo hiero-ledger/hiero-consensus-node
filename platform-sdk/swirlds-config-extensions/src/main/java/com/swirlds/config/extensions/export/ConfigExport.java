@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
 import java.util.function.Consumer;
 
 /**
@@ -39,9 +40,10 @@ public final class ConfigExport {
         Objects.requireNonNull(configuration, ERROR_CONFIGURATION_IS_NULL);
         Objects.requireNonNull(lineConsumer, ERROR_LINE_CONSUMER_IS_NULL);
 
-        // Properties defined in record configs, including values overridden by configured sources
-        final Map<String, Object> recordProperties =
-                ConfigReflectionUtils.getAllPropertiesAsMap(configuration, property -> true);
+        // Properties defined in record configs, including values overridden by configured sources. The map is already
+        // sorted by property name, which is the order the record defined values are written in below.
+        final SortedMap<String, Object> recordProperties =
+                ConfigReflectionUtils.getAllPropertiesAsMap(configuration, _ -> true);
 
         // Properties defined in property file but do not exist in record configs
         final Map<String, Object> nonRecordProperties = new HashMap<>();
@@ -51,11 +53,7 @@ public final class ConfigExport {
                 .forEach(name -> nonRecordProperties.put(name, configuration.getValue(name)));
 
         // Write all record defined values first, in alphabetical order
-        recordProperties.keySet().stream().sorted().forEach(name -> {
-            final Object value = recordProperties.get(name);
-            final String line = buildLine(name, value, "");
-            lineConsumer.accept(line);
-        });
+        recordProperties.forEach((name, value) -> lineConsumer.accept(buildLine(name, value, "")));
 
         // Write all values not defined in records next, in alphabetical order
         nonRecordProperties.keySet().stream().sorted().forEach(name -> {

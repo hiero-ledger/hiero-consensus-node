@@ -4,6 +4,7 @@ package com.swirlds.config.extensions.reflection;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.NestedConfig;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.InvocationTargetException;
@@ -18,6 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -154,16 +156,48 @@ public final class ConfigReflectionUtils {
      * @param configuration the configuration
      * @param filter        selects the properties to return
      * @return the value of every matching property, keyed by the full name of the property
+     * @throws IllegalArgumentException if the value of a matching property can not be read. Use
+     *                                  {@link #getAllPropertiesAsMap(Configuration, Predicate, BiConsumer)} to skip
+     *                                  such a property instead.
      */
     public static SortedMap<String, Object> getAllPropertiesAsMap(
             final Configuration configuration, final Predicate<ConfigDataProperty> filter) {
+        return getAllPropertiesAsMap(configuration, filter, null);
+    }
+
+    /**
+     * Returns the value of every property that matches the given filter, keyed by the full name of the property and
+     * sorted by it, skipping every property whose value can not be read. See
+     * {@link #getAllProperties(Configuration)} for the properties that are reported and for why reading a value can
+     * fail.
+     * <p>
+     * This is for a caller that must not fail because of a single unreadable property, like one that only logs the
+     * configuration. A caller that wants an unreadable property to be an error uses
+     * {@link #getAllPropertiesAsMap(Configuration, Predicate)} instead.
+     *
+     * @param configuration  the configuration
+     * @param filter         selects the properties to return
+     * @param failureHandler notified with the name of the property and the failure for every property that is skipped
+     * @return the value of every matching and readable property, keyed by the full name of the property
+     */
+    public static SortedMap<String, Object> getAllPropertiesAsMap(
+            final Configuration configuration,
+            final Predicate<ConfigDataProperty> filter,
+            final BiConsumer<String, RuntimeException> failureHandler) {
         Objects.requireNonNull(configuration, "configuration can not be null");
         Objects.requireNonNull(filter, "filter can not be null");
 
         final TreeMap<String, Object> values = new TreeMap<>();
-        getAllProperties(configuration)
-                .filter(filter)
-                .forEach(property -> values.put(property.propertyName(), property.propertyValue()));
+        getAllProperties(configuration).filter(filter).forEach(property -> {
+            try {
+                values.put(property.propertyName(), property.propertyValue());
+            } catch (final RuntimeException e) {
+                if (failureHandler == null) {
+                    throw e;
+                }
+                failureHandler.accept(property.propertyName(), e);
+            }
+        });
         return Collections.unmodifiableSortedMap(values);
     }
 
@@ -228,7 +262,7 @@ public final class ConfigReflectionUtils {
             final String namePrefix, final Record recordInstance, final Traversal traversal) {
         return Arrays.stream(recordInstance.getClass().getRecordComponents()).flatMap(component -> {
             final String propertyName = getPropertyNameForConfigDataProperty(namePrefix, component);
-            final boolean nested = isNestedConfigDataObject(component.getType());
+            final boolean nested = isNestedConfig(component.getType());
 
             // a component that holds a nested config data object has no value of its own, so it is not a property that
             // can be set and is only reported when every component is asked for
@@ -257,15 +291,15 @@ public final class ConfigReflectionUtils {
 
     /**
      * Checks whether the given type is a nested config data object, meaning it holds properties of its own rather than
-     * being a single value. A record type has to be annotated with {@link ConfigData} to be treated as one, so that a
+     * being a single value. A record type has to be annotated with {@link NestedConfig} to be treated as one, so that a
      * record type that is populated from a single value by a converter is never mistaken for a group of properties.
      *
      * @param type the type
      * @return true if the type is a nested config data object
      */
-    public static boolean isNestedConfigDataObject(final Class<?> type) {
+    public static boolean isNestedConfig(final Class<?> type) {
         Objects.requireNonNull(type, "type can not be null");
-        return type.isRecord() && type.isAnnotationPresent(ConfigData.class);
+        return type.isRecord() && type.isAnnotationPresent(NestedConfig.class);
     }
 
     /**

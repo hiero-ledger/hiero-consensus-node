@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
@@ -82,12 +83,18 @@ public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
             final List<ConfigDataRecordDefinition> recordDefinitions = AntlrConfigRecordParser.parse(
                     recordSource.getCharContent(true).toString());
 
-            if (!recordDefinitions.isEmpty()) {
+            // one source file can declare several config data records, so the definition of the record that is being
+            // handled has to be picked by name rather than by position
+            final Optional<ConfigDataRecordDefinition> parsedDefinition = recordDefinitions.stream()
+                    .filter(candidate -> Objects.equals(simpleClassName, candidate.simpleClassName()))
+                    .findFirst();
+
+            if (parsedDefinition.isPresent()) {
                 // the source of the record is parsed on its own, so a component that holds a nested config data object
                 // declared elsewhere has to be resolved through the element model of the compiler
                 final ConfigDataRecordDefinition recordDefinition = new NestedRecordExpander(
                                 processingEnv.getElementUtils(), processingEnv.getTypeUtils())
-                        .expand(recordDefinitions.getFirst(), typeElement);
+                        .expand(parsedDefinition.get(), typeElement);
 
                 final JavaFileObject constantsSourceFile =
                         getConstantSourceFile(packageName, simpleClassName, typeElement);

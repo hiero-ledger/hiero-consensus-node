@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.Writer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import javax.lang.model.element.Modifier;
 import javax.tools.JavaFileObject;
@@ -60,9 +62,20 @@ public final class ConstantClassFactory {
                         DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()),
                         originalRecordClassName);
 
+        final Map<String, String> propertyNamesByConstantName = new HashMap<>();
         configDataRecordDefinition.propertyDefinitions().forEach(propertyDefinition -> {
             final String name = toConstantName(
                     propertyDefinition.name().replace(configDataRecordDefinition.configDataName() + ".", ""));
+
+            // two property names can map onto one constant name, for example "leaf.value" and "leafValue". Adding the
+            // field twice would produce a class that does not compile, so the clash is reported here instead.
+            final String clashing = propertyNamesByConstantName.put(name, propertyDefinition.name());
+            if (clashing != null) {
+                throw new IllegalArgumentException("Error processing record:"
+                        + configDataRecordDefinition.simpleClassName() + " properties \"" + clashing + "\" and \""
+                        + propertyDefinition.name() + "\" both map onto the constant name \"" + name
+                        + "\". Rename one of them.");
+            }
 
             try {
 

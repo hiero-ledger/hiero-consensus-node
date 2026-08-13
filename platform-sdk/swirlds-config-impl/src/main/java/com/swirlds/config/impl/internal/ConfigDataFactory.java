@@ -5,6 +5,7 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.NestedConfig;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -50,6 +51,11 @@ class ConfigDataFactory {
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
         validateIsRecord(type);
 
+        if (ConfigReflectionUtils.isNestedConfig(type)) {
+            throw new IllegalArgumentException("Can not create config instance for '" + type + "' since it is annotated"
+                    + " with " + NestedConfig.class.getSimpleName() + ", which means it is a group of properties that"
+                    + " is only used as a record component of a config data object and never registered on its own");
+        }
         if (!type.isAnnotationPresent(ConfigData.class)) {
             throw new IllegalArgumentException("Can not create config instance for '" + type + "' since "
                     + ConfigData.class.getName() + "' " + "annotation is missing");
@@ -117,9 +123,15 @@ class ConfigDataFactory {
         final boolean isNestedRecord = isNestedRecord(valueType);
         if (valueType.isRecord() && !isNestedRecord && converterService.getConverterForType(valueType) == null) {
             throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
-                    + "' is neither annotated with " + ConfigData.class.getSimpleName()
+                    + "' is neither annotated with " + NestedConfig.class.getSimpleName()
                     + ", which would make it a nested config data object, nor has a converter registered, which would"
                     + " make it a single property that is converted from one value");
+        }
+        if (isNestedRecord && converterService.getConverterForType(valueType) != null) {
+            throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
+                    + "' is annotated with " + NestedConfig.class.getSimpleName() + " and also has a converter"
+                    + " registered. A nested config data object is read property by property, so the converter would"
+                    + " never be used. Remove one of the two");
         }
         if (component.getAnnotationsByType(ConfigDefault.class).length > 0 && !isNestedRecord) {
             throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
@@ -184,10 +196,14 @@ class ConfigDataFactory {
             @NonNull final Set<Class<?>> circularRefStack,
             @NonNull final DefaultValueOverrides defaultValueOverrides,
             @Nullable final String rawDefaultValue) {
-        if (Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
+        if (Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)
+                && !isAnyPropertyDefined(name, component.getType())) {
+            // The group is optional and nothing below it is defined by the config, so it stays null. It is only the
+            // properties below the component that a config source can define, never the component itself, so the whole
+            // group has to be asked about rather than the name of the component.
             return null;
         }
-        if (rawDefaultValue != null) {
+        if (rawDefaultValue != null && !Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
             throw new IllegalArgumentException("Can not use a default value for the property '" + name + "' since '"
                     + component.getType() + "' is a nested config data object. Use "
                     + ConfigDefault.class.getSimpleName() + " to define the default values of its properties");
@@ -237,19 +253,23 @@ class ConfigDataFactory {
                 prefix = createPropertyName(prefix, segment);
                 owner = match.getType();
             }
+            if (isNestedRecord(owner)) {
+                throw new IllegalArgumentException("The " + ConfigDefault.class.getSimpleName() + " for '"
+                        + createPropertyName(namePrefix, configDefault.property())
+                        + "' addresses a nested config data object instead of a single property. Address one of its"
+                        + " properties: " + getPropertyNames(prefix, owner));
+            }
         }
     }
 
     /**
-     * Checks whether the given type is a nested config data object, meaning its properties are read individually. A
-     * record type has to be annotated with {@link ConfigData} to be treated as one, so that a record type that is
-     * populated from a single value by a converter is never mistaken for a group of properties.
+     * Checks whether the given type is a nested config data object, meaning its properties are read individually.
      *
      * @param type the type
      * @return true if the type is a nested config data object
      */
     private static boolean isNestedRecord(@NonNull final Class<?> type) {
-        return type.isRecord() && type.isAnnotationPresent(ConfigData.class);
+        return ConfigReflectionUtils.isNestedConfig(type);
     }
 
     @Nullable
@@ -268,6 +288,47 @@ class ConfigDataFactory {
         return Arrays.stream(owner.getRecordComponents())
                 .map(candidate -> createPropertyName(prefix, getPropertyNameSegment(candidate)))
                 .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    /**
+     * Checks whether the config defines a value for at least one of the properties of the given nested config data
+     * object, which is what decides whether an optional group is created or stays null.
+     * <p>
+     * The walk is done on the record type and not on an instance, since the instance is exactly what this decides about.
+     * Only the leaves are asked about: a component that holds a nested config data object is itself never defined by a
+     * config source, so it is walked into instead.
+     *
+     * @param namePrefix the full name of the component that holds the nested config data object
+     * @param recordType the type of the nested config data object
+     * @return true if the config defines a value for at least one property below the given component
+     */
+    private boolean isAnyPropertyDefined(@NonNull final String namePrefix, @NonNull final Class<?> recordType) {
+        return isAnyPropertyDefined(namePrefix, recordType, new HashSet<>());
+    }
+
+    private boolean isAnyPropertyDefined(
+            @NonNull final String namePrefix,
+            @NonNull final Class<?> recordType,
+            @NonNull final Set<Class<?>> visitedTypes) {
+        // A cycle is reported by instantiateRecord with a message that names the offending type, so here it is enough
+        // to stop walking instead of failing with a less helpful error from a check that only collects names.
+        if (!visitedTypes.add(recordType)) {
+            return false;
+        }
+        try {
+            for (final RecordComponent component : recordType.getRecordComponents()) {
+                final String name = createPropertyName(namePrefix, component);
+                final boolean defined = isNestedRecord(component.getType())
+                        ? isAnyPropertyDefined(name, component.getType(), visitedTypes)
+                        : configuration.exists(name);
+                if (defined) {
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            visitedTypes.remove(recordType);
+        }
     }
 
     private static boolean isGenericType(@NonNull final RecordComponent component, @NonNull final Class<?> type) {

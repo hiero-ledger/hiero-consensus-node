@@ -7,7 +7,6 @@ import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -18,8 +17,8 @@ import java.util.stream.Stream;
  */
 public class ConstraintMethodConstraintsValidation implements ConfigValidator {
 
-    @Override
     @NonNull
+    @Override
     public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(
                         ConstraintMethod.class, configuration)

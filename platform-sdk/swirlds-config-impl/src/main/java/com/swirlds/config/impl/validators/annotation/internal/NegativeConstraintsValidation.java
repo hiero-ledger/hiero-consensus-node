@@ -9,7 +9,6 @@ import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.impl.internal.ConfigNumberUtils;
 import com.swirlds.config.impl.validators.DefaultConfigViolation;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.stream.Stream;
 
 /**

@@ -9,7 +9,6 @@ import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.impl.internal.ConfigNumberUtils;
 import com.swirlds.config.impl.validators.DefaultConfigViolation;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.stream.Stream;
 
 /**
@@ -18,8 +17,8 @@ import java.util.stream.Stream;
  */
 public class MaxConstraintsValidation implements ConfigValidator {
 
-    @Override
     @NonNull
+    @Override
     public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(Max.class, configuration).stream()
                 .filter(property -> ConfigNumberUtils.isNumber(property.propertyType()))

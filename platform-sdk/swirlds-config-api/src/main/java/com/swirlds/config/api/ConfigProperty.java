@@ -52,10 +52,12 @@ public @interface ConfigProperty {
      * config. Since an empty string is a valid value {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE} is used as default
      * for this value.
      * <p>
-     * A component that holds a nested config data object (see {@link ConfigData}) groups properties instead of holding
-     * a value, so the only default value it accepts is {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes the whole
-     * group optional. Use {@link ConfigDefault} to define the defaults of the properties of a nested config data
-     * object.
+     * A component that holds a nested config data object (see {@link NestedConfig}) groups properties instead of
+     * holding a value, so the only default value it accepts is {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes
+     * the whole group optional: the component is {@code null} unless at least one of the properties below it is
+     * defined by the config, in which case the group is created and every other property of it has to resolve to a
+     * value as usual. A group that is nested inside such a group decides the same way and on its own. Use
+     * {@link ConfigDefault} to define the defaults of the properties of a nested config data object.
      *
      * @return the default value or {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE}
      */

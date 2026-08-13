@@ -5,7 +5,6 @@ import com.swirlds.config.processor.antlr.AntlrConfigRecordParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,14 +17,12 @@ public class DocumentationFactoryTest {
     private final String RECORD_DEFINITION =
             MarkdownSyntax.RECORD + MarkdownSyntax.asCode("com.swirlds.config.processor.TestConfig");
 
-    private final String JAVA_FILE = "TestConfig.java";
-
     @Test
     void testDocumentationCreation() throws Exception {
         // given
         final String docFileName = "test-config.md";
         final String javaFilePath =
-                DocumentationFactoryTest.class.getResource(JAVA_FILE).getPath();
+                DocumentationFactoryTest.class.getResource("TestConfig.java").getPath();
         final String content = Files.readString(Path.of(javaFilePath));
         final ConfigDataRecordDefinition definition =
                 AntlrConfigRecordParser.parse(content).get(0);

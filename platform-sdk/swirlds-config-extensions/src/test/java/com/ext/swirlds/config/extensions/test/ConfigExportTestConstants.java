@@ -4,6 +4,7 @@ package com.ext.swirlds.config.extensions.test;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.NestedConfig;
 
 /**
  * Helper for {@code ConfigExportTest}
@@ -25,7 +26,7 @@ public class ConfigExportTestConstants {
             @ConfigDefault(property = "count", defaultValue = "1")
             NestedLeaf leaf) {}
 
-    @ConfigData
+    @NestedConfig
     public record NestedLeaf(String value, int count) {}
 
     @ConfigData("nullable")
