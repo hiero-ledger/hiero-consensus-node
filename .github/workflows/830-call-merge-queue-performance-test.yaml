@@ -271,11 +271,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22.23.2
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -285,8 +285,10 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
           # verify the installation
           solo --version

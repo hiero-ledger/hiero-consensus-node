@@ -24,6 +24,8 @@ import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
  * @param sourceIndex the source index (for near-name suggestions on gone sources).
  * @param stats       the scan-coverage statistics (what was scanned and checked).
  * @param git         the git wrapper built for this run (rename/deletion detection for suggestions).
+ * @param lineSuggestions body-line and past-EOF source references that cannot migrate to a symbol, with
+ *                    their enclosing declaration — rendered as advisory suggestions.
  */
 public record RunResult(
         List<KbDocument> documents,
@@ -32,7 +34,8 @@ public record RunResult(
         List<WorklistEntry> worklist,
         SourceIndex sourceIndex,
         ScanStats stats,
-        Git git) {
+        Git git,
+        List<LineSuggestion> lineSuggestions) {
 
     /**
      * The count of findings that assert new drift: assert-lane, not previously baselined, and not

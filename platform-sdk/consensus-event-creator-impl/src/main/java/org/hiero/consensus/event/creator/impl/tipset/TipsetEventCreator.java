@@ -25,8 +25,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -222,10 +222,7 @@ public class TipsetEventCreator implements EventCreator {
         } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
             breakQuiescenceEventCreated = true;
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Created quiescence breaking event ({})",
-                    event.getDescriptor()::shortString);
+            logger.info(LogMarker.STARTUP.getMarker(), "Created quiescence breaking event ({})", event.getDescriptor());
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);

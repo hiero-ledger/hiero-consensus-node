@@ -72,7 +72,7 @@ import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.AfterEach;

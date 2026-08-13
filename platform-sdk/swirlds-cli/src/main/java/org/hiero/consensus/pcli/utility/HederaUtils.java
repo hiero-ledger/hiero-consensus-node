@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 
 /**

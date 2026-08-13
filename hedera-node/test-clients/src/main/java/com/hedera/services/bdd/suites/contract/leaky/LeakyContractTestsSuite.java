@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.leaky;
 
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -52,7 +51,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -153,7 +151,6 @@ import com.hedera.services.bdd.suites.contract.openzeppelin.ERC20ContractInterac
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -346,11 +343,8 @@ public class LeakyContractTestsSuite {
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords());
     }
 
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> getErc20TokenNameExceedingLimits() {
-        final var REDUCED_NETWORK_FEE = 1L;
-        final var REDUCED_NODE_FEE = 1L;
-        final var REDUCED_SERVICE_FEE = 1L;
         final var INIT_ACCOUNT_BALANCE = 100 * ONE_HUNDRED_HBARS;
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -367,8 +361,6 @@ public class LeakyContractTestsSuite {
                 uploadInitCode(ERC_20_CONTRACT),
                 contractCreate(ERC_20_CONTRACT),
                 balanceSnapshot("accountSnapshot", ACCOUNT),
-                reduceFeeFor(
-                        HederaFunctionality.ContractCall, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -391,9 +383,7 @@ public class LeakyContractTestsSuite {
                                                         .getBytes())
                                                 .toHexString())
                                         .gasUsed(4_000_000))),
-                getAccountDetails(ACCOUNT)
-                        .has(accountDetailsWith()
-                                .balanceLessThan(INIT_ACCOUNT_BALANCE - REDUCED_NETWORK_FEE - REDUCED_NODE_FEE)));
+                getAccountDetails(ACCOUNT).has(accountDetailsWith().balanceLessThan(INIT_ACCOUNT_BALANCE)));
     }
 
     @EmbeddedHapiTest({MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
@@ -710,8 +700,7 @@ public class LeakyContractTestsSuite {
 
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
-                    expectedChildAddress.set(ByteString.copyFrom(
-                            expectedChildContractAddress.getBytes().toArray()));
+                    expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
 
                     // Extract actual child/grandchild contract IDs from child records
                     // (cannot assume parentNum+1/+2 in concurrent embedded mode)

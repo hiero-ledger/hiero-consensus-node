@@ -10,6 +10,7 @@ import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -18,10 +19,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
 
 public record EthTxData(
@@ -299,7 +298,7 @@ public record EthTxData(
     }
 
     public byte[] getEthereumHash() {
-        return new Keccak.Digest256().digest(rawTx == null ? encodeTx() : rawTx);
+        return MiscCryptoUtils.keccak256DigestOf(rawTx == null ? encodeTx() : rawTx);
     }
 
     public enum EthTransactionType {
@@ -364,23 +363,27 @@ public record EthTxData(
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("rawTx", rawTx == null ? null : Hex.encodeHexString(rawTx))
+                .add("rawTx", rawTx == null ? null : HexFormat.of().formatHex(rawTx))
                 .add("type", type)
-                .add("chainId", chainId == null ? null : Hex.encodeHexString(chainId))
+                .add("chainId", chainId == null ? null : HexFormat.of().formatHex(chainId))
                 .add("nonce", nonce)
-                .add("gasPrice", gasPrice == null ? null : Hex.encodeHexString(gasPrice))
-                .add("maxPriorityGas", maxPriorityGas == null ? null : Hex.encodeHexString(maxPriorityGas))
-                .add("maxGas", maxGas == null ? null : Hex.encodeHexString(maxGas))
+                .add("gasPrice", gasPrice == null ? null : HexFormat.of().formatHex(gasPrice))
+                .add(
+                        "maxPriorityGas",
+                        maxPriorityGas == null ? null : HexFormat.of().formatHex(maxPriorityGas))
+                .add("maxGas", maxGas == null ? null : HexFormat.of().formatHex(maxGas))
                 .add("gasLimit", gasLimit)
-                .add("to", to == null ? null : Hex.encodeHexString(to))
+                .add("to", to == null ? null : HexFormat.of().formatHex(to))
                 .add("value", value)
-                .add("callData", Hex.encodeHexString(callData))
-                .add("accessList", accessList == null ? null : Hex.encodeHexString(accessList))
-                .add("authorizationList", authorizationList == null ? null : Hex.encodeHexString(authorizationList))
+                .add("callData", HexFormat.of().formatHex(callData))
+                .add("accessList", accessList == null ? null : HexFormat.of().formatHex(accessList))
+                .add(
+                        "authorizationList",
+                        authorizationList == null ? null : HexFormat.of().formatHex(authorizationList))
                 .add("yParity", recId)
-                .add("v", v == null ? null : Hex.encodeHexString(v))
-                .add("r", Hex.encodeHexString(r))
-                .add("s", Hex.encodeHexString(s))
+                .add("v", v == null ? null : HexFormat.of().formatHex(v))
+                .add("r", HexFormat.of().formatHex(r))
+                .add("s", HexFormat.of().formatHex(s))
                 .toString();
     }
 

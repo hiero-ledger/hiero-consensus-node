@@ -3,9 +3,10 @@ package org.hiero.base.crypto.test.fixtures;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.hedera.cryptography.libsodium.Libsodium;
+import com.goterl.lazysodium.LazySodiumJava;
+import com.goterl.lazysodium.SodiumJava;
+import com.goterl.lazysodium.interfaces.Sign;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.lang.foreign.MemorySegment;
 import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,17 +27,17 @@ public class SignaturePool {
     /**
      * the length of signature in bytes
      */
-    static final int SIGNATURE_LENGTH = Libsodium.ED25519_BYTES;
+    static final int SIGNATURE_LENGTH = Sign.BYTES;
 
     /**
      * the length of the public key in bytes
      */
-    static final int PUBLIC_KEY_LENGTH = Libsodium.ED25519_PUBLICKEYBYTES;
+    static final int PUBLIC_KEY_LENGTH = Sign.PUBLICKEYBYTES;
 
     /**
      * the length of the private key in bytes
      */
-    static final int PRIVATE_KEY_LENGTH = Libsodium.ED25519_SECRETKEYBYTES;
+    static final int PRIVATE_KEY_LENGTH = Sign.SECRETKEYBYTES;
 
     /**
      * the length of the signature and the public key combined
@@ -90,8 +91,10 @@ public class SignaturePool {
      */
     private byte[] publicKey;
 
-    /// Libsodium signer that calls the native library.
-    private Libsodium signer;
+    /**
+     * the native NaCl signing interface
+     */
+    private Sign.Native signer;
 
     private AtomicInteger readPosition;
 
@@ -185,7 +188,7 @@ public class SignaturePool {
      * 		the pre-allocated buffer of at least {@link #transactionSize} long, if {@link #signed} is true then
      * 		length must be at least ({@link #transactionSize} + {@link #SIG_KEY_LENGTH}) long
      * @throws SignatureException
-     * 		if {@link Libsodium#cryptoSignDetached(MemorySegment, MemorySegment, MemorySegment, long, MemorySegment)}
+     * 		if {@link Sign.Native#cryptoSignDetached(byte[], byte[], long, byte[])}
      * 		returns a failure code
      */
     private void sign(final byte[] buffer) {
@@ -202,13 +205,7 @@ public class SignaturePool {
             System.arraycopy(publicKey, 0, buffer, offset, publicKey.length);
             offset += publicKey.length;
 
-            if (signer.cryptoSignDetached(
-                            MemorySegment.ofArray(sig),
-                            MemorySegment.NULL,
-                            MemorySegment.ofArray(data),
-                            (long) data.length,
-                            MemorySegment.ofArray(privateKey))
-                    != 0) {
+            if (!signer.cryptoSignDetached(sig, data, (long) data.length, privateKey)) {
                 throw new SignatureException();
             }
 
@@ -236,13 +233,13 @@ public class SignaturePool {
      */
     private void tryAcquireSignature() {
         try {
-            signer = Libsodium.getInstance();
+            final SodiumJava sodium = new SodiumJava();
+            signer = new LazySodiumJava(sodium);
 
             publicKey = new byte[PUBLIC_KEY_LENGTH];
             privateKey = new byte[PRIVATE_KEY_LENGTH];
 
-            algorithmAvailable =
-                    signer.cryptoSignKeypair(MemorySegment.ofArray(publicKey), MemorySegment.ofArray(privateKey)) == 0;
+            algorithmAvailable = signer.cryptoSignKeypair(publicKey, privateKey);
             logger.trace(LOGM_STARTUP, "StatsSigningDemo: Public Key -> hex('{}')", () -> hex(publicKey));
         } catch (Exception ex) {
             algorithmAvailable = false;
