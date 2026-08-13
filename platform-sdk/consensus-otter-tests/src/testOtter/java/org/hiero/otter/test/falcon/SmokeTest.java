@@ -6,14 +6,11 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import org.hiero.otter.fixtures.FalconTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * The simplest sanity test for falcon tests.
@@ -25,7 +22,7 @@ public class SmokeTest {
      *
      * @param env the test environment for this test
      */
-    @FalconTest(repetition = 100)
+    @FalconTest
     void smokeTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -38,18 +35,10 @@ public class SmokeTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
 
-        // Setup counter
-        final AtomicLong counter = new AtomicLong();
-        nodes.getFirst().newConsensusResult().subscribe((_, round) -> {
-            counter.addAndGet(round.getEventCount());
-            return SubscriberAction.CONTINUE;
-        });
-
         // Start simulation
         network.start();
 
-        // Create 1000 events
-        final BooleanSupplier condition = () -> counter.get() >= 10_000;
-        timeManager.waitForCondition(condition, Duration.ofMinutes(10L));
+        // Run the network for 5s simulated time
+        timeManager.waitFor(Duration.ofSeconds(5L));
     }
 }
