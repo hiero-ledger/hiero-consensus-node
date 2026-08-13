@@ -546,7 +546,7 @@ jobs:
   hapi-tests-smart-contracts-and-iss:
     name: "HAPI Tests (Smart Contracts & ISS)"
     if: ${{ inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-bn-lin-xl
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
