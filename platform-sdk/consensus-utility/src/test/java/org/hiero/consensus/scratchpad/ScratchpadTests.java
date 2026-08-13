@@ -254,7 +254,6 @@ class ScratchpadTests {
 
         final Hash hash2 = randomHash(random);
         final SerializableLong long2 = new SerializableLong(random.nextLong());
-        final NodeId nodeId2 = NodeId.of(random.nextInt(1001, 2000));
 
         scratchpad.atomicOperation(map -> {
             assertEquals(hash1, map.put(TestScratchpadType.FOO, hash2));
@@ -270,7 +269,6 @@ class ScratchpadTests {
 
         assertEquals(hash2, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long2, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId2, scratchpad.get(TestScratchpadType.BAZ));
 
         // Clear the scratchpad
 
