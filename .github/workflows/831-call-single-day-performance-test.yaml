@@ -2026,55 +2026,6 @@ jobs:
           echo "### Single Day Performance Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-  delete-namespace:
-    name: Delete namespace
-    runs-on: hl-cn-sdpt-lin-lg
-    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
-    needs:
-      - acquire-kubernetes-resources
-      - performance-tests-start
-      - single-day-performance-test-result
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.33.0
-
-      - name: Install Teleport Client
-        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
-        with:
-          version: 18.4.0
-
-      - name: Authorize Teleport SSH Access
-        id: auth-ssh
-        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          certificate-ttl: 24h
-
-      - name: Authorize Teleport K8S Access
-        id: auth-k8s
-        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
-          certificate-ttl: 168h
-
-      - name: Delete namespace
-        if: ${{ inputs.delete-namespace == true }}
-        run: |
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-
   performance-report-to-rootly:
     if: false
     name: Report Failures to Rootly
