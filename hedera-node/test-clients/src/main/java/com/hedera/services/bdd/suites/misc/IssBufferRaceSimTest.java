@@ -156,6 +156,9 @@ class IssBufferRaceSimTest implements LifecycleTest {
                         IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 10, true))),
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up so the block node's acks are flowing before the ISS (production has the block acked at
+                // lag=1).
+                sleepForSeconds(8),
                 induceIssTransfer(),
                 awaitIssDetectionAndDiag(),
                 recordOutcome("C3 SELF/SIM/retain=10/acks-on"),
@@ -328,6 +331,9 @@ class IssBufferRaceSimTest implements LifecycleTest {
                         IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 1, true))),
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up so the block node's acks are flowing before the ISS (production has the block acked at
+                // lag=1).
+                sleepForSeconds(8),
                 induceIssTransfer(),
                 untilHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(180), () -> new SpecOperation[0]),
@@ -411,6 +417,9 @@ class IssBufferRaceSimTest implements LifecycleTest {
                         IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 10, true))),
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up so the block node's acks are flowing before the ISS (production has the block acked at
+                // lag=1).
+                sleepForSeconds(8),
                 induceIssTransfer(),
                 untilHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(180), () -> new SpecOperation[0]),
