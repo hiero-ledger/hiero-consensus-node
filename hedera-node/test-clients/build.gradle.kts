@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import java.lang.management.ManagementFactory
+import org.gradlex.javamodule.packaging.tasks.FatModuleJar
 import org.hiero.gradle.environment.EnvAccess
 
 plugins {
     id("org.hiero.gradle.module.application")
-    id("org.hiero.gradle.feature.shadow")
+    id("org.gradlex.java-module-packaging")
 }
 
 description = "Hedera Services Test Clients for End to End Tests (EET)"
@@ -800,28 +800,18 @@ tasks.register<Test>("testRepeatable") {
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
-tasks.shadowJar {
+tasks.fatModuleJar {
     archiveFileName.set("SuiteRunner.jar")
-    // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
-    // restricted-method warning for callers in the unnamed module of this JAR
-    // when launched via `java -jar`.
-    manifest { attributes("Enable-Native-Access" to "ALL-UNNAMED") }
 }
 
 val rcdiffJar =
-    tasks.register<ShadowJar>("rcdiffJar") {
-        from(sourceSets["main"].output)
-        from(sourceSets["rcdiff"].output)
-        destinationDirectory = layout.projectDirectory.dir("rcdiff")
-        archiveFileName = "rcdiff.jar"
-        configurations = listOf(project.configurations["rcdiffRuntimeClasspath"])
+    tasks.register<FatModuleJar>("rcdiffJar") {
+        modulePath.from(sourceSets["rcdiff"].runtimeClasspath)
 
-        manifest {
-            attributes(
-                "Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper",
-                // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
-                // restricted-method warning for callers in the unnamed module of this JAR.
-                "Enable-Native-Access" to "ALL-UNNAMED",
-            )
-        }
+        destinationDirectory = layout.projectDirectory.dir("rcdiff")
+        archiveBaseName = "rcdiff"
+        archiveVersion.unsetConvention()
+
+        mainModule = "com.hedera.node.test.clients.rcdiff"
+        mainClass = "com.hedera.services.rcdiff.RcDiffCmdWrapper"
     }
