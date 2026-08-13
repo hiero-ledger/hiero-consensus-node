@@ -20,9 +20,14 @@
 | # CITR (200-299)                             |                                        |                                                       |                                                                   |
 | 201-user-sdpt-controller-adhoc.yaml          | 201: [USER] CITR SDPT Ctrl Adhoc       | zxf-single-day-performance-test-controller-adhoc.yaml | ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT) |
 | 202-user-sdlt-controller-adhoc.yaml          | 202: [USER] CITR SDLT Ctrl Adhoc       | zxf-single-day-longevity-test-controller-adhoc.yaml   | ZXF: [CITR] Adhoc - Single Day Longevity Test Controller          |
+| 203-user-mdlt-controller-adhoc.yaml          | 203: [USER] CITR MDLT Ctrl Adhoc       |                                                       |                                                                   |
+| 204-disp-mdlt-monitor.yaml                   | 204: [DISP] CITR MDLT Monitor          |                                                       |                                                                   |
+| 205-disp-mdlt-publish-results.yaml           | 205: [DISP] CITR MDLT Publish Results  |                                                       |                                                                   |
+| 206-disp-mdlt-tag-result.yaml                | 206: [DISP] CITR MDLT Tag Result       |                                                       |                                                                   |
 | 221-disp-sdpt-controller.yaml                | 221: [DISP] CITR SDPT Controller       | zxf-single-day-performance-test-controller.yaml       | ZXF: [CITR] Single Day Performance Test Controller (SDPT)         |
 | 222-disp-sdlt-controller.yaml                | 222: [DISP] CITR SDLT Controller       | zxf-single-day-longevity-test-controller.yaml         | ZXF: [CITR] Single Day Longevity Test Controller                  |
 | 223-disp-sdct-controller.yaml                | 223: [DISP] CITR SDCT Controller       | zxf-single-day-canonical-test.yaml                    | ZXF: [CITR] Single Day Canonical Test (SDCT)                      |
+| 224-disp-mdlt-controller.yaml                | 224: [DISP] CITR MDLT Controller       |                                                       |                                                                   |
 | 225-disp-release-chewie-allocation.yaml      | 225: [DISP] Release Chewie Allocation  |                                                       |                                                                   |
 |                                              |                                        |                                                       |                                                                   |
 | # TRIGGERED (300-399)                        |                                        |                                                       |                                                                   |
@@ -69,6 +74,7 @@
 | 831-call-single-day-performance-test.yaml    | 831: [CALL] CITR Exec SDPT             | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml       | 832: [CALL] CITR Exec Perf Test        | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml      | 833: [CALL] CITR Exec SDLT             | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
+| 835-call-multi-day-longevity-test.yaml       | 835: [CALL] CITR Exec MDLT             |                                                       |                                                                   |
 | 850-call-build-release-artifact.yaml         | 850: [CALL] Build Release Art          | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |
 | 851-call-deploy-preview.yaml                 | 851: [CALL] Deploy Preview             | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |
 | 852-call-publish-production-image.yaml       | 852: [CALL] Publish Prod Image         | zxc-publish-production-image.yaml                     | ZXC: Publish Production Image                                     |

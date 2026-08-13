@@ -167,6 +167,19 @@
 /.github/workflows/902-cron-auto-namespace-delete.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/903-cron-clean.yaml                          @hiero-ledger/github-maintainers
 
+# specific to MDLT (Multi Day Longevity Test)
+/.github/workflows/203-user-mdlt-controller-adhoc.yaml          @hiero-ledger/github-maintainers
+/.github/workflows/204-disp-mdlt-monitor.yaml                   @hiero-ledger/github-maintainers
+/.github/workflows/205-disp-mdlt-publish-results.yaml           @hiero-ledger/github-maintainers
+/.github/workflows/206-disp-mdlt-tag-result.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/224-disp-mdlt-controller.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/835-call-multi-day-longevity-test.yaml       @hiero-ledger/github-maintainers
+/.github/workflows/support/chewie/mdlt-config.json              @hiero-ledger/github-maintainers
+/.github/workflows/support/citr/collectMdltResults.sh           @hiero-ledger/github-maintainers
+/.github/workflows/support/citr/scpR.sh                         @hiero-ledger/github-maintainers
+/.github/workflows/templates/slack-mdlt-start.json.tpl          @hiero-ledger/github-maintainers
+/.github/workflows/templates/slack-mdlt-status.json.tpl         @hiero-ledger/github-maintainers
+
 # Co-owned with devops
 /.github/workflows/303-disp-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
 /.github/workflows/851-call-deploy-preview.yaml     @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners

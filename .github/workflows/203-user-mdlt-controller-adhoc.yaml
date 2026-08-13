@@ -1,0 +1,268 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "203: [USER] CITR MDLT Ctrl Adhoc"
+on:
+  workflow_dispatch:
+    inputs:
+      build-tag:
+        description: "The build tag to run MDLT against (e.g. build-12345)"
+        required: true
+        type: string
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "30"
+          - "60"
+          - "180"
+          - "330"
+          - "720"
+          - "960"
+          - "1200"
+          - "10080"
+          - "20160"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      reconnect-uptime:
+        required: false
+        default: "600"
+        type: string
+        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
+      duration-minutes:
+        required: false
+        default: "8640"
+        description: "Chewie allocation lifetime in minutes (6 days); covers the 5-day (7200m) run plus log-review time"
+        type: string
+      mdlt-length:
+        required: false
+        default: ""
+        description: "MDLT production run length in minutes, launched after the smoke run. Blank uses default_mdlt_length from .github/chewie.yaml (432000s / 5 days)"
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  verify-tag:
+    name: Verify Tag
+    runs-on: hl-cn-mdlt-lin-sm
+    continue-on-error: true
+    outputs:
+      build-number: ${{ steps.verify-tag.outputs.build-number }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.build-tag }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Verify Tag
+        id: verify-tag
+        env:
+          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
+          CHECK_TAG: "${{ inputs.build-tag }}"
+        run: |
+          # Ensure the tag that we received is a build tag
+          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
+          # return the build tag as an output
+          # if the tag is not a build tag then we will fail the workflow
+          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
+            echo "The tag is a valid build tag."
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
+            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            echo "### Running MDLT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
+
+            echo "### Running MDLT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.build-tag }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.build-tag }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-chewie-props:
+    name: Extract Chewie Properties
+    uses: ./.github/workflows/862-call-get-chewie-properties.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+      - extract-chewie-props
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      request-duration: ${{ steps.check-chewie-outputs.outputs.request-duration }}
+      request-timeout: ${{ steps.check-chewie-outputs.outputs.request-timeout }}
+      mdlt-length: ${{ steps.check-chewie-outputs.outputs.mdlt-length }}
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check CITR Variables
+        id: check-citr-var-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
+      - name: Check Chewie Properties
+        id: check-chewie-outputs
+        run: |
+          DEFAULT_DURATION=""
+          if [[ "${{ inputs.duration-minutes }}" != "" ]]; then
+            DEFAULT_DURATION="${{ inputs.duration-minutes }}"
+          else
+            DEFAULT_DURATION_SECONDS="${{ needs.extract-chewie-props.outputs.request-duration }}"
+            if [[ "${DEFAULT_DURATION_SECONDS}" == "" ]]; then
+              echo "::error::Chewie default duration is missing. Failing the job."
+              exit 1
+            fi
+            DEFAULT_DURATION=$((DEFAULT_DURATION_SECONDS / 60))
+          fi
+
+          DEFAULT_TIMEOUT="${{ needs.extract-chewie-props.outputs.request-timeout }}"
+          if [[ "${DEFAULT_TIMEOUT}" == "" ]]; then
+            echo "::error::Chewie default timeout is missing. Failing the job."
+            exit 1
+          fi
+
+          # MDLT production run length: an explicit input wins (already minutes), otherwise fall back to
+          # default_mdlt_length, which is in seconds like the other chewie.yaml values.
+          MDLT_LENGTH="${{ inputs.mdlt-length }}"
+          if [[ "${MDLT_LENGTH}" == "" ]]; then
+            MDLT_LENGTH_SECONDS="${{ needs.extract-chewie-props.outputs.mdlt-length }}"
+            if [[ "${MDLT_LENGTH_SECONDS}" == "" ]]; then
+              echo "::error::Chewie default MDLT length is missing. Failing the job."
+              exit 1
+            fi
+            MDLT_LENGTH=$((MDLT_LENGTH_SECONDS / 60))
+          fi
+
+          # Note: Duration and MDLT length are in minutes, Timeout is in seconds
+          echo "::group::Resolved Chewie Values"
+          echo "request-duration=${DEFAULT_DURATION}" | tee -a "${GITHUB_OUTPUT}"
+          echo "request-timeout=${DEFAULT_TIMEOUT}" | tee -a "${GITHUB_OUTPUT}"
+          echo "mdlt-length=${MDLT_LENGTH}" | tee -a "${GITHUB_OUTPUT}"
+          echo "::endgroup::"
+
+  verify-prerequisite-tags:
+    name: Verify SDPT/SDLT Pass Tags
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Verify SDPT and SDLT pass tags exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_TAG: ${{ inputs.build-tag }}
+        run: |
+          # MDLT may only run against a build that already passed SDPT and SDLT. Extract the build
+          # number from the build tag (build-XXXXX -> XXXXX) and confirm both pass tags exist.
+          BUILD_NUM="${BUILD_TAG#build-}"
+          missing=()
+          for tag in "sdpt-pass-${BUILD_NUM}" "sdlt-pass-${BUILD_NUM}"; do
+            if gh api "repos/${{ github.repository }}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+              echo "Found prerequisite tag: ${tag}"
+            else
+              missing+=("${tag}")
+            fi
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error title=Missing prerequisite tags::MDLT requires ${missing[*]} to exist before kickoff."
+            exit 1
+          fi
+          {
+            echo "### MDLT prerequisites satisfied"
+            echo "- sdpt-pass-${BUILD_NUM}"
+            echo "- sdlt-pass-${BUILD_NUM}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  run-multi-day-longevity-test:
+    name: Longevity Test
+    needs:
+      - verify-tag
+      - verify-prerequisite-tags
+      - extract-jdk-version
+      - extract-citr-vars
+      - verify-citr-vars
+    uses: ./.github/workflows/835-call-multi-day-longevity-test.yaml
+    if: ${{ needs.verify-tag.result == 'success' && needs.verify-prerequisite-tags.result == 'success' }}
+    with:
+      ref: "${{ inputs.build-tag }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      add-settings: "${{ inputs.add-settings }}"
+      duration-minutes: ${{ fromJSON(inputs.duration-minutes) }}
+      reconnect-uptime: "${{ inputs.reconnect-uptime }}"
+      request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
+      mdlt-length: ${{ fromJSON(needs.verify-citr-vars.outputs.mdlt-length) }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
