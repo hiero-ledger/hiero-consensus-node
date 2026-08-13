@@ -61,10 +61,10 @@ public class ConsensusTestRunner {
     }
 
     private void runWithSeed(final long seed) {
-        System.out.println("Running seed: " + 7624134555018922876L);
+        System.out.println("Running seed: " + seed);
         try {
             test.accept(new TestInput(
-                    configuration, metrics, time, params.numNodes(), params.weightGenerator(), 7624134555018922876L, eventsToGenerate));
+                    configuration, metrics, time, params.numNodes(), params.weightGenerator(), seed, eventsToGenerate));
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
