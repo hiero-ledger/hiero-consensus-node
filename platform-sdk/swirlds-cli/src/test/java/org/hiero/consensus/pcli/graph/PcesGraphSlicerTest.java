@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
-import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;

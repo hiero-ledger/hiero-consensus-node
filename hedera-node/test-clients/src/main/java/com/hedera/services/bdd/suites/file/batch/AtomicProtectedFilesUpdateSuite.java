@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
@@ -146,26 +145,6 @@ class AtomicProtectedFilesUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateNodeDetails() {
         return unauthorizedAccountCannotUpdateSpecialFile(NODE_DETAILS, NEW_CONTENTS);
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> account2CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(GENESIS, FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> account50CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> account56CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
-        return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
     }
 
     @HapiTest

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.ivy.suites;
 
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -73,7 +74,7 @@ public class IvyCryptoScenarioSuite extends AbstractIvySuite {
                         ensureScenarioPayer(),
                         ensureEd25519Account(SENDER_NAME, crypto.getSender(), 2L, crypto::setSender),
                         ensureEd25519Account(RECEIVER_NAME, crypto.getReceiver(), 0L, crypto::setReceiver),
-                        balanceSnapshot("receiverBefore", RECEIVER_NAME))
+                        balanceSnapshot("receiverBefore", RECEIVER_NAME).payingWith(SCENARIO_PAYER_NAME))
                 .when(flattened(
                         cryptoTransfer(tinyBarsFromTo(SENDER_NAME, RECEIVER_NAME, 1L))
                                 .payingWith(SCENARIO_PAYER_NAME)
@@ -88,9 +89,10 @@ public class IvyCryptoScenarioSuite extends AbstractIvySuite {
                             transferFee.set(record.getTransactionFee());
                         }),
                         novelAccountIfDesired(transferFee)))
-                .then(getAccountBalance(RECEIVER_NAME)
+                .then(getAccountInfo(RECEIVER_NAME)
+                        .payingWith(SCENARIO_PAYER_NAME)
                         .setNodeFrom(nodeAccounts.get())
-                        .hasTinyBars(changeFromSnapshot("receiverBefore", expectedBalanceDelta)));
+                        .has(accountWith().balance(changeFromSnapshot("receiverBefore", expectedBalanceDelta))));
     }
 
     @Override

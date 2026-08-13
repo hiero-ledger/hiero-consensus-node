@@ -519,6 +519,66 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void nodeStakeNotCorruptedWhenStakeeDeletedAfterStaking() {
+        // Account A (payer) is staked to account W (owner). W is staked to node 0 and has already
+        // been deleted in a prior transaction. The node's stakeToReward was correctly zeroed by
+        // that deletion. Now a new transaction changes A's balance while A still carries
+        // stakedAccountId=W. Without the deleted-stakee guard in updateStakedToMeFor, the handler
+        // would mutate W's stakedToMe, re-enter W into the modified-accounts set, and then run a
+        // withdrawStake on node 0 with no matching awardStake (because W is deleted) — driving the
+        // node's stakeToReward below its true value on every subsequent transaction touching A.
+        final var stakerBalance = 25L * HBARS_TO_TINYBARS;
+        // A is NOT deleted; it is staked to W (ownerId)
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(stakerBalance)
+                .withStakedAccountId(ownerId)
+                .withStakedToMe(0L)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .build();
+        // W IS deleted; balance=0 (funds already transferred), stakedToMe=25 HBAR (A's contribution
+        // that was never cleaned up), stakedNodeId=0 (also never cleared on deletion)
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(0L)
+                .withStakedNodeId(node0Id.number())
+                .withStakedToMe(stakerBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(true)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        final var node0StakeBeforeTx = writableStakingInfoState.get(node0Id).stakeToReward();
+
+        // Simulate a new transaction that increases A's balance by 5 HBAR
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(stakerBalance + 5L * HBARS_TO_TINYBARS)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+
+        // The node's stakeToReward must not be lowered by a spurious withdraw for the deleted stakee
+        final var node0InfoAfter = writableStakingInfoState.get(node0Id);
+        assertThat(node0InfoAfter.stakeToReward()).isEqualTo(node0StakeBeforeTx);
+    }
+
+    @Test
     void stakingEffectsWorkAsExpectedWhenStakingToNodeWithNoStakingMetaChanges() {
         final var accountBalance = 55L * HBARS_TO_TINYBARS;
         final var payerAccountBefore = new AccountCustomizer()

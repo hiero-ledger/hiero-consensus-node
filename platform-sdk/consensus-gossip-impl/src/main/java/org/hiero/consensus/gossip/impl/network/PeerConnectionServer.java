@@ -14,10 +14,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHandler;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 
