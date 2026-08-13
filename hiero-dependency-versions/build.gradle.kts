@@ -78,7 +78,6 @@ dependencies.constraints {
     }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
-    api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.22.0") { because("org.apache.commons.codec") }
@@ -131,6 +130,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
+    }
+    api("com.hedera.cryptography:libsodium:$hederaCryptography") {
+        because("com.hedera.cryptography.libsodium")
     }
     api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
         because("com.hedera.cryptography.libsecp256k1")
