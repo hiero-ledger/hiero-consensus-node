@@ -431,7 +431,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * @return true if the input data matches any of the known create selectors, false otherwise
      */
     private boolean isTokenCreation(MessageFrame frame) {
-        if (frame.getInputData().isEmpty()) {
+        if (frame.getInputData().size() < 4) {
             return false;
         }
         final var selector = frame.getInputData().slice(0, 4).toArray();

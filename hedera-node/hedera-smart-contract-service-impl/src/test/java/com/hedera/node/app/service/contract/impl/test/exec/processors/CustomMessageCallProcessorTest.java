@@ -57,6 +57,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -259,6 +261,27 @@ class CustomMessageCallProcessorTest {
         Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "123", // partial selector
+                "123456" // not matching selector
+            })
+    void haltsIfInvalidInput(final String input) {
+        final var isHalted = new AtomicBoolean();
+        givenHaltableFrame(isHalted);
+        givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
+        given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getInputData()).willReturn(Bytes.fromBase64String(input));
+
+        subject.start(frame, operationTracer);
+
+        verify(frame).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        verify(frame, never()).setState(MessageFrame.State.CODE_EXECUTING);
+        verify(operationTracer).traceNotExecuting(eq(frame));
     }
 
     @Test
