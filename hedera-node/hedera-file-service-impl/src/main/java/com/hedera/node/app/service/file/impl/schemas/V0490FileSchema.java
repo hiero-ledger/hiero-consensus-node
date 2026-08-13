@@ -1,19 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.schemas;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
-import com.hedera.hapi.node.base.FeeComponents;
-import com.hedera.hapi.node.base.FeeData;
-import com.hedera.hapi.node.base.FeeSchedule;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
@@ -22,10 +16,8 @@ import com.hedera.hapi.node.base.NodeAddressBook;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -69,7 +61,6 @@ import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import javax.inject.Inject;
@@ -272,22 +263,6 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     // ================================================================================================================
     // Creates and loads the initial Fee Schedule into state
 
-    public void createGenesisFeeSchedule(@NonNull final SystemContext systemContext) {
-        requireNonNull(systemContext);
-        final var config = systemContext.configuration();
-        final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
-        final var masterKey =
-                Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
-        systemContext.dispatchCreation(
-                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
-                                .contents(genesisFeeSchedules(config))
-                                .keys(KeyList.newBuilder().keys(masterKey))
-                                .expirationTime(maxLifetimeExpiry(systemContext))
-                                .build())
-                        .build(),
-                config.getConfigData(FilesConfig.class).feeSchedules());
-    }
-
     public void createGenesisSimpleFeesSchedule(@NonNull final SystemContext systemContext) {
         requireNonNull(systemContext);
         final var config = systemContext.configuration();
@@ -304,24 +279,6 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
                 config.getConfigData(FilesConfig.class).simpleFeesSchedules());
     }
 
-    /**
-     * Returns the genesis fee schedules for the given configuration.
-     *
-     * @param config the configuration
-     * @return the genesis fee schedules
-     */
-    public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
-        final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = loadResourceInPackage(resourceName)) {
-            final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
-            final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
-            return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
-        } catch (IOException | NullPointerException e) {
-            throw new IllegalArgumentException(
-                    "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
-        }
-    }
-
     public Bytes genesisSimpleFeesSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).simpleFeesSchedulesJsonResource();
         try (final var in = loadResourceInPackage(resourceName)) {
@@ -332,97 +289,6 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
             throw new IllegalArgumentException(
                     "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
         }
-    }
-
-    /**
-     * Deserializes a JSON object representing a {@link CurrentAndNextFeeSchedule} message from the given bytes,
-     * returning the equivalent protobuf message.
-     *
-     * @param feeScheduleJsonBytes the bytes of the JSON object representing the fee schedules
-     * @return the {@link CurrentAndNextFeeSchedule} message
-     */
-    public static CurrentAndNextFeeSchedule parseFeeSchedules(@NonNull final byte[] feeScheduleJsonBytes) {
-        try {
-            final var json = new ObjectMapper();
-            final var rootNode = json.readTree(feeScheduleJsonBytes);
-            final var builder = CurrentAndNextFeeSchedule.newBuilder();
-            final var schedules = rootNode.elements();
-            while (schedules.hasNext()) {
-                final var scheduleContainerNode = schedules.next();
-                if (scheduleContainerNode.has("currentFeeSchedule")) {
-                    final var currentFeeSchedule = parseFeeSchedule(scheduleContainerNode.get("currentFeeSchedule"));
-                    builder.currentFeeSchedule(currentFeeSchedule);
-                } else if (scheduleContainerNode.has("nextFeeSchedule")) {
-                    final var nextFeeSchedule = parseFeeSchedule(scheduleContainerNode.get("nextFeeSchedule"));
-                    builder.nextFeeSchedule(nextFeeSchedule);
-                } else {
-                    logger.warn("Unexpected node encountered while parsing fee schedule: {}", scheduleContainerNode);
-                }
-            }
-
-            return builder.build();
-        } catch (final Exception e) {
-            throw new IllegalArgumentException("Unable to parse fee schedule file", e);
-        }
-    }
-
-    private static FeeSchedule parseFeeSchedule(@NonNull final JsonNode scheduleNode) {
-        final var builder = FeeSchedule.newBuilder();
-        final var transactionFeeSchedules = new ArrayList<TransactionFeeSchedule>();
-        final var transactionFeeScheduleIterator = scheduleNode.elements();
-        while (transactionFeeScheduleIterator.hasNext()) {
-            final var childNode = transactionFeeScheduleIterator.next();
-            if (childNode.has("transactionFeeSchedule")) {
-                final var transactionFeeScheduleNode = childNode.get("transactionFeeSchedule");
-                final var feesContainer = transactionFeeScheduleNode.get("fees");
-                final var feeDataList = new ArrayList<FeeData>();
-                feesContainer.elements().forEachRemaining(feeNode -> feeDataList.add(parseFeeData(feeNode)));
-                transactionFeeSchedules.add(TransactionFeeSchedule.newBuilder()
-                        .hederaFunctionality(fromString(transactionFeeScheduleNode
-                                .get("hederaFunctionality")
-                                .asText()))
-                        .fees(feeDataList)
-                        .build());
-            } else if (childNode.has("expiryTime")) {
-                final var expiryTime = childNode.get("expiryTime").asLong();
-                builder.expiryTime(TimestampSeconds.newBuilder().seconds(expiryTime));
-            } else {
-                logger.warn("Unexpected node encountered while parsing fee schedule: {}", childNode);
-            }
-        }
-
-        return builder.transactionFeeSchedule(transactionFeeSchedules).build();
-    }
-
-    private static FeeData parseFeeData(@NonNull final JsonNode feeNode) {
-        return FeeData.newBuilder()
-                .subType((Optional.ofNullable(feeNode.get("subType"))
-                        .map(JsonNode::asText)
-                        .map(SubType::fromString)
-                        .orElse(SubType.DEFAULT)))
-                .nodedata(parseFeeComponents(feeNode.get("nodedata")))
-                .networkdata(parseFeeComponents(feeNode.get("networkdata")))
-                .servicedata(parseFeeComponents(feeNode.get("servicedata")))
-                .build();
-    }
-
-    private static FeeComponents parseFeeComponents(@NonNull final JsonNode componentNode) {
-        final var feeComponents = FeeComponents.newBuilder()
-                .constant(componentNode.get("constant").asLong())
-                .bpt(componentNode.get("bpt").asLong())
-                .vpt(componentNode.get("vpt").asLong())
-                .rbh(componentNode.get("rbh").asLong())
-                .sbh(componentNode.get("sbh").asLong())
-                .gas(componentNode.get("gas").asLong())
-                .bpr(componentNode.get("bpr").asLong())
-                .sbpr(componentNode.get("sbpr").asLong())
-                .min(componentNode.get("min").asLong())
-                .max(componentNode.get("max").asLong());
-        // This is only used for ContractUpdate
-        if (componentNode.get("tv") != null) {
-            feeComponents.tv(componentNode.get("tv").asLong());
-        }
-        return feeComponents.build();
     }
 
     public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(
@@ -681,8 +547,8 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
      * Deserializes a JSON object representing a {@link ThrottleDefinitions} message from the given bytes,
      * returning the serialized bytes of the equivalent protobuf message.
      *
-     * @param throttleJson the serialized JSON representing the fee schedules
-     * @return the {@link CurrentAndNextFeeSchedule} message
+     * @param throttleJson the serialized JSON representing the throttle definitions
+     * @return the serialized {@link ThrottleDefinitions} message
      */
     public static byte[] parseThrottleDefinitions(@NonNull final String throttleJson) {
         try {
