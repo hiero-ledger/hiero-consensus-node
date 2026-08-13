@@ -492,7 +492,6 @@ public class TransactionExecutorsTest {
         return Map.of(
                 filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
-                filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
                 filesConfig.exchangeRates(), genesisSchema::genesisExchangeRatesBytes,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,
