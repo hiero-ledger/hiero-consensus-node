@@ -71,6 +71,12 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
                     "[block-assert-diag] translated {} record(s) from {} unit(s) in a block",
                     translatedRecords,
                     units.size());
+            // Even when this block produced no (matching) records, give the delegate a chance to
+            // re-check items it buffered pending transaction-ID registration and re-evaluate; without
+            // this, a buffered match is stranded once the stream goes idle (writerMode=GRPC).
+            if (delegate.recheckPending()) {
+                return true;
+            }
         } catch (final AssertionError e) {
             if (suppressAssertionErrors) {
                 log.info("Suppressed assertion error from block-to-record translation (lenient mode)", e);

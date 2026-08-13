@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.utilops.streams.assertions;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -26,6 +27,10 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
      */
     @Nullable
     private BlockStreamAssertion assertion;
+
+    /** The spec this assertion was submitted for, retained for the final timeout rescan. */
+    @Nullable
+    private HapiSpec spec;
 
     /**
      * Returns an {@link EventualBlockStreamAssertion} that will pass as long as the given assertion does not
@@ -101,6 +106,7 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         requireNonNull(spec);
+        this.spec = spec;
         assertion = requireNonNull(assertionFactory.apply(spec));
         unsubscribe = BlockSourceFactory.blockSourceFor(spec).subscribe(new StreamDataListener() {
             @Override
@@ -126,6 +132,39 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
             }
         });
         return false;
+    }
+
+    /**
+     * Deterministic final rescan for the block-node ({@code writerMode=GRPC}) path. The live
+     * subscription matches items as blocks arrive, but an item observed before its {@code .via}
+     * transaction id was registered is buffered and only re-checked when another record arrives; if
+     * the stream goes idle first, the assertion can time out even though the item is present. Re-read
+     * the whole stream once through a fresh assertion instance with the now fully-populated spec
+     * registry so such a spurious timeout is corrected. A genuine miss still fails. Mirrors the
+     * one-shot {@code allBlocks()} drain used by {@code SidecarWatcher}. No-op when no block node is
+     * active (e.g. {@code writerMode=FILE}), leaving the original timeout to stand.
+     */
+    @Override
+    protected boolean recoveredAfterTimeout() {
+        if (spec == null) {
+            return false;
+        }
+        return BlockNodeReader.forActiveNetwork()
+                .map(reader -> {
+                    final var rescan = assertionFactory.apply(spec);
+                    try {
+                        for (final var block : reader.allBlocks()) {
+                            if (rescan.test(block)) {
+                                return true;
+                            }
+                        }
+                    } catch (final AssertionError ignore) {
+                        // A failure during rescan is not a spurious timeout; let the original result stand.
+                        return false;
+                    }
+                    return false;
+                })
+                .orElse(false);
     }
 
     @Override
