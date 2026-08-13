@@ -78,7 +78,6 @@ import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -136,7 +135,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
      * @param timeManager the time manager for this test
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
-     * @param network the simulated network
+     * @param gossip the simulated gossip instance
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
@@ -147,7 +146,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetwork network,
+            @NonNull final SimulatedGossip gossip,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration,
@@ -159,12 +158,8 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
 
             this.random = requireNonNull(random);
             this.timeManager = requireNonNull(timeManager);
+            this.gossip = requireNonNull(gossip);
             this.logging = requireNonNull(logging);
-
-            final SimulatedGossip simulatedGossip = new SimulatedGossip(network, selfId);
-            network.addNode(selfId, simulatedGossip);
-            this.gossip = simulatedGossip;
-
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
