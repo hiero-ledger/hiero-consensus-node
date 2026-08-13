@@ -84,6 +84,8 @@ on:
         value: ${{ jobs.create-allocation-request.outputs.owner }}
       request-expiration:
         value: ${{ jobs.create-allocation-request.outputs.expiration }}
+      allocation-id:
+        value: ${{ jobs.create-allocation-request.outputs.allocation-id }}
 
 permissions:
   contents: read
@@ -120,6 +122,7 @@ jobs:
       network-id: ${{ steps.read-chewie-response.outputs.network-id }}
       owner: ${{ steps.read-chewie-response.outputs.owner }}
       expiration: ${{ steps.read-chewie-response.outputs.expiration }}
+      allocation-id: ${{ steps.create-allocation-request.outputs.allocation-id }}
     steps:
       - name: Initialize Github Job
         uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0

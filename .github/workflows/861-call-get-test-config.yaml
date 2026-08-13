@@ -59,7 +59,7 @@ jobs:
         env:
           TEST_TYPE: ${{ inputs.test-type }}
         run: |
-          valid_types=("sdpt" "sdlt")
+          valid_types=("sdpt" "sdlt" "mdlt")
           if [[ ! "${valid_types[*]}" =~ "${TEST_TYPE}" ]]; then
             echo "::error::Invalid test-type: '${TEST_TYPE}'. Must be one of: ${valid_types[*]}"
             exit 1
