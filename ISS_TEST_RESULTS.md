@@ -62,18 +62,19 @@ is that block still in memory, or was it already thrown away?**
 
 Simulator tests first (no Docker needed), then the real-block-node tests.
 
-|  #  |             Test              | Suite |                          What it checks                           |                                         Status                                         |
-|-----|-------------------------------|-------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| C3  | selfIssRetain10Sim            | SIM   | self-ISS, keep 10 acked blocks, acks on                           | ✅ PASS — block KEPT (.iss.gz), lag=1                                                   |
-| C4  | selfIssBnBehindWithheldAcks   | SIM   | self-ISS, keep 1, acks withheld → should keep block               | ✅ PASS after harness fix — block KEPT (.iss.gz), acked=FALSE (acks withheld), lag=1    |
-| C5  | selfIssBadBlockProofRejection | SIM   | self-ISS, keep 1, bad-proof reject after detect                   | ✅ PASS after harness fix — block KEPT (.iss.gz), lag=1, acked=true; bad-proof injected |
-| C9  | selfIssCnBehindResend         | SIM   | self-ISS, keep 10, resend old block → "CN behind"                 | ✅ PASS — block KEPT (.iss.gz), lag=1; resend→"block does not exist"                    |
-| C1  | selfIssRetain10               | REAL  | self-ISS, keep 10 (default)                                       | ✅ PASS — block KEPT (.iss.gz), lag=1, acked=true; node0 no fatal ISS                   |
-| C2  | selfIssRetain1                | REAL  | self-ISS, keep 1 → expected to lose block                         | ✅ PASS — but block KEPT (.iss.gz), lag=1 → **predicted loss did NOT happen**           |
-| C6  | catastrophicIssRetain1        | REAL  | catastrophic ISS, keep 1 → should keep block                      | ✅ PASS — CATASTROPHIC on all 4 nodes, block KEPT, acked=FALSE                          |
-| C8  | selfIssBnDown                 | REAL  | self-ISS, block node taken down → should keep block               | ✅ PASS after harness fix — block KEPT (.iss.gz), acked=FALSE (BN down), lag=1          |
-| C10 | selfIssRetain0Pruned          | SIM   | **NEW: self-ISS, keep 0 → block pruned before capture (LOSS)**    | ✅ PASS — block LOST (.txt), ISS block pruned; deterministic                            |
-| C11 | selfIssLateNotification       | SIM   | **NEW: self-ISS, keep=1 but LATE notification (lag>keep) → LOSS** | ✅ PASS — block LOST (.txt), lag≈2-3 > keep=1; deterministic                            |
+|  #  |             Test              | Suite |                          What it checks                           |                                          Status                                           |
+|-----|-------------------------------|-------|-------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| C3  | selfIssRetain10Sim            | SIM   | self-ISS, keep 10 acked blocks, acks on                           | ✅ PASS — block KEPT (.iss.gz), lag=1                                                      |
+| C4  | selfIssBnBehindWithheldAcks   | SIM   | self-ISS, keep 1, acks withheld → should keep block               | ✅ PASS after harness fix — block KEPT (.iss.gz), acked=FALSE (acks withheld), lag=1       |
+| C5  | selfIssBadBlockProofRejection | SIM   | self-ISS, keep 1, bad-proof reject after detect                   | ✅ PASS after harness fix — block KEPT (.iss.gz), lag=1, acked=true; bad-proof injected    |
+| C9  | selfIssCnBehindResend         | SIM   | self-ISS, keep 10, resend old block → "CN behind"                 | ✅ PASS — block KEPT (.iss.gz), lag=1; resend→"block does not exist"                       |
+| C1  | selfIssRetain10               | REAL  | self-ISS, keep 10 (default)                                       | ✅ PASS — block KEPT (.iss.gz), lag=1, acked=true; node0 no fatal ISS                      |
+| C2  | selfIssRetain1                | REAL  | self-ISS, keep 1 → expected to lose block                         | ✅ PASS — but block KEPT (.iss.gz), lag=1 → **predicted loss did NOT happen**              |
+| C6  | catastrophicIssRetain1        | REAL  | catastrophic ISS, keep 1 → should keep block                      | ✅ PASS — CATASTROPHIC on all 4 nodes, block KEPT, acked=FALSE                             |
+| C8  | selfIssBnDown                 | REAL  | self-ISS, block node taken down → should keep block               | ✅ PASS after harness fix — block KEPT (.iss.gz), acked=FALSE (BN down), lag=1             |
+| C10 | selfIssRetain0Pruned          | SIM   | **NEW: self-ISS, keep 0 → block pruned before capture (LOSS)**    | ✅ PASS — block LOST (.txt), ISS block pruned; deterministic                               |
+| C11 | selfIssLateNotification       | SIM   | **NEW: self-ISS, keep=1 but LATE notification (lag>keep) → LOSS** | ✅ PASS — block LOST (.txt), lag≈2-3 > keep=1; deterministic                               |
+| C12 | selfIssRealKeepsEvenAtRetain0 | REAL  | **NEW: can the REAL BN lose? self-ISS, keep=0 + 10ms prune**      | ✅ PASS — block **KEPT** (.iss.gz) 3/3; real BN's ack lands at detection → no prune window |
 
 ---
 
@@ -351,6 +352,28 @@ this is what a bigger/slower network (slower ISS detection) would cause on its o
 
 ---
 
+### C12 — selfIssRealKeepsEvenAtRetain0 (REAL) — ✅ PASS, block KEPT even at keep=0 (answers "can we make C2 lose on the real BN?")
+
+Follow-up to the C2 question: **can the real dockerized BN be made to lose the self-ISS block?** Short answer: **not
+at networkSize=4** — even the most aggressive setting keeps it.
+
+- **Setup:** self-ISS on node1, REAL block node, **keep=0**, node1 pruning every **10ms** (`workerInterval=10ms`),
+  8s ack warm-up. This is the real-BN version of the SIM loss test C10.
+- **Result: KEPT on 3/3 runs** (`.iss.gz`). `ISS-DIAG issBlock=20 currentBlock=21 lag=1 earliestBuffered=20
+  highestAcked=20 inBuffer=true acked=true` — the block was acked and keep=0 made it prunable, but it was **not
+  pruned** before the capture read the buffer.
+- **Why it keeps (the key difference from the simulator):** on the real BN the ISS block's acknowledgement arrives
+  ~at the same instant as detection — both follow from the *next* block being processed and its proof verified. So
+  there is no window to prune the block before the async capture snapshot. In the simulator (C10) the **instant
+  blind-ack** acks the block much earlier, which is exactly what lets the prune drop it in time; even a 10ms prune
+  worker cannot beat the real BN's ack→detection gap.
+- **Meaning:** the common self-ISS block is **robustly kept on the real path** even under the most aggressive
+  retention. A real-BN loss would need `lag > 1` — a genuinely late notification, i.e. a bigger/slower network (the
+  `blockPeriod=0` trick that powers C11 would swamp real TSS block-proof generation, so it is not usable here).
+- **Test verdict:** PASS (observation; records the kept outcome).
+
+---
+
 ## Summary — all the numbers in one place
 
 | Test | Block node | keep  |   ISS type   |  ISS block  | newest block | lag  | in buffer? |       acked?       |       Result       |
@@ -365,6 +388,7 @@ this is what a bigger/slower network (slower ISS detection) would cause on its o
 | C8   | real       | 1     | SELF         | 21          | 22           | 1    | yes        | no (BN down)       | **KEPT** (.iss.gz) |
 | C10  | simulator  | **0** | SELF         | pruned (−1) | 21           | —    | **no**     | acked → pruned     | **LOST** (.txt)    |
 | C11  | simulator  | 1     | SELF         | pruned (−1) | 577          | ~2-3 | **no**     | acked → pruned     | **LOST** (.txt)    |
+| C12  | real       | 0     | SELF         | 20          | 21           | 1    | yes        | acked, not pruned  | **KEPT** (.iss.gz) |
 
 Pass/fail (after the harness fix): **all nine tests pass** — C1, C2, C3, C4, C5, C6, C8, C9 (block kept) and C10
 (block lost, as intended). Before the fix, C4/C5/C8 failed on the harness NullPointerException described at the end.

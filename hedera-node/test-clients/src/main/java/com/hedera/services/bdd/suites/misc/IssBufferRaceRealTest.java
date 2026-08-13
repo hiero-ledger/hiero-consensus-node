@@ -303,6 +303,62 @@ class IssBufferRaceRealTest implements LifecycleTest {
                 freezeSurvivors());
     }
 
+    // C12 — REAL BN result: SELF_ISS with keep=0 AND a fast 10ms prune worker STILL KEEPS the block (.iss.gz) — the
+    // opposite of the SIM loss (C10). Observed kept on 3/3 runs. Why: on the real BN the ISS block's acknowledgement
+    // lands at ~the same instant as detection (both follow from the next block being processed and proof-verified), so
+    // there is no window to prune the block before the async capture snapshot reads the buffer. The simulator's
+    // instant blind-ack acks the block much earlier, which is what lets C10 prune it in time. Upshot: the common
+    // self-ISS block is robustly kept on the REAL path even under the most aggressive retention; a loss there would
+    // need lag > 1 (a genuinely late notification, i.e. a bigger/slower network — the blockPeriod=0 trick that gives
+    // C11 its lag would swamp real TSS block-proof generation). Observation test: records the outcome, passes on kept.
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "200"}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.buffer.workerInterval", "10ms"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "200"}),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "200"})
+            })
+    final Stream<DynamicTest> selfIssRealKeepsEvenAtRetain0() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 0, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up so the real block node's acks are flowing before the ISS (an unacked block is never pruned).
+                sleepForSeconds(8),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                recordOutcome("C12 SELF/REAL/keep=0/still-kept"),
+                freezeSurvivors());
+    }
+
     // --- shared step builders ---
 
     /** The divergent transfer: 1 debit + 6 credits = 7 balance adjustments — above node1's maxLen=5, within the others'. */

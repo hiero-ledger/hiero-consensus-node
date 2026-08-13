@@ -60,6 +60,12 @@ block must be *acked* and then *pruned* before the single no-wait GRPC capture s
 - **C11 `selfIssLateNotification`** — `keep=1` (normal), but `blockStream.blockPeriod=0` + `roundsPerBlock=1` makes
 one block per round, so detection lags ~2-3 blocks (`lag > keep`). This is the **realistic** trigger — a
 bigger/slower network detects the ISS several blocks late on its own, with no knobs.
+- **C12 `selfIssRealKeepsEvenAtRetain0` (REAL, follow-up):** the real dockerized BN **cannot** be forced to lose at
+`networkSize=4` — even `keep=0` + a 10ms prune worker **KEEPS** the block (3/3). On the real BN the ISS block's ack
+lands ~at detection (proof-verify latency), so there is no window to prune it before the capture snapshot; the sim
+loses only because its instant blind-ack acks the block much earlier. So the deterministic loss is a SIM result; on
+the real path a loss needs a genuinely late notification (bigger/slower network). Reassuring for the feature: the
+common self-ISS block is robustly kept on the real path.
 
 ### Test-harness bug found + FIXED (unblocks C4/C5/C8)
 
