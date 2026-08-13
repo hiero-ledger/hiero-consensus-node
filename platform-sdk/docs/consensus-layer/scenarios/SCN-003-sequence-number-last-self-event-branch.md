@@ -10,12 +10,14 @@ severity: high
 related:
   invariants: []
   decisions: [ADR-008]
-  scenarios: [SCN-002]
+  scenarios: [SCN-002, SCN-004]
   tests:
     - consensus-otter-tests/src/testOtter/java/org/hiero/otter/test/ReconnectTest.java
+    - consensus-event-creator-impl/src/test/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreatorTests.java
 status: verified
 provenance: hiero-consensus-node#26376 (fix); reproduced by ReconnectTest.testSyntheticBottleneckReconnect
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # SCN-003 — Self-event recency keyed on the local sequence number picks an older self-parent after a fast reconnect — branching
@@ -29,8 +31,9 @@ a fast reconnect let a self-*ancestor*, re-received via gossip after the orphan
 buffer had been cleared, get a fresh higher sequence number than the maintained
 latest self event, overwrite it, and cause the node to create a new event on an
 older self-parent — a branch. Fixed by keying on nGen in #26376 (an interim
-revert), then by gating the comparison on the event's origin in #26530 so a
-gossiped self event is never ranked against a replayed or created one (ADR-008).
+revert), then by gating the comparison on the event's origin in #26530 so a gossiped
+self event is never ranked by sequence number against a replayed or created one
+(ADR-008).
 
 ## Setup
 
@@ -109,28 +112,40 @@ Keyed self-event recency on nGen in #26376 — an interim revert, since supersed
 gates the comparison on `EventOrigin` (#26530), so two self events are only ranked
 against each other when both were numbered in the same orphan-buffer epoch. The
 re-received self-ancestor here arrives with origin `GOSSIP` against a held event of
-origin `RUNTIME` or `STORAGE`, and is rejected before its sequence number is
-consulted. ADR-008 carries the per-origin argument.
+origin `RUNTIME`, and is rejected before its sequence number is consulted. ADR-008
+carries the per-origin argument.
+
+The same ancestor arriving against a held event of origin `STORAGE` is rejected only
+once the event creator has been told a reconnect was prepared for — the gate that
+`ReconnectCoordinator.clear()` sets. Without it a `STORAGE`-origin held event is
+displaced unconditionally, because outside a reconnect a gossiped self event is one
+PCES did not deliver and is therefore newer; SCN-004 is the failure that case exists
+to prevent.
 
 What it does not cover: a node that lost PCES from disk holds a `GOSSIP`-origin
-self event, so a reconnect mid-relearn can still let a re-numbered self-ancestor
-displace it. Disk-loss recovery is best-effort by decision (ADR-004).
+self event, and that case still ranks by sequence number, so a reconnect mid-relearn
+can let a re-numbered self-ancestor displace it. Disk-loss recovery is best-effort by
+decision (ADR-004).
 
 Regression guards: `ReconnectTest.testSyntheticBottleneckReconnect`;
-`TipsetEventCreatorTests.gossipedSelfEventDoesNotDisplaceReplayedSelfEvent`.
+`TipsetEventCreatorTests.gossipedSelfEventDoesNotDisplaceReplayedSelfEventAfterReconnect`.
 
 ## Verification
 
 `test-reproduced`. `testSyntheticBottleneckReconnect` drives a fast
 (synthetic-bottleneck) reconnect; it fails on the unqualified sequence-number key
 (branch → `ERROR` log) and passes on nGen.
-`gossipedSelfEventDoesNotDisplaceReplayedSelfEvent` reproduces the overwrite at
-unit level: a gossiped self-ancestor carrying a higher sequence number must not
-displace a replayed self event.
+`gossipedSelfEventDoesNotDisplaceReplayedSelfEventAfterReconnect` reproduces the
+overwrite at unit level: after a reconnect has been prepared for, a gossiped
+self-ancestor carrying a higher sequence number must not displace a replayed self
+event.
 
 ## Open questions
 
-None.
+- Whether to remove `EventOrigin` as an epoch proxy altogether. An epoch counter
+  stamped by the orphan buffer and compared alongside the sequence number would let
+  every case rank by one rule, and would settle the residual above and its mirror in
+  SCN-004 together.
 
 ## Notes
 
@@ -146,3 +161,8 @@ None.
   origin-gated comparison that supersedes the nGen revert, added the disk-loss
   residual and the unit-level regression guard, and dropped the stale
   `TipsetEventCreator.java` line anchor in step 1 — Kelly Greco (@poulok).
+- 2026-08-12 — narrowed the Mitigation claim. A `STORAGE`-origin held event is no
+  longer protected by origin alone; it is protected by the reconnect gate, because
+  rejecting a gossiped self event unconditionally caused the mirror failure (SCN-004).
+  Renamed the unit-level guard to match, and replaced "None" under Open questions with
+  the epoch-counter question shared with SCN-004 — Kelly Greco (@poulok).

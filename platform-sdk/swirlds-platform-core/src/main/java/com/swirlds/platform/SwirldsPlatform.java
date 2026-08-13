@@ -124,11 +124,15 @@ public class SwirldsPlatform implements Platform {
         buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
         inputs.recycleBin().stop();
         buildingBlocks.wiringModel().stop();
+        buildingBlocks.pcesModule().destroy();
         getMetricsProvider().removePlatformMetrics(selfId);
     }
 

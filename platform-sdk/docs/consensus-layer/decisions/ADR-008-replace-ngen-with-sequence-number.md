@@ -6,7 +6,7 @@ topics: [ event-intake, event-creator, hashgraph, gossip ]
 related:
   invariants: [ INV-015 ]
   decisions: [ ]
-  scenarios: [ SCN-002, SCN-003 ]
+  scenarios: [ SCN-002, SCN-003, SCN-004 ]
   heuristics: [ ]
   rules: [ RUL-005 ]
 status: accepted
@@ -153,8 +153,8 @@ frontier correct on either key.
 The rework gates the comparison on `EventOrigin`
 (`consensus-model/.../event/EventOrigin.java`), so two events are only ever ranked
 by sequence number when both were numbered in the same orphan-buffer epoch
-(`TipsetEventCreator.registerEvent`). Three cases, one per origin of the held
-event:
+(`TipsetEventCreator.registerEvent`). Three cases rank by sequence number, one per
+origin of the held event:
 
 - **`STORAGE`** — both events came from PCES replay. `STORAGE` is stamped only by
   `PcesFileIterator` (`consensus-pces-impl/.../common/PcesFileIterator.java`), and
@@ -164,16 +164,37 @@ event:
 - **`RUNTIME`** — the node created the held event, so nothing observed can be
   higher in the graph. It is never displaced; `maybeCreateEvent` advances it
   directly.
-- **`GOSSIP`** — reachable only when PCES was lost from disk, since every gossiped
-  self event is persisted first and therefore replayed. The node relearns its own
-  events through gossip during `OBSERVING` (ADR-004); the orphan buffer releases a
-  parent before its child, so within the epoch the sequence number climbs to the
-  last self event learned.
+- **`GOSSIP`** — the node is relearning its own events through gossip during
+  `OBSERVING` (ADR-004), because PCES did not restore them. The orphan buffer
+  releases a parent before its child, so within the epoch the sequence number climbs
+  to the last self event learned.
 
-A self event returned by gossip is therefore never ranked against a replayed or
-created one, which is what closes SCN-003: the re-received self-ancestor that
-carried a higher post-clear sequence number is now rejected on origin before its
-sequence number is consulted.
+A fourth case ranks by neither origin nor sequence number:
+
+- **`STORAGE` held, `GOSSIP` incoming** — the node replayed PCES and is now handed a
+  self event through gossip. It cannot be ranked by sequence number, because replay
+  and post-replay gossip are the same epoch only until a reconnect clears the buffer.
+  It does not need to be: the deduplicator
+  (`consensus-event-intake-impl/.../deduplication/StandardEventDeduplicator.java`) sits
+  upstream of the orphan buffer (`DefaultEventIntakeModule.java:134-142`) and discards
+  any event the node already holds, so a self event that reaches the event creator
+  through gossip is one that replay did not deliver. PCES is written in topological
+  order and self events form a chain, so replay delivers a contiguous **prefix** of
+  this node's self chain and anything missing from it sits above that prefix. The
+  incoming event is therefore adopted unconditionally.
+
+  A reconnect invalidates that argument, because `ReconnectCoordinator.clear()`
+  (`consensus-reconnect-impl/.../ReconnectCoordinator.java`) clears the deduplicator
+  along with the orphan buffer, after which gossip can re-deliver events the node
+  already had — including self-ancestors of the held event. The same call clears the
+  event creator, which records it and closes this case permanently.
+
+A self event returned by gossip is therefore never ranked *by sequence number*
+against a replayed or created one, which is what closes SCN-003: the re-received
+self-ancestor that carried a higher post-clear sequence number is rejected on origin
+before its sequence number is consulted, and the fourth case is shut once a reconnect
+has been prepared for. Without that fourth case an unclean shutdown produces the
+opposite failure — a genuinely newer self event discarded, and a branch (SCN-004).
 
 ## Limitations
 
@@ -191,13 +212,27 @@ clear — `clear()` (on reconnect) empties the parent maps but leaves the `Atomi
 untouched, so a re-ingested older event is re-numbered *above* the copy released
 before the clear. A consumer that compares across a clear must establish that the
 two events share an epoch by some other means; `lastSelfEvent` does so with
-`EventOrigin`.
+`EventOrigin`, and for the one case `EventOrigin` cannot settle it records the clear
+itself (see [Why `lastSelfEvent` is
+safe](#why-lastselfevent-is-safe-on-the-sequence-number)).
 
-The `lastSelfEvent` conversion carries one residual, inherited from ADR-004 rather
-than introduced here: a node that lost PCES from disk relearns its self events
-through gossip, and if a reconnect clears the buffer mid-relearn, a re-numbered
-self-ancestor can displace the held event. Disk-loss recovery is best-effort by
-decision (ADR-004), so this is bounded by that decision, not by this one.
+The `lastSelfEvent` conversion carries two residuals around a reconnect, both
+inherited from ADR-004 rather than introduced here.
+
+A node relearning its self events through gossip holds a `GOSSIP`-origin event, and
+that case still ranks by sequence number: if a reconnect clears the buffer
+mid-relearn, a re-numbered self-ancestor can displace the held event. Disk-loss
+recovery is best-effort by decision (ADR-004), so this is bounded by that decision,
+not by this one.
+
+The mirror of it applies to the fourth case. Recording the clear closes that case
+permanently rather than for the duration of one epoch, so a node that reconnects
+between PCES replay and its first created event keeps a self event that an unclean
+shutdown may have left stale, with no way to advance it from gossip. That trades one
+branch hazard for the other rather than removing either. An epoch counter stamped by
+the orphan buffer and compared alongside the sequence number would remove the need
+for `EventOrigin` as an epoch proxy and settle both residuals; see SCN-004 for the
+open question.
 
 ## Consequences
 
@@ -222,6 +257,14 @@ decision (ADR-004), so this is bounded by that decision, not by this one.
   from gossip by the flush (RUL-002) — a non-local argument that nothing in the
   event creator enforces. A change to where an origin is stamped, or to the replay
   ordering, would break the guarantee without touching `TipsetEventCreator`.
+- **The fourth case depends on the intake pipeline's shape as well.** Adopting a
+  gossiped self event over a replayed one is correct only because the deduplicator
+  sits upstream of the orphan buffer and because replay passes through that same
+  deduplicator. Moving either, or replaying around the intake pipeline, would break
+  the guarantee without touching `TipsetEventCreator`. It also depends on
+  `ReconnectCoordinator.clear()` continuing to reach the event creator: were that
+  call dropped, the case would stay open across a reconnect and reintroduce SCN-003
+  through a `STORAGE`-origin held event.
 
 ### Neutral
 
@@ -289,7 +332,16 @@ See **Decision** above.
 - `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java` —
   `registerEvent` keys `lastSelfEvent` recency on the sequence number, gated on
   `EventOrigin` so the comparison never crosses an orphan-buffer epoch (#26530,
-  SCN-003).
+  SCN-003); `clear()` records the reconnect that shuts the fourth case (SCN-004).
+- `consensus-event-intake-impl/.../deduplication/StandardEventDeduplicator.java` —
+  `handleEvent` discards an event whose descriptor and signature have already been
+  observed, which is what makes a gossiped self event novel by construction; cleared
+  on reconnect.
+- `consensus-event-intake-impl/.../DefaultEventIntakeModule.java` — solders
+  deduplication ahead of the orphan buffer (`:134-142`), and dispatches the reconnect
+  clear to both.
+- `consensus-reconnect-impl/.../ReconnectCoordinator.java` — `clear()` injects the
+  clear into event intake (`:96`) and the event creator (`:99`).
 - `consensus-model/.../event/EventOrigin.java` — `GOSSIP` / `STORAGE` / `RUNTIME`,
   the epoch discriminator the `lastSelfEvent` comparison relies on.
 - `consensus-pces-impl/.../common/PcesFileIterator.java` — stamps `STORAGE` on
@@ -313,12 +365,16 @@ See **Decision** above.
   `swirlds-cli/.../pcli/MinConsensusRelevantThresholdTest.java` (threshold, #26319,
   SCN-002), kept until #26529 lands;
   `consensus-otter-tests/.../otter/test/ReconnectTest.java`
-  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003); and
+  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003);
+  `consensus-otter-tests/.../otter/test/RestartTest.java`
+  (`testHardNetworkRestart`; the fourth case, SCN-004); and
   `consensus-event-creator-impl/.../tipset/TipsetEventCreatorTests.java`
-  (`gossipedSelfEventDoesNotDisplaceReplayedSelfEvent`,
-  `lastSelfEventUpdatedDuringPCESReplay`,
-  `lastSelfEventUpdatedWhileRelearningThroughGossip`, `lastSelfEventNotOverwritten`
-  — one per origin case of the `lastSelfEvent` comparison).
+  (`lastSelfEventUpdatedDuringPCESReplay`,
+  `lastSelfEventUpdatedWhileRelearningThroughGossip`, `lastSelfEventNotOverwritten`,
+  `gossipedSelfEventDisplacesReplayedSelfEventWhenPcesWasIncomplete`,
+  `gossipedSelfEventDoesNotDisplaceReplayedSelfEventAfterReconnect` — one per case of
+  the `lastSelfEvent` comparison, the last two covering the fourth case open and
+  shut).
 - Issues:
   [#24618](https://github.com/hiero-ledger/hiero-consensus-node/issues/24618)
   (umbrella rationale and staged plan),
@@ -357,3 +413,10 @@ See **Decision** above.
   `lastSelfEvent` safety argument; recorded the `EventOrigin` dependency under
   Negative consequences and the disk-loss residual under Limitations. The decision
   itself is unchanged — one staged conversion completed — Kelly Greco (@poulok).
+- 2026-08-12 — corrected the `lastSelfEvent` safety argument. The `GOSSIP` case
+  claimed to be reachable only after total disk loss, on the premise that every
+  gossiped self event is replayed; an unclean shutdown breaks that premise, and the
+  missing origin pairing branched (SCN-004). Added the fourth case and its
+  deduplication argument, the reconnect-clear gate that shuts it, the intake-shape
+  dependency under Negative consequences, and the mirrored residual under
+  Limitations. The decision itself is unchanged — Kelly Greco (@poulok).

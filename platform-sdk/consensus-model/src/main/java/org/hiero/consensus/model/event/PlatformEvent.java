@@ -130,11 +130,25 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /**
      * Create a copy of this event while populating only the data received via gossip. Consensus data will not be
-     * copied.
+     * copied. Used in tests and test fixtures only.
      *
      * @return a copy of this event
      */
     public @NonNull PlatformEvent copyGossipedData() {
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, origin);
+        platformEvent.setHash(getHash());
+        return platformEvent;
+    }
+
+    /**
+     * Create a copy of this event with the provided origin while populating only the data received via gossip.
+     * Consensus data will not be copied. Used in tests and test fixtures only.
+     *
+     * @param origin the origin to put in the copied event
+     *
+     * @return a copy of this event
+     */
+    public @NonNull PlatformEvent copyGossipedData(@NonNull final EventOrigin origin) {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, origin);
         platformEvent.setHash(getHash());
         return platformEvent;

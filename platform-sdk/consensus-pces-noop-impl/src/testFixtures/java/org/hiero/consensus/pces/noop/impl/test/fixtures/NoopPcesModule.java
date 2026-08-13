@@ -183,6 +183,12 @@ public class NoopPcesModule implements PcesModule {
      * {@inheritDoc}
      */
     @Override
+    public void destroy() {}
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,

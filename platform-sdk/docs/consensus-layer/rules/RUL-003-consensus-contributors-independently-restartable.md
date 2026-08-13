@@ -8,6 +8,7 @@ components:
   - swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java
+  - swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java
   - consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java
   - consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java
@@ -16,7 +17,7 @@ components:
 related:
   invariants: []
   decisions: [ADR-007]
-  scenarios: []
+  scenarios: [SCN-004]
   heuristics: []
 status: holds
 confidence: high
@@ -66,14 +67,16 @@ persistence path, signed-state saving, and the reconnect gate.
   to PCES *before* any downstream component observes it: the writer's output wire
   is soldered ahead of consensus, gossip, and the event creator's parent-selection
   input (`ConsensusLayerWiring.java:108-118`), and the inline writer writes the event to
-  the current file before emitting it (`DefaultInlinePcesWriter.java:71-75`). So
+  the current file before emitting it (`DefaultInlinePcesWriter.java#writeEvent`). So
   every event a node needs to reach consensus is durable on disk before consensus
   acts on it; on an ordinary restart the node rebuilds its hashgraph by replaying
-  its own PCES, with no help from peers. Graceful shutdown flushes the OS buffer
-  to disk through a JVM shutdown hook (`CommonPcesWriter.java:136-150`); the
-  residual loss window on `SIGKILL` or power loss is an accepted risk that does
-  not by itself produce a network-wide unrecoverable state (see
-  [restart-and-pces.md](../architecture/topics/restart-and-pces.md)).
+  its own PCES, with no help from peers. Any shutdown that reaches either
+  `Platform.destroy()` or the JVM's shutdown hooks flushes the OS buffer to disk
+  (`DefaultInlinePcesWriter.java#destroy`); the residual loss window on `SIGKILL` or
+  power loss is an accepted risk that does not by itself produce a network-wide
+  unrecoverable state. The durability model is owned by
+  [restart-and-pces.md](../architecture/topics/restart-and-pces.md), which also covers
+  what an unclean shutdown costs the restarting node's own self-event chain (SCN-004).
 - **Periodic — a recent on-disk base state.** A signed state is produced at every
   block boundary (and at the freeze round) and marked for saving on a period
   (`DefaultSavedStateController.java:111`), written to disk by

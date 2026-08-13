@@ -16,6 +16,7 @@ related:
 status: verified
 provenance: hiero-consensus-node#26319 (interim revert); re-diagnosed to #26529; reproduced by MinConsensusRelevantThresholdTest
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # SCN-002 — Consensus-relevant threshold keyed on the sequence number exposes a latent roundCreated bug for a genesis event — ISS

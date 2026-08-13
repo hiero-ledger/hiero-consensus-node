@@ -109,6 +109,12 @@ public class TipsetEventCreator implements EventCreator {
     private boolean breakQuiescenceEventCreated;
 
     /**
+     * Set once this node has prepared for a reconnect, which clears the event deduplicator. Gates the adoption of a
+     * gossiped self event over one read from storage; see {@link #registerEvent} for why the clear matters.
+     */
+    private boolean hasPreparedForReconnect = false;
+
+    /**
      * Create a new tipset event creator.
      *
      * @param configuration       the configuration for the event creator
@@ -189,9 +195,23 @@ public class TipsetEventCreator implements EventCreator {
             } else if (lastSelfEventOrigin == GOSSIP
                     && newSelfEventOrigin == GOSSIP
                     && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
-                // We are recovering from a loss of PCES on disk (last held event came from gossip)
-                // and are learning our own events through gossip. If we do not learn of our latest
-                // events during the OBSERVING window, we could create a branch.
+                // We are recovering from a loss of or incomplete PCES on disk which can happen if the
+                // node did not shut down cleanly, or there was disk corruption. We know we are in this
+                // scenario because we are learning our own events through gossip. If we do not learn of
+                // our latest events during the OBSERVING window, we could create a branch.
+                updateLastSelfEvent(event);
+            } else if (!hasPreparedForReconnect && lastSelfEventOrigin == STORAGE && newSelfEventOrigin == GOSSIP) {
+                // We recovered from a restart but have received a non-ancient self event that we did not
+                // have in PCES (duplicates are discarded in event intake). Therefore, the gossip event
+                // is newer and we must adopt it.
+                // The hasPreparedForReconnect flag protects us from adopting the incoming gossip event unconditionally
+                // in the following case:
+                // 1. Node restarts and replays PCES. lastSelfEvent is STORAGE
+                // 2. Immediately falls behind and reconnects
+                // 3. Event deduplicator is cleared
+                // 4. Receive older self events via gossip
+                // 5. Overwrite lastSelfEvent with an older event
+                // 6. Create a branch when the next event is created
                 updateLastSelfEvent(event);
             }
         } else {
@@ -517,6 +537,7 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow();
+        hasPreparedForReconnect = true;
     }
 
     @NonNull

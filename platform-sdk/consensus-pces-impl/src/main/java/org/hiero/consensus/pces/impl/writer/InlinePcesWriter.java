@@ -54,4 +54,10 @@ public interface InlinePcesWriter {
      */
     @InputWireLabel("minimum identifier to store")
     void setMinimumBirthRoundToStore(@NonNull Long minimumBirthRoundToStore);
+
+    /**
+     * Destroys the instance in an orderly fashion. The writer will not be functional after this
+     * method is called.
+     */
+    void destroy();
 }

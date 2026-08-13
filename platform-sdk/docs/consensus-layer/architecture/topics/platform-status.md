@@ -77,7 +77,8 @@ recorded as decisions rather than restated here:
 
 - `OBSERVING` — the node waits, gossiping without creating events, so it can
   relearn self events it gossiped before a crash and avoid branching. Kept
-  deliberately even though PCES now durably persists those events; see
+  deliberately even though PCES durably persists those events on a graceful
+  shutdown; see
   [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md).
 - `RECONNECT_COMPLETE` — a reconnected node does not create events until the
   received state is written to disk, so it always has a valid PCES replay
@@ -228,7 +229,7 @@ Interface:
 Decisions:
 
 - [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md)
-  — retain `OBSERVING` for self-event recovery after disk loss.
+  — retain `OBSERVING` for self-event recovery.
 - [ADR-007](../../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md)
   — save the reconnect state before resuming event creation (the
   `RECONNECT_COMPLETE` gate).

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.writer;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -118,6 +119,41 @@ class DefaultInlinePcesWriterTest {
         for (int i = 0; i < 15; i++) {
             writer.writeEvent(generator.generateEventWithoutIndex());
         }
+
+        PcesWriterTestUtils.verifyStream(tempDir, events, configuration, RECYCLE_BIN, 0);
+    }
+
+    /**
+     * {@code destroy()} is reachable from two places - the explicit shutdown path driven by the platform, and the JVM
+     * shutdown hook that covers an exit which never reached that path. Whichever runs first must leave the stream intact
+     * for the second.
+     */
+    @Test
+    void destroyIsIdempotent() throws Exception {
+        final Random random = RandomUtils.getRandomPrintSeed();
+
+        final StandardGraphGenerator generator =
+                PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
+
+        final List<PlatformEvent> events = new LinkedList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEventWithoutIndex());
+        }
+
+        final PcesFileTracker pcesFiles = new PcesFileTracker();
+
+        final PcesFileManager fileManager = new PcesFileManager(configuration, METRICS, TIME, pcesFiles, tempDir, 0);
+        final CommonPcesWriter commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        final DefaultInlinePcesWriter writer =
+                new DefaultInlinePcesWriter(configuration, METRICS, TIME, commonPcesWriter, selfId);
+
+        writer.beginStreamingNewEvents();
+        for (final PlatformEvent event : events) {
+            writer.writeEvent(event);
+        }
+
+        writer.destroy();
+        assertDoesNotThrow(writer::destroy, "a second destroy must be a no-op");
 
         PcesWriterTestUtils.verifyStream(tempDir, events, configuration, RECYCLE_BIN, 0);
     }

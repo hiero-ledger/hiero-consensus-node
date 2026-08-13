@@ -132,6 +132,11 @@ public interface PcesModule {
     void flush();
 
     /**
+     * Destroys the PCES module in preparation for a graceful shutdown.
+     */
+    void destroy();
+
+    /**
      * Copy all PCES files with events that have a birth round greater than or equal to the given lower bound and
      * that are from rounds greater than or equal to the given round, to the given destination directory.
      *

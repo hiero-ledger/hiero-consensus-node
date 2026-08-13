@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-07-28
+last_reviewed: 2026-08-12
 ---
 
 # Restart and PCES
@@ -39,7 +39,7 @@ only after the write completes. The interface is `InlinePcesWriter` (
 `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/InlinePcesWriter.java`); the
 default implementation is `DefaultInlinePcesWriter` (
 `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java#writeEvent`).
-`writeEvent` writes the event to the current mutable file unconditionally (`DefaultInlinePcesWriter.java:71-75`); the
+`writeEvent` writes the event to the current mutable file unconditionally (`DefaultInlinePcesWriter.java#writeEvent`); the
 underlying file writer is either a `PcesFileChannelWriter` (Linux default) or `PcesOutputStreamFileWriter` (macOS
 default, where `FileChannel` is ~150× slower).
 
@@ -81,18 +81,31 @@ despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observi
 `event.preconsensus.inlinePcesSyncOption` config (
 `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java#inlinePcesSyncOption`, enum at
 `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java#EVERY_SELF_EVENT`) defaults to
-`DONT_SYNC`: no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java:77-84`). `EVERY_EVENT` and
+`DONT_SYNC`: no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java#writeEvent`). `EVERY_EVENT` and
 `EVERY_SELF_EVENT` are available as alternatives but are not the production defaults.
 
-Strong-enough durability is provided by a JVM shutdown hook in `CommonPcesWriter` (
-`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java:136-150`)
-that runs `currentMutableFile.sync()` followed by `close()` when the JVM exits. Under graceful shutdown — `SIGTERM`,
-`System.exit`, normal exit — every event in the OS buffer is flushed to disk before the process terminates.
+Strong-enough durability is provided by `DefaultInlinePcesWriter.destroy()` (`DefaultInlinePcesWriter.java#destroy`), which
+waits for any in-flight write to finish and then calls `CommonPcesWriter.destroy()` (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java#destroy`) to run
+`currentMutableFile.sync()` followed by `close()`. Two paths reach it, and it is idempotent:
 
-The residual failure mode is loss of host power or `SIGKILL`: the shutdown hook does not run, and any events still in
+- **The platform's own shutdown.** `SwirldsPlatform.destroy()` calls `PcesModule.destroy()` after stopping the wiring
+  model (`SwirldsPlatform.java#destroy`), so a node shut down through the platform API closes its stream without depending on
+  the process exiting.
+- **A JVM shutdown hook,** registered in the writer's constructor (`DefaultInlinePcesWriter.java#DefaultInlinePcesWriter`) and deregistered
+  once `destroy()` has run. This covers an exit that never reaches the platform API — `SIGTERM`, `System.exit`, normal
+  exit — so every event in the OS buffer is flushed to disk before the process terminates.
+
+The residual failure mode is loss of host power or `SIGKILL`: neither path runs, and any events still in
 the OS buffer at the moment of failure are not on disk after restart. This risk is accepted. No event loss in this
 window leads to an unrecoverable network state, including the loss of a keystone event — a network-wide loss of an
 in-flight keystone is recoverable.
+
+Event loss is not the only consequence, however. The lost tail is by definition the node's newest events, so a node
+whose own latest self-event went missing this way replays an older one and must relearn the rest from peers before it
+resumes creating events, or it branches. ADR-008 carries the rule the event creator applies to adopt a relearned self
+event, SCN-004 is the branch that occurred when that rule was absent, and ADR-004 covers why the `OBSERVING` window is
+what gives the relearn time to happen.
 
 ## Restart sequence
 
@@ -101,19 +114,19 @@ Restart has two phases. State load and replay-bound derivation happen in `Platfo
 
 1. **Load the initial signed state.** The application supplies the initial state to `PlatformBuilder`, which reads it
    during `build()` (
-   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java:195` —
+   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java#build` —
    `initialState.get()`).
 2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (
    `initialSignedState.getRound()`) and the replay lower bound to its initial ancient threshold (`ancientThresholdOf(...)`);
-   both are passed to the `SwirldsPlatform` constructor (`PlatformBuilder.java:202-204`). For a genesis start, both are 0 (
-   `PlatformBuilder.java:200`).
+   both are passed to the `SwirldsPlatform` constructor (`PlatformBuilder.java#build`). For a genesis start, both are 0 (
+   `PlatformBuilder.java#build`).
 3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the wiring model (
-   `SwirldsPlatform.java:118-120`).
+   `SwirldsPlatform.java#start`).
 4. **Replay PCES.** `buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound)` (
-   `SwirldsPlatform.java:122`) runs the replay synchronously; control does not return until replay is done. See
+   `SwirldsPlatform.java#start`) runs the replay synchronously; control does not return until replay is done. See
    [Replay](#replay) for details.
 5. **Start gossip; event creation remains off.** Only after replay completes does
-   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run (`SwirldsPlatform.java:123`).
+   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run (`SwirldsPlatform.java#start`).
    Neither gossip nor event creation observes a partially-replayed state: gossip because it is started here, and event
    creation because it is gated on platform status. See [`event-creator.md`](event-creator.md#permission-gates) (the
    `PlatformStatusRule` gate) for the gating details.
@@ -124,24 +137,24 @@ PCES replay reuses the platform's normal intake pipeline; the only difference at
 on-disk PCES files rather than gossip.
 
 - **Entry point.** `PcesModule.replayPcesEvents(lowerBound, startingRound)` (
-  `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/PcesModule.java:71`); the default implementation
+  `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/PcesModule.java#replayPcesEvents`); the default implementation
   in `DefaultPcesModule.replayPcesEvents` (
-  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/DefaultPcesModule.java:149`) delegates
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/DefaultPcesModule.java#replayPcesEvents`) delegates
   to `PcesCoordinator.replayPcesEvents` (
-  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/PcesCoordinator.java:69`).
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/PcesCoordinator.java#replayPcesEvents`).
 - **Read side.** `PcesFileTracker.getEventIterator(...)` (
   `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/PcesFileTracker.java#getEventIterator`) opens
   an iterator over the PCES files for the requested round window. The coordinator injects this iterator into the
   replayer's input wire.
 - **Emit side.** `PcesReplayer.replayPces(...)` (
-  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/replayer/PcesReplayer.java:147`) drives
-  the iterator and forwards each event onto its output wire (`PcesReplayer.java:169-186`); from there the event flows
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/replayer/PcesReplayer.java#replayPces`) drives
+  the iterator and forwards each event onto its output wire (`PcesReplayer.java#replayPces`); from there the event flows
   through the same intake pipeline that gossip-delivered events use.
-- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java:172`, implementation at `:206-214`)
+- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java#replayPces`, implementation at `#waitUntilHealthy`)
   before emitting, blocking when the wiring model reports an unhealthy duration above `replayHealthThreshold` (
   `PcesConfig.java#replayHealthThreshold`). Because the iterator is lazy — `PcesMultiFileIterator` opens the next file only when the
-  current one is exhausted (`PcesMultiFileIterator.java:70`), and `PcesFileIterator` reads one event at a time from a
-  `BufferedInputStream` (`PcesFileIterator.java:38-39, 56-83`) — files are read just in time. While
+  current one is exhausted (`PcesMultiFileIterator.java#findNext`), and `PcesFileIterator` reads one event at a time from a
+  `BufferedInputStream` (`PcesFileIterator.java#PcesFileIterator`, `#findNext`) — files are read just in time. While
   `waitUntilHealthy()` blocks, the iterator does not advance, no further events are read, and no new files are opened;
   read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
   health-monitor mechanism.
@@ -171,5 +184,10 @@ recipe any driver must follow, and the record/block-file coordination with the e
   `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
 - **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.
-- **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
-- **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].
+- **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method); ADR-004
+  (why `OBSERVING` is retained as the self-event relearn window); ADR-008 (the rule the event creator applies to a
+  relearned self event).
+- **Rules:** RUL-003 — every node contributing to consensus is independently restartable, which rests on the write path
+  and durability model above.
+- **Scenarios:** SCN-004 — an unclean shutdown loses the tail of the stream and the node branches; [TBD: SCN-NNN —
+  ISS-recovery is a likely seed scenario].

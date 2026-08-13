@@ -34,6 +34,13 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     private volatile boolean processingEvent;
 
     /**
+     * Syncs and closes the current file if the JVM exits without {@link #destroy()} having been called. Held so that it
+     * can be deregistered once {@link #destroy()} has run, which keeps a hook per writer instance from accumulating for
+     * the lifetime of the JVM.
+     */
+    private final Thread shutdownHook;
+
+    /**
      * Constructor
      *
      * @param configuration    the configuration of the platform
@@ -54,7 +61,8 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
 
         this.pcesWriterPerEventMetrics = new PcesWriterPerEventMetrics(metrics, time);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(this::destroy, "pces-shutdown-sync"));
+        this.shutdownHook = new Thread(this::destroy, "pces-shutdown-sync");
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
     }
 
     @Override
@@ -142,11 +150,27 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
      * when we close PCES file; this instance of PcesWriter is not usable and not possible to recover after using it.
      * This method will be called from a random thread, take care about memory visibility versus rest of the class
      */
-    void destroy() {
+    @Override
+    public void destroy() {
         this.beingDestroyed = true;
         while (this.processingEvent) {
             Thread.yield();
         }
         this.commonPcesWriter.destroy();
+        deregisterShutdownHook();
+    }
+
+    /**
+     * Deregister the shutdown hook now that the file has been synced and closed, so that a writer belonging to a
+     * stopped node is not retained until the JVM exits. Called on every {@link #destroy()}, including the one the hook
+     * itself performs.
+     */
+    private void deregisterShutdownHook() {
+        try {
+            Runtime.getRuntime().removeShutdownHook(shutdownHook);
+        } catch (final IllegalStateException e) {
+            // The JVM is already shutting down, which is the case when the hook itself called destroy().
+            // There is nothing to deregister.
+        }
     }
 }

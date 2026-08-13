@@ -1,12 +1,12 @@
 ---
 type: decision
 id: ADR-004
-title: Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
+title: Retain the OBSERVING Platform Status for Self-Event Recovery
 topics: [event-creator, restart-and-pces, platform-status]
 related:
   invariants: []
-  decisions: []
-  scenarios: []
+  decisions: [ADR-008]
+  scenarios: [SCN-004]
   heuristics: []
   rules: []
 status: accepted
@@ -18,7 +18,7 @@ curated_by: Kelly Greco (@poulok)
 last_reviewed: TBD
 ---
 
-# ADR-004 — Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
+# ADR-004 — Retain the OBSERVING Platform Status for Self-Event Recovery
 
 ## Context
 
@@ -45,22 +45,31 @@ worked well in practice.
 
 ### What changed
 
-PCES now provides a strong guarantee: **every event that was gossiped is also on disk after JVM shutdown**
-(see [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md)). For an ordinary crash,
-a node therefore recovers its latest self event directly from its own PCES files on restart, with no dependence on
-peers. Under this guarantee, `OBSERVING` is redundant for the failure mode it was originally built to cover.
+PCES now provides a strong guarantee: **every event that was gossiped is also on disk after a graceful shutdown**
+(see [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md)). For a crash that
+shuts down gracefully, a node therefore recovers its latest self event directly from its own PCES files on restart, with
+no dependence on peers. Under this guarantee, `OBSERVING` is redundant for that case — the one the status was originally
+built to cover.
 
-There is, however, one failure mode PCES cannot cover: a node crashes **and its disk is corrupted or wiped**. The node
-then has no local record of its own history. In this case the rest of the network almost certainly still holds the
-crashed node's events — in memory or on disk — and will gossip them back once the node rejoins. Gossip is the *only* way
-for such a node to rediscover its latest self event, and rediscovering it before resuming event creation is what keeps
-the recovering node from branching.
+Two failure modes fall outside the guarantee, and gossip during `OBSERVING` is the only recovery for both:
+
+- **The disk is corrupted or wiped.** The node has no local record of its own history at all. The rest of the network
+  almost certainly still holds the crashed node's events — in memory or on disk — and will gossip them back once the node
+  rejoins.
+- **The shutdown was not graceful.** On `SIGKILL` or loss of host power neither shutdown path runs, so the tail of the
+  stream never reaches disk while peers already hold those events. The node replays a self event that is not its latest
+  and must relearn the rest. This is the narrower and far more likely of the two, and it is not a hypothetical: SCN-004
+  is a node branching because it relearned its missing self event during `OBSERVING` and the event creator discarded it.
+
+In both cases gossip is the *only* way for the node to rediscover its latest self event, and rediscovering it before
+resuming event creation is what keeps the recovering node from branching.
 
 ## Decision
 
 **Keep the `OBSERVING` status and its behaviour unchanged.** Although PCES has made `OBSERVING` unnecessary for the
-ordinary-crash case it was first built for, retain it as the recovery mechanism for the rare case where a node returns
-from a crash with a corrupted or wiped disk.
+gracefully-shut-down crash it was first built for, retain it as the recovery mechanism for the cases PCES does not
+cover: a node returning from a crash with a corrupted or wiped disk, or from a shutdown that never flushed the tail of
+its stream.
 
 No code changes follow from this decision; it records *why* the existing mechanism stays in place now that its original
 justification no longer applies:
@@ -77,32 +86,38 @@ justification no longer applies:
 `OBSERVING` is a best-effort, probabilistic safeguard, not a guarantee. It does not ensure the node learns its latest
 self event before exiting the status. If no peer still holds the missing event, if the node is partitioned from those
 that do, or if the configured delay expires before the event arrives, the node can still resume creation off an old
-self-parent and branch. The status lowers the probability of an honest branch after disk loss; it does not eliminate it.
+self-parent and branch. The status lowers the probability of an honest branch after disk loss or an ungraceful shutdown;
+it does not eliminate it. Nor is the window sufficient on its own — the event creator must also adopt what it relearns
+(ADR-008).
 
 ## Consequences
 
 ### Positive
 
-- **A recovery path survives for disk loss/corruption.** This is the only failure mode that PCES does not cover, and
-  gossip during `OBSERVING` is the only way a disk-wiped node can rediscover its latest self event before creating new
-  events — the difference between an honest restart and an accidental branch.
+- **A recovery path survives for the cases PCES does not cover.** Gossip during `OBSERVING` is the only way a node whose
+  disk was wiped, or whose shutdown never flushed the tail of its stream, can rediscover its latest self event before
+  creating new events — the difference between an honest restart and an accidental branch.
 - **No change risk.** Keeping working code avoids the regression risk of removing a status from the state machine and
   re-threading the transitions around it.
 - **Cheap insurance.** The cost is a bounded, configurable startup delay (default `10s`), paid once per node start.
 
 ### Negative
 
-- **A now-redundant startup delay in the common case.** For an ordinary crash, PCES has already restored the node's
-  latest self event from local disk by the time `OBSERVING` begins, so the wait no longer protects against anything in
-  that (overwhelmingly common) case — it is pure latency on the path to `ACTIVE`.
+- **A now-redundant startup delay in the common case.** For a crash that shut down gracefully, PCES has already restored
+  the node's latest self event from local disk by the time `OBSERVING` begins, so the wait no longer protects against
+  anything in that (overwhelmingly common) case — it is pure latency on the path to `ACTIVE`. It is not redundant after
+  an ungraceful shutdown, which is a good deal more common than the disk loss the status was retained for.
 - **The guarantee it provides is weaker than it looks.** As noted under **Limitations**, `OBSERVING` does not guarantee
   self-event recovery after disk loss. Future readers should not treat the status as a hard branch-prevention barrier.
+- **The window alone is not sufficient.** Relearning a self event during `OBSERVING` only prevents a branch if the event
+  creator then adopts it. SCN-004 is a branch that occurred with the window working exactly as intended; the adoption
+  rule is ADR-008's.
 
 ### Neutral
 
 - **The rationale has shifted, not the mechanism.** `OBSERVING` was the *primary* safeguard for the ordinary-crash case;
-  it is now a *fallback* for the rare disk-loss/corruption case. The transitions, the gate, and the default delay are
-  identical — only the reason for keeping them has changed.
+  it is now a *fallback* for disk loss or corruption and for an ungraceful shutdown. The transitions, the gate, and the
+  default delay are identical — only the reason for keeping them has changed.
 - **The default delay is a soft assumption.** `10s` is assumed to be enough for a peer to gossip back a missing self
   event after disk loss, but nothing enforces or verifies that this is sufficient under real network conditions.
 
@@ -145,8 +160,8 @@ See **Decision** above.
 - [`../architecture/topics/platform-status.md`](../architecture/topics/platform-status.md) — the platform status topic;
   describes `OBSERVING` and why the node listens to gossip before creating events.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — the PCES write/replay
-  path and the guarantee that all gossiped events are on disk after shutdown, which is what made `OBSERVING` redundant
-  for the ordinary-crash case.
+  path and the guarantee that all gossiped events are on disk after a graceful shutdown, which is what made `OBSERVING`
+  redundant for that case, and the residual window on `SIGKILL` or power loss, which is what keeps it necessary.
 - `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41` — the
   `OBSERVING` status definition.
 - `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ObservingStatusLogic.java:176-187`
@@ -155,3 +170,11 @@ See **Decision** above.
   the `observingStatusDelay` config field (default `10s`).
 - `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`
   — the event-creation gate that withholds creation while in `OBSERVING`.
+
+## Notes
+
+- 2026-08-12 — broadened the rationale. `OBSERVING` was recorded as a fallback for disk loss alone, on the reading that
+  PCES covers every ordinary crash; the durability guarantee holds only for a graceful shutdown, so an ungraceful one
+  leaves the same relearn dependency by a far more likely route (SCN-004). Also recorded that the window is not
+  sufficient on its own — the event creator must adopt what it relearns. The decision is unchanged — Kelly Greco
+  (@poulok).

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Random;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -186,7 +187,7 @@ public class SimulatedNetwork {
                     lastDeliveryTimestamps.put(connectionKey, deliveryTime);
 
                     // create a copy so that nodes don't modify each other's events
-                    final PlatformEvent eventToDeliver = event.copyGossipedData();
+                    final PlatformEvent eventToDeliver = event.copyGossipedData(EventOrigin.GOSSIP);
                     eventToDeliver.setSenderId(sender);
                     eventToDeliver.setTimeReceived(deliveryTime);
                     final EventInTransit eventInTransit = new EventInTransit(eventToDeliver, sender, deliveryTime);
