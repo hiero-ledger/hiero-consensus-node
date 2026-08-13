@@ -322,6 +322,45 @@ resets the maps and `currentOrphanCount` but does not reset
 (reconnect? rebuild?), and is the non-reset of the sequence number an
 invariant downstream consumers depend on?]
 
+### Preserving the order downstream
+
+The buffer's guarantee is only useful if it survives the trip to each
+consumer. Three things keep it intact, and all three are configuration
+or structure rather than an enforced check — nothing downstream detects
+an out-of-order delivery:
+
+- **The orphan buffer is the last intake stage.** In
+  `DefaultEventIntakeModule` it is soldered after deduplication and
+  signature verification, and its split output is what leaves the
+  module. `ConcurrentEventIntakeModule` collapses the earlier stages
+  into one `CONCURRENT` component but deliberately keeps the buffer
+  sequential
+  (`EventIntakeProcessor (CONCURRENT) → OrphanBuffer (SEQUENTIAL)`), so
+  upstream parallelism cannot reorder the output.
+- **Consumer schedulers are sequential.** Both consumers handle events
+  one at a time in arrival order —
+  `EventIntakeWiringConfig.java#orphanBuffer` and
+  `EventCreationWiringConfig.java#eventCreationManager` default to
+  `SEQUENTIAL`.
+- **The embedded future-event buffers cannot invert a parent and
+  child.** `DefaultConsensusEngine` and `DefaultEventCreationManager`
+  each hold a private `FutureEventBuffer` (ADR-005), which defers an
+  event whose birth round is ahead of the window and releases it from
+  `FutureEventBuffer.updateEventWindow`. Release walks rounds in
+  ascending order (`AbstractSequenceMap.java#shiftWindow` — "purge old
+  sequence numbers one by one in ascending order") and preserves
+  insertion order within a round, so because birth round never
+  decreases along ancestry (INV-011), a child is never released before
+  its parent.
+
+Making the orphan buffer's scheduler concurrent, inserting a
+reordering or re-emitting stage below it, or changing the future-event
+release order would each break this quietly. The consumer most exposed
+is the event creator: `TipsetEventCreator.registerEvent` advances its
+held self event one self-parent link at a time, so a gap in the order
+stalls it on a stale self-parent and the node branches (see
+[event-creator.md](event-creator.md#state), ADR-008, SCN-003).
+
 ## Birth-round filtering
 
 The intake-side ancient filter is `EventWindow.isAncient`, fed in
@@ -434,7 +473,7 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
     orientation only; the protocol detail belongs in
     [gossip.md](./gossip.md).
 - **Invariants**: INV-010 — every event used in consensus has a verified creator signature; INV-011 — birth round is monotonic along ancestry.
-- **Rules**: RUL-004 — consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent.
+- **Rules**: RUL-004 — consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent; RUL-002 — the intake pipeline is flushed component-by-component in topological order.
 - **Decisions**: [TBD: ADR-NNN once decisions/ catalog populates].
 - **Scenarios**: [TBD: SCN-NNN — orphan-buffer growth under sustained
   out-of-order arrival, validation-stage-ordering edge cases, and the

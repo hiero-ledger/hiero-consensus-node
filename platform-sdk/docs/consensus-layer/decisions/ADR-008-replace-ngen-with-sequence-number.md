@@ -5,8 +5,8 @@ title: Adopt a monotonic event sequence number as the local ordering key, replac
 topics: [ event-intake, event-creator, hashgraph, gossip ]
 related:
   invariants: [ INV-015 ]
-  decisions: [ ]
-  scenarios: [ SCN-002, SCN-003, SCN-004 ]
+  decisions: [ ADR-004 ]
+  scenarios: [ SCN-002, SCN-003 ]
   heuristics: [ ]
   rules: [ RUL-005 ]
 status: accepted
@@ -86,11 +86,12 @@ fundamental need for a graph height:
 - **Event creator `lastSelfEvent` → a branch (SCN-003).** After a fast
   reconnect a re-received self-ancestor got a higher *new* sequence number than
   the maintained latest self event and overwrote it, so the node built on an older
-  self-parent. The `lastSelfEvent` tracking was reworked
-  ([#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)) so
-  a re-received self-ancestor can never displace the latest self event, after
-  which the sequence number is safe here too (see [Why `lastSelfEvent` is
-  safe](#why-lastselfevent-is-safe-on-the-sequence-number)).
+  self-parent. Re-diagnosed, this consumer needs no ordering key at all: which of two
+  self events is later is answerable from the hashgraph. The rework
+  ([#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530))
+  replaced the comparison with a structural test on the self-parent link, so the event
+  creator reads neither `nGen` nor the sequence number (see [Why `lastSelfEvent` does
+  not use the sequence number](#why-lastselfevent-does-not-use-the-sequence-number)).
 
 Separately, the name "sequence" was already taken: `EventImpl.sequence`, assigned
 by `Sequencer` in the order events are **added to consensus**, is used only for
@@ -101,7 +102,7 @@ metrics. The new field had to be disambiguated from it.
 **Adopt the orphan-buffer sequence number as the canonical local ordering key and
 remove `nGen`.** Every consumer that still reads `nGen` moves to the sequence
 number; once all have, `NonDeterministicGeneration` is deleted. The migration is
-staged only by readiness — one conversion is gated on a prerequisite fix, the
+staged only by readiness — two conversions are gated on a prerequisite fix, the
 other two are unblocked:
 
 |           Consumer           |                Anchor                 | Current key |                    Prerequisite to convert                     |
@@ -111,8 +112,11 @@ other two are unblocked:
 | Developer tools (GUI, CLI)   | `PictureMetadata`, `HashgraphPicture` | `nGen`      | none — a rendering choice, not an ordering requirement         |
 
 Already migrated and stable: event creation's advancement scoring and
-`ChildlessEventTracker` (#24991), the sync send-list order (#24843), and the event
-creator's `lastSelfEvent` recency (#26530).
+`ChildlessEventTracker` (#24991), and the sync send-list order (#24843).
+
+One declared consumer left the migration instead of completing it: the event creator's
+`lastSelfEvent` recency now uses no ordering key (#26530). That is one fewer conversion
+to make, and one fewer place `nGen` has to be removed from.
 
 **Assignment (current code).** `PlatformEvent` carries a `sequenceNumber`,
 defaulting to `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
@@ -148,53 +152,32 @@ inherit terminal from, so it fell to the no-parent branch and was assigned
 — terminal, not round 1, whenever the pending round is greater than 1 — makes the
 frontier correct on either key.
 
-### Why `lastSelfEvent` is safe on the sequence number
+### Why `lastSelfEvent` does not use the sequence number
 
-The rework gates the comparison on `EventOrigin`
-(`consensus-model/.../event/EventOrigin.java`), so two events are only ever ranked
-by sequence number when both were numbered in the same orphan-buffer epoch
-(`TipsetEventCreator.registerEvent`). Three cases rank by sequence number, one per
-origin of the held event:
+The recency test in `TipsetEventCreator.registerEvent` is **structural**: the held
+self event is replaced when the registered event is a child of it, compared by
+self-parent descriptor, with two escapes for when nothing is held and when the held
+event has gone ancient. No ordering key is read. The rule and its cases live in
+[`../architecture/topics/event-creator.md`](../architecture/topics/event-creator.md#state);
+what follows is why the sequence number is not among them.
 
-- **`STORAGE`** — both events came from PCES replay. `STORAGE` is stamped only by
-  `PcesFileIterator` (`consensus-pces-impl/.../common/PcesFileIterator.java`), and
-  replay is flushed through the pipeline before gossip starts (RUL-002,
-  `PcesReplayer.replayPces`), so replay is a single epoch and the highest sequence
-  number is the graph-latest self event.
-- **`RUNTIME`** — the node created the held event, so nothing observed can be
-  higher in the graph. It is never displaced; `maybeCreateEvent` advances it
-  directly.
-- **`GOSSIP`** — the node is relearning its own events through gossip during
-  `OBSERVING` (ADR-004), because PCES did not restore them. The orphan buffer
-  releases a parent before its child, so within the epoch the sequence number climbs
-  to the last self event learned.
+The ancient escape is sound without a key: the registered event is non-ancient by the
+method's entry guard, and birth round never decreases along ancestry (INV-011), so
+every ancestor of an ancient event is itself ancient and the registered event cannot
+be one. It is therefore always higher in the hashgraph than what it replaces.
 
-A fourth case ranks by neither origin nor sequence number:
+This closes SCN-003 without an epoch argument. A self-ancestor of the held event,
+re-delivered with a fresh higher sequence number after a reconnect cleared the orphan
+buffer, cannot have the held event as its self-parent — that would be a cycle. It is
+rejected on structure, whatever number the re-release gave it.
 
-- **`STORAGE` held, `GOSSIP` incoming** — the node replayed PCES and is now handed a
-  self event through gossip. It cannot be ranked by sequence number, because replay
-  and post-replay gossip are the same epoch only until a reconnect clears the buffer.
-  It does not need to be: the deduplicator
-  (`consensus-event-intake-impl/.../deduplication/StandardEventDeduplicator.java`) sits
-  upstream of the orphan buffer (`DefaultEventIntakeModule.java:134-142`) and discards
-  any event the node already holds, so a self event that reaches the event creator
-  through gossip is one that replay did not deliver. PCES is written in topological
-  order and self events form a chain, so replay delivers a contiguous **prefix** of
-  this node's self chain and anything missing from it sits above that prefix. The
-  incoming event is therefore adopted unconditionally.
-
-  A reconnect invalidates that argument, because `ReconnectCoordinator.clear()`
-  (`consensus-reconnect-impl/.../ReconnectCoordinator.java`) clears the deduplicator
-  along with the orphan buffer, after which gossip can re-deliver events the node
-  already had — including self-ancestors of the held event. The same call clears the
-  event creator, which records it and closes this case permanently.
-
-A self event returned by gossip is therefore never ranked *by sequence number*
-against a replayed or created one, which is what closes SCN-003: the re-received
-self-ancestor that carried a higher post-clear sequence number is rejected on origin
-before its sequence number is consulted, and the fourth case is shut once a reconnect
-has been prepared for. Without that fourth case an unclean shutdown produces the
-opposite failure — a genuinely newer self event discarded, and a branch (SCN-004).
+What the test costs is a dependence on delivery order: walking one link at a time
+reaches the latest self event only if the links are offered in order. The orphan buffer
+provides that ordering and the pipeline below it preserves it
+([`../architecture/topics/event-intake.md`](../architecture/topics/event-intake.md#preserving-the-order-downstream)),
+but nothing in the event creator enforces it, and a chain broken by a gap stalls
+advancement until the held event goes ancient, during which the node builds on a stale
+self-parent.
 
 ## Limitations
 
@@ -210,29 +193,9 @@ order, **not** a graph height: a structurally-low event received late gets a hig
 number. In particular the per-creator monotonicity does **not** survive a buffer
 clear — `clear()` (on reconnect) empties the parent maps but leaves the `AtomicLong`
 untouched, so a re-ingested older event is re-numbered *above* the copy released
-before the clear. A consumer that compares across a clear must establish that the
-two events share an epoch by some other means; `lastSelfEvent` does so with
-`EventOrigin`, and for the one case `EventOrigin` cannot settle it records the clear
-itself (see [Why `lastSelfEvent` is
-safe](#why-lastselfevent-is-safe-on-the-sequence-number)).
-
-The `lastSelfEvent` conversion carries two residuals around a reconnect, both
-inherited from ADR-004 rather than introduced here.
-
-A node relearning its self events through gossip holds a `GOSSIP`-origin event, and
-that case still ranks by sequence number: if a reconnect clears the buffer
-mid-relearn, a re-numbered self-ancestor can displace the held event. Disk-loss
-recovery is best-effort by decision (ADR-004), so this is bounded by that decision,
-not by this one.
-
-The mirror of it applies to the fourth case. Recording the clear closes that case
-permanently rather than for the duration of one epoch, so a node that reconnects
-between PCES replay and its first created event keeps a self event that an unclean
-shutdown may have left stale, with no way to advance it from gossip. That trades one
-branch hazard for the other rather than removing either. An epoch counter stamped by
-the orphan buffer and compared alongside the sequence number would remove the need
-for `EventOrigin` as an epoch proxy and settle both residuals; see SCN-004 for the
-open question.
+before the clear. A consumer that compares two events across a clear must establish
+that they share an epoch by some other means. No current consumer does: the one that
+would have had to, `lastSelfEvent`, stopped comparing ordering keys instead (SCN-003).
 
 ## Consequences
 
@@ -248,23 +211,16 @@ open question.
 
 ### Negative
 
-- **One conversion is gated on an external fix.** Until #26529 (threshold) lands,
-  that consumer stays on `nGen`, so `nGen` and the
+- **One conversion is gated on an external fix.** Until #26529 (threshold) lands, that
+  consumer stays on `nGen`, so `nGen` and the
   sequence number coexist in the meantime and a consumer that reads the wrong one,
   or compares the two, is a live hazard.
-- **`lastSelfEvent` now depends on `EventOrigin` carrying epoch information.** The
-  comparison is correct because `STORAGE` implies replay and replay is fenced off
-  from gossip by the flush (RUL-002) — a non-local argument that nothing in the
-  event creator enforces. A change to where an origin is stamped, or to the replay
-  ordering, would break the guarantee without touching `TipsetEventCreator`.
-- **The fourth case depends on the intake pipeline's shape as well.** Adopting a
-  gossiped self event over a replayed one is correct only because the deduplicator
-  sits upstream of the orphan buffer and because replay passes through that same
-  deduplicator. Moving either, or replaying around the intake pipeline, would break
-  the guarantee without touching `TipsetEventCreator`. It also depends on
-  `ReconnectCoordinator.clear()` continuing to reach the event creator: were that
-  call dropped, the case would stay open across a reconnect and reintroduce SCN-003
-  through a `STORAGE`-origin held event.
+- **The key could not serve one of its declared consumers.** `lastSelfEvent` needed to
+  know which of two self events is higher in the hashgraph across a buffer clear, and
+  no property of the sequence number supplies that. Read as a caution rather than a
+  defect: a consumer that wants graph position rather than release order will not get
+  it from this key, and the right response is to find the answer in the graph, not to
+  dress the key up in a proxy for it.
 
 ### Neutral
 
@@ -330,22 +286,9 @@ See **Decision** above.
   `ChildlessEventTracker.java` — advancement scoring, on the sequence number
   (#24991).
 - `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java` —
-  `registerEvent` keys `lastSelfEvent` recency on the sequence number, gated on
-  `EventOrigin` so the comparison never crosses an orphan-buffer epoch (#26530,
-  SCN-003); `clear()` records the reconnect that shuts the fourth case (SCN-004).
-- `consensus-event-intake-impl/.../deduplication/StandardEventDeduplicator.java` —
-  `handleEvent` discards an event whose descriptor and signature have already been
-  observed, which is what makes a gossiped self event novel by construction; cleared
-  on reconnect.
-- `consensus-event-intake-impl/.../DefaultEventIntakeModule.java` — solders
-  deduplication ahead of the orphan buffer (`:134-142`), and dispatches the reconnect
-  clear to both.
-- `consensus-reconnect-impl/.../ReconnectCoordinator.java` — `clear()` injects the
-  clear into event intake (`:96`) and the event creator (`:99`).
-- `consensus-model/.../event/EventOrigin.java` — `GOSSIP` / `STORAGE` / `RUNTIME`,
-  the epoch discriminator the `lastSelfEvent` comparison relies on.
-- `consensus-pces-impl/.../common/PcesFileIterator.java` — stamps `STORAGE` on
-  replayed events; the only producer of that origin.
+  `registerEvent` advances `lastSelfEvent` by self-parent link and reads no ordering
+  key (#26530, SCN-003). What it depends on instead is the intake pipeline's delivery
+  order — see `architecture/topics/event-intake.md`.
 - `consensus-hashgraph-impl/.../consensus/ConsensusImpl.java` — `round(x)` and its
   short-circuits; the no-parent branch that assigns `ROUND_FIRST` regardless of the
   pending round is the #26529 bug behind SCN-002. `ConsensusRounds`, `RoundElections` hold the threshold
@@ -362,19 +305,21 @@ See **Decision** above.
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, phrased in
   terms of sequence numbers.
 - Regression guards:
-  `swirlds-cli/.../pcli/MinConsensusRelevantThresholdTest.java` (threshold, #26319,
-  SCN-002), kept until #26529 lands;
+  `consensus-hashgraph-impl/.../consensus/MinConsensusRelevantThresholdTest.java`
+  (threshold, #26319, SCN-002), kept until #26529 lands;
   `consensus-otter-tests/.../otter/test/ReconnectTest.java`
-  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003);
-  `consensus-otter-tests/.../otter/test/RestartTest.java`
-  (`testHardNetworkRestart`; the fourth case, SCN-004); and
-  `consensus-event-creator-impl/.../tipset/TipsetEventCreatorTests.java`
-  (`lastSelfEventUpdatedDuringPCESReplay`,
-  `lastSelfEventUpdatedWhileRelearningThroughGossip`, `lastSelfEventNotOverwritten`,
-  `gossipedSelfEventDisplacesReplayedSelfEventWhenPcesWasIncomplete`,
-  `gossipedSelfEventDoesNotDisplaceReplayedSelfEventAfterReconnect` — one per case of
-  the `lastSelfEvent` comparison, the last two covering the fourth case open and
-  shut).
+  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003); and
+  `consensus-event-creator-impl/.../tipset/TipsetEventCreatorTests.java`, covering
+  every path through the `lastSelfEvent` recency test — adopt because nothing is held
+  (`firstSelfEventIsAdoptedWhenNoneIsHeld`), adopt because the held event is ancient
+  (`ancientLastSelfEventIsReplaced`), adopt because the registered event is a child of
+  the held one (`gossipedSelfEventDisplacesReplayedSelfEventWhenPcesWasIncomplete`, and
+  `lastSelfEventUpdatedWhileRelearningThroughGossip` for a chain of them), and reject
+  because it is not — whether it carries a different self parent
+  (`selfEventThatIsNotAChildIsNotAdopted`, `lastSelfEventNotOverwritten`) or none at all
+  (`selfEventWithNoSelfParentIsNotAdopted`). The unit guards cover the structural test,
+  not the sequence number; they are listed here because this is where the conversion and
+  its abandonment are recorded.
 - Issues:
   [#24618](https://github.com/hiero-ledger/hiero-consensus-node/issues/24618)
   (umbrella rationale and staged plan),
@@ -391,7 +336,7 @@ See **Decision** above.
   [#26529](https://github.com/hiero-ledger/hiero-consensus-node/issues/26529)
   (the `roundCreated` bug; prerequisite for the threshold conversion), and
   [#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)
-  (`lastSelfEvent` rework; the event-creator conversion, landed).
+  (`lastSelfEvent` rework; landed, and removed the event creator from the migration).
 
 ## Notes
 
@@ -408,15 +353,15 @@ See **Decision** above.
   the threshold-safety argument and INV-015; corrected the GUI claim (`nGen` is a
   rendering choice and value label, not a required graph height) — Kelly Greco
   (@poulok).
-- 2026-08-07 — the `lastSelfEvent` conversion landed (#26530). Moved that consumer
-  out of the migration table into the already-migrated list; added the
-  `lastSelfEvent` safety argument; recorded the `EventOrigin` dependency under
-  Negative consequences and the disk-loss residual under Limitations. The decision
-  itself is unchanged — one staged conversion completed — Kelly Greco (@poulok).
-- 2026-08-12 — corrected the `lastSelfEvent` safety argument. The `GOSSIP` case
-  claimed to be reachable only after total disk loss, on the premise that every
-  gossiped self event is replayed; an unclean shutdown breaks that premise, and the
-  missing origin pairing branched (SCN-004). Added the fourth case and its
-  deduplication argument, the reconnect-clear gate that shuts it, the intake-shape
-  dependency under Negative consequences, and the mirrored residual under
-  Limitations. The decision itself is unchanged — Kelly Greco (@poulok).
+- 2026-08-13 — the `lastSelfEvent` rework landed (#26530), and it took that consumer
+  out of the migration rather than through it: the recency test is now structural and
+  reads no ordering key. Removed the row from the migration table, added *Why
+  `lastSelfEvent` does not use the sequence number*, recorded what the episode says
+  about the key under Negative consequences, and pointed at the intake pipeline's
+  delivery order as the property the new test depends on. The decision itself is
+  unchanged — Kelly Greco (@poulok).
+- 2026-08-13 — review follow-up. `event-creator.md` is now the canonical home for the
+  adoption rule; *Why `lastSelfEvent` does not use the sequence number* keeps the
+  rationale and links there rather than restating the cases. Corrected the
+  `MinConsensusRelevantThresholdTest` path (`consensus-hashgraph-impl`, not
+  `swirlds-cli`) and listed the guards by the path each covers — Kelly Greco (@poulok).

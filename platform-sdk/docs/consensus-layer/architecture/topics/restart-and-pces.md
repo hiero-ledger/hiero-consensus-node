@@ -103,9 +103,9 @@ in-flight keystone is recoverable.
 
 Event loss is not the only consequence, however. The lost tail is by definition the node's newest events, so a node
 whose own latest self-event went missing this way replays an older one and must relearn the rest from peers before it
-resumes creating events, or it branches. ADR-008 carries the rule the event creator applies to adopt a relearned self
-event, SCN-004 is the branch that occurred when that rule was absent, and ADR-004 covers why the `OBSERVING` window is
-what gives the relearn time to happen.
+resumes creating events, or it branches. [`event-creator.md`](event-creator.md#state) carries the rule the event creator
+applies to adopt a relearned self event, and ADR-004 covers why the `OBSERVING` window is what gives the relearn time to
+happen.
 
 ## Restart sequence
 
@@ -185,9 +185,9 @@ recipe any driver must follow, and the record/block-file coordination with the e
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
 - **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method); ADR-004
-  (why `OBSERVING` is retained as the self-event relearn window); ADR-008 (the rule the event creator applies to a
-  relearned self event).
+  (why `OBSERVING` is retained as the self-event relearn window); ADR-008 (why the event creator reads no ordering key
+  when adopting a relearned self event — the adoption rule itself is in [`event-creator.md`](event-creator.md#state)).
 - **Rules:** RUL-003 — every node contributing to consensus is independently restartable, which rests on the write path
-  and durability model above.
-- **Scenarios:** SCN-004 — an unclean shutdown loses the tail of the stream and the node branches; [TBD: SCN-NNN —
-  ISS-recovery is a likely seed scenario].
+  and durability model above; RUL-002 — the intake flush ordering that guarantees the event creator has observed its
+  latest self event before it resumes creating.
+- **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].

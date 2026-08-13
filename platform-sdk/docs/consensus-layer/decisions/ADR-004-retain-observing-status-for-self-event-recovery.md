@@ -6,7 +6,7 @@ topics: [event-creator, restart-and-pces, platform-status]
 related:
   invariants: []
   decisions: [ADR-008]
-  scenarios: [SCN-004]
+  scenarios: []
   heuristics: []
   rules: []
 status: accepted
@@ -58,8 +58,7 @@ Two failure modes fall outside the guarantee, and gossip during `OBSERVING` is t
   rejoins.
 - **The shutdown was not graceful.** On `SIGKILL` or loss of host power neither shutdown path runs, so the tail of the
   stream never reaches disk while peers already hold those events. The node replays a self event that is not its latest
-  and must relearn the rest. This is the narrower and far more likely of the two, and it is not a hypothetical: SCN-004
-  is a node branching because it relearned its missing self event during `OBSERVING` and the event creator discarded it.
+  and must relearn the rest. This is the narrower of the two and much the more likely.
 
 In both cases gossip is the *only* way for the node to rediscover its latest self event, and rediscovering it before
 resuming event creation is what keeps the recovering node from branching.
@@ -88,7 +87,8 @@ self event before exiting the status. If no peer still holds the missing event, 
 that do, or if the configured delay expires before the event arrives, the node can still resume creation off an old
 self-parent and branch. The status lowers the probability of an honest branch after disk loss or an ungraceful shutdown;
 it does not eliminate it. Nor is the window sufficient on its own — the event creator must also adopt what it relearns
-(ADR-008).
+([`../architecture/topics/event-creator.md`](../architecture/topics/event-creator.md#state) states the adoption rule;
+ADR-008 records why it reads no ordering key).
 
 ## Consequences
 
@@ -110,8 +110,9 @@ it does not eliminate it. Nor is the window sufficient on its own — the event 
 - **The guarantee it provides is weaker than it looks.** As noted under **Limitations**, `OBSERVING` does not guarantee
   self-event recovery after disk loss. Future readers should not treat the status as a hard branch-prevention barrier.
 - **The window alone is not sufficient.** Relearning a self event during `OBSERVING` only prevents a branch if the event
-  creator then adopts it. SCN-004 is a branch that occurred with the window working exactly as intended; the adoption
-  rule is ADR-008's.
+  creator then adopts it as its latest. That adoption rule lives in
+  [`../architecture/topics/event-creator.md`](../architecture/topics/event-creator.md#state), and the window is worth
+  nothing without it.
 
 ### Neutral
 
@@ -173,8 +174,7 @@ See **Decision** above.
 
 ## Notes
 
-- 2026-08-12 — broadened the rationale. `OBSERVING` was recorded as a fallback for disk loss alone, on the reading that
+- 2026-08-13 — broadened the rationale. `OBSERVING` was recorded as a fallback for disk loss alone, on the reading that
   PCES covers every ordinary crash; the durability guarantee holds only for a graceful shutdown, so an ungraceful one
-  leaves the same relearn dependency by a far more likely route (SCN-004). Also recorded that the window is not
-  sufficient on its own — the event creator must adopt what it relearns. The decision is unchanged — Kelly Greco
-  (@poulok).
+  leaves the same relearn dependency by a far more likely route. Also recorded that the window is not sufficient on its
+  own — the event creator must adopt what it relearns. The decision is unchanged — Kelly Greco (@poulok).

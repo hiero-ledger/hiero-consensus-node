@@ -343,6 +343,59 @@ public class TipsetEventCreatorTestUtils {
                 .build();
     }
 
+    /**
+     * Create a test event whose self parent is the given event, so that the two form a real chain. The event creator
+     * only adopts a self event that is a child of the one it holds, so a test that exercises that path must build the
+     * link rather than manufacture an unrelated parent.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the event
+     * @param selfParent the event to use as the self parent
+     * @param birthRound the birth round of the event
+     * @param origin     how the event entered the system
+     * @return the new event
+     */
+    @NonNull
+    public static PlatformEvent createTestEventWithSelfParent(
+            @NonNull final Random random,
+            @Nullable final NodeId creator,
+            @NonNull final PlatformEvent selfParent,
+            final long birthRound,
+            @NonNull final EventOrigin origin) {
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .setOrigin(origin)
+                .build();
+    }
+
+    /**
+     * Create a test event with no self parent, as the first event a creator ever makes has. The event creator adopts a
+     * self event only when it is a child of the one it holds, so such an event can never be adopted over a held one.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the event
+     * @param birthRound the birth round of the event
+     * @param origin     how the event entered the system
+     * @return the new event
+     */
+    @NonNull
+    public static PlatformEvent createTestEventWithoutSelfParent(
+            @NonNull final Random random,
+            @Nullable final NodeId creator,
+            final long birthRound,
+            @NonNull final EventOrigin origin) {
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setBirthRound(birthRound)
+                .setSelfParent(null)
+                .setOrigin(origin)
+                .build();
+    }
+
     @NonNull
     public static PlatformEvent createTestEventWithParent(
             @NonNull final Random random,

@@ -2,8 +2,6 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
-import static org.hiero.consensus.model.event.EventOrigin.GOSSIP;
-import static org.hiero.consensus.model.event.EventOrigin.STORAGE;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -109,12 +107,6 @@ public class TipsetEventCreator implements EventCreator {
     private boolean breakQuiescenceEventCreated;
 
     /**
-     * Set once this node has prepared for a reconnect, which clears the event deduplicator. Gates the adoption of a
-     * gossiped self event over one read from storage; see {@link #registerEvent} for why the clear matters.
-     */
-    private boolean hasPreparedForReconnect = false;
-
-    /**
      * Create a new tipset event creator.
      *
      * @param configuration       the configuration for the event creator
@@ -164,6 +156,10 @@ public class TipsetEventCreator implements EventCreator {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>Advancing {@code lastSelfEvent} relies on self events arriving in topological order, so that the child of the
+     * held event is offered before any of its own descendants. Nothing here enforces that; it is a property of the
+     * intake pipeline, which the orphan buffer establishes and the stages below it preserve.
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
@@ -180,38 +176,13 @@ public class TipsetEventCreator implements EventCreator {
         if (selfEvent) {
             if (lastSelfEvent == null) {
                 updateLastSelfEvent(event);
-                return;
-            }
-
-            final EventOrigin lastSelfEventOrigin = lastSelfEvent.getOrigin();
-            final EventOrigin newSelfEventOrigin = event.getOrigin();
-            if (lastSelfEventOrigin == STORAGE
-                    && newSelfEventOrigin == STORAGE
-                    && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
-                // We have restarted and are learning our latest self event from PCES on disk. All
-                // PCES events are flushed through the system prior to starting event creation, so
-                // there is no risk of branching.
+            } else if (eventWindow.isAncient(lastSelfEvent)) {
+                // Our lastSelfEvent is ancient and the new self event is not ancient, so it is higher in
+                // the hashgraph and must be adopted.
                 updateLastSelfEvent(event);
-            } else if (lastSelfEventOrigin == GOSSIP
-                    && newSelfEventOrigin == GOSSIP
-                    && event.getSequenceNumber() > lastSelfEvent.getSequenceNumber()) {
-                // We are recovering from a loss of or incomplete PCES on disk which can happen if the
-                // node did not shut down cleanly, or there was disk corruption. We know we are in this
-                // scenario because we are learning our own events through gossip. If we do not learn of
-                // our latest events during the OBSERVING window, we could create a branch.
-                updateLastSelfEvent(event);
-            } else if (!hasPreparedForReconnect && lastSelfEventOrigin == STORAGE && newSelfEventOrigin == GOSSIP) {
-                // We recovered from a restart but have received a non-ancient self event that we did not
-                // have in PCES (duplicates are discarded in event intake). Therefore, the gossip event
-                // is newer and we must adopt it.
-                // The hasPreparedForReconnect flag protects us from adopting the incoming gossip event unconditionally
-                // in the following case:
-                // 1. Node restarts and replays PCES. lastSelfEvent is STORAGE
-                // 2. Immediately falls behind and reconnects
-                // 3. Event deduplicator is cleared
-                // 4. Receive older self events via gossip
-                // 5. Overwrite lastSelfEvent with an older event
-                // 6. Create a branch when the next event is created
+            } else if (event.getSelfParent() != null && event.getSelfParent().equals(lastSelfEvent.getDescriptor())) {
+                // If we ingest a self event that is a child of lastSelfEvent, it is by definition higher
+                // in the hashgraph and must be adopted.
                 updateLastSelfEvent(event);
             }
         } else {
@@ -537,7 +508,6 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow();
-        hasPreparedForReconnect = true;
     }
 
     @NonNull

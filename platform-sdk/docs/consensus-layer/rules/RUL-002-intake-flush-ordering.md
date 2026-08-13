@@ -10,6 +10,8 @@ components:
   - consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java
   - consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java
+  - consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/config/EventIntakeWiringConfig.java
+  - consensus-event-creator/src/main/java/org/hiero/consensus/event/creator/config/EventCreationWiringConfig.java
 related:
   invariants: []
   decisions: [ADR-005]
@@ -44,6 +46,14 @@ before it creates its next event: creating a new self event without knowing the
 most recent prior self event would produce two self events with the same
 self-parent — a **branch**, which is **byzantine behavior** that the network
 detects and can penalize.
+
+Observing the latest self event is not by itself enough for the creator to
+*hold* it. `TipsetEventCreator.registerEvent` adopts a self event only when it
+is a child of the one it already holds, so it reaches the latest one by walking
+the self-parent links in order. The flush therefore delivers its guarantee only
+while intake hands a parent over before its child — see
+[event-intake.md](../architecture/topics/event-intake.md#preserving-the-order-downstream)
+for what establishes that ordering and preserves it downstream.
 
 The same ordered pass also flushes the transaction handler (pre-handler then
 handler) and the state hasher, in the same method. Those extensions are **not** a
@@ -160,6 +170,14 @@ Several distinct mechanisms would break this rule:
   holds, or seeding the orphan buffer after replay starts — could cause a
   window advance mid-flush to un-orphan events behind the already-flushed
   hashgraph, stranding them.
+- **Making a scheduler between the orphan buffer and the event creator
+  concurrent,** via `event.intake.wiring.orphanBuffer` or
+  `event.creation.wiring.eventCreationManager`, or inserting a stage below the
+  orphan buffer that reorders, batches out of order, or re-emits events. The
+  flush would still return with the queues drained, but the event creator could
+  have been offered a self event before its self-parent and discarded it, so it
+  ends the flush holding a stale self event — the branch this rule exists to
+  prevent, reached without breaking the flush itself.
 - **Making `flush()` non-blocking** (returning before the queue drains or
   before the last task is fully handled) for any component in the chain.
 - **Allowing event creation to start before `flushPrimaryPipeline()` returns**

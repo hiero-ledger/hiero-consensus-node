@@ -6,6 +6,8 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithSelfParent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithoutSelfParent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
@@ -1087,55 +1089,6 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * During PCES replay, the node will learn of self events it created in the past. This test creates a single node
-     * network, sends the event creator self events read from storage, then creates a new event. The new event should
-     * have the self event with the highest sequence number as its self parent.
-     * <p>
-     * Replay runs in a single orphan buffer epoch, so the sequence number is a valid topological order across it and
-     * the highest sequence number identifies the graph-latest self event.
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("Self event with highest sequence number is used as latest self event on startup")
-    void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
-        final int networkSize = 1;
-        final int numEvents = 100;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
-
-        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
-
-        final List<PlatformEvent> pcesEvents = new ArrayList<>();
-        PlatformEvent eventWithHighestSequenceNumber = null;
-        for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
-            if (eventWithHighestSequenceNumber == null
-                    || event.getSequenceNumber() > eventWithHighestSequenceNumber.getSequenceNumber()) {
-                eventWithHighestSequenceNumber = event;
-            }
-            pcesEvents.add(event);
-        }
-
-        // Add the events to the creator in a random order
-        Collections.shuffle(pcesEvents, random);
-        pcesEvents.forEach(eventCreator::registerEvent);
-
-        // Verify that the new event created uses a self parent that is the event with the highest sequence number.
-        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(newEvent);
-        assertEquals(eventWithHighestSequenceNumber.getDescriptor(), newEvent.getSelfParent());
-    }
-
-    /**
      * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
      * self event for the first time from the intake pipeline.
      *
@@ -1182,11 +1135,10 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * A self event learned through gossip must not displace a self event learned from storage once a reconnect has been
-     * prepared for. Preparing for a reconnect clears the event deduplicator, so gossip can re-deliver self events the
-     * node already replayed - including self-ancestors of the latest one. The orphan buffer re-numbers such a
-     * self-ancestor above the replayed event, so adopting it would make the node build on an older self parent - a
-     * branch (SCN-003).
+     * The creator holds no self event until it observes one, so the first self event it is offered must be adopted
+     * unconditionally. This is the state a node starts in before replay or gossip has handed it anything of its own;
+     * there is nothing to compare the event against, and refusing it would leave the creator with no self parent to
+     * build on.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1198,8 +1150,47 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("A gossiped self event does not displace a self event read from storage after a reconnect")
-    void gossipedSelfEventDoesNotDisplaceReplayedSelfEventAfterReconnect(@ParamName("random") final Random random) {
+    @DisplayName("The first self event observed is adopted when none is held")
+    void firstSelfEventIsAdoptedWhenNoneIsHeld(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        // The creator has neither created nor observed a self event, so this one is adopted with nothing to compare it
+        // against.
+        final PlatformEvent firstSelfEvent =
+                createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
+        eventCreator.registerEvent(firstSelfEvent);
+
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(firstSelfEvent.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
+     * A self event that is not a child of the one the creator holds must not displace it. After a reconnect clears the
+     * event deduplicator, gossip can re-deliver self events this node already had - including self-ancestors of the one
+     * it holds. Such an ancestor is re-numbered above the held event by the orphan buffer, so a rule keyed on the
+     * sequence number would adopt it and the node would build on an older self parent - a branch (SCN-003). Keying on
+     * the self-parent link rejects it structurally, because an ancestor of the held event cannot be its child.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("A self event that is not a child of the held self event is not adopted")
+    void selfEventThatIsNotAChildIsNotAdopted(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -1213,33 +1204,119 @@ class TipsetEventCreatorTests {
         final PlatformEvent replayedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
         eventCreator.registerEvent(replayedEvent);
 
-        // Prepare for a reconnect. This is what clears the deduplicator, after which a self event arriving through
-        // gossip is no longer necessarily one this node did not already have.
-        eventCreator.clear();
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
-
-        // A self-ancestor received again through gossip is re-numbered by the orphan buffer, so it carries a higher
-        // sequence number than the replayed event even though it is lower in the hashgraph.
-        final PlatformEvent gossipedAncestor =
+        // A self event elsewhere in this node's chain, re-delivered after a reconnect cleared the deduplicator. It
+        // carries a higher sequence number than the held event even though it is not a child of it.
+        final PlatformEvent unrelatedSelfEvent =
                 createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
         assertTrue(
-                gossipedAncestor.getSequenceNumber() > replayedEvent.getSequenceNumber(),
+                unrelatedSelfEvent.getSequenceNumber() > replayedEvent.getSequenceNumber(),
                 "the later event must have a higher sequence number for this test to be meaningful");
-        eventCreator.registerEvent(gossipedAncestor);
+        eventCreator.registerEvent(unrelatedSelfEvent);
 
-        // The new event must build on the replayed self event, not the later, gossiped one.
+        // The new event must build on the replayed self event, not the later, unrelated one.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
         assertEquals(replayedEvent.getDescriptor(), newEvent.getSelfParent());
     }
 
     /**
-     * A self event learned through gossip must displace a self event learned from storage when no reconnect has
-     * intervened. An unclean shutdown can leave the tail of the preconsensus event stream unwritten while peers already
-     * hold those events, so replay establishes a self event that is not the graph-latest one. The event deduplicator
-     * discards any event the node already has, so a self event that reaches the creator through gossip is one that was
-     * missing from PCES; replay delivers a contiguous prefix of this node's self chain, so the missing event sits above
-     * that prefix and must be adopted. Failing to adopt it means building on an older self parent - a branch.
+     * A self event with no self parent at all cannot be a child of the held one, so it must not displace it. This is
+     * the node's own first-ever event, re-delivered by gossip after a reconnect cleared the event deduplicator - the
+     * furthest possible event from the graph-latest one. The self-parent test rejects it on the null check alone,
+     * before any descriptor comparison.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("A self event with no self parent is not adopted")
+    void selfEventWithNoSelfParentIsNotAdopted(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        // Replay a self event from PCES. With no prior self event, it becomes the latest self event.
+        final PlatformEvent replayedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
+        eventCreator.registerEvent(replayedEvent);
+
+        // This node's first-ever self event, handed back by a peer. It has no self parent to compare.
+        final PlatformEvent genesisSelfEvent =
+                createTestEventWithoutSelfParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
+        assertNull(genesisSelfEvent.getSelfParent());
+        eventCreator.registerEvent(genesisSelfEvent);
+
+        // The new event must build on the replayed self event, not the parentless one.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(replayedEvent.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
+     * A self event held long enough to go ancient must be replaced by any non-ancient self event, whether or not that
+     * event is a child of it. Birth round never decreases along ancestry (INV-011), so every ancestor of an ancient
+     * event is itself ancient and a non-ancient self event therefore cannot be one - it is always higher in the
+     * hashgraph. This is also what lets the creator recover when the chain of self events it is following is broken by
+     * an intervening event going ancient before it was offered.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("An ancient latest self event is replaced by any non-ancient self event")
+    void ancientLastSelfEventIsReplaced(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        eventCreator.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(ROUND_FIRST).build());
+
+        // The creator picks up a self event, which later goes ancient because nothing extended it.
+        final PlatformEvent oldEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
+        eventCreator.registerEvent(oldEvent);
+
+        // The window advances past it.
+        final long ancientThreshold = ROUND_FIRST + 10;
+        eventCreator.setEventWindow(EventWindowBuilder.builder()
+                .setAncientThreshold(ancientThreshold)
+                .setNewEventBirthRound(ancientThreshold)
+                .build());
+
+        // A non-ancient self event that is not a child of the held one is adopted anyway, because the held one is
+        // ancient and so cannot be below it in the hashgraph.
+        final PlatformEvent nonAncientEvent =
+                createTestEventWithParent(random, selfId, ancientThreshold, EventOrigin.GOSSIP);
+        eventCreator.registerEvent(nonAncientEvent);
+
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(nonAncientEvent.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
+     * A self event learned through gossip must displace a self event learned from storage when it is a child of it. An
+     * unclean shutdown can leave the tail of the preconsensus event stream unwritten while peers already hold those
+     * events, so replay establishes a self event that is not the graph-latest one and the rest arrive through gossip.
+     * Failing to adopt them means building on an older self parent - a branch.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1266,22 +1343,21 @@ class TipsetEventCreatorTests {
         final PlatformEvent replayedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.STORAGE);
         eventCreator.registerEvent(replayedEvent);
 
-        // A self event that never reached disk is handed back by a peer during the OBSERVING window. No reconnect has
-        // occurred, so the deduplicator would have discarded it had this node already held it.
-        final PlatformEvent gossipedDescendant =
-                createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
-        eventCreator.registerEvent(gossipedDescendant);
+        // A child of it that never reached disk is handed back by a peer during the OBSERVING window.
+        final PlatformEvent gossipedChild =
+                createTestEventWithSelfParent(random, selfId, replayedEvent, ROUND_FIRST, EventOrigin.GOSSIP);
+        eventCreator.registerEvent(gossipedChild);
 
         // The new event must build on the self event relearned through gossip, not the last one replayed from disk.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(gossipedDescendant.getDescriptor(), newEvent.getSelfParent());
+        assertEquals(gossipedChild.getDescriptor(), newEvent.getSelfParent());
     }
 
     /**
      * When PCES is lost from disk, the node has no self event to replay and must relearn its own events through gossip
      * during the OBSERVING window. The orphan buffer releases a parent before its child, so self events arrive in
-     * hashgraph order and the creator advances to the last one it learns.
+     * hashgraph order and the creator advances one link at a time to the last one it learns.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1305,11 +1381,13 @@ class TipsetEventCreatorTests {
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-        // No self event is replayed from disk. Self events arrive through gossip in hashgraph order, which is the order
-        // the orphan buffer releases them and therefore the order their sequence numbers are assigned in.
-        PlatformEvent lastRelearnedEvent = null;
-        for (int i = 0; i < numEvents; i++) {
-            lastRelearnedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
+        // No self event is replayed from disk. Self events arrive through gossip in hashgraph order, each the child of
+        // the one before it, which is the order the orphan buffer releases them in.
+        PlatformEvent lastRelearnedEvent = createTestEventWithParent(random, selfId, ROUND_FIRST, EventOrigin.GOSSIP);
+        eventCreator.registerEvent(lastRelearnedEvent);
+        for (int i = 1; i < numEvents; i++) {
+            lastRelearnedEvent =
+                    createTestEventWithSelfParent(random, selfId, lastRelearnedEvent, ROUND_FIRST, EventOrigin.GOSSIP);
             eventCreator.registerEvent(lastRelearnedEvent);
         }
 

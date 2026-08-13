@@ -51,7 +51,25 @@ holds four collaborating objects:
   children; these are the eligible other-parent pool.
 - **Last self-event and event window** — `TipsetEventCreator` itself
   retains `lastSelfEvent` (used as self-parent) and the most recent
-  `EventWindow`.
+  `EventWindow`. `registerEvent`
+  (`consensus-event-creator-impl/.../tipset/TipsetEventCreator.java#registerEvent`)
+  carries the rule for advancing it, and is where that rule is stated. An
+  ancient event is dropped at the method's entry guard; a non-ancient self
+  event replaces `lastSelfEvent` in exactly three cases:
+  1. nothing is held yet;
+  2. the held event has gone ancient — the registered event is then
+     necessarily higher in the hashgraph, since birth round never
+     decreases along ancestry (INV-011), so every ancestor of an ancient
+     event is itself ancient;
+  3. the registered event's self-parent descriptor is the held event.
+
+  Every other self event is discarded, including one that ranks higher by
+  any local ordering key. No ordering key is read at all; ADR-008 records
+  why. Walking the self-parent links one at a time is enough to reach the
+  latest self event only because intake delivers a parent before its
+  child — see
+  [event-intake.md](event-intake.md#preserving-the-order-downstream),
+  which also covers what breaks if that stops holding.
 
 Around the `EventCreator`, `DefaultEventCreationManager`
 (`consensus-event-creator-impl/.../DefaultEventCreationManager.java`)
@@ -317,7 +335,9 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
   `maxAllowedSyncLag`, `maxOtherParents`, `maxCreationRate`, `period`.
 - Source doc: [../../../core/tipset-algorithm.md](../../../core/tipset-algorithm.md).
 - Invariants: INV-011 — birth round is monotonic along ancestry; INV-013 — an honest event's coin value is unpredictable; INV-005 — every honest event eventually reaches consensus or becomes stale.
-- Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
+- Rules: RUL-002 — the intake flush ordering that guarantees the event creator has observed the latest self event before it creates the next one.
+- Decisions: ADR-004 (`OBSERVING` is retained so a restarting node can relearn its latest self event); ADR-005 (each consumer embeds its own future-event buffer); ADR-008 (`lastSelfEvent` recency uses no local ordering key).
+- Scenarios: SCN-003 — `lastSelfEvent` tracking producing an honest branch.
 
 ## Future state
 

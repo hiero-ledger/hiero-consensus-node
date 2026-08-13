@@ -17,7 +17,7 @@ components:
 related:
   invariants: []
   decisions: [ADR-007]
-  scenarios: [SCN-004]
+  scenarios: []
   heuristics: []
 status: holds
 confidence: high
@@ -76,7 +76,7 @@ persistence path, signed-state saving, and the reconnect gate.
   power loss is an accepted risk that does not by itself produce a network-wide
   unrecoverable state. The durability model is owned by
   [restart-and-pces.md](../architecture/topics/restart-and-pces.md), which also covers
-  what an unclean shutdown costs the restarting node's own self-event chain (SCN-004).
+  what an unclean shutdown costs the restarting node's own self-event chain.
 - **Periodic — a recent on-disk base state.** A signed state is produced at every
   block boundary (and at the freeze round) and marked for saving on a period
   (`DefaultSavedStateController.java:111`), written to disk by
