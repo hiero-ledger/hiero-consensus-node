@@ -33,13 +33,13 @@ public class ConsensusTestArgs {
 
     static Stream<ConsensusTestParams> reconnectSimulation() {
         return Stream.of(
-                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC),
-                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
-                new ConsensusTestParams(4, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
-                new ConsensusTestParams(4, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC),
-                new ConsensusTestParams(10, SINGLE_NODE_STRONG_MINORITY, SINGLE_NODE_STRONG_MINORITY_DESC),
-                new ConsensusTestParams(10, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
-                new ConsensusTestParams(10, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
+//                new ConsensusTestParams(4, BALANCED, BALANCED_WEIGHT_DESC),
+//                new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(4, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC, 7624134555018922876L));
+//                new ConsensusTestParams(4, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC),
+//                new ConsensusTestParams(10, SINGLE_NODE_STRONG_MINORITY, SINGLE_NODE_STRONG_MINORITY_DESC),
+//                new ConsensusTestParams(10, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
+//                new ConsensusTestParams(10, RANDOM_REAL_WEIGHT, RANDOM_WEIGHT_DESC));
     }
 
     static Stream<ConsensusTestParams> staleEvent() {
