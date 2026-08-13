@@ -50,9 +50,10 @@ public class GrpcUsageTracker implements ServerInterceptor {
      * The maximum number of distinct user-agents tracked per endpoint within a single bucket. A known SDK's version is
      * a client-supplied component (any valid SemVer value is preserved as-is), so without this bound an unauthenticated
      * caller could mint an unlimited number of distinct {@link UserAgent} keys within a logging interval and inflate
-     * heap usage. Once the limit is reached, additional distinct user-agents are folded into the {@code UNKNOWN}
+     * heap usage. Once the limit is reached, additional distinct user-agents are folded into the {@code OTHER}
      * user-agent instead of adding new map entries, which keeps per-endpoint request totals accurate while capping the
-     * number of entries (and therefore the number of log lines emitted at flush time).
+     * number of entries (and therefore the number of log lines emitted at flush time). {@code OTHER} is used rather
+     * than {@code UNKNOWN} so that cap overflow stays distinguishable from genuinely unrecognized user-agents.
      */
     @VisibleForTesting
     static final int MAX_AGENTS_PER_ENDPOINT = 1000;
@@ -260,10 +261,10 @@ public class GrpcUsageTracker implements ServerInterceptor {
             LongAdder counter = usagesByAgent.get(userAgent);
             if (counter == null) {
                 // A new user-agent for this endpoint. Bound the number of distinct keys so that client-controlled
-                // user-agent values cannot grow the map without limit; any overflow is folded into UNKNOWN so the
+                // user-agent values cannot grow the map without limit; any overflow is folded into OTHER so the
                 // total request count for the endpoint is still accurate. The size() check is a best-effort bound and
                 // may be exceeded slightly under concurrency, which is acceptable for a safety limit.
-                final UserAgent key = usagesByAgent.size() >= MAX_AGENTS_PER_ENDPOINT ? UserAgent.UNKNOWN : userAgent;
+                final UserAgent key = usagesByAgent.size() >= MAX_AGENTS_PER_ENDPOINT ? UserAgent.OTHER : userAgent;
                 counter = usagesByAgent.computeIfAbsent(key, __ -> new LongAdder());
             }
             counter.increment();

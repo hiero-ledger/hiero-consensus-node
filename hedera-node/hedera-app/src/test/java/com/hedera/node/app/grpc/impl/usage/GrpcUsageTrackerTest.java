@@ -208,13 +208,13 @@ class GrpcUsageTrackerTest {
 
         final ConcurrentMap<UserAgent, LongAdder> agentData = bucket.usageData().get(endpoint);
 
-        // Distinct keys are bounded to the cap plus the single UNKNOWN overflow bucket - not the number sent
+        // Distinct keys are bounded to the cap plus the single OTHER overflow bucket - not the number sent
         assertThat(agentData).hasSize(cap + 1);
 
-        // Overflow interactions beyond the cap are folded into UNKNOWN
-        final LongAdder unknownCounter = agentData.get(UserAgent.UNKNOWN);
-        assertThat(unknownCounter).isNotNull();
-        assertThat(unknownCounter.sum()).isEqualTo(overflow);
+        // Overflow interactions beyond the cap are folded into OTHER
+        final LongAdder otherCounter = agentData.get(UserAgent.OTHER);
+        assertThat(otherCounter).isNotNull();
+        assertThat(otherCounter.sum()).isEqualTo(overflow);
 
         // No interactions are lost - the total count across all keys is preserved
         long total = 0;
