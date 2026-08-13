@@ -84,7 +84,7 @@ transaction, if within the window during which such a reversal is possible.
 
 Next we consider `FileUpdate` and `FileAppend` transactions when targeting one of the system files.
 
-|               Payer               | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.feeSchedules=111` / `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
+|               Payer               | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
 |-----------------------------------|:-------------------------------------------------:|:-----------------------------------------------------------:|:----------------------------------------------------------:|:-------------------------:|:-----------------------------------:|:-------------------------------:|
 | `accounts.treasury=2`             |                         X                         |                              X                              |                             X                              |             X             |                  X                  |                X                |
 | `accounts.systemAdmin=50`         |                         X                         |                              X                              |                             X                              |             X             |                  X                  |                X                |

@@ -1,9 +1,10 @@
 # Fees
 
-The current implementation of the fee engine is complex, containing a mixture of 3 different implementations that work
-together. Some of this implementation exists in `hapi-fees`, some in `hapi-utils`, and the rest in
-`hedera-mono-service`. A single json file, `feeSchedules.json`, contains values for fee components that are used, with
-custom equations for different services.
+The legacy implementation of the fee engine was complex, containing a mixture of 3 different implementations that
+worked together. Some of it lived in `hapi-fees`, some in `hapi-utils`, and the rest in `hedera-mono-service`. A single
+json file, `feeSchedules.json`, held values for fee components, with custom equations for different services. That
+engine and its system file `0.0.111` have been retired; fees are now read from the simple fee schedule in system file
+`0.0.113`. The rest of this document is kept for historical context.
 
 A new design is proposed that will simplify the implementation, based on a far simpler "base price + up-sale" model.
 That design is out of scope of this document.
