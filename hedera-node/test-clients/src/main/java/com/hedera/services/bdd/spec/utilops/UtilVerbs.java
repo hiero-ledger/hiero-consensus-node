@@ -50,7 +50,6 @@ import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleIte
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -129,7 +128,6 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumContractCr
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
-import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
 import com.hedera.services.bdd.spec.transactions.file.UploadProgress;
 import com.hedera.services.bdd.spec.transactions.system.HapiFreeze;
@@ -190,18 +188,12 @@ import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.FeeSchedule;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -214,7 +206,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.config.api.converter.ConfigConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -1989,108 +1980,6 @@ public class UtilVerbs {
         });
     }
 
-    public static HapiSpecOperation reduceFeeFor(
-            HederaFunctionality function,
-            long tinyBarMaxNodeFee,
-            long tinyBarMaxNetworkFee,
-            long tinyBarMaxServiceFee) {
-        return reduceFeeFor(List.of(function), tinyBarMaxNodeFee, tinyBarMaxNetworkFee, tinyBarMaxServiceFee);
-    }
-
-    public static HapiSpecOperation reduceFeeFor(
-            List<HederaFunctionality> functions,
-            long tinyBarMaxNodeFee,
-            long tinyBarMaxNetworkFee,
-            long tinyBarMaxServiceFee) {
-        return withOpContext((spec, opLog) -> {
-            if (!spec.setup().defaultNode().equals(asAccount(spec, 3))) {
-                opLog.info("Sleeping to wait for fee reduction...");
-                Thread.sleep(20000);
-                return;
-            }
-            opLog.info("Reducing fee for {}...", functions);
-            var query = getFileContents(FEE_SCHEDULE).payingWith(GENESIS);
-            allRunFor(spec, query);
-            byte[] rawSchedules = query.getResponse()
-                    .getFileGetContents()
-                    .getFileContents()
-                    .getContents()
-                    .toByteArray();
-
-            // Convert from tinyBar to one-thousandth of a tinyCent, the unit of max field
-            // in FeeComponents
-            long centEquiv = spec.ratesProvider().rates().getCentEquiv();
-            long hbarEquiv = spec.ratesProvider().rates().getHbarEquiv();
-            long maxNodeFee = tinyBarMaxNodeFee * centEquiv * 1000L / hbarEquiv;
-            long maxNetworkFee = tinyBarMaxNetworkFee * centEquiv * 1000L / hbarEquiv;
-            long maxServiceFee = tinyBarMaxServiceFee * centEquiv * 1000L / hbarEquiv;
-
-            var perturbedSchedules = CurrentAndNextFeeSchedule.parseFrom(rawSchedules).toBuilder();
-            for (final var function : functions) {
-                reduceFeeComponentsFor(
-                        perturbedSchedules.getCurrentFeeScheduleBuilder(),
-                        function,
-                        maxNodeFee,
-                        maxNetworkFee,
-                        maxServiceFee);
-                reduceFeeComponentsFor(
-                        perturbedSchedules.getNextFeeScheduleBuilder(),
-                        function,
-                        maxNodeFee,
-                        maxNetworkFee,
-                        maxServiceFee);
-            }
-            var rawPerturbedSchedules = perturbedSchedules.build().toByteString();
-            allRunFor(spec, updateLargeFile(GENESIS, FEE_SCHEDULE, rawPerturbedSchedules));
-        });
-    }
-
-    private static void reduceFeeComponentsFor(
-            FeeSchedule.Builder feeSchedule,
-            HederaFunctionality function,
-            long maxNodeFee,
-            long maxNetworkFee,
-            long maxServiceFee) {
-        var feesList = feeSchedule.getTransactionFeeScheduleBuilderList().stream()
-                .filter(tfs -> tfs.getHederaFunctionality() == function)
-                .findAny()
-                .orElseThrow()
-                .getFeesBuilderList();
-
-        for (FeeData.Builder builder : feesList) {
-            builder.getNodedataBuilder().setMax(maxNodeFee);
-            builder.getNetworkdataBuilder().setMax(maxNetworkFee);
-            builder.getServicedataBuilder().setMax(maxServiceFee);
-        }
-    }
-
-    public static HapiSpecOperation uploadScheduledContractPrices(@NonNull final String payer) {
-        return withOpContext((spec, opLog) -> {
-            allRunFor(spec, updateLargeFile(payer, FEE_SCHEDULE, feeSchedulesWith("scheduled-contract-fees.json")));
-            if (!spec.tryReinitializingFees()) {
-                throw new IllegalStateException("New fee schedules won't be available, dying!");
-            }
-        });
-    }
-
-    private static ByteString feeSchedulesWith(String feeSchedules) {
-        SysFileSerde<String> serde = new FeesJsonToGrpcBytes();
-        var baos = new ByteArrayOutputStream();
-        try {
-            var schedulesIn = HapiFileCreate.class.getClassLoader().getResourceAsStream(feeSchedules);
-            if (schedulesIn == null) {
-                throw new IllegalStateException("No " + feeSchedules + " resource available!");
-            }
-            schedulesIn.transferTo(baos);
-            baos.close();
-            baos.flush();
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-        var stylized = new String(baos.toByteArray());
-        return ByteString.copyFrom(serde.toRawFile(stylized, null));
-    }
-
     public static HapiSpecOperation createLargeFile(String payer, String fileName, ByteString byteString) {
         return blockingOrder(
                 fileCreate(fileName).payingWith(payer).contents(new byte[0]),
@@ -2754,7 +2643,7 @@ public class UtilVerbs {
                         .map(account -> balanceSnapshot(
                                         spec -> asAccountString(spec.registry().getAccountID(account)) + "Snapshot",
                                         account)
-                                .payingWith(EXCHANGE_RATE_CONTROL))
+                                .payingWith(GENESIS))
                         .toArray(n -> new SpecOperation[n]));
     }
 
@@ -2889,6 +2778,10 @@ public class UtilVerbs {
                 }
                 long expectedBalance = change.getValue() + Math.max(0L, oldBalance);
                 long actualBalance = actualBalances.getOrDefault(account, -1L);
+                /* Skip accounts that were not tracked: no prior snapshot and not in the checked accounts list. */
+                if (oldBalance == -1L && actualBalance == -1L) {
+                    return;
+                }
                 assertLog.info(
                         "Balance of {} was expected to be {}, is actually" + " {}...",
                         account,

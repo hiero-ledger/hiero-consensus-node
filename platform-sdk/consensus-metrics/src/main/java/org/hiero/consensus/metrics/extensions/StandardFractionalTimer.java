@@ -13,8 +13,8 @@ import java.util.function.LongBinaryOperator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.StackTrace;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.utility.ByteUtils;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.metrics.FunctionGauge;
 
 /**

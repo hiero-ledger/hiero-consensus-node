@@ -3,7 +3,7 @@ package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ReplayPcesCommand.DEFAULT_TARGET_ROUND;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;

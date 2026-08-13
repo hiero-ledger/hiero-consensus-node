@@ -29,6 +29,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive org.hyperledger.besu.evm;
     requires transitive tuweni.bytes;
     requires com.hedera.cryptography.libsecp256k1;
+    requires com.hedera.cryptography.libxkcp;
     requires com.swirlds.base;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
