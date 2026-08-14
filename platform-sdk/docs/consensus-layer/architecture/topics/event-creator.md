@@ -321,17 +321,41 @@ held one, which is how the node branched in SCN-003.
 
 Two consequences follow.
 
-1. **Advancing the held event depends on topological arrival order.** A
-   descendant that reaches `registerEvent` before its own self-parent is
-   discarded, and the held event stays where it is. Nothing in the event
-   creator enforces that order; the orphan buffer establishes it and the
-   stages below it preserve it (see
-   [event-intake.md](event-intake.md#orphan-buffer)).
+1. **Advancing the held event depends on arrival order, and on two
+   orderings the event creator does not itself enforce.** A descendant
+   that reaches `registerEvent` before its own self-parent is discarded,
+   and the held event stays where it is.
+   - *An event after its self-parent.* Established by the orphan buffer
+     and preserved by the stages below it (see
+     [event-intake.md](event-intake.md#orphan-buffer)).
+   - *An event window no later than the events it releases.* Only the
+     orphan buffer can produce a descendant-not-child gap, because it
+     stops treating an ancient self-parent as missing — and by INV-011 it
+     can only do so once the held event is ancient too. So the two cases
+     coincide, and the creator adopts the descendant under case 2 —
+     unless it is still holding an older window, in which case it
+     discards a legitimately higher self-event while believing the held
+     one is non-ancient. Both window paths therefore solder the event
+     creator ahead of event intake
+     (`swirlds-platform-core/.../ConsensusLayerWiring.java#wireHashgraphOutputs`,
+     `#wireInitialEventWindowDispatcher`), and the creator's window hop is
+     direct
+     (`consensus-event-creator-impl/.../DefaultEventCreatorModule.java#consensusRoundInputWire`),
+     so the window is queued on the creator's sequential scheduler before
+     the orphan buffer is notified of it.
 2. **An ancient held event is replaced by any non-ancient self-event.**
    An ancient event is no longer usable as a self-parent, and the
    replacement's higher birth round rules out its being an ancestor of
    the ancient one (INV-011) — though nothing here establishes that it
    is a descendant either.
+
+`EventCreator#clear`, called only on the reconnect path, resets the window
+to `EventWindow.getGenesisEventWindow()` while deliberately keeping
+`lastSelfEvent`. Under a genesis window nothing is ancient, so until the
+next window arrives neither case 2 nor the ancient guard at the top of
+`registerEvent` can fire, and only a direct child would be adopted.
+`ReconnectCoordinator#loadReconnectState` closes that window by injecting
+the reconnect state's `EventWindow` before gossip resumes.
 
 ## Self-event persistence
 
