@@ -134,7 +134,7 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
         final PublishStreamRequestBytes psr = PublishStreamRequestBytes.newBuilder()
                 .endOfBlock(BlockEnd.newBuilder().blockNumber(1))
                 .build();
-        final StreamRequest request = new BlockEndRequest(psr, 1, 2);
+        final StreamRequest request = new BlockEndRequest(psr, 1, 2, 3_000, 1);
 
         invoke_sendRequest(request);
 
