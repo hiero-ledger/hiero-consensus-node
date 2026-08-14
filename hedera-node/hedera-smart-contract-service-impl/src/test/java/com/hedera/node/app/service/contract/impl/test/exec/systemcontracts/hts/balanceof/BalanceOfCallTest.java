@@ -51,7 +51,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                        tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
                 .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
@@ -66,7 +66,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                        tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
@@ -88,7 +88,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                        tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getTokenRelation(A_NEW_ACCOUNT_ID, FUNGIBLE_TOKEN_ID))
                 .willReturn(A_FUNGIBLE_RELATION);

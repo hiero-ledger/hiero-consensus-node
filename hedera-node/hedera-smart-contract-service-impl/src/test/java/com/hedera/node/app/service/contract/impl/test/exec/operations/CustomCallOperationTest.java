@@ -77,7 +77,7 @@ class CustomCallOperationTest {
     @Test
     void withImplicitCreationEnabledDoesNoFurtherChecks() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            givenWellKnownFrameWith(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            givenWellKnownFrameWithNoGasCalc(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
@@ -116,9 +116,7 @@ class CustomCallOperationTest {
 
     @Test
     void withSystemAccountContinuesAsExpected() {
-        givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
-        given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS);
-        given(frame.getWorldUpdater()).willReturn(updater);
+        given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS.getBytes());
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
 
         final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
@@ -148,8 +146,7 @@ class CustomCallOperationTest {
     @Test
     void delegateToParentMissingAddressIfAllowCallFeatureFlagOn() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            givenWellKnownFrameWithNoGasCalc(1L, EIP_1014_ADDRESS, 2L);
-            given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS);
+            given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS.getBytes());
             given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(2l)));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
 
@@ -197,9 +194,8 @@ class CustomCallOperationTest {
     }
 
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
         lenient().when(frame.getStackItem(0)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
-        given(frame.getStackItem(1)).willReturn(to);
+        given(frame.getStackItem(1)).willReturn(to.getBytes());
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
         lenient().when(frame.getStackItem(3)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
         lenient().when(frame.getStackItem(4)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
@@ -220,7 +216,7 @@ class CustomCallOperationTest {
                         anyLong(),
                         anyLong(),
                         anyLong(),
-                        any(),
+                        anyLong(),
                         any(),
                         eq(to),
                         anyBoolean()))

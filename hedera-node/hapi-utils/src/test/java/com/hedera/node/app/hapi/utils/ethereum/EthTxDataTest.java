@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
-import org.bouncycastle.util.BigIntegers;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -792,7 +791,7 @@ class EthTxDataTest {
     @Test
     void populateEthTxDataComparedToUnsignedByteArrayNoExtraByteAdded() {
         final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
-        final byte[] passingChainId = BigIntegers.asUnsignedByteArray(BigInteger.valueOf(11155111L));
+        final byte[] passingChainId = EthTxData.asUnsignedByteArray(BigInteger.valueOf(11155111L));
         assertNotNull(subject);
         assertEquals(HexFormat.of().formatHex(subject.chainId()), HexFormat.of().formatHex(passingChainId));
     }
