@@ -206,12 +206,8 @@ jobs:
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
-<<<<<<< HEAD
-      delete-namespace: true
-=======
       duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
       chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
->>>>>>> main
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
     secrets:
