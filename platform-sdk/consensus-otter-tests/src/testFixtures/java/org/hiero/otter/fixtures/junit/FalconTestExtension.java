@@ -22,7 +22,7 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 public class FalconTestExtension implements TestTemplateInvocationContextProvider {
 
     /**
-     * System property that overrides {@link FalconTest#repetition()}, so that the same test source can run a few
+     * System property that overrides {@link FalconTest#repetitions()}, so that the same test source can run a few
      * repetitions in a pull request build and many in a nightly build.
      */
     public static final String SYSTEM_PROPERTY_FALCON_REPETITIONS = "falcon.repetitions";
@@ -43,13 +43,12 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
 
         final int repetitions = repetitionsFor(context.getRequiredTestMethod().getName(), falconTest);
         final Random random = new Random();
-        return IntStream.range(0, repetitions)
-                .mapToObj(ignored -> FalconInvocationContext.sweep(repetitions, random.nextLong()));
+        return IntStream.rangeClosed(1, repetitions)
+                .mapToObj(index -> FalconInvocationContext.sweep(index, repetitions, random.nextLong()));
     }
 
     /**
-     * Determines the number of repetitions of a sweep, honoring {@link #SYSTEM_PROPERTY_FALCON_REPETITIONS} if it is
-     * set.
+     * Determines the number of repetitions of a sweep, honoring {@link #SYSTEM_PROPERTY_FALCON_REPETITIONS} if set.
      *
      * @param testName the name of the test method, used in error messages
      * @param falconTest the annotation of the test method
@@ -59,7 +58,7 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
         final String override = System.getProperty(SYSTEM_PROPERTY_FALCON_REPETITIONS);
         final int repetitions;
         if (override == null || override.isBlank()) {
-            repetitions = falconTest.repetition();
+            repetitions = falconTest.repetitions();
         } else {
             try {
                 repetitions = Integer.parseInt(override.trim());

@@ -18,22 +18,24 @@ final class FalconInvocationContext implements TestTemplateInvocationContext {
     private final long randomSeed;
     private final FalconEnvironmentExtension extension;
 
-    private FalconInvocationContext(final int repetitionCount, final long randomSeed) {
+    private FalconInvocationContext(final int repetitionIndex, final int repetitionCount, final long randomSeed) {
         this.repetitionCount = repetitionCount;
         this.randomSeed = randomSeed;
-        this.extension = new FalconEnvironmentExtension(randomSeed);
+        final String repetition = repetitionCount == REPLAY ? "replay" : repetitionIndex + "/" + repetitionCount;
+        this.extension = new FalconEnvironmentExtension(randomSeed, repetition);
     }
 
     /**
      * Creates the context of a single repetition of a sweep.
      *
+     * @param repetitionIndex the one-based index of this repetition within the sweep
      * @param repetitionCount the total number of repetitions of the sweep
      * @param randomSeed the seed of this repetition
      * @return the invocation context
      */
     @NonNull
-    static FalconInvocationContext sweep(final int repetitionCount, final long randomSeed) {
-        return new FalconInvocationContext(repetitionCount, randomSeed);
+    static FalconInvocationContext sweep(final int repetitionIndex, final int repetitionCount, final long randomSeed) {
+        return new FalconInvocationContext(repetitionIndex, repetitionCount, randomSeed);
     }
 
     /**
@@ -44,7 +46,7 @@ final class FalconInvocationContext implements TestTemplateInvocationContext {
      */
     @NonNull
     static FalconInvocationContext replay(final long randomSeed) {
-        return new FalconInvocationContext(REPLAY, randomSeed);
+        return new FalconInvocationContext(REPLAY, REPLAY, randomSeed);
     }
 
     /**

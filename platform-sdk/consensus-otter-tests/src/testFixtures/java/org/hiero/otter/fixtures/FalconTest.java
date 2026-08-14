@@ -30,14 +30,13 @@ public @interface FalconTest {
      *
      * @return the number of repetitions to run the test
      */
-    int repetition() default 1_000;
+    int repetitions() default 1_000;
 
     /**
      * Specifies the seed of a single repetition to replay. If set to a non-zero value, the test runs exactly once with
-     * this seed instead of running a sweep. This is how a failing repetition is reproduced: copy the seed from its
-     * display name into this attribute.
+     * this seed instead of running a sweep.
      *
-     * <p>If set to {@code 0} (the default), the test runs {@link #repetition()} repetitions, each with its own randomly
+     * <p>If set to {@code 0} (the default), the test runs {@link #repetitions()} repetitions, each with its own randomly
      * drawn seed.
      *
      * @return the seed of the repetition to replay, or {@code 0} to run a sweep
