@@ -11,10 +11,12 @@ branches:
 
 # Default allocation duration in seconds (used when the workflow does not specify one).
 # Chewie enforces its own server-side maximum independently of this value.
-default_duration: 3600
+# Default: 72000s (20 hours)
+default_duration: 72000
 
 # Default timeout in seconds: how long Chewie will wait for resources before failing.
-default_timeout: 300
+# Default: 3600s (1 hour)
+default_timeout: 3600
 # Optional: restrict which workflow files may use Chewie in this repository.
 # If omitted, any workflow from an allowed branch may request resources.
 # workflows:
