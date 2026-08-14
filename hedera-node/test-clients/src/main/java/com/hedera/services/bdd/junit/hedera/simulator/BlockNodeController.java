@@ -554,4 +554,25 @@ public class BlockNodeController {
             final long nodeIdx, final boolean sendBlockAcknowledgementsEnabled) {
         simulatedBlockNodes.get(nodeIdx).setSendingBlockAcknowledgementsEnabled(sendBlockAcknowledgementsEnabled);
     }
+
+    /**
+     * Makes the acknowledgement for {@code blockNumber} carry an invalid mock proof on the specified simulator.
+     *
+     * @param nodeIdx the index of the block node simulator (0-based)
+     * @param blockNumber the block whose acknowledgement should carry an invalid proof
+     */
+    public void sendInvalidAckForBlock(final long nodeIdx, final long blockNumber) {
+        simulatedBlockNodes.get(nodeIdx).sendInvalidAckForBlock(blockNumber);
+    }
+
+    /**
+     * Delays the acknowledgement for {@code blockNumber} by {@code delayBlocks} later blocks on the specified simulator.
+     *
+     * @param nodeIdx the index of the block node simulator (0-based)
+     * @param blockNumber the block whose acknowledgement should be delayed
+     * @param delayBlocks the number of later blocks that must end before the acknowledgement is sent
+     */
+    public void delayAckForBlock(final long nodeIdx, final long blockNumber, final int delayBlocks) {
+        simulatedBlockNodes.get(nodeIdx).delayAckForBlock(blockNumber, delayBlocks);
+    }
 }

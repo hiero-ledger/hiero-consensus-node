@@ -41,6 +41,7 @@ import java.time.Duration;
  * @param numBlocksBehindHighThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
  *                                     via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in an extended cool down
  * @param slowRequestThresholdMillis amount of time (in milliseconds) a request will take to send before it is considered slow (should be less than {@link #pipelineOperationTimeout()}
+ * @param requireAckProof if true (test-only), a block is marked acknowledged only when the block node's acknowledgement carries a matching mock proof ("ack-" + blockNumber); otherwise acknowledgements are accepted by block number alone (production behavior)
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -71,6 +72,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis,
         @ConfigProperty(defaultValue = "20.0") @Min(0) @NetworkProperty double numBlocksBehindLowThreshold,
         @ConfigProperty(defaultValue = "35.0") @Min(0) @NetworkProperty double numBlocksBehindHighThreshold,
-        @ConfigProperty(defaultValue = "250") @Min(1) @NetworkProperty long slowRequestThresholdMillis) {
+        @ConfigProperty(defaultValue = "250") @Min(1) @NetworkProperty long slowRequestThresholdMillis,
+        @ConfigProperty(defaultValue = "false") @NodeProperty boolean requireAckProof) {
 }
 // spotless:on

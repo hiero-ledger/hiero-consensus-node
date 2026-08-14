@@ -642,6 +642,333 @@ class IssBufferRaceSimTest implements LifecycleTest {
                 freezeSurvivors());
     }
 
+    // C13 — SELF_ISS, simulator, PROOF-MATCHING enabled (blockNode.requireAckProof=true on node1), keep=0. The sim is
+    // told to send INVALID ack proofs ("invalid-ack-<n>") for the blocks the ISS round falls in, so node1 rejects
+    // those acks (proof != "ack-<n>") and never marks the ISS block acknowledged. Since an unacked block is never
+    // pruned (even at keep=0), the ISS block is KEPT — the loss C10 shows (keep=0, valid acks) is prevented here.
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockNode.requireAckProof", "true",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        })
+            })
+    final Stream<DynamicTest> selfIssInvalidAckProofKept() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 0, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Make the simulator send an invalid ack proof for every block the ISS round could fall in.
+                invalidateAcksForBlocks(0L, 60L),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                verify(() -> {
+                    IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
+                    final boolean kept =
+                            IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
+                    log.warn(
+                            "C13 SELF/SIM/requireAckProof/invalid-ack outcome: kept(.iss.gz)={} keys={}",
+                            kept,
+                            RECEIVED_OBJECT_KEYS);
+                    // keep=0 + acks flowing would normally prune the acked ISS block (see C10 → LOST). Here the CN
+                    // rejects the invalid proof, so the ISS block is never acked (acked=false, highestAcked < issBlock)
+                    // and therefore never pruned → KEPT. A kept block under these settings proves the proof gate fired.
+                    assertTrue(
+                            kept,
+                            "invalid ack proof should leave the ISS block unacked and thus kept; saw "
+                                    + RECEIVED_OBJECT_KEYS);
+                }),
+                freezeSurvivors());
+    }
+
+    /** Tells the simulator (node0) to send an invalid ack proof for every block in the inclusive range. */
+    private SpecOperation invalidateAcksForBlocks(final long fromInclusive, final long toInclusive) {
+        return blockingOrder(java.util.stream.LongStream.rangeClosed(fromInclusive, toInclusive)
+                .mapToObj(b -> (SpecOperation) blockNode(0).sendInvalidAckForBlock(b))
+                .toArray(SpecOperation[]::new));
+    }
+
+    // C14 — CONTROL for C13, on the reliable-loss late-notification base of C11: SELF_ISS, simulator, keep=1,
+    // blockPeriod=0 + roundsPerBlock=1 (one block/round ⇒ detection lags 2-3 blocks ⇒ lag > keep), PROOF-MATCHING
+    // enabled (blockNode.requireAckProof=true on node1), and the sim sends VALID proofs ("ack-<n>"). The proof matches,
+    // so node1 accepts every ack exactly as with the gate off — the ISS block is acked, the watermark moves past it,
+    // and it is pruned before the async capture → LOST, the same outcome as C11. This is the proof-SELECTIVE control:
+    // C13 keeps the block because the proof is *wrong*; here a *right* proof is still honored, so the loss reappears.
+    // If
+    // the gate wrongly rejected valid acks, the block would go unacked → KEPT and this test would fail. (keep=0 is
+    // avoided on purpose — that base is a flaky prune-vs-capture race, see C10; the late-notification base loses
+    // reliably because the ack watermark clears the ISS block by several blocks.)
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "blockStream.buffer.workerInterval", "100ms",
+                            "blockNode.requireAckProof", "true",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        })
+            })
+    final Stream<DynamicTest> selfIssLateNotificationValidAckProofPruned() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 1, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // No invalidation: the sim sends valid "ack-<n>" proofs, so the gate accepts them (contrast C13).
+                sleepForSeconds(8),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                verify(() -> {
+                    IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
+                    final boolean kept =
+                            IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
+                    final boolean lost = IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".txt");
+                    log.warn(
+                            "C14 SELF/SIM/late-notif/requireAckProof/valid-ack outcome: blockCaptured(.iss.gz)={} blockLost(.txt)={} keys={}",
+                            kept,
+                            lost,
+                            RECEIVED_OBJECT_KEYS);
+                    // Valid proof ⇒ the gate accepts the ack ⇒ the ISS block is acked and (lag > keep) pruned before
+                    // the capture, exactly as in C11. A KEPT here would mean the gate is rejecting valid acks too,
+                    // which would make C13's keep meaningless.
+                    assertTrue(
+                            lost,
+                            "a valid ack proof should be accepted and the late-notification block pruned → .txt pointer; saw "
+                                    + RECEIVED_OBJECT_KEYS);
+                }),
+                freezeSurvivors());
+    }
+
+    // C15 — SELF_ISS, simulator, keep=0, acks DELAYED (no proof gate). The sim is told to defer each block's ack until
+    // several later blocks have ended (delayAckForBlock), modelling a block node that acknowledges a few blocks behind.
+    // At detection the ISS block's ack has not yet been released, so it is unacked; an unacked block is never pruned
+    // (even at keep=0), so it is KEPT. This is the runtime exercise of the delay mechanism and a second, ack-timing
+    // lever (distinct from C13's invalid proof) that prevents the C10 loss. node1 keeps the fast worker so that, absent
+    // the delay, keep=0 would prune — i.e. the keep is genuinely enforced and the delay is what saves the block.
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.buffer.workerInterval", "100ms",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "tss.forceMockSignatures", "true"
+                        })
+            })
+    final Stream<DynamicTest> selfIssDelayedAckKept() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 0, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Defer every block's ack by 5 later blocks — far more than the ~1-block detection lag, so the ISS
+                // block is still unacked when the capture runs. (Acks still flow, just behind, so the buffer keeps
+                // pruning the released tail and never saturates.)
+                delayAcksForBlocks(0L, 60L, 5),
+                sleepForSeconds(8),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                verify(() -> {
+                    IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
+                    final boolean kept =
+                            IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
+                    log.warn(
+                            "C15 SELF/SIM/keep=0/delayed-ack outcome: kept(.iss.gz)={} keys={}",
+                            kept,
+                            RECEIVED_OBJECT_KEYS);
+                    // The ISS block's ack is deferred past detection, so it is unacked (acked=false,
+                    // highestAcked < issBlock) and never pruned even at keep=0 → KEPT. Without the delay this is C10's
+                    // loss.
+                    assertTrue(
+                            kept,
+                            "a delayed ack should leave the ISS block unacked and thus kept; saw "
+                                    + RECEIVED_OBJECT_KEYS);
+                }),
+                freezeSurvivors());
+    }
+
+    /** Tells the simulator (node0) to defer the ack for every block in the inclusive range by {@code delayBlocks}. */
+    private SpecOperation delayAcksForBlocks(final long fromInclusive, final long toInclusive, final int delayBlocks) {
+        return blockingOrder(java.util.stream.LongStream.rangeClosed(fromInclusive, toInclusive)
+                .mapToObj(b -> (SpecOperation) blockNode(0).delayAckForBlock(b, delayBlocks))
+                .toArray(SpecOperation[]::new));
+    }
+
     // --- shared step builders (kept local to avoid touching existing tests) ---
 
     /** 1 debit + 6 credits = 7 balance adjustments — above node1's maxLen=5, within the others'. */

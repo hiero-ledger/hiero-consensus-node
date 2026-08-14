@@ -305,7 +305,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
         logger.debug("{} BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
-        acknowledgeBlocks(acknowledgedBlockNumber, true);
+        // Mark the block acknowledged (and thus eligible for pruning) only if the ack's proof matches. When
+        // blockNode.requireAckProof is off (production default), the ack is accepted by block number alone.
+        final boolean ackProofValid = !bncConfig().requireAckProof()
+                || ("ack-" + acknowledgedBlockNumber).equals(acknowledgement.blockProof());
+        if (ackProofValid) {
+            acknowledgeBlocks(acknowledgedBlockNumber, true);
+        } else {
+            logger.warn(
+                    "{} Ignoring acknowledgement for block {}: proof '{}' does not match expected 'ack-{}'",
+                    this,
+                    acknowledgedBlockNumber,
+                    acknowledgement.blockProof(),
+                    acknowledgedBlockNumber);
+        }
 
         // Evaluate latency and high-latency QoS via the connection manager
         final Duration highLatencyThreshold = bncConfig().highLatencyThreshold();

@@ -152,6 +152,18 @@ public class BlockNodeOp extends UtilOp {
                         nodeIndex,
                         verifiedBlock);
                 break;
+            case SEND_INVALID_ACK_FOR_BLOCK:
+                controller.sendInvalidAckForBlock(nodeIndex, blockNumber);
+                log.info("Configured simulator {} to send an invalid ack proof for block {}", nodeIndex, blockNumber);
+                break;
+            case DELAY_ACK_FOR_BLOCK:
+                controller.delayAckForBlock(nodeIndex, blockNumber, (int) rangeEnd);
+                log.info(
+                        "Configured simulator {} to delay the ack for block {} by {} blocks",
+                        nodeIndex,
+                        blockNumber,
+                        rangeEnd);
+                break;
             case SEND_NODE_BEHIND_PUBLISHER_IMMEDIATELY:
                 controller.sendNodeBehindPublisherImmediately(nodeIndex, blockNumber);
                 verifiedBlock = controller.getLastVerifiedBlockNumber(nodeIndex);
@@ -338,6 +350,10 @@ public class BlockNodeOp extends UtilOp {
         GET_LAST_VERIFIED_BLOCK,
         /** Whether or not to send block acknowledgements */
         UPDATE_SENDING_BLOCK_ACKS,
+        /** Make the acknowledgement for a specific block carry an invalid mock proof (proof-matching investigation) */
+        SEND_INVALID_ACK_FOR_BLOCK,
+        /** Delay the acknowledgement for a specific block by a number of later blocks (proof-matching investigation) */
+        DELAY_ACK_FOR_BLOCK,
         /** Assert that a {@link RecordFileItem} (WRB content) has been received for a specific block */
         ASSERT_BLOCK_HAS_RECORD_FILE,
         /** Assert that no {@link RecordFileItem}s have been received for any block in an inclusive range */
@@ -380,6 +396,30 @@ public class BlockNodeOp extends UtilOp {
      */
     public static SendResendBlockBuilder sendResendBlockImmediately(final long nodeIndex, final long blockNumber) {
         return new SendResendBlockBuilder(nodeIndex, blockNumber);
+    }
+
+    /**
+     * Creates a builder for configuring the simulator to send an INVALID mock ack proof for a block.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param blockNumber the block whose acknowledgement should carry an invalid proof
+     * @return a builder for the operation
+     */
+    public static SendInvalidAckBuilder sendInvalidAckForBlock(final long nodeIndex, final long blockNumber) {
+        return new SendInvalidAckBuilder(nodeIndex, blockNumber);
+    }
+
+    /**
+     * Creates a builder for configuring the simulator to delay a block's acknowledgement by a number of later blocks.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param blockNumber the block whose acknowledgement should be delayed
+     * @param delayBlocks the number of later blocks that must end before the acknowledgement is sent
+     * @return a builder for the operation
+     */
+    public static DelayAckBuilder delayAckForBlock(
+            final long nodeIndex, final long blockNumber, final int delayBlocks) {
+        return new DelayAckBuilder(nodeIndex, blockNumber, delayBlocks);
     }
 
     /**
@@ -634,6 +674,66 @@ public class BlockNodeOp extends UtilOp {
                     null,
                     true,
                     true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for configuring the simulator to send an invalid mock ack proof for a block. Also a UtilOp so it can be
+     * used directly in a HapiSpec.
+     */
+    public static class SendInvalidAckBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final long blockNumber;
+
+        private SendInvalidAckBuilder(final long nodeIndex, final long blockNumber) {
+            this.nodeIndex = nodeIndex;
+            this.blockNumber = blockNumber;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex, BlockNodeAction.SEND_INVALID_ACK_FOR_BLOCK, null, blockNumber, null, null, true, true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for configuring the simulator to delay a block's acknowledgement by a number of later blocks. Also a
+     * UtilOp so it can be used directly in a HapiSpec. The delay count is carried in {@code rangeEnd}.
+     */
+    public static class DelayAckBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final long blockNumber;
+        private final int delayBlocks;
+
+        private DelayAckBuilder(final long nodeIndex, final long blockNumber, final int delayBlocks) {
+            this.nodeIndex = nodeIndex;
+            this.blockNumber = blockNumber;
+            this.delayBlocks = delayBlocks;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex,
+                    BlockNodeAction.DELAY_ACK_FOR_BLOCK,
+                    null,
+                    blockNumber,
+                    null,
+                    null,
+                    true,
+                    true,
+                    0L,
+                    delayBlocks,
+                    null);
         }
 
         @Override

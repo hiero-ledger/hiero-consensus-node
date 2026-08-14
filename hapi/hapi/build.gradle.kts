@@ -44,14 +44,54 @@ sourceSets {
     }
 }
 
+// Test-only: add a mock `block_proof` field to the external BlockAcknowledgement message so the
+// simulated block node
+// can send a proof with each ack and the consensus node can validate it. The proto comes from the
+// org.hiero.block-node:protobuf-sources jar (not editable in-repo), so patch the extracted copy in
+// place before PBJ
+// compiles it. Idempotent; fails the build loudly if the message layout changes so it can never
+// silently no-op.
+val blockPublishProto =
+    layout.buildDirectory.file(
+        "extracted-protos/main/block-node/api/block_stream_publish_service.proto"
+    )
+
+tasks.named("extractProto") {
+    notCompatibleWithConfigurationCache(
+        "patches the external block-node proto to add a mock block_proof field"
+    )
+    doLast {
+        val proto = blockPublishProto.get().asFile
+        if (proto.exists()) {
+            val text = proto.readText()
+            if (!text.contains("block_proof")) {
+                val patched =
+                    text.replace(
+                        Regex(
+                            "(message BlockAcknowledgement \\{[\\s\\S]*?uint64 block_number = 1;)"
+                        ),
+                        "$1\n\n        // Mock block proof (test-only): \"ack-\" + block_number on a valid ack.\n        string block_proof = 2;",
+                    )
+                if (patched == text) {
+                    throw GradleException(
+                        "Failed to patch BlockAcknowledgement with a block_proof field"
+                    )
+                }
+                proto.writeText(patched)
+            }
+        }
+    }
+}
+
 testModuleInfo {
     requires("com.hedera.node.hapi")
-    // we depend on the protoc compiled hapi during test as we test our pbj generated code
-    // against it to make sure it is compatible
     requires("com.google.protobuf.util")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
+
+    // against it to make sure it is compatible
+    // we depend on the protoc compiled hapi during test as we test our pbj generated code
 }
 
 tasks.test {

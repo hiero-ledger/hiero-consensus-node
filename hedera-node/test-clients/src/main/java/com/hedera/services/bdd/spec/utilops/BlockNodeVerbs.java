@@ -83,6 +83,28 @@ public class BlockNodeVerbs {
         }
 
         /**
+         * Makes the simulator send an INVALID mock ack proof for the given block (proof-matching investigation).
+         *
+         * @param blockNumber the block whose acknowledgement should carry an invalid proof
+         * @return the operation
+         */
+        public BlockNodeOp sendInvalidAckForBlock(long blockNumber) {
+            return BlockNodeOp.sendInvalidAckForBlock(nodeIndex, blockNumber).build();
+        }
+
+        /**
+         * Delays the simulator's acknowledgement for the given block by a number of later blocks.
+         *
+         * @param blockNumber the block whose acknowledgement should be delayed
+         * @param delayBlocks the number of later blocks that must end before the acknowledgement is sent
+         * @return the operation
+         */
+        public BlockNodeOp delayAckForBlock(long blockNumber, int delayBlocks) {
+            return BlockNodeOp.delayAckForBlock(nodeIndex, blockNumber, delayBlocks)
+                    .build();
+        }
+
+        /**
          * Sends an immediate NodeBehindPublisher response to the block node simulator.
          *
          * @param blockNumber the last verified block number

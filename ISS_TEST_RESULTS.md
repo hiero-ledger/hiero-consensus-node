@@ -477,3 +477,71 @@ kept for a different reason: an unacknowledged block is never pruned at all, reg
 - Full Gradle logs for each run are saved under `.context/iss-runs/` (`C3.log`, `C4*.log`, `C5.log`, `C9.log`,
   `C1.log`, `C2.log`, `C6.log`, `C8.log`). The `ISS-DIAG` lines and upload lines quoted above come from node1's
   output inside those logs.
+
+---
+
+# Re-run + new tests (session 2026-08-13, on the ack-proof mechanisms)
+
+Re-ran the SIM suite with the ack-proof work applied — a mock `block_proof` on every ack, the `blockNode.requireAckProof`
+CN gate (**default off**), and the simulator's `sendInvalidAckForBlock` / `delayAckForBlock` hooks — and added three
+tests that exercise those mechanisms. Each test is one gradle invocation; numbers are node1's `ISS-DIAG` at detection.
+Logs: `.context/iss-runs/nm-*.log`. (REAL-BN rows C1/C2/C6/C8/C12 were not re-run — the new hooks are simulator-only.)
+
+## New tests — all PASS, deterministic
+
+|  #  |                    Test                    | keep |              mechanism              |   acked    | outcome  | runs |
+|-----|--------------------------------------------|------|-------------------------------------|------------|----------|------|
+| C13 | selfIssInvalidAckProofKept                 | 0    | invalid ack proof + gate            | no (rej)   | **KEPT** | 1/1  |
+| C14 | selfIssLateNotificationValidAckProofPruned | 1    | valid ack proof + gate (late notif) | yes→pruned | **LOST** | 2/2  |
+| C15 | selfIssDelayedAckKept                      | 0    | ack deferred 5 blocks               | no         | **KEPT** | 2/2  |
+
+- **C13 — invalid proof ⇒ KEPT.** node1 logged `Ignoring acknowledgement for block 17: proof 'invalid-ack-17' does not
+  match expected 'ack-17'` (rej=1); `ISS-DIAG round=504 issBlock=17 currentBlock=18 lag=1 earliestBuffered=17
+  highestAcked=16 inBuffer=true acked=false` — the ISS block is never acked, so keep=0 cannot prune it ⇒ **KEPT**.
+  Deterministic: an unacked block is never even ack-eligible, so there is no prune race (contrast C10).
+- **C14 (control) — valid proof ⇒ LOST.** The sim sends valid `ack-<n>`, the gate accepts every ack (rej=0), the block
+  is acked and — because detection lags 2–3 blocks (`blockPeriod=0`, C11's base) — pruned before the capture ⇒ **LOST**
+  (`.txt`, `issBlock=-1`, `inBuffer=false`), the same outcome as C11. Proves the gate is proof-**selective**: it rejects
+  only mismatched proofs (C13), not all acks — so it does not stall the normal ack path. Built on C11's reliable-loss
+  base, not the flaky keep=0 base (see C10), so LOST is deterministic (2/2).
+- **C15 — deferred ack ⇒ KEPT.** The sim defers every block's ack by 5 later blocks (`delayAckForBlock`). At detection
+  the ISS block's ack has not been released: `ISS-DIAG round=584 issBlock=21 currentBlock=22 lag=1 earliestBuffered=17
+  highestAcked=16 inBuffer=true acked=false` — the ack watermark sits exactly 5 blocks behind (`16 = 21 − 5`) ⇒ unacked
+  ⇒ **KEPT** (2/2). First runtime exercise of the delay hook, and a second lever (a block node that acks a few blocks
+  behind) that prevents the C10 loss, distinct from C13's invalid proof.
+
+## Pre-existing SIM rows re-run (gate off)
+
+|  #  |             Test              | keep | acked (this run) |       outcome        |        vs prior        |
+|-----|-------------------------------|------|------------------|----------------------|------------------------|
+| C3  | selfIssRetain10Sim            | 10   | no\*             | **KEPT**             | same                   |
+| C4  | selfIssBnBehindWithheldAcks   | 1    | no               | **KEPT**             | same                   |
+| C5  | selfIssBadBlockProofRejection | 1    | yes              | **KEPT**             | same                   |
+| C9  | selfIssCnBehindResend         | 10   | yes              | **KEPT**             | same                   |
+| C11 | selfIssLateNotification       | 1    | yes → pruned     | **LOST**             | same (reliable)        |
+| C10 | selfIssRetain0Pruned (×3)     | 0    | — (see note)     | **LOST, KEPT, LOST** | **flaky** (was "det.") |
+
+\* C3's acks had not arrived at capture (`highestAcked=-1`); at keep=10 the block is kept regardless.
+
+**C10 re-characterized as flaky.** Earlier notes here called C10 a deterministic loss; this session it was LOST, KEPT,
+LOST (and an earlier `regress-C10` also KEPT). keep=0 at lag=1 is a **two-sided race** — the loss needs the ack to
+arrive **and** the prune to fire before the async capture. The KEPT run missed on the ack side (`highestAcked=-1`, ack
+not yet arrived); a prior KEPT missed on the prune side (`acked=true`, not yet pruned). The reliable loss is **C11**
+(`lag > keep` by a margin), which is why C14's control uses the C11 base rather than keep=0. (This does not change the
+`lag ≤ keep` rule — it just means keep=0/lag=1 sits exactly on the boundary and either race can win.)
+
+## The bottom line for the feature
+
+The new mechanisms confirm the intended fix and its bounds: a proof-carrying ack that the CN honors **only on a match**
+turns the fragile self-ISS case (`acked=true` ⇒ prunable ⇒ maybe lost) into the safe unacked case (`acked=false` ⇒
+never pruned ⇒ kept), deterministically and independent of `keep`/`lag` (C13, and the ack-timing analogue C15). The
+gate stays proof-selective, so matching acks prune as before (C14) and every gate-off row is unchanged (C3/C4/C5/C9/
+C10/C11). This is the divergent-block analogue of the always-safe catastrophic case (C6): make the block unackable.
+
+## Files changed this session
+
+- `IssBufferRaceSimTest.java` — + C14 `selfIssLateNotificationValidAckProofPruned`, + C15 `selfIssDelayedAckKept`,
+  + `delayAcksForBlocks(from, to, delay)` range helper. (C13 `selfIssInvalidAckProofKept` was added earlier with the
+    ack-proof work.)
+- `ISS_SIM_BEHAVIOR_MATRIX.md`, `ISS_TEST_RESULTS.md` — the re-run + new-mechanism comparison sections.
+- No product-code changes this session (the gate, config flag, and sim hooks were already in place).

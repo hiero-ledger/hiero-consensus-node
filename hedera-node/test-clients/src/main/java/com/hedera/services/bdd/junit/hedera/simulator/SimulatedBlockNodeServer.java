@@ -95,6 +95,13 @@ public class SimulatedBlockNodeServer {
     // Track all block numbers for which we have received end of block
     private final Set<Long> endedBlocks = ConcurrentHashMap.newKeySet();
 
+    // Proof-matching investigation (test hooks): blocks whose ack should carry an INVALID mock proof
+    // ("invalid-ack-<n>" instead of "ack-<n>"), blocks whose ack should be delayed by a number of later blocks,
+    // and the delayed acks already released (so they are sent exactly once).
+    private final Set<Long> invalidAckBlocks = ConcurrentHashMap.newKeySet();
+    private final Map<Long, Integer> ackDelayBlocks = new ConcurrentHashMap<>();
+    private final Set<Long> releasedDelayedAcks = ConcurrentHashMap.newKeySet();
+
     // Store block items per block number for later retrieval (e.g., by StreamValidationOp)
     private static final int MAX_STORED_BLOCKS = 10_000;
     private final Map<Long, List<BlockItem>> storedBlockItems = new ConcurrentHashMap<>();
@@ -189,6 +196,16 @@ public class SimulatedBlockNodeServer {
 
     public void setSendingBlockAcknowledgementsEnabled(final boolean sendingBlockAcksEnabled) {
         sendingAcksEnabled.set(sendingBlockAcksEnabled);
+    }
+
+    /** Test hook: make the acknowledgement for {@code blockNumber} carry an invalid mock proof ("invalid-ack-<n>"). */
+    public void sendInvalidAckForBlock(final long blockNumber) {
+        invalidAckBlocks.add(blockNumber);
+    }
+
+    /** Test hook: delay the acknowledgement for {@code blockNumber} until {@code delayBlocks} later blocks have ended. */
+    public void delayAckForBlock(final long blockNumber, final int delayBlocks) {
+        ackDelayBlocks.put(blockNumber, delayBlocks);
     }
 
     /**
@@ -601,19 +618,48 @@ public class SimulatedBlockNodeServer {
                                     replies.hashCode(),
                                     newLastVerified);
 
-                            // Requirement 2: Send BlockAcknowledgement to ALL connected pipelines
-                            log.info(
-                                    "Broadcasting BlockAcknowledgement for block {} to {} active streams on port {}",
-                                    blockNumber,
-                                    activeStreams.size(),
-                                    port);
-                            for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
-                                if (highLatency) {
-                                    // If the simulator is set to be with high latency, delay acknowledgements
-                                    // with 1500 ms (assuming CN considers 1000 ms delays as high latency)
-                                    Thread.sleep(1500);
+                            // Release any delayed acks now due: an ack for block n delayed by K is released
+                            // when block n+K ends (see delayAckForBlock).
+                            for (final Map.Entry<Long, Integer> delayed : ackDelayBlocks.entrySet()) {
+                                final long delayedBlock = delayed.getKey();
+                                if (blockNumber >= delayedBlock + delayed.getValue()
+                                        && releasedDelayedAcks.add(delayedBlock)) {
+                                    log.info(
+                                            "Releasing delayed BlockAcknowledgement for block {} at block {} on port {}",
+                                            delayedBlock,
+                                            blockNumber,
+                                            port);
+                                    for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                                        if (highLatency) {
+                                            Thread.sleep(1500);
+                                        }
+                                        buildAndSendBlockAcknowledgement(delayedBlock, pipeline);
+                                    }
                                 }
-                                buildAndSendBlockAcknowledgement(blockNumber, pipeline);
+                            }
+
+                            // Send this block's acknowledgement now, unless it is configured to be delayed.
+                            if (ackDelayBlocks.containsKey(blockNumber)) {
+                                log.info(
+                                        "Deferring BlockAcknowledgement for block {} by {} blocks on port {}",
+                                        blockNumber,
+                                        ackDelayBlocks.get(blockNumber),
+                                        port);
+                            } else {
+                                // Requirement 2: Send BlockAcknowledgement to ALL connected pipelines
+                                log.info(
+                                        "Broadcasting BlockAcknowledgement for block {} to {} active streams on port {}",
+                                        blockNumber,
+                                        activeStreams.size(),
+                                        port);
+                                for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                                    if (highLatency) {
+                                        // If the simulator is set to be with high latency, delay acknowledgements
+                                        // with 1500 ms (assuming CN considers 1000 ms delays as high latency)
+                                        Thread.sleep(1500);
+                                    }
+                                    buildAndSendBlockAcknowledgement(blockNumber, pipeline);
+                                }
                             }
 
                             // Reset currentBlockNumber for this stream, as it finished sending this block
@@ -1147,8 +1193,12 @@ public class SimulatedBlockNodeServer {
             return;
         }
 
-        final BlockAcknowledgement ack =
-                BlockAcknowledgement.newBuilder().blockNumber(blockNumber).build();
+        final String proof =
+                invalidAckBlocks.contains(blockNumber) ? "invalid-ack-" + blockNumber : "ack-" + blockNumber;
+        final BlockAcknowledgement ack = BlockAcknowledgement.newBuilder()
+                .blockNumber(blockNumber)
+                .blockProof(proof)
+                .build();
         final PublishStreamResponse response =
                 PublishStreamResponse.newBuilder().acknowledgement(ack).build();
         try {
