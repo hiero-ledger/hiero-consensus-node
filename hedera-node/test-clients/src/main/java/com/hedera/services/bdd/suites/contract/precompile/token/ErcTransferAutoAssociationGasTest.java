@@ -10,8 +10,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -198,12 +196,7 @@ public class ErcTransferAutoAssociationGasTest {
             // from the fee schedule; and then dividing by 1e13 to convert to USD
             final var approxUsdDiff = (1.0
                             * gasDiff
-                            * spec.fees()
-                                    .getCurrentOpFeeData()
-                                    .get(ContractCall)
-                                    .get(DEFAULT)
-                                    .getServicedata()
-                                    .getGas()
+                            * spec.ratesProvider().gasPriceInThousandthsOfTinycent()
                             / 1000
                             / TINY_PARTS_PER_WHOLE)
                     / 100.0;
