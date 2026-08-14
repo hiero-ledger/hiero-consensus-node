@@ -15,12 +15,17 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
+/**
+ * An implementation of {@link Network} that is based on the Falcon framework.
+ */
 public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver {
 
     /**
@@ -37,8 +42,11 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
      *
      * @param random the random number generator
      */
-    protected FalconNetwork(@NonNull final Random random, @NonNull final SimulatorTimeManager timeManager) {
-        super(random, timeManager, new FalconTransactionGenerator(), false);
+    protected FalconNetwork(
+            @NonNull final Random random,
+            @NonNull final SimulatorTimeManager timeManager,
+            @NonNull final TransactionGenerator transactionGenerator) {
+        super(random, timeManager, transactionGenerator, false);
     }
 
     /**

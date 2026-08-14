@@ -48,6 +48,9 @@ import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 
+/**
+ * A wiring configuration for a stripped down consensus layer that is suitable for testing. It wires together the event intake, orphan buffer, consensus engine, and event creation manager components.
+ */
 public class FalconWiring implements TimeTickReceiver {
 
     private static final Bytes DEFAULT_SIGNATURE = Bytes.EMPTY;
@@ -60,6 +63,15 @@ public class FalconWiring implements TimeTickReceiver {
 
     private final InputWire<PlatformEvent> receivedGossipEventsInputWire;
 
+    /**
+     * Constructor for {@link FalconWiring}.
+     *
+     * @param configuration the configuration for the wiring
+     * @param time the time source
+     * @param selfId the ID of the current node
+     * @param roster the roster of nodes
+     * @param secureRandom the secure random number generator
+     */
     public FalconWiring(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
@@ -133,21 +145,39 @@ public class FalconWiring implements TimeTickReceiver {
         eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus);
     }
 
+    /**
+     * Get the input wire that awaits received gossip events.
+     *
+     * @return the input wire for received gossip events
+     */
     @NonNull
     public InputWire<PlatformEvent> receivedGossipEventsInputWire() {
         return receivedGossipEventsInputWire;
     }
 
+    /**
+     * Get the output wire that provides created self-events for gossiping.
+     *
+     * @return the output wire for sent gossip events
+     */
     @NonNull
     public OutputWire<PlatformEvent> sentGossipEventsOutputWire() {
         return eventCreationManagerWiring.getOutputWire();
     }
 
+    /**
+     * Get the output wire that provides the results of the consensus engine.
+     *
+     * @return the output wire for consensus engine outputs
+     */
     @NonNull
     public OutputWire<ConsensusEngineOutput> consensusOutputWire() {
         return consensusEngineWiring.getOutputWire();
     }
 
+    /**
+     * Starts the wiring model and sets the platform status to ACTIVE.
+     */
     public void start() {
         model.start();
         consensusEngineWiring
@@ -158,6 +188,9 @@ public class FalconWiring implements TimeTickReceiver {
                 .inject(PlatformStatus.ACTIVE);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void tick(@NonNull final Instant now) {
         model.tick();

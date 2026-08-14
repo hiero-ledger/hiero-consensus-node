@@ -35,12 +35,19 @@ public class FalconTestEnvironment implements TestEnvironment {
 
     private final FalconNetwork network;
     private final SimulatorTimeManager timeManager;
+    private final TransactionGenerator transactionGenerator;
 
+    /**
+     * Constructor of {@link FalconTestEnvironment}
+     *
+     * @param randomSeed the seed for the random number generator used in the test environment
+     */
     public FalconTestEnvironment(final long randomSeed) {
         final Randotron randotron = Randotron.create(randomSeed);
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
         timeManager = new SimulatorTimeManager(time, GRANULARITY);
-        network = new FalconNetwork(randotron, timeManager);
+        transactionGenerator = new FalconTransactionGenerator();
+        network = new FalconNetwork(randotron, timeManager, transactionGenerator);
         timeManager.addTimeTickReceiver(network);
     }
 
@@ -77,7 +84,7 @@ public class FalconTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public TransactionGenerator transactionGenerator() {
-        throw new UnsupportedOperationException("Not implemented yet.");
+        return transactionGenerator;
     }
 
     /**
@@ -95,7 +102,7 @@ public class FalconTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public Path outputDirectory() {
-        throw new UnsupportedOperationException("Not implemented yet.");
+        throw new UnsupportedOperationException("OutputDirectory is not supported in FalconTestEnvironment");
     }
 
     /**

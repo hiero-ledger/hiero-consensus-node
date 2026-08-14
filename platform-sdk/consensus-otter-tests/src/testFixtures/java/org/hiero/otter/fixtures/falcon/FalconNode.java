@@ -43,6 +43,9 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
+/**
+ * An implementation of {@link Node} that is based on the Falcon framework.
+ */
 public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private final Random random;
@@ -54,6 +57,17 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
     @Nullable
     private FalconWiring wiring;
 
+    /**
+     * Constructor for {@code FalconNode}.
+     *
+     * @param random the random number generator
+     * @param timeManager the time manager
+     * @param selfId the ID of this node
+     * @param keysAndCerts the keys and certificates of this node
+     * @param network the simulated network
+     * @param networkConfiguration the network configuration
+     * @param consensusRoundPool the consensus round pool that collects and deduplicates consensus rounds
+     */
     public FalconNode(
             @NonNull final Random random,
             @NonNull final SimulatorTimeManager timeManager,
@@ -66,14 +80,14 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.network = requireNonNull(network);
-        this.network.addNode(selfId, this::forwardEvent);
+        this.network.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
     }
 
-    private void forwardEvent(@NonNull final PlatformEvent event) {
+    private void onEventReceived(@NonNull final PlatformEvent event) {
         if (wiring != null) {
             wiring.receivedGossipEventsInputWire().put(event);
         }
@@ -294,6 +308,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void tick(@NonNull final Instant now) {
         if (wiring != null) {

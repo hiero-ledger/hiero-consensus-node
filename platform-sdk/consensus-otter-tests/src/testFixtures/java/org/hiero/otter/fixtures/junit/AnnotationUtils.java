@@ -7,6 +7,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.platform.commons.support.AnnotationSupport;
 
+/**
+ * Utility class for working with annotations in JUnit 5 tests.
+ */
 class AnnotationUtils {
 
     private AnnotationUtils() {}
