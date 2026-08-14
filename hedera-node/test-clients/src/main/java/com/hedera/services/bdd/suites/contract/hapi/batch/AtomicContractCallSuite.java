@@ -2314,6 +2314,7 @@ class AtomicContractCallSuite {
                                                         13L)
                                                 .array(),
                                         BigInteger.valueOf(13_000L))
+                                .gas(1_000_000L)
                                 .via("callTxn")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)),
