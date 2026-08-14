@@ -78,16 +78,29 @@ public record EthTxData(
     public static EthTxData populateEthTxData(final byte[] data) {
         try {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
-            final var rlpItem = decoder.next();
-            if (rlpItem.isList()) {
-                return populateLegacyEthTxData(rlpItem, data);
+            final var firstItem = decoder.next();
+
+            // A legacy transaction is a bare RLP list, so it is its own envelope.
+            if (firstItem.isList()) {
+                return consumesAllOf(firstItem, data) ? populateLegacyEthTxData(firstItem, data) : null;
             }
 
-            return switch (asByte(rlpItem)) {
-                case 1 -> populateEip2390EthTxData(decoder.next(), data);
-                case 2 -> populateEip1559EthTxData(decoder.next(), data);
+            // A typed transaction (EIP-2718) is a one-byte type tag followed by its payload list, so there the
+            // envelope is the second item. Unsupported types fall through to `null` below; decoding their
+            // payload first is wasted work on an already-rejected input, but it keeps the check in one place,
+            // and a malformed payload only raises `IllegalArgumentException`, which this method already maps
+            // to `null`.
+            final var type = asByte(firstItem);
+            final var envelope = decoder.next();
+            if (!consumesAllOf(envelope, data)) {
+                return null;
+            }
+
+            return switch (type) {
+                case 1 -> populateEip2390EthTxData(envelope, data);
+                case 2 -> populateEip1559EthTxData(envelope, data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
-                case 4 -> populateEip7702EthTxData(decoder.next(), data);
+                case 4 -> populateEip7702EthTxData(envelope, data);
                 default -> null;
             };
 
@@ -614,9 +627,10 @@ public record EthTxData(
     /// `callData`, which are part of the signed payload and which HIP-1342 deliberately permits; neither rule
     /// generalizes to the other layer.
     ///
-    /// Note `decoder.hasNext()` cannot serve here: on a malformed trailer it throws headlong's
-    /// `ShortInputException`, which escapes the `IllegalArgumentException | NoSuchElementException` catch in
-    /// {@link #populateEthTxData}.
+    /// A positional comparison is preferred over `decoder.hasNext()`, which reaches the same two outcomes only
+    /// by way of exception control flow: it returns `true` for a well-formed trailing item but throws
+    /// headlong's `ShortInputException` for a malformed one, relying on that being an
+    /// `IllegalArgumentException` for {@link #populateEthTxData} to map it to `null`.
     private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
         return envelope.endIndex == data.length;
     }
@@ -627,10 +641,6 @@ public record EthTxData(
      * @return the encoded transaction data
      */
     private static EthTxData populateLegacyEthTxData(final RLPItem rlpItem, final byte[] rawTx) {
-        if (!consumesAllOf(rlpItem, rawTx)) {
-            return null;
-        }
-
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 9) {
             return null;
@@ -673,9 +683,6 @@ public record EthTxData(
         if (!rlpItem.isList()) {
             return null;
         }
-        if (!consumesAllOf(rlpItem, rawTx)) {
-            return null;
-        }
 
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 12) {
@@ -716,9 +723,6 @@ public record EthTxData(
         if (!rlpItem.isList()) {
             return null;
         }
-        if (!consumesAllOf(rlpItem, rawTx)) {
-            return null;
-        }
 
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 11) {
@@ -757,9 +761,6 @@ public record EthTxData(
      */
     private static EthTxData populateEip7702EthTxData(RLPItem rlpItem, byte[] rawTx) {
         if (!rlpItem.isList()) {
-            return null;
-        }
-        if (!consumesAllOf(rlpItem, rawTx)) {
             return null;
         }
 
