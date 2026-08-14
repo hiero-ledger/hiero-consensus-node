@@ -50,8 +50,8 @@ holds four collaborating objects:
   keeps the set of non-ancient peer events that have no observed
   children; these are the eligible other-parent pool.
 - **Last self-event and event window** — `TipsetEventCreator` itself
-  retains `lastSelfEvent` (used as self-parent) and the most recent
-  `EventWindow`.
+  retains `lastSelfEvent` (used as self-parent, see [Latest self
+  event](#latest-self-event)) and the most recent `EventWindow`.
 
 Around the `EventCreator`, `DefaultEventCreationManager`
 (`consensus-event-creator-impl/.../DefaultEventCreationManager.java`)
@@ -72,10 +72,11 @@ input and output wires plus an `EventTransactionSupplier` passed at
 - **Validated events from event intake** — `orderedEventInputWire`
   delivers `PlatformEvent`s; they pass through `FutureEventBuffer` in
   `DefaultEventCreationManager#registerEvent` and reach
-  `TipsetEventCreator#registerEvent`, which routes self-events to
-  `TipsetTracker#addSelfEvent` and peer events to
-  `TipsetTracker#addPeerEvent` (the latter advances both the per-event
-  tipset and `latestGenerations` using the event's sequence number). See
+  `TipsetEventCreator#registerEvent`, which routes peer events to
+  `TipsetTracker#addPeerEvent` (advancing both the per-event tipset and
+  `latestGenerations` using the event's sequence number) and adopted
+  self-events to `TipsetTracker#addSelfEvent` — self-events are adopted
+  selectively, see [Latest self event](#latest-self-event). See
   [event-intake.md](event-intake.md).
 - **Event window from hashgraph** — `consensusRoundInputWire` delivers each
   `ConsensusRound`, whose `EventWindow` (`ConsensusRound::getEventWindow`)
@@ -294,6 +295,44 @@ rule agrees. The rules cover distinct concerns.
   or network freeze) is approaching, so an idle network stops producing
   empty events. See [quiescence.md](quiescence.md).
 
+## Latest self event
+
+The self-parent of the next event is whatever `TipsetEventCreator`
+(`consensus-event-creator-impl/.../tipset/TipsetEventCreator.java`)
+currently holds in `lastSelfEvent`. It is set in two places:
+
+- **At creation** — `TipsetEventCreator#maybeCreateEvent` stores the
+  event it just signed, so the node chains off its own newest event
+  rather than waiting for that event to come back through intake.
+- **On registration** — `TipsetEventCreator#registerEvent` adopts a
+  self-event arriving from event intake in exactly three cases: nothing
+  is held yet, the held event is ancient under the current `EventWindow`,
+  or the arriving event's self-parent *is* the held event. Every other
+  self-event is discarded.
+
+Adopting only a direct child is what keeps an honest node from
+branching. Building on anything other than the node's own newest
+self-event yields an event that is not a descendant of it, so the node
+has signed two events sharing a self-parent — a branch
+([branching.md](../../concepts/branching.md)). Because the adoption test
+is structural — a self-parent match, not a comparison of local ordering
+numbers — no re-numbering of a re-received self-event can displace the
+held one, which is how the node branched in SCN-003.
+
+Two consequences follow.
+
+1. **Advancing the held event depends on topological arrival order.** A
+   descendant that reaches `registerEvent` before its own self-parent is
+   discarded, and the held event stays where it is. Nothing in the event
+   creator enforces that order; the orphan buffer establishes it and the
+   stages below it preserve it (see
+   [event-intake.md](event-intake.md#orphan-buffer)).
+2. **An ancient held event is replaced by any non-ancient self-event.**
+   An ancient event is no longer usable as a self-parent, and the
+   replacement's higher birth round rules out its being an ancestor of
+   the ancient one (INV-011) — though nothing here establishes that it
+   is a descendant either.
+
 ## Self-event persistence
 
 `TipsetEventCreator#maybeCreateEvent` returns a signed `PlatformEvent`
@@ -317,7 +356,8 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
   `maxAllowedSyncLag`, `maxOtherParents`, `maxCreationRate`, `period`.
 - Source doc: [../../../core/tipset-algorithm.md](../../../core/tipset-algorithm.md).
 - Invariants: INV-011 — birth round is monotonic along ancestry; INV-013 — an honest event's coin value is unpredictable; INV-005 — every honest event eventually reaches consensus or becomes stale.
-- Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
+- Decisions: ADR-005 — the future-event buffer is embedded in `DefaultEventCreationManager`; ADR-008 — the local ordering key the creator's tipsets are built on.
+- Scenarios: SCN-003 — a re-received self-ancestor displacing the latest self event, and the branch it caused.
 
 ## Future state
 

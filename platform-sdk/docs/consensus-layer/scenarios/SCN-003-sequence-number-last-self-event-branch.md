@@ -13,24 +13,27 @@ related:
   scenarios: [SCN-002]
   tests:
     - consensus-otter-tests/src/testOtter/java/org/hiero/otter/test/ReconnectTest.java
+    - consensus-event-creator-impl/src/test/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreatorTests.java
 status: verified
 provenance: hiero-consensus-node#26376 (fix); reproduced by ReconnectTest.testSyntheticBottleneckReconnect
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # SCN-003 — Self-event recency keyed on the local sequence number picks an older self-parent after a fast reconnect — branching
 
 ## Summary
 
-The event creator tracks its latest self event in `lastSelfEvent` and overwrites
-it when a registered self event ranks higher by the local ordering key
-(`TipsetEventCreator.registerEvent`). Keyed on the orphan-buffer sequence number,
-a fast reconnect let a self-*ancestor*, re-received via gossip after the orphan
-buffer had been cleared, get a fresh higher sequence number than the maintained
-latest self event, overwrite it, and cause the node to create a new event on an
-older self-parent — a branch. Fixed by keying on nGen in #26376 (an interim
-revert); ADR-008 records the reversal and the plan to move `lastSelfEvent` back to
-the sequence number once #26530 reworks the tracking.
+The event creator tracks its latest self event in `lastSelfEvent`. At the time of
+the incident it overwrote that event whenever a registered self event ranked
+higher by the local ordering key (`TipsetEventCreator.registerEvent`). Keyed on
+the orphan-buffer sequence number, a fast reconnect let a self-*ancestor*,
+re-received via gossip after the orphan buffer had been cleared, get a fresh
+higher sequence number than the maintained latest self event, overwrite it, and
+cause the node to create a new event on an older self-parent — a branch. Keying
+on nGen in #26376 stopped it; #26530 then replaced the ordering-key comparison
+outright, so no key ranks self events any more — see
+[Mitigation](#mitigation).
 
 ## Setup
 
@@ -49,12 +52,13 @@ orphan buffer was cleared on reconnect.
 
 ## Sequence
 
-1. `registerEvent` overwrites `lastSelfEvent` only when `lastSelfEvent == null`, or
-   `lastSelfEvent` **already carries an ordering key** *and* the registered self
-   event's key is **strictly greater** — `lastSelfEvent.hasSequenceNumber() &&
+1. At the time of the incident, `registerEvent`
+   (`consensus-event-creator-impl/.../tipset/TipsetEventCreator.java#registerEvent`)
+   overwrote `lastSelfEvent` only when `lastSelfEvent == null`, or `lastSelfEvent`
+   **already carried an ordering key** *and* the registered self event's key was
+   **strictly greater** — `lastSelfEvent.hasSequenceNumber() &&
    lastSelfEvent.getSequenceNumber() < event.getSequenceNumber()` pre-#26376,
-   `hasNGen()` / `getNGen()` after (TipsetEventCreator.java:173–174).
-   (observed — code)
+   `hasNGen()` / `getNGen()` after. (observed — code)
 2. A freshly created self event has no ordering key yet — the orphan buffer assigns
    it — so right after creation `lastSelfEvent.hasSequenceNumber()` is false, the
    `&&` short-circuits, and `lastSelfEvent` cannot be overwritten. That safeguard is
@@ -102,17 +106,31 @@ assertion.
 
 ## Mitigation
 
-Keyed self-event recency on nGen in #26376
-(`TipsetEventCreator.registerEvent`, `hasNGen()` / `getNGen()`) — an interim
-revert. ADR-008 records the reversal and the plan to move `lastSelfEvent` back to
-the sequence number once #26530 reworks the tracking. Regression guard:
-`ReconnectTest.testSyntheticBottleneckReconnect`.
+Fixed in two stages.
+
+1. **#26376 — keyed self-event recency on nGen** (`hasNGen()` / `getNGen()`), an
+   interim revert. It removed this instance but kept the shape that produced it:
+   an ordering-key comparison whose meaning the guard has to trust.
+2. **#26530 — removed the comparison.** `registerEvent` no longer ranks self
+   events at all; it tests the self-parent edge instead — see
+   [event-creator.md § Latest self
+   event](../architecture/topics/event-creator.md#latest-self-event) for the rule
+   and its consequences. A self-ancestor fails that test however it was
+   re-numbered, so this scenario is closed by structure rather than by the choice
+   of key.
+
+Regression guards: `ReconnectTest.testSyntheticBottleneckReconnect` (the original
+reproduction) and, at unit level,
+`TipsetEventCreatorTests.selfAncestorDoesNotDisplaceLastSelfEvent`, which
+re-registers a chain's ancestors carrying sequence numbers above the tip's and
+asserts the tip is kept.
 
 ## Verification
 
 `test-reproduced`. `testSyntheticBottleneckReconnect` drives a fast
-(synthetic-bottleneck) reconnect; it fails on the sequence-number key (branch →
-`ERROR` log) and passes on nGen.
+(synthetic-bottleneck) reconnect; it failed on the sequence-number key (branch →
+`ERROR` log) and passed on nGen. The unit-level guard reproduces the
+re-numbering step directly against `registerEvent`.
 
 ## Open questions
 
@@ -128,3 +146,8 @@ None.
   buffer stamps the held self event's key, after which the strictly-greater
   comparison governs — so it delays the overwrite rather than preventing it
   — Kelly Greco (@poulok).
+- 2026-08-14 — #26530 landed: `registerEvent` no longer compares ordering keys, so
+  the sequence and contributing factors above describe a shape the code no longer
+  has. Rewrote Summary and Mitigation around the two-stage fix, re-anchored step 1
+  to `#registerEvent`, and added the unit-level regression guard — Kelly Greco
+  (@poulok).

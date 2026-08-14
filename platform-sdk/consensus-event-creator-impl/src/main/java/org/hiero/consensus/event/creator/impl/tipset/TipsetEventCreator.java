@@ -156,6 +156,10 @@ public class TipsetEventCreator implements EventCreator {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>Advancing {@code lastSelfEvent} relies on self events arriving in topological order, so that the child of the
+     * held event is offered before any of its own descendants. Nothing here enforces that; it is a property of the
+     * intake pipeline, which the orphan buffer establishes and the stages below it preserve.
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
@@ -170,25 +174,27 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
-                // Normally we will ingest self events before we get to this point, but it's possible
-                // to learn of self events for the first time here if we are loading from a restart (via PCES)
-                // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen number value assigned by the orphan buffer. We use nGen and not sequence
-                // number because nGen tells us which is higher in the graph - sequence number does not.
-                lastSelfEvent = event;
-                childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
-                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
-            } else {
-                // We already ingested this self event (when it was created),
-                // or it is older than the event we are already tracking.
-                return;
+            if (lastSelfEvent == null) {
+                updateLastSelfEvent(event);
+            } else if (eventWindow.isAncient(lastSelfEvent)) {
+                // Our lastSelfEvent is ancient and the new self event is not ancient, so it is higher in
+                // the hashgraph and must be adopted.
+                updateLastSelfEvent(event);
+            } else if (event.getSelfParent() != null && event.getSelfParent().equals(lastSelfEvent.getDescriptor())) {
+                // If we ingest a self event that is a child of lastSelfEvent, it is by definition higher
+                // in the hashgraph and must be adopted.
+                updateLastSelfEvent(event);
             }
         } else {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
         }
+    }
+
+    private void updateLastSelfEvent(@NonNull final PlatformEvent selfEvent) {
+        lastSelfEvent = selfEvent;
+        childlessOtherEventTracker.registerSelfEventParents(selfEvent.getOtherParents());
+        tipsetTracker.addSelfEvent(selfEvent.getDescriptor(), selfEvent.getAllParents());
     }
 
     /**

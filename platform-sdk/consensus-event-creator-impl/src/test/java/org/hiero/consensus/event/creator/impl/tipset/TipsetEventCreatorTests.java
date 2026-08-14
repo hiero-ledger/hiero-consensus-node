@@ -5,7 +5,9 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createSelfEventChain;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithSelfParent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
@@ -1086,9 +1088,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * During PCES replay, the node will learn of self events it created in the past. This test creates a single node
-     * network, sends the event creator self events (with nGen values assigned), then creates a new event. The new event
-     * should have the proper self parent.
+     * During PCES replay, the node will learn of self events it created in the past. The replayed events arrive in
+     * topological order, so the creator advances its latest self event one link at a time and ends up holding the tip
+     * of its own chain. This test creates a single node network, replays a chain of self events, then creates a new
+     * event, which must have the chain tip as its self parent.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1098,7 +1103,7 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Self event with highest nGen is used as latest self event on startup")
+    @DisplayName("Replayed self events advance the latest self event to the tip of the chain")
     void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
@@ -1110,31 +1115,21 @@ class TipsetEventCreatorTests {
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-        final List<PlatformEvent> pcesEvents = new ArrayList<>();
-        PlatformEvent eventWithHighestNGen = null;
-        for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEventWithParent(random, selfId, i + 1, ROUND_FIRST);
-            if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
-                eventWithHighestNGen = event;
-            }
-            pcesEvents.add(event);
-        }
-
-        // Add the events to the creator in a random order
-        Collections.shuffle(pcesEvents, random);
+        final List<PlatformEvent> pcesEvents = createSelfEventChain(random, selfId, ROUND_FIRST, numEvents);
         pcesEvents.forEach(eventCreator::registerEvent);
 
-        // Verify that the new event created uses a self parent that is the event with the highest nGen.
-        // This new event should not have an nGen assigned.
+        // The new event must build on the tip of the replayed chain.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(eventWithHighestNGen.getDescriptor(), newEvent.getSelfParent());
-        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
+        assertEquals(pcesEvents.getLast().getDescriptor(), newEvent.getSelfParent());
     }
 
     /**
-     * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
-     * self event for the first time from the intake pipeline.
+     * The event creator holds the self event it most recently created, and a self event arriving from the intake
+     * pipeline replaces it only if it is a child of that event. This test verifies the two cases that are not: the
+     * newly created event coming back around through intake (already tracked at creation time, so re-registering it is
+     * a no-op), and an unrelated older self event, which the creator must discard rather than build on - building on it
+     * would branch.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1160,32 +1155,30 @@ class TipsetEventCreatorTests {
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
 
-        // Create a self event with an nGen value set and register it with the event creator. This can happen
-        // if we are forced to reconnect and learn of an event we created a long time ago after we started creating
-        // the events. This is a branch, but not necessarily an intentional branch. This old event should be discarded
-        // because we want to favor any self event last created by the event creator even though it does not have an
-        // nGen set.
-        final PlatformEvent oldSelfEvent =
-                createTestEventWithParent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        // The event we just created travels through intake and comes back to us. It was already tracked when it was
+        // created, so registering it again must change nothing.
+        eventCreator.registerEvent(newEvent);
+
+        // Register an unrelated self event. This can happen if we are forced to reconnect and learn of an event we
+        // created a long time ago after we started creating events again. Because it is not a child of the event we
+        // are holding, it must be discarded - adopting it and building on it would be a branch.
+        final PlatformEvent oldSelfEvent = createTestEventWithSelfParent(random, selfId, ROUND_FIRST, null);
         eventCreator.registerEvent(oldSelfEvent);
 
         // Now create another event and check that the self parent is the expected event.
         final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
-        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
     }
 
     /**
-     * When the event creator learns of a self event, it only adopts it as the latest self event if the event is
-     * actually higher in the hashgraph. Height is measured by nGen, not by sequence number: a sequence number is
-     * assigned in the order events are received and says nothing about a self event's position in the graph. This test
-     * registers a self event with a high nGen, then a second self event that is received later - and therefore has a
-     * higher, auto-assigned sequence number - but a lower nGen. The creator must keep the higher-nGen event as its self
-     * parent and ignore the later, lower-nGen one. Under the previous sequence-number comparison the later event would
-     * have wrongly replaced it.
+     * A self-ancestor of the latest self event must never displace it, no matter how it is re-received. This is the
+     * SCN-003 branching scenario: after a fast reconnect the orphan buffer is cleared but the event creator is not, so
+     * a self-ancestor re-received via gossip is re-stamped with a sequence number higher than the one the latest self
+     * event carries. This test rebuilds that state - a registered self-event chain, then its ancestors offered again
+     * carrying higher sequence numbers - and verifies the creator keeps the tip of the chain as its self parent. Under
+     * a comparison keyed on any local ordering number the re-received ancestor would win and the node would branch.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1197,8 +1190,8 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Latest self event is chosen by nGen, not sequence number")
-    void lastSelfEventChosenByNGenNotSequenceNumber(@ParamName("random") final Random random) {
+    @DisplayName("A re-received self-ancestor does not displace the latest self event")
+    void selfAncestorDoesNotDisplaceLastSelfEvent(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -1208,22 +1201,127 @@ class TipsetEventCreatorTests {
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-        // Register a self event with a high nGen. With no prior self event, it becomes the latest self event.
-        final PlatformEvent highNGenEvent = createTestEventWithParent(random, selfId, 10, ROUND_FIRST);
-        eventCreator.registerEvent(highNGenEvent);
+        final List<PlatformEvent> chain = createSelfEventChain(random, selfId, ROUND_FIRST, 3);
+        chain.forEach(eventCreator::registerEvent);
+        final PlatformEvent tip = chain.getLast();
 
-        // Register a self event created later - and therefore with a higher, auto-assigned sequence number - but with a
-        // lower nGen. Because it is lower in the graph, it must not replace the higher-nGen event.
-        final PlatformEvent lowNGenEvent = createTestEventWithParent(random, selfId, 5, ROUND_FIRST);
-        assertTrue(
-                lowNGenEvent.getSequenceNumber() > highNGenEvent.getSequenceNumber(),
-                "the later event must have a higher sequence number for this test to be meaningful");
-        eventCreator.registerEvent(lowNGenEvent);
+        // The reconnect clears the orphan buffer but not its sequence-number counter, so the ancestors are re-released
+        // carrying numbers higher than the tip's.
+        long resequenced = tip.getSequenceNumber();
+        for (final PlatformEvent ancestor : chain.subList(0, chain.size() - 1)) {
+            ancestor.setSequenceNumber(++resequenced);
+            eventCreator.registerEvent(ancestor);
+        }
 
-        // The new event must build on the higher-nGen self event, not the later, lower-nGen one.
+        // The new event must still build on the tip of the chain.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(highNGenEvent.getDescriptor(), newEvent.getSelfParent());
+        assertEquals(tip.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
+     * The latest self event advances only to a direct child of itself, so advancing it at all relies on self events
+     * arriving in topological order. Nothing in the event creator enforces that order; it is a property of the intake
+     * pipeline. This test breaks the order deliberately in one creator - withholding the middle event of a chain, so
+     * the last event of the chain arrives as a descendant but not a child, and must be ignored - and honours it in a
+     * second creator, which walks the chain link by link to the tip.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("A self event whose self parent is not the latest self event is ignored")
+    void selfEventThatIsNotAChildIsIgnored(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+
+        final List<PlatformEvent> chain = createSelfEventChain(random, selfId, ROUND_FIRST, 3);
+        final PlatformEvent first = chain.get(0);
+        final PlatformEvent middle = chain.get(1);
+        final PlatformEvent last = chain.get(2);
+
+        // A creator that never sees the middle event adopts the first one, then must ignore the last one: it is a
+        // descendant of what the creator holds, but its self parent is an event the creator has never seen.
+        final EventCreator gapped =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        gapped.setEventWindow(EventWindow.getGenesisEventWindow());
+        gapped.registerEvent(first);
+        gapped.registerEvent(last);
+
+        final PlatformEvent gappedEvent = gapped.maybeCreateEvent();
+        assertNotNull(gappedEvent);
+        assertEquals(first.getDescriptor(), gappedEvent.getSelfParent());
+
+        // A creator that sees the whole chain in order takes every link and ends up holding the tip.
+        final EventCreator ordered =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+        ordered.setEventWindow(EventWindow.getGenesisEventWindow());
+        ordered.registerEvent(first);
+        ordered.registerEvent(middle);
+        ordered.registerEvent(last);
+
+        final PlatformEvent orderedEvent = ordered.maybeCreateEvent();
+        assertNotNull(orderedEvent);
+        assertEquals(last.getDescriptor(), orderedEvent.getSelfParent());
+    }
+
+    /**
+     * The latest self event is only useful as a self parent while it is non-ancient. Once it goes ancient the creator
+     * has nothing to lose by replacing it: a non-ancient self event has a higher birth round, so by INV-011 it cannot
+     * be an ancestor of the ancient one. This test lets the held self event go ancient, offers an unrelated
+     * non-ancient self event, and verifies it is adopted - and that the ancient event, offered again afterwards, does
+     * not win it back.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("An ancient latest self event is replaced by a non-ancient self event")
+    void ancientLastSelfEventIsReplaced(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final long ancientThreshold = 10;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        final PlatformEvent oldSelfEvent = createTestEventWithSelfParent(random, selfId, ROUND_FIRST, null);
+        eventCreator.registerEvent(oldSelfEvent);
+
+        // Advance the event window past the birth round of the event we are holding, making it ancient.
+        eventCreator.setEventWindow(EventWindowBuilder.builder()
+                .setLatestConsensusRound(ancientThreshold)
+                .setNewEventBirthRound(ancientThreshold + 1)
+                .setAncientThreshold(ancientThreshold)
+                .build());
+
+        // An unrelated non-ancient self event must be adopted, even though it is not a child of the ancient one.
+        final PlatformEvent recentSelfEvent = createTestEventWithSelfParent(random, selfId, ancientThreshold, null);
+        eventCreator.registerEvent(recentSelfEvent);
+
+        // The ancient event is re-received; it must not displace the non-ancient event we now hold.
+        eventCreator.registerEvent(oldSelfEvent);
+
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(recentSelfEvent.getDescriptor(), newEvent.getSelfParent());
     }
 
     /**
