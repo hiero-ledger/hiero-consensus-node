@@ -57,7 +57,6 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.otter.fixtures.Node;
@@ -101,7 +100,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     private static final Logger startupLogger = LogManager.getLogger("com.swirlds.platform.node.startup");
 
-    private final Randotron randotron;
+    private final Random random;
     private final TurtleTimeManager timeManager;
     private final SimulatedGossip gossip;
     private final TurtleLogging logging;
@@ -130,7 +129,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Constructor of {@link TurtleNode}.
      *
-     * @param randotron the random number generator
+     * @param random the random number generator
      * @param timeManager the time manager for this test
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
@@ -141,7 +140,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public TurtleNode(
-            @NonNull final Randotron randotron,
+            @NonNull final Random random,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
@@ -155,7 +154,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.outputDirectory = requireNonNull(outputDirectory);
             logging.addNodeLogging(selfId, outputDirectory);
 
-            this.randotron = requireNonNull(randotron);
+            this.random = requireNonNull(random);
             this.timeManager = requireNonNull(timeManager);
             this.gossip = requireNonNull(gossip);
             this.logging = requireNonNull(logging);
@@ -262,8 +261,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
-            this.executionLayer =
-                    new OtterExecutionLayer(new Random(randotron.nextLong()), metrics, timeManager.time());
+            this.executionLayer = new OtterExecutionLayer(new Random(random.nextLong()), metrics, timeManager.time());
 
             final TestPlatformBuilder builder = new TestPlatformBuilder(
                             currentConfiguration,
@@ -283,7 +281,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             eventStreamLoc,
                             OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS)
                     .withWiringModel(model)
-                    .withSecureRandom(new SecureRandomBuilder(randotron.nextLong()).get())
+                    .withSecureRandom(new SecureRandomBuilder(random.nextLong()).get())
                     .withAdditionalProperties(Map.of("simulatedGossip", gossip));
 
             platform = builder.build();
@@ -473,7 +471,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     protected Random random() {
-        return randotron;
+        return random;
     }
 
     /**
