@@ -30,6 +30,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -117,6 +118,36 @@ class RetiredFeeScheduleFileMigrationTest {
         assertEquals(3, counts.get().numNodes(), "the earlier node decrement must not be reverted");
     }
 
+    /**
+     * The overload {@code HandleWorkflow} actually calls: it builds the file store from the writable
+     * file service states so the workflow itself stays a single call.
+     */
+    @Test
+    void statesOverloadRemovesTheRetiredFile() {
+        final var states = statesWith(2, RETIRED_FEE_SCHEDULE_FILE_ID, SIMPLE_FEE_SCHEDULE_FILE_ID);
+        final var entityIdStore = new WritableEntityIdStoreImpl(states);
+
+        RetiredFeeScheduleFileMigration.removeIfPresent(states, entityIdStore, CONFIG);
+        states.commit();
+
+        final var fileStore = new WritableFileStore(states, entityIdStore);
+        assertTrue(fileStore.get(RETIRED_FEE_SCHEDULE_FILE_ID).isEmpty());
+        assertTrue(fileStore.get(SIMPLE_FEE_SCHEDULE_FILE_ID).isPresent());
+        assertEquals(1, counts.get().numFiles());
+    }
+
+    @Test
+    void statesOverloadThrowsOnNullArguments() {
+        final var states = statesWith(1, SIMPLE_FEE_SCHEDULE_FILE_ID);
+        final var entityIdStore = new WritableEntityIdStoreImpl(states);
+        assertThrows(
+                NullPointerException.class,
+                () -> RetiredFeeScheduleFileMigration.removeIfPresent(null, entityIdStore, CONFIG));
+        assertThrows(
+                NullPointerException.class,
+                () -> RetiredFeeScheduleFileMigration.removeIfPresent(states, null, CONFIG));
+    }
+
     @Test
     void throwsOnNullArguments() {
         final var fileStore = storeOver(statesWith(0));
@@ -128,6 +159,13 @@ class RetiredFeeScheduleFileMigrationTest {
     @Test
     void retiredFileNumberIsOneEleven() {
         assertEquals(111L, RETIRED_FEE_SCHEDULE_FILE_NUM);
+    }
+
+    @Test
+    void isUninstantiable() throws NoSuchMethodException {
+        final var constructor = RetiredFeeScheduleFileMigration.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        assertThrows(InvocationTargetException.class, constructor::newInstance);
     }
 
     private static FileID fileId(final long fileNum) {

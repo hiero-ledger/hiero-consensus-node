@@ -4,8 +4,10 @@ package com.hedera.node.app.service.file.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +36,23 @@ public final class RetiredFeeScheduleFileMigration {
 
     private RetiredFeeScheduleFileMigration() {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Removes the retired legacy fee schedule file from the given file service states, decrementing the file
+     * entity counter to match. A no-op if the file was never created.
+     *
+     * @param fileStates the writable file service states
+     * @param entityCounters the entity counters to decrement
+     * @param config the configuration supplying the shard and realm of the file
+     */
+    public static void removeIfPresent(
+            @NonNull final WritableStates fileStates,
+            @NonNull final WritableEntityCounters entityCounters,
+            @NonNull final Configuration config) {
+        requireNonNull(fileStates);
+        requireNonNull(entityCounters);
+        removeIfPresent(new WritableFileStore(fileStates, entityCounters), config);
     }
 
     /**

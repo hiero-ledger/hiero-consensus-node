@@ -57,7 +57,6 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.RetiredFeeScheduleFileMigration;
-import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
@@ -622,12 +621,11 @@ public class HandleWorkflow {
             });
             // Drop the retired legacy fee schedule file from networks created before it was retired
             final var writableFileStates = state.getWritableStates(FileService.NAME);
-            final var fileStore = new WritableFileStore(writableFileStates, entityIdStore);
             doStreamingOnlyKvChanges(
                     writableFileStates,
                     writableEntityIdStates,
                     () -> RetiredFeeScheduleFileMigration.removeIfPresent(
-                            fileStore, configProvider.getConfiguration()));
+                            writableFileStates, entityIdStore, configProvider.getConfiguration()));
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
