@@ -26,6 +26,10 @@ testing {
             testTask { systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get()) }
         }
 
+        targets.named("testOtter") {
+            testTask { dependsOn(":consensus-otter-docker-app:assemble") }
+        }
+
         // Runs tests against the Container environment
         targets.register("testContainer") {
             testTask {
