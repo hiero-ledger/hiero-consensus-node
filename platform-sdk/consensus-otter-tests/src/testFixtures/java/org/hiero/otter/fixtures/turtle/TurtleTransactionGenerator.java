@@ -87,8 +87,7 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
             for (long i = previousCount; i < currentCount; i++) {
                 for (final Node node : activeNodes) {
                     // Generate a random transaction and submit it to the node.
-                    final OtterTransaction transaction =
-                            TransactionFactory.createEmptyTransaction(random.nextLong());
+                    final OtterTransaction transaction = TransactionFactory.createEmptyTransaction(random.nextLong());
                     node.submitTransaction(transaction);
                 }
             }
