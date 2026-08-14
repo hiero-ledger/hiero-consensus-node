@@ -97,7 +97,7 @@ public abstract class AbstractNode implements Node {
         if (networkConfiguration.weight() != UNSET_WEIGHT) {
             weight(networkConfiguration.weight());
         }
-        version(networkConfiguration.version());
+        this.version = networkConfiguration.version();
         final Path savedStateDirectory = networkConfiguration.savedStateDirectory();
         if (savedStateDirectory != null) {
             startFromSavedState(savedStateDirectory);
