@@ -960,8 +960,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return initialCapacity;
     }
 
-    // For testing purpose
-    boolean isCompactionEnabled() {
+    public boolean isCompactionEnabled() {
         return compactionCoordinator.isCompactionEnabled();
     }
 

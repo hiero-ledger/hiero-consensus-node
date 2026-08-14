@@ -181,6 +181,13 @@ public final class SignedStateFileWriter {
         final long pcesLowerBound = ancientThresholdOf(signedState.getState());
         final long round = signedState.getRound();
 
+        if (signedState.isFreezeState()) {
+            // The node halts after a freeze and is restarted for the upgrade, so any further
+            // compaction is wasted work and file/fd churn. Stop it before the snapshot so the
+            // snapshot's pause/resume doesn't roll compactors to fresh output files either.
+            signedState.getState().getRoot().getDataSource().stopAndDisableBackgroundCompaction();
+        }
+
         Future<Void> snapshotFuture = null;
         try {
             writeSnapshotSupplementalFiles(selfId, directory, signedState, configuration);
