@@ -9,7 +9,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.RecordAccessor;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
+import com.swirlds.virtualmap.config.VirtualMapTeacherSyncConfig;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.internal.reconnect.TeacherPullVirtualTreeReceiveTask;
@@ -39,7 +39,7 @@ public class TeachingSynchronizer {
 
     private final RecordAccessor teacherView;
     private final ThreadManager threadManager;
-    private final VirtualMapSyncConfig syncConfig;
+    private final VirtualMapTeacherSyncConfig syncConfig;
 
     /**
      * Constructs a new teaching synchronizer.
@@ -55,7 +55,8 @@ public class TeachingSynchronizer {
 
         teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
-        this.syncConfig = Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapSyncConfig.class);
+        this.syncConfig =
+                Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapTeacherSyncConfig.class);
     }
 
     /**
@@ -80,8 +81,11 @@ public class TeachingSynchronizer {
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
 
-            final AsyncInputStream input =
-                    new AsyncInputStream(in, syncConfig.asyncStreamBufferSize(), syncConfig.asyncStreamTimeout());
+            final AsyncInputStream input = new AsyncInputStream(
+                    in,
+                    syncConfig.asyncStreamBufferSize(),
+                    syncConfig.asyncStreamIdleTimeout(),
+                    syncConfig.maxMessageSizeBytes());
             input.start(workGroup);
             final AsyncOutputStream output = buildOutputStream(out, syncConfig);
             output.start(workGroup);
@@ -93,8 +97,7 @@ public class TeachingSynchronizer {
 
             exchangeRootNode(teacherView, input, output);
 
-            // FUTURE work: pool size config
-            final int teacherTasks = 16;
+            final int teacherTasks = syncConfig.numReceiveThreads();
             final CountDownLatch tasksDone = new CountDownLatch(teacherTasks);
             for (int i = 0; i < teacherTasks; i++) {
                 workGroup.fork(
@@ -150,12 +153,12 @@ public class TeachingSynchronizer {
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapTeacherSyncConfig syncConfig) {
         return new AsyncOutputStream(
                 out,
                 syncConfig.asyncStreamBufferSize(),
                 syncConfig.asyncOutputStreamFlush(),
-                syncConfig.asyncStreamTimeout());
+                syncConfig.asyncStreamIdleTimeout());
     }
 
     /**
