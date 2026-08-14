@@ -330,21 +330,6 @@ jobs:
 
           ./gradlew clean assemble
 
-          if [ "${{ inputs.perf_analysis }}" == "true" ]
-          then
-            echo "Instrumenting CN ..."
-            cd "${{ github.workspace }}"/target_consensus_node/hedera-node
-            sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
-            `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/base-*.jar data/lib/hedera*.jar data/lib/hapi*.jar \
-             data/lib/besu*.jar data/lib/evm*.jar data/lib/algorithms-*.jar data/lib/rlp-*.jar data/lib/*-0.8.2-module.jar \
-             data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*-*.*.*-SNAPSHOT.jar | sort -u` > sources_init.txt 2>&1
-            cp sources_init.txt "${{ github.workspace }}"/report/
-            head sources_init.txt
-            echo "..."
-            tail sources_init.txt
-
-            cd ..
-          fi
           cd "${{ github.workspace }}"
 
       - name: Compile BN
@@ -357,43 +342,7 @@ jobs:
           rm -rf app-${shortversion}/plugins app-${shortversion}.tar
           tar cf app-${shortversion}.tar app-${shortversion}
 
-          if [ "${{ inputs.perf_analysis }}" == "true" ]
-          then
-            mkdir instrumentation
-            cd instrumentation
-            tarfile=$(ls -1 ../block-node/app/build/distributions/app-*.tar)
-            tar xf $tarfile
-            cd app-*
-            pwd
-            sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
-            `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' -o -name 'pbj*.jar' \) -print` > BNsources_init.txt 2>&1
-            mv BNsources_init.txt "${{ github.workspace }}"/report/
-            ls -l *.ser
-            mv *.ser ../../
-            cd ..
-
-            rm $tarfile
-            tar cvf $tarfile app-*
-
-            #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find app-* -type f -name '*.ser`
-            #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
-
-            cd ..
-          fi
-
           cd "${{ github.workspace }}"
-
-      - name: Save instrumented workspaces
-        run: |
-          set +x
-          set +e
-          if [ "${{ inputs.perf_analysis }}" == "true" ]
-          then
-            cd "${{ github.workspace }}"
-            tar cfz workspaces.tgz target_consensus_node target_block_node pbj besu performance-analysis-automation
-            gcloud --no-user-output-enabled storage cp --recursive workspaces.tgz "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/workspaces.tgz
-            echo Done: saved intrumented soures in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/workspaces.tgz
-          fi
 
       - name: Build Validator
         run: |
