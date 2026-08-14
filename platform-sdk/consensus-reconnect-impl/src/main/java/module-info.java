@@ -15,7 +15,6 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;

@@ -10,6 +10,7 @@ import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -20,8 +21,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.util.BigIntegers;
 
 public record EthTxData(
         byte[] rawTx,
@@ -109,6 +108,20 @@ public record EthTxData(
         } catch (IllegalArgumentException | NoSuchElementException e) {
             return -1;
         }
+    }
+
+    /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
+    /// if present. Adopted from org.bouncycastle.util.BigIntegers.asUnsignedByteArray().
+    public static byte[] asUnsignedByteArray(final BigInteger value) {
+        final byte[] bytes = value.toByteArray();
+
+        if (bytes[0] == 0 && bytes.length != 1) {
+            final byte[] tmp = new byte[bytes.length - 1];
+            System.arraycopy(bytes, 1, tmp, 0, tmp.length);
+            return tmp;
+        }
+
+        return bytes;
     }
 
     public EthTxData replaceCallData(final byte[] newCallData) {
@@ -298,7 +311,7 @@ public record EthTxData(
     }
 
     public byte[] getEthereumHash() {
-        return new Keccak.Digest256().digest(rawTx == null ? encodeTx() : rawTx);
+        return MiscCryptoUtils.keccak256DigestOf(rawTx == null ? encodeTx() : rawTx);
     }
 
     public enum EthTransactionType {
@@ -770,9 +783,9 @@ public record EthTxData(
             // after EIP155 the chain id is equal to CHAIN_ID = (v - {0,1} - 35) / 2.
             // asUnsignedByteArray avoids the leading sign byte BigInteger.toByteArray adds when the
             // top bit is set — see https://github.com/hashgraph/hedera-services/issues/15953
-            return BigIntegers.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
+            return EthTxData.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
         }
-        return BigIntegers.asUnsignedByteArray(
+        return EthTxData.asUnsignedByteArray(
                 vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
     }
 

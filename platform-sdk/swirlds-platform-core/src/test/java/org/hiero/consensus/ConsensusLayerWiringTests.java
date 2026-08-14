@@ -11,7 +11,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateM
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatusMonitorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertFalse;

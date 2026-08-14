@@ -26,6 +26,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -86,6 +87,15 @@ public class WrapsProvingKeyVerification {
 
     @Nullable
     private volatile ScheduledFuture<?> retryFuture;
+
+    /**
+     * Guards against more than one acquisition attempt at a time, covering both the download and the extraction
+     * that follows it. {@link #ensureProvingKey} runs on every init trigger, so without this a node that keeps
+     * reconnecting while the archive is unavailable stacks a download per reconnect on the shared
+     * {@link ForkJoinPool#commonPool()}, and the concurrent attempts truncate each other's output at
+     * {@code provingKeyPath}.
+     */
+    private final AtomicBoolean downloadInFlight = new AtomicBoolean();
 
     public WrapsProvingKeyVerification() {
         this(ForkJoinPool.commonPool(), createDefaultRetryScheduler());
@@ -213,6 +223,12 @@ public class WrapsProvingKeyVerification {
             @NonNull final String downloadUrl,
             @NonNull final HttpWrapsProvingKeyDownloader downloader,
             @NonNull final Duration retryInterval) {
+        // An in-flight attempt verifies and extracts the archive itself, so there is nothing to do here. Checked
+        // before hashing, which reads a multi-gigabyte file on the init thread.
+        if (downloadInFlight.get()) {
+            log.info("A WRAPS proving key acquisition is already in progress, skipping this check");
+            return;
+        }
         final var expectedHash = Bytes.fromHex(bootstrapHash);
         if (!Files.exists(provingKeyPath)) {
             log.info("WRAPS proving key file not found at {}. Initiating download", provingKeyPath);
@@ -246,30 +262,42 @@ public class WrapsProvingKeyVerification {
             @NonNull final String downloadUrl,
             @NonNull final HttpWrapsProvingKeyDownloader downloader,
             @NonNull final Duration retryInterval) {
-        CompletableFuture.runAsync(
-                () -> {
-                    try {
-                        downloader.download(downloadUrl, provingKeyPath);
-                        final Bytes downloadedHash = hashFile(provingKeyPath);
-                        if (!downloadedHash.equals(expectedHash)) {
+        if (!downloadInFlight.compareAndSet(false, true)) {
+            log.info("A WRAPS proving key download is already in progress, not starting another");
+            return;
+        }
+        try {
+            CompletableFuture.runAsync(
+                    () -> {
+                        try {
+                            downloader.download(downloadUrl, provingKeyPath);
+                            final Bytes downloadedHash = hashFile(provingKeyPath);
+                            if (!downloadedHash.equals(expectedHash)) {
+                                log.error(
+                                        "Downloaded WRAPS proving key hash mismatch: expected={}, actual={}",
+                                        expectedHash,
+                                        downloadedHash);
+                                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                                return;
+                            }
+                            tryExtractTarGz(provingKeyPath, expectedHash.toHex());
+                            log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
+                        } catch (final Throwable t) {
                             log.error(
-                                    "Downloaded WRAPS proving key hash mismatch: expected={}, actual={}",
-                                    expectedHash,
-                                    downloadedHash);
+                                    "Failed to initiate async download of WRAPS proving key (from URL {}):",
+                                    downloadUrl,
+                                    t);
                             scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
-                            return;
+                        } finally {
+                            downloadInFlight.set(false);
                         }
-                        tryExtractTarGz(provingKeyPath, expectedHash.toHex());
-                        log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
-                    } catch (final Throwable t) {
-                        log.error(
-                                "Failed to initiate async download of WRAPS proving key (from URL {}):",
-                                downloadUrl,
-                                t);
-                        scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
-                    }
-                },
-                downloadExecutor);
+                    },
+                    downloadExecutor);
+        } catch (final RuntimeException e) {
+            // The task never ran, so nothing else will clear the flag
+            downloadInFlight.set(false);
+            throw e;
+        }
     }
 
     // --- Retry mechanism ---
@@ -286,6 +314,10 @@ public class WrapsProvingKeyVerification {
         log.info("Scheduling WRAPS proving key download retry every {}", retryInterval);
         retryFuture = retryScheduler.scheduleWithFixedDelay(
                 () -> {
+                    if (!downloadInFlight.compareAndSet(false, true)) {
+                        log.info("A WRAPS proving key download is already in progress, skipping this retry");
+                        return;
+                    }
                     try {
                         log.info("Retrying WRAPS proving key download from {}", downloadUrl);
                         downloader.download(downloadUrl, provingKeyPath);
@@ -304,6 +336,8 @@ public class WrapsProvingKeyVerification {
                         }
                     } catch (final Throwable e) {
                         log.error("Failed to download WRAPS proving key on retry", e);
+                    } finally {
+                        downloadInFlight.set(false);
                     }
                 },
                 retryInterval.toMillis(),
