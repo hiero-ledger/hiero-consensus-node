@@ -13,6 +13,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -52,6 +53,16 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected InstrumentedNode doCreateInstrumentedNode(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+        throw new UnsupportedOperationException("Instrumented nodes are not supported in FalconNetwork");
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * <p>Serves the keys and certificates from {@link #KEYS_AND_CERTS_CACHE}, generating only the ones not cached yet.
      */
@@ -75,10 +86,8 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    protected InstrumentedNode doCreateInstrumentedNode(
-            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        throw new UnsupportedOperationException("Instrumented nodes are not supported in FalconNetwork");
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        throw new UnsupportedOperationException("Quiescence command is not supported in FalconNode.");
     }
 
     /**
@@ -152,13 +161,5 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
             final FalconNode falconNode = (FalconNode) node;
             falconNode.tick(now);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void destroy() {
-        super.destroy();
     }
 }

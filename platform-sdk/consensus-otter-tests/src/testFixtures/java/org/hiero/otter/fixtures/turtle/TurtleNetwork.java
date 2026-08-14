@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -127,6 +128,14 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        nodes().forEach(node -> node.sendQuiescenceCommand(command));
+    }
+
+    /**
      * Synchronizes FakeTime to the saved state's WALL_CLOCK_TIME plus one hour. This ensures time never goes backward
      * when starting from a saved state, and is instantaneous.
      */
@@ -177,7 +186,7 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
      * {@inheritDoc}
      */
     @Override
-    protected void destroy() {
+    public void destroy() {
         log.info("Destroying network...");
         super.destroy();
         nodes().forEach(node -> ((TurtleNode) node).destroy());

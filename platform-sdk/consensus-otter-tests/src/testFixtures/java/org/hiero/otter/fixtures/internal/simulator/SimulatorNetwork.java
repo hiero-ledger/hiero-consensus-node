@@ -74,18 +74,10 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
-        nodes().forEach(node -> node.sendQuiescenceCommand(command));
-    }
-
-    /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      */
-    protected void destroy() {
+    public void destroy() {
         transactionGenerator.stop();
     }
 }
