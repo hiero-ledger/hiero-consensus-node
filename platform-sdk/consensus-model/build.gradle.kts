@@ -20,8 +20,7 @@ testModuleInfo {
 
 timingSensitiveModuleInfo {
     requires("org.hiero.base.concurrent")
-    requires("org.hiero.consensus.concurrent")
-    requires("org.hiero.consensus.concurrent.test.fixtures")
+    requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

@@ -78,11 +78,11 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.event.stream;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;

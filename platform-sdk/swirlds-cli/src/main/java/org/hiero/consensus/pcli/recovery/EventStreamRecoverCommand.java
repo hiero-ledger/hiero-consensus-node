@@ -11,7 +11,7 @@ import com.swirlds.platform.config.DefaultConfiguration;
 import java.nio.file.Path;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.AbstractCommand;
 import org.hiero.consensus.pcli.EventStreamCommand;

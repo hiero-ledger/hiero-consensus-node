@@ -95,6 +95,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  * environments.
  */
 public abstract class AbstractNetwork implements Network {
+
     /**
      * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
      */

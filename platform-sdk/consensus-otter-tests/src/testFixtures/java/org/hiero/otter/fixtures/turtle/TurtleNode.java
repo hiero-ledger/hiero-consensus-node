@@ -6,7 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;

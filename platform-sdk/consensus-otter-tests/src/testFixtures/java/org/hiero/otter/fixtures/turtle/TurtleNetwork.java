@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -26,6 +26,7 @@ import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
@@ -37,16 +38,16 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
 
     private static final Logger log = LogManager.getLogger();
 
-    private final TurtleTransactionGenerator turtleTransactionGenerator;
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
+    private final TurtleTransactionGenerator turtleTransactionGenerator;
 
     private ExecutorService executorService;
 
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
+     * @param random the random generator
      * @param timeManager the time manager
      * @param logging the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
@@ -54,13 +55,13 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
-            @NonNull final Randotron randotron,
+            @NonNull final Random random,
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean useRandomNodeIds) {
-        super(randotron, timeManager, transactionGenerator, useRandomNodeIds);
+        super(random, timeManager, transactionGenerator, useRandomNodeIds);
         this.turtleTransactionGenerator = requireNonNull(transactionGenerator);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);

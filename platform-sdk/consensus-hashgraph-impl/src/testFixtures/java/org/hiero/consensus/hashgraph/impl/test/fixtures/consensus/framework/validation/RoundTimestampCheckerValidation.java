@@ -24,7 +24,7 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
     public void validate(@NonNull final List<ConsensusRound> rounds) {
         for (final ConsensusRound round : rounds) {
             final List<PlatformEvent> events = round.getConsensusEvents();
-            for (int i = 1; i < round.getEventCount(); i++) {
+            for (int i = 1, n = events.size(); i < n; i++) {
 
                 final PlatformEvent previousEvent = events.get(i - 1);
                 final PlatformEvent currentEvent = events.get(i);
@@ -47,13 +47,9 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
     /**
      * Renders the failure message for a pair of adjacent events.
      *
-     * <p>Only called when an assertion actually fails. Building it eagerly would render the descriptor of every
-     * consensus event, including the hex encoding of its hash, which dominates the cost of this validation in a test
-     * that runs it continuously.
-     *
      * @param headline describes which of the two checks failed
      * @param previousEvent the earlier of the two events
-     * @param currentEvent the later of the two events
+     * @param currentEvent the latter of the two events
      * @return the failure message
      */
     @NonNull

@@ -99,7 +99,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.RosterStateId;
 import org.junit.jupiter.api.BeforeEach;
