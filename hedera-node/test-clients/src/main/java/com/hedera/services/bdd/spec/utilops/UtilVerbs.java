@@ -959,20 +959,18 @@ public class UtilVerbs {
     }
 
     /**
-     * Verifies the node's jumpstart hash computation via three-way comparison:
-     * file entries, .rcd replay, and the node's logged hash.
+     * Verifies the node's jumpstart hash computation by independently replaying {@code .rcd} files
+     * from the jumpstart block through the freeze block and comparing against the node's logged hash.
      *
      * @param jumpstartConfig            the jumpstart config properties
-     * @param wrappedHashes              per-block entries from the wrapped record hashes file
      * @param nodeComputedHash           the hash the node logged during migration
      * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
-            @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
+        return new VerifyJumpstartHashOp(jumpstartConfig, nodeComputedHash, freezeBlockNum);
     }
 
     /**
