@@ -57,6 +57,7 @@ on:
         required: true
         default: "0.14.3"
         description: "NLG Version:"
+        type: string
       chewie-request-timeout:
         required: true
         description: "Chewie request timeout in seconds"
