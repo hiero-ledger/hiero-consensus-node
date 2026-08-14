@@ -549,7 +549,10 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.resolveAlias(anyLong(), anyLong(), eq(Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe()))))
+        given(nativeOperations.resolveAlias(
+                        anyLong(),
+                        anyLong(),
+                        eq(Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe()))))
                 .willReturn(ACCOUNT_NUM);
 
         assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS));
@@ -745,7 +748,10 @@ class DispatchingEvmFrameStateTest {
 
         given(nativeOperations.entityIdFactory()).willReturn(shardedIdFactory);
         given(nativeOperations.configuration()).willReturn(nonZeroConfig);
-        given(nativeOperations.resolveAlias(nonZeroShard, nonZeroRealm, Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(
+                        nonZeroShard,
+                        nonZeroRealm,
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         // The hollow account lives at 1.2.<num>; a lookup that assumed shard/realm 0 would miss it
         givenWellKnownAccount(
@@ -769,7 +775,10 @@ class DispatchingEvmFrameStateTest {
 
         given(nativeOperations.entityIdFactory()).willReturn(shardedIdFactory);
         given(nativeOperations.configuration()).willReturn(nonZeroConfig);
-        given(nativeOperations.resolveAlias(nonZeroShard, nonZeroRealm, Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
+        given(nativeOperations.resolveAlias(
+                        nonZeroShard,
+                        nonZeroRealm,
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         // An unexpired account already occupies 1.2.<num>, so lazy creation must be refused
         givenWellKnownAccount(shardedAccountId, contractWith(shardedAccountId));

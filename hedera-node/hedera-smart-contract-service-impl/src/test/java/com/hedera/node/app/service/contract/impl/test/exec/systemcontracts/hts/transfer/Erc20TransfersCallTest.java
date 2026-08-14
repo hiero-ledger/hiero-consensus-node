@@ -64,7 +64,8 @@ class Erc20TransfersCallTest extends CallTestBase {
             .withValue("entities.unlimitedAutoAssociationsEnabled", false)
             .getOrCreateConfig();
     private static final long CANONICAL_ASSOCIATE_GAS = 704_000L;
-    private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
+    private static final Address FROM_ADDRESS =
+            ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
     private static final Address TO_ADDRESS =
             ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
