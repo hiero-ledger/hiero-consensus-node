@@ -1,28 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.dsl.annotations.Account;
-import com.hedera.services.bdd.spec.dsl.annotations.Contract;
-import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
-import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
-import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.TokenID;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
-import java.math.BigInteger;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
-
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -35,6 +13,27 @@ import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThr
 import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThrottleTest.THROTTLE_THROTTLE_BY_OPS_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.TokenID;
+import java.math.BigInteger;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
@@ -75,8 +74,9 @@ public class HtsInnerFrameCycleTest {
                         1, // low gas
                         10000, // some gas, but less than required
                         20000 // enough gas
-                )
-                .map(gas -> namedHapiTest("innerFrameCycl gas=" + gas, doingContextual(e -> transferTokensCycleFrames(e, gas))));
+                        )
+                .map(gas -> namedHapiTest(
+                        "innerFrameCycl gas=" + gas, doingContextual(e -> transferTokensCycleFrames(e, gas))));
     }
 
     public void transferTokensCycleFrames(HapiSpec spec, final int childGas) {
@@ -85,20 +85,22 @@ public class HtsInnerFrameCycleTest {
         final int expectedGasUsedForCycle = 15284;
         final int expectedCycles = 20;
         final var op = contractCall(
-                CONTRACT,
-                "transferTokensCycle",
-                BigInteger.valueOf(tokenId.get().getTokenNum()),
-                BigInteger.valueOf(accountId.get().getAccountNum()),
-                BigInteger.valueOf(entryCount),
-                BigInteger.valueOf(repetitions),
-                BigInteger.valueOf(childGas))
+                        CONTRACT,
+                        "transferTokensCycle",
+                        BigInteger.valueOf(tokenId.get().getTokenNum()),
+                        BigInteger.valueOf(accountId.get().getAccountNum()),
+                        BigInteger.valueOf(entryCount),
+                        BigInteger.valueOf(repetitions),
+                        BigInteger.valueOf(childGas))
                 .via(ATTACK_TXN)
                 .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, INSUFFICIENT_GAS)
                 .noLogging()
                 .gas(expectedGasUsedForCycle * (expectedCycles + 1));
         allRunFor(
-                spec, op
-                , getTxnRecord(ATTACK_TXN).logged()
+                spec,
+                op,
+                getTxnRecord(ATTACK_TXN)
+                        .logged()
                         .exposingAllTo(e -> Assertions.assertEquals(expectedCycles, e.size()))
                         .andAllChildRecords());
     }

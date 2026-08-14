@@ -30,14 +30,10 @@ import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
@@ -288,11 +284,11 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                         systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
 
         if (frame.getRemainingGas() < gasRequirement) {
-            // TODO Glib: charge gasRequirement from parentFrame if parent frame exists?
             if (frame.getMessageFrameStack().size() > 1) {
                 MessageFrame parentFrame = FrameUtils.parentFrameOf(frame);
                 if (parentFrame != null && !fullResult.isRefundGas()) {
-                    final var parentGasCharging = Math.min(parentFrame.getRemainingGas(), gasRequirement - frame.getRemainingGas());
+                    final var parentGasCharging =
+                            Math.min(parentFrame.getRemainingGas(), gasRequirement - frame.getRemainingGas());
                     parentFrame.decrementRemainingGas(parentGasCharging);
                 }
             }
