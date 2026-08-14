@@ -40,7 +40,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
