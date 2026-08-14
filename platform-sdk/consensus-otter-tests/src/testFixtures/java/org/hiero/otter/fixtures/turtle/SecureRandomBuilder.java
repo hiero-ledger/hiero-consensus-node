@@ -15,13 +15,6 @@ public class SecureRandomBuilder implements Supplier<SecureRandom> {
     private final Random seedSource;
 
     /**
-     * Constructor. Random seed is used.
-     */
-    public SecureRandomBuilder() {
-        seedSource = new Random();
-    }
-
-    /**
      * Constructor.
      *
      * @param seed the seed for the random number generator
