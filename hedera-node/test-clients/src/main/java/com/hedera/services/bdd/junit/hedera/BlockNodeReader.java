@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -134,6 +135,42 @@ public final class BlockNodeReader {
             return List.of();
         }
         return blocks(0L, latest);
+    }
+
+    /**
+     * Returns true if this reader targets a REAL (containerized) block node, which supports the
+     * live-follow gRPC subscription used by {@link #streamLive}. The simulator path does not and
+     * must be polled instead.
+     *
+     * @return true if the active network is a REAL block node
+     */
+    public boolean isReal() {
+        return mode() == BlockNodeMode.REAL;
+    }
+
+    /**
+     * Opens a single long-lived live subscription to the REAL block node starting at {@code startBlock},
+     * pushing each block to {@code onBlock} as it arrives, and returns a handle that cancels the
+     * subscription (releasing the block node's subscriber handler) when closed. This replaces
+     * per-poll {@link #blocks} reads on the live path so exactly one subscriber handler is held for
+     * the consumer's lifetime rather than one accumulating per poll. Only valid when {@link #isReal()}.
+     *
+     * @param startBlock the first block number to stream (inclusive)
+     * @param onBlock invoked for each block as it arrives
+     * @param onTerminated invoked once if the stream ends (error/completion) so the caller can resubscribe
+     * @return a handle that cancels the subscription when closed
+     */
+    @NonNull
+    public AutoCloseable streamLive(
+            final long startBlock, @NonNull final Consumer<Block> onBlock, @NonNull final Runnable onTerminated) {
+        requireNonNull(onBlock);
+        requireNonNull(onTerminated);
+        final var entry = network.getBlockNodeContainerById().entrySet().stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No REAL block node container to stream from"));
+        final var container = entry.getValue();
+        final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort());
+        return client.streamBlocks(startBlock, onBlock, onTerminated);
     }
 
     /**
