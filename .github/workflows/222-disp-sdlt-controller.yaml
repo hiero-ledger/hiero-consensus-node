@@ -126,6 +126,7 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
       ref: "${{ github.ref }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "100000000"
       nlg-time: "720"
@@ -135,6 +136,7 @@ jobs:
       duration-minutes: 1080 # 16 hours + 2 for post-mortem
       chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
