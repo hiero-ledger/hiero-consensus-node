@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
+import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -125,8 +126,7 @@ public class StakingValidator {
     private static boolean isValidStakingSentinel(
             @NonNull String stakedIdKind, @Nullable AccountID stakedAccountId, @Nullable Long stakedNodeId) {
         if (stakedIdKind.equals("STAKED_ACCOUNT_ID")) {
-            // current checking only account num since shard and realm are 0.0
-            return requireNonNull(stakedAccountId).accountNumOrThrow() == 0;
+            return SENTINEL_ACCOUNT_ID.equals(requireNonNull(stakedAccountId));
         } else if (stakedIdKind.equals("STAKED_NODE_ID")) {
             return requireNonNull(stakedNodeId) == -1;
         } else {
