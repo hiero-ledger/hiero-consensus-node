@@ -601,12 +601,36 @@ public record EthTxData(
         }
     }
 
+    /// Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
+    /// encoding consumed the whole input as EIP-2718 requires and as `ethereum_data` is specified ("the
+    /// complete transaction data").
+    ///
+    /// `RLPDecoder.sequenceIterator` is a *sequence* reader, so anything past the envelope is simply left
+    /// unread rather than reported: `tx || extra` would otherwise parse as `tx`, yielding identical fields but
+    /// a different `keccak256(rawTx)` — the value externalized as a record's `ethereum_hash`. Requiring full
+    /// consumption keeps that hash a function of the transaction rather than of how its bytes were framed.
+    ///
+    /// This governs only bytes *outside* the envelope. It is unrelated to trailing bytes *inside* ABI-encoded
+    /// `callData`, which are part of the signed payload and which HIP-1342 deliberately permits; neither rule
+    /// generalizes to the other layer.
+    ///
+    /// Note `decoder.hasNext()` cannot serve here: on a malformed trailer it throws headlong's
+    /// `ShortInputException`, which escapes the `IllegalArgumentException | NoSuchElementException` catch in
+    /// {@link #populateEthTxData}.
+    private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
+        return envelope.endIndex == data.length;
+    }
+
     /**
      * Encodes the transaction data into a EthTxData according to legacy RLP format.
      *
      * @return the encoded transaction data
      */
     private static EthTxData populateLegacyEthTxData(final RLPItem rlpItem, final byte[] rawTx) {
+        if (!consumesAllOf(rlpItem, rawTx)) {
+            return null;
+        }
+
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 9) {
             return null;
@@ -649,6 +673,9 @@ public record EthTxData(
         if (!rlpItem.isList()) {
             return null;
         }
+        if (!consumesAllOf(rlpItem, rawTx)) {
+            return null;
+        }
 
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 12) {
@@ -689,6 +716,9 @@ public record EthTxData(
         if (!rlpItem.isList()) {
             return null;
         }
+        if (!consumesAllOf(rlpItem, rawTx)) {
+            return null;
+        }
 
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 11) {
@@ -727,6 +757,9 @@ public record EthTxData(
      */
     private static EthTxData populateEip7702EthTxData(RLPItem rlpItem, byte[] rawTx) {
         if (!rlpItem.isList()) {
+            return null;
+        }
+        if (!consumesAllOf(rlpItem, rawTx)) {
             return null;
         }
 

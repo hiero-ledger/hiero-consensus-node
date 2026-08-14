@@ -19,6 +19,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -380,6 +381,67 @@ class EthTxDataTest {
 
         // poorly wrapped typed transaction
         assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, oneByte, oneByte)));
+
+        // Trailing bytes after a complete envelope - the mirror of "Trimmed End Bytes" above
+        assertNull(EthTxData.populateEthTxData(withSuffix(HexFormat.of().parseHex(RAW_TX_TYPE_0), new byte[] {0})));
+    }
+
+    /// Returns `data || suffix`.
+    private static byte[] withSuffix(final byte[] data, final byte[] suffix) {
+        final var suffixed = Arrays.copyOf(data, data.length + suffix.length);
+        System.arraycopy(suffix, 0, suffixed, data.length, suffix.length);
+        return suffixed;
+    }
+
+    /// Bytes past the end of the RLP envelope must be rejected outright, never left unread.
+    ///
+    /// EIP-2718 requires the envelope to consume its whole input, and `ethereum_data` is specified as the
+    /// complete transaction data. Since a record's `ethereum_hash` is `keccak256` of exactly those bytes,
+    /// tolerating a longer framing would make the recorded hash depend on the framing rather than on the
+    /// transaction: the fields, the signer and the operation would all be unchanged.
+    ///
+    /// `00`, `01`, `80` and `c0` are each well-formed RLP items on their own, so those are the trailers that
+    /// parse cleanly and would slip past a weaker check. `ff` and `deadbeef` are malformed, covering the case
+    /// where the trailer itself provokes a decoder error.
+    @ParameterizedTest(name = "suffix=0x{0}")
+    @ValueSource(strings = {"00", "01", "80", "c0", "ff", "deadbeef", "ffffffffffffffffffffffff"})
+    void rejectsTrailingBytesAfterEnvelope(final String suffixHex) {
+        final var suffix = HexFormat.of().parseHex(suffixHex);
+        for (final var canonicalHex : List.of(
+                RAW_TX_TYPE_0,
+                RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111,
+                RAW_TX_TYPE_1,
+                RAW_TX_TYPE_2,
+                EIP155_DEMO,
+                EIP155_UNPROTECTED)) {
+            final var canonical = HexFormat.of().parseHex(canonicalHex);
+            assertNotNull(EthTxData.populateEthTxData(canonical), () -> canonicalHex + " must still parse");
+            assertNull(
+                    EthTxData.populateEthTxData(withSuffix(canonical, suffix)),
+                    () -> canonicalHex + " with trailing 0x" + suffixHex + " must be rejected");
+        }
+    }
+
+    /// A transaction's `ethereum_hash` must be fixed by the signed envelope alone.
+    @Test
+    void ethereumHashIsKeccakOfTheCanonicalEnvelope() {
+        for (final var canonicalHex :
+                List.of(RAW_TX_TYPE_0, RAW_TX_TYPE_1, RAW_TX_TYPE_2, EIP155_DEMO, EIP155_UNPROTECTED)) {
+            final var canonical = HexFormat.of().parseHex(canonicalHex);
+            final var parsed = requireNonNull(EthTxData.populateEthTxData(canonical));
+            assertArrayEquals(MiscCryptoUtils.keccak256DigestOf(canonical), parsed.getEthereumHash(), canonicalHex);
+        }
+    }
+
+    /// Guards the boundary from the accepting side: a programmatically built type-2 envelope parses, and the
+    /// same bytes plus one trailing zero do not. The other fixtures are hard-coded hex, so this is the only
+    /// case that proves the check tracks the encoded length rather than a fixture's known size.
+    @Test
+    void acceptsBuiltTypedEnvelopeButRejectsItWithOneTrailingByte() {
+        final var canonical = RLPEncoder.sequence(new byte[] {2}, Arrays.asList(normalRlpData()));
+
+        assertNotNull(EthTxData.populateEthTxData(canonical));
+        assertNull(EthTxData.populateEthTxData(Arrays.copyOf(canonical, canonical.length + 1)));
     }
 
     byte[][] normalRlpData() {
