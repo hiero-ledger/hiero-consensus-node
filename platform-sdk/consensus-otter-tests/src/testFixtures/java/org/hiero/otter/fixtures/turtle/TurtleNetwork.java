@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -22,17 +21,12 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
-import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
-import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
@@ -40,16 +34,13 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
+public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
-    private final TurtleTimeManager timeManager;
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
-    private final TurtleTransactionGenerator transactionGenerator;
-    private final SimulatedNetwork simulatedNetwork;
-    private final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
+    private final TurtleTransactionGenerator turtleTransactionGenerator;
 
     private ExecutorService executorService;
 
@@ -65,53 +56,15 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     public TurtleNetwork(
             @NonNull final Random random,
-            @NonNull final TurtleTimeManager timeManager,
+            @NonNull final SimulatorTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean useRandomNodeIds) {
-        super(random, useRandomNodeIds);
-        this.timeManager = requireNonNull(timeManager);
+        super(random, timeManager, transactionGenerator, useRandomNodeIds);
+        this.turtleTransactionGenerator = requireNonNull(transactionGenerator);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
-        this.transactionGenerator = requireNonNull(transactionGenerator);
-        this.simulatedNetwork = new SimulatedNetwork(random);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    protected TimeManager timeManager() {
-        return timeManager;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    protected TransactionGenerator transactionGenerator() {
-        return transactionGenerator;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
-        final boolean limited = connections.values().stream()
-                .anyMatch(state -> !state.bandwidthLimit().isUnlimited());
-        if (limited) {
-            throw new UnsupportedOperationException("Bandwidth limits are not supported in Turtle.");
-        }
-        simulatedNetwork.setConnections(connections);
-    }
-
-    @Override
-    protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
-        simulatedNetwork.setConnections(connections);
     }
 
     /**
@@ -175,6 +128,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        nodes().forEach(node -> node.sendQuiescenceCommand(command));
+    }
+
+    /**
      * Synchronizes FakeTime to the saved state's WALL_CLOCK_TIME plus one hour. This ensures time never goes backward
      * when starting from a saved state, and is instantaneous.
      */
@@ -186,20 +147,12 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
             if (currentTime.isBefore(requiredTime)) {
                 final Duration timeAdvance = Duration.between(currentTime, requiredTime);
-                log.info("Advancing TurtleTimeManager instantaneously by {} to match saved state time", timeAdvance);
+                log.info("Advancing TimeManager instantaneously by {} to match saved state time", timeAdvance);
                 timeManager.advanceTime(timeAdvance);
             }
         } catch (final IOException e) {
-            fail("Failed to synchronize TurtleTimeManager with saved state", e);
+            fail("Failed to synchronize TimeManager with saved state", e);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
-        nodes().forEach(node -> node.sendQuiescenceCommand(command));
     }
 
     /**
@@ -212,7 +165,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         }
 
         simulatedNetwork.tick(now);
-        transactionGenerator.tick(now, nodes());
+        turtleTransactionGenerator.tick(now, nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
@@ -230,12 +183,12 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     }
 
     /**
-     * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
-     * This method is idempotent and can be called multiple times without any side effects.
+     * {@inheritDoc}
      */
-    void destroy() {
+    @Override
+    public void destroy() {
         log.info("Destroying network...");
-        transactionGenerator.stop();
+        super.destroy();
         nodes().forEach(node -> ((TurtleNode) node).destroy());
         consensusRoundPool.destroy();
         if (executorService != null) {
