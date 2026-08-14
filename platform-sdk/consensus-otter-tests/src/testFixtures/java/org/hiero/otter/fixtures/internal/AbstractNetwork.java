@@ -95,6 +95,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  * environments.
  */
 public abstract class AbstractNetwork implements Network {
+
     /**
      * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
      */
@@ -123,7 +124,7 @@ public abstract class AbstractNetwork implements Network {
     /** The default timeout duration for network operations. */
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2L);
 
-    private final Random random;
+    protected final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();

@@ -10,8 +10,8 @@ import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
-import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
@@ -29,9 +29,9 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * Performs reconnect in the role of the learner.
@@ -43,7 +43,7 @@ public class LearningSynchronizer {
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
     private final ThreadManager threadManager;
-    private final VirtualMapSyncConfig syncConfig;
+    private final VirtualMapLearnerSyncConfig syncConfig;
     private final Metrics metrics;
 
     /**
@@ -59,8 +59,8 @@ public class LearningSynchronizer {
             @NonNull final Metrics metrics) {
 
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
-        this.syncConfig =
-                Objects.requireNonNull(config, "config cannot be null").getConfigData(VirtualMapSyncConfig.class);
+        this.syncConfig = Objects.requireNonNull(config, "config cannot be null")
+                .getConfigData(VirtualMapLearnerSyncConfig.class);
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
     }
 
@@ -120,8 +120,11 @@ public class LearningSynchronizer {
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "learner start synchronizing");
 
-            final AsyncInputStream input =
-                    new AsyncInputStream(in, syncConfig.asyncStreamBufferSize(), syncConfig.asyncStreamTimeout());
+            final AsyncInputStream input = new AsyncInputStream(
+                    in,
+                    syncConfig.asyncStreamBufferSize(),
+                    syncConfig.asyncStreamIdleTimeout(),
+                    syncConfig.maxMessageSizeBytes());
             input.start(workGroup);
             final AsyncOutputStream output = buildOutputStream(out, syncConfig);
             output.start(workGroup);
@@ -132,13 +135,11 @@ public class LearningSynchronizer {
             // send tasks can generate meaningful non-root requests.
             exchangeRootNode(exchanger, input, output);
 
-            // FUTURE WORK: configurable number of tasks
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < syncConfig.numReceiveThreads(); i++) {
                 workGroup.fork("reconnect-learner-receiver", new LearnerPullVirtualTreeReceiveTask(input, exchanger));
             }
 
-            // FUTURE WORK: configurable number of tasks
-            final int learnerSendTasks = 16;
+            final int learnerSendTasks = syncConfig.numSendThreads();
             final CountDownLatch sendTasksDone = new CountDownLatch(learnerSendTasks);
             for (int i = 0; i < learnerSendTasks; i++) {
                 workGroup.fork(
@@ -198,12 +199,12 @@ public class LearningSynchronizer {
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapLearnerSyncConfig syncConfig) {
         return new AsyncOutputStream(
                 out,
                 syncConfig.asyncStreamBufferSize(),
                 syncConfig.asyncOutputStreamFlush(),
-                syncConfig.asyncStreamTimeout());
+                syncConfig.asyncStreamIdleTimeout());
     }
 
     /**

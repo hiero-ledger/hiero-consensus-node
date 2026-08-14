@@ -10,7 +10,7 @@ import com.swirlds.platform.context.internal.PlatformUncaughtExceptionHandler;
 import java.nio.file.Path;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.metrics.PlatformMetricsProvider;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 import org.hiero.consensus.model.node.NodeId;

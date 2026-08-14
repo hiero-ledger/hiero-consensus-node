@@ -23,14 +23,18 @@ import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -128,14 +132,15 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void throwsOnUnreadableFile(final EnvironmentVariables environment) throws IOException {
+    void doesNotThrowOnUnreadableFile(final EnvironmentVariables environment) throws IOException {
         final var path = tempDir.resolve("unreadable");
         Files.createDirectory(path);
         final var hash = "aa".repeat(48);
         givenConfigWithHashAndPath(hash, path);
         setArtifactsEnvVar(environment);
 
-        assertThrows(UncheckedIOException.class, () -> subject.ensureProvingKey(configuration, downloader));
+        assertDoesNotThrow(() -> subject.ensureProvingKey(configuration, downloader));
+        verify(downloader).download(DOWNLOAD_URL, path);
     }
 
     @Test
@@ -256,6 +261,82 @@ class WrapsProvingKeyVerificationTest {
         assertDoesNotThrow(
                 () -> validateArtifactsPathConsistency(tempDir.resolve("wraps-v1.0.0.tar.gz"), tempDir.toString()));
         assertTrue(WRAPSLibraryBridge.isProofSupported());
+    }
+
+    @Test
+    void doesNotStartSecondDownloadWhileOneIsInFlight(final EnvironmentVariables environment) throws Exception {
+        setArtifactsEnvVar(environment);
+        final var executor = Executors.newSingleThreadExecutor();
+        try {
+            final var subject = new WrapsProvingKeyVerification(executor);
+            final var path = tempDir.resolve("key.tar.gz");
+            givenConfigWithHashAndPath(HASH_A.toHex(), path);
+            final var downloadStarted = new CountDownLatch(1);
+            final var releaseDownload = new CountDownLatch(1);
+            doAnswer(inv -> {
+                        downloadStarted.countDown();
+                        assertTrue(releaseDownload.await(10, TimeUnit.SECONDS));
+                        Files.write(inv.getArgument(1), CONTENT_A);
+                        return null;
+                    })
+                    .when(downloader)
+                    .download(anyString(), eq(path));
+
+            subject.ensureProvingKey(configuration, downloader);
+            assertTrue(downloadStarted.await(10, TimeUnit.SECONDS));
+            // A second init trigger (e.g. reconnect) must not stack another download on the executor
+            subject.ensureProvingKey(configuration, downloader);
+            releaseDownload.countDown();
+
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+            verify(downloader, Mockito.times(1)).download(DOWNLOAD_URL, path);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void releasesTheInFlightGuardOnceADownloadFinishes(final EnvironmentVariables environment) throws Exception {
+        // The guard's failure mode is "silently never downloads again", so pin down that it is released. Each
+        // attempt leaves content whose hash does not match, so a second init trigger must download again.
+        setArtifactsEnvVar(environment);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_B);
+
+        subject.ensureProvingKey(configuration, downloader);
+        subject.ensureProvingKey(configuration, downloader);
+
+        verify(downloader, Mockito.times(2)).download(DOWNLOAD_URL, path);
+    }
+
+    @Test
+    void stillDownloadsAfterTheExecutorRejectsAnAttempt(final EnvironmentVariables environment) throws Exception {
+        // An executor that rejects the first submission, then runs inline. The rejected task never runs, so
+        // nothing inside it can release the in-flight guard; a later attempt must not be locked out.
+        setArtifactsEnvVar(environment);
+        final var rejectFirst = new Executor() {
+            private boolean rejected = false;
+
+            @Override
+            public void execute(@NonNull final Runnable command) {
+                if (!rejected) {
+                    rejected = true;
+                    throw new RejectedExecutionException("executor is saturated");
+                }
+                command.run();
+            }
+        };
+        final var subject = new WrapsProvingKeyVerification(rejectFirst);
+        final var path = tempDir.resolve("key.tar.gz");
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
+        givenDownloaderWritesContent(path, CONTENT_A);
+
+        assertThrows(RejectedExecutionException.class, () -> subject.ensureProvingKey(configuration, downloader));
+        subject.ensureProvingKey(configuration, downloader);
+
+        verify(downloader).download(DOWNLOAD_URL, path);
     }
 
     @SuppressWarnings("unchecked")

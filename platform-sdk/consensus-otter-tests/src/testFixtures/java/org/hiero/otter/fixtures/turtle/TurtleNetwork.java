@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
@@ -44,7 +44,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
-    private final Randotron randotron;
     private final TurtleTimeManager timeManager;
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
@@ -57,7 +56,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
+     * @param random the random generator
      * @param timeManager the time manager
      * @param logging the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
@@ -65,19 +64,18 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
-            @NonNull final Randotron randotron,
+            @NonNull final Random random,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean useRandomNodeIds) {
-        super(randotron, useRandomNodeIds);
-        this.randotron = requireNonNull(randotron);
+        super(random, useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.transactionGenerator = requireNonNull(transactionGenerator);
-        this.simulatedNetwork = new SimulatedNetwork(randotron);
+        this.simulatedNetwork = new SimulatedNetwork(random);
     }
 
     /**
@@ -103,6 +101,11 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     @Override
     protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+        final boolean limited = connections.values().stream()
+                .anyMatch(state -> !state.bandwidthLimit().isUnlimited());
+        if (limited) {
+            throw new UnsupportedOperationException("Bandwidth limits are not supported in Turtle.");
+        }
         simulatedNetwork.setConnections(connections);
     }
 
@@ -121,7 +124,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
-                randotron,
+                random,
                 timeManager,
                 nodeId,
                 keysAndCerts,
@@ -143,7 +146,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
-                randotron,
+                random,
                 timeManager,
                 nodeId,
                 keysAndCerts,

@@ -3,7 +3,7 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.METRIC_EXECUTOR;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -19,7 +19,7 @@ import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
-import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
