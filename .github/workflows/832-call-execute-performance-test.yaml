@@ -244,9 +244,9 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}')
 
-          n=`expr "${NLG_ACCOUNTS}" / 1000`
+          n=$(expr "${NLG_ACCOUNTS}" / 1000)
           NLG_c=32
 
           NLGargs="-metrics -R -c ${NLG_c} -a ${NLG_ACCOUNTS}"
@@ -259,7 +259,7 @@ jobs:
           esac
 
           run_NLG_Time=${NLG_TIME}
-          run_NLG_Time3=`expr ${run_NLG_Time} / 3`
+          run_NLG_Time3=$(expr ${run_NLG_Time} / 3)
 
           case "${NLG_TEST}" in
             CryptoTransferLoadTest) run_NLG_Time=${run_NLG_Time3};;
@@ -313,12 +313,12 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}')
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time=$(date +%s)
 
           max_counter=340 #max_counter=330 mins of max test time + 10 min waiting time
 
@@ -330,9 +330,9 @@ jobs:
           do
 
            sleep 60
-           current_time=`date +%s`
-           counter=`expr "${current_time}" - "${start_time}"`
-           counter=`expr "${counter}" \/ 60`
+           current_time=$(date +%s)
+           counter=$(expr "${current_time}" - "${start_time}")
+           counter=$(expr "${counter}" \/ 60)
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log

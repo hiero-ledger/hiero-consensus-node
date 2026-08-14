@@ -409,32 +409,6 @@ jobs:
           # trim the input ref
           echo "run-hcn-version=$(echo ${REF} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
 
-      # TODO: Remove this step when formal SDLT uses Chewie
-      - name: Check for namespace collision
-        run: |
-          set +e
-          set +x
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}[ \t]"
-          if [[ ${?} -eq 0 ]]
-          then
-            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
-            #exit 13
-          fi
-
-      # TODO: Remove this step when formal SDLT uses Chewie
-      - name: Cancelling in case of namespace collision
-        if: failure()
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
-        with:
-          script: |
-            github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId
-            });
-
       - name: Print parameters
         env:
           REF: ${{ inputs.ref }}
@@ -481,20 +455,10 @@ jobs:
           fi
           cd "${{ github.workspace }}"
 
-      - name: Fix size BN
-        if: false
-        run: |
-          cd "${{ github.workspace }}"/target_block_node
-          sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ConvertToJson.java
-          #grep MAX_BLOCK_SIZE_BYTES block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
-          sed -i -e 's/131_072_000/300_000_000/g' block-node/app-config/src/main/java/org/hiero/block/node/app/config/ServerConfig.java
-          grep -B 2 maxMessageSizeBytes block-node/app-config/src/main/java/org/hiero/block/node/app/config/ServerConfig.java
-
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
           ./gradlew app:distTar
-          #produces ./block-node/app/build/distributions/app-0.18.0blah-.tar
 
           shortversion=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           cd ./block-node/app/build/distributions/
@@ -569,40 +533,6 @@ jobs:
 
           # verify the installation
           solo --version
-
-      - name: Build Solo
-        if: false
-        run: |
-          set +x
-          set +e
-          curdir=`pwd`
-          echo "${curdir}"
-          ls
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-          export NVM_DIR="${HOME}/.nvm"
-          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
-          nvm install v24.14.0
-
-          nvm use v24.14.0
-          export PATH="${HOME}"/:"${PATH}"
-
-          #solo script
-          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
-          echo "node "${curdir}"/solo/dist/solo.js \$@" >> "${HOME}"/solo
-          chmod a+rx "${HOME}"/solo
-          sudo mv "${HOME}"/solo /usr/bin/solo
-
-          git clone https://github.com/hiero-ledger/solo.git solo
-          cd solo
-          git checkout ${{ inputs.solo-version }}
-
-          task build:compile
-          #npm run build
-
-          which solo
-          solo --version
-
-          cd ..
 
       - name: Deploy with Solo
         env:
@@ -687,12 +617,7 @@ jobs:
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
 
-          #create local-path-storage
-          #sed -i -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
-          #echo "kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml"
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
-
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
            #create PVC values.yaml from template
            for pvc_name in application-state-storage archive-storage logging-storage live-storage plugins-storage
@@ -728,13 +653,6 @@ jobs:
           task solo:block:add
 
           sleep 30
-
-      - name: Fix blocknode jsons
-        if: false
-        run: |
-          find $HOME/.solo -type f
-          find $HOME/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
-          find $HOME/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
 
       - name: Deploy CNs
         run: |
@@ -776,40 +694,19 @@ jobs:
               ${pod}:/opt/hiero/block-node/application-state/rsa-bootstrap-roster.json
           done
 
-      - name: Update back-fill
-        if: false
-        run: |
-          set +x
-          set +e
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o wide | awk '{print $1" "$6}' | grep 'block-node-' | sort -n > block_ips.txt
-
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
-          do
-            echo '{"nodes": [' > block-node-sources_$i.json
-            grep -v "block-node-$i-0" block_ips.txt | awk '{ print "{ \"address\": \""$2"\", \"port\": 40840, \"priority\": 1 },"}' | perl -pne '~s/\n//g' | perl -pne '~s/^(.*)[,]$/$1/g' >> block-node-sources_$i.json
-            echo ']}' >> block-node-sources_$i.json
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "if [ -d /opt/hiero/block-node/backfill ]; then cat /opt/hiero/block-node/backfill/block-node-sources.json; rm -rf /opt/hiero/block-node/backfill; fi"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "mkdir -p /opt/hiero/block-node/backfill"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp block-node-sources_$i.json \
-              block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
-          done
-          exit 0
-
       - name: Temp down BlockNodes
         run: |
-          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; tar xf /tmp/BN.tar --overwrite"
-
           done
 
       - name: Start BlockNodes
         run: |
           bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
           bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
-          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
               bash -c "find /opt/hiero/block-node/data -type f -exec rm -f {} \;" >/dev/null 2>&1
@@ -900,7 +797,7 @@ jobs:
         run: |
           set +x
           set +e
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "\
           apt update; \
@@ -909,28 +806,6 @@ jobs:
           echo \"deb https://packages.adoptium.net/artifactory/deb \$(awk -F= '/^VERSION_CODENAME/{print\$2}' /etc/os-release) main\" | tee /etc/apt/sources.list.d/adoptium.list; \
           apt update; \
           apt install -y temurin-25-jdk"
-
-      - name: Prepare NLG communication properties for CN
-        if: false
-        run: |
-          set +x
-          set +e
-          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
-
-          cat <<EOF > block-nodes.json
-          {
-            "nodes": [
-              { "address": "${NLG_IP}", "port": 8080, "streamingPort": 8080, "servicePort":-1, "priority": 0 }
-            ]
-          }
-          EOF
-
-          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
-
-          for i in $(seq 1 1 ${NofNodes})
-          do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ./block-nodes.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
-          done
 
       - name: Deploy Validator
         run: |
@@ -958,8 +833,8 @@ jobs:
       - name: Start Longevity test
         run: |
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
-          n=`expr ${{ inputs.nlg-accounts }} / 1000`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')
+          n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
           test=LongevityLoadTest
@@ -974,6 +849,7 @@ jobs:
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
           sleep 30
+
       - id: matrix
         run: |
           runs=$(((${{ inputs.nlg-time }}+${{ env.TIMEOUT_6H_LIMIT }}-1)/${{ env.TIMEOUT_6H_LIMIT }}))
@@ -1091,7 +967,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
-          start_time=`date +%s`
+          start_time=$(date +%s)
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}
 
           ec=2
@@ -1319,9 +1195,6 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
 
-          #echo "Truncating logs for next test..."
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-
   # Send this output back to the caller workflow
   longevity-test-reconnect:
     name: Reconnect test
@@ -1403,8 +1276,8 @@ jobs:
       - name: Start Longevity test
         run: |
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
-          n=`expr ${{ inputs.nlg-accounts }} / 1000`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
+          n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
           test=LongevityLoadTest
@@ -1435,7 +1308,7 @@ jobs:
           mkdir -p "${{ github.workspace }}"/report/reconnect
           bash "${{ github.workspace }}"/.github/workflows/support/citr/profileReconnectLoopK8s.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" ${downtime} ${warmtime} ${NofLoops} 2>&1 | tee "${{ github.workspace }}"/report/reconnect/reconnect.log
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail -n 20 /app/client.log"
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef" | grep 'com.hedera.benchmark'
           result=$?
@@ -1664,7 +1537,7 @@ jobs:
           fi
 
           #last line is 5, it does not need comma block separator
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
+          freport=$(/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);')
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},${freport},\
            {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\n\"},
            {\"type\": \"text\",\"text\": \"ReconnectTest ${Reconnect}\"}"

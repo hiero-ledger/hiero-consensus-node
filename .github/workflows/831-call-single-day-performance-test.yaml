@@ -417,6 +417,7 @@ jobs:
           version: 3.39.2
 
       - name: Install Cobertura
+        if: false
         run: |
           gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/cobertura-assembly-2.1.2-SNAPSHOT.tgz "${HOME}"/cobertura-assembly-2.1.2-SNAPSHOT.tgz
           cd "${HOME}"
@@ -449,31 +450,6 @@ jobs:
           set +e
           # trim the input ref
           echo "run-hcn-version=$(echo "${INPUT_REF}" | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
-
-      # TODO: Remove this step when formal SDPT uses Chewie
-      - name: Check for namespace collision
-        run: |
-          set +e
-          set +x
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "chewie-solo-.*t-n${NETWORK_ID}[ \t]"
-          if [[ ${?} -eq 0 ]]
-          then
-            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
-            exit 13
-          fi
-
-      - name: Cancelling in case of namespace collision
-        if: failure()
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
-        with:
-          script: |
-            github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId
-            });
 
       - name: Print parameters
         run: |
@@ -533,15 +509,6 @@ jobs:
             cd ..
           fi
           cd "${{ github.workspace }}"
-
-      - name: Fix size BN
-        if: false
-        run: |
-          cd "${{ github.workspace }}"/target_block_node
-          sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ConvertToJson.java
-          #grep MAX_BLOCK_SIZE_BYTES block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
-          sed -i -e 's/131_072_000/300_000_000/g' block-node/app-config/src/main/java/org/hiero/block/node/app/config/ServerConfig.java
-          grep -B 2 maxMessageSizeBytes block-node/app-config/src/main/java/org/hiero/block/node/app/config/ServerConfig.java
 
       - name: Compile BN
         run: |
@@ -622,40 +589,6 @@ jobs:
 
           # verify the installation
           solo --version
-
-      - name: Build Solo
-        if: false
-        run: |
-          set +x
-          set +e
-          curdir=`pwd`
-          echo "${curdir}"
-          ls
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-          export NVM_DIR="${HOME}/.nvm"
-          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
-          nvm install v24.14.0
-
-          nvm use v24.14.0
-          export PATH="${HOME}"/:"${PATH}"
-
-          #solo script
-          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
-          echo "node "${curdir}"/solo/dist/solo.js \$@" >> "${HOME}"/solo
-          chmod a+rx "${HOME}"/solo
-          sudo mv "${HOME}"/solo /usr/bin/solo
-
-          git clone https://github.com/hiero-ledger/solo.git solo
-          cd solo
-          git checkout ${{ inputs.solo-version }}
-
-          task build:compile
-          #npm run build
-
-          which solo
-          solo --version
-
-          cd ..
 
       - name: Deploy with Solo
         env:
@@ -741,12 +674,7 @@ jobs:
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id}}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
 
-          #create local-path-storage
-          #sed -i -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
-          #echo "kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml"
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
-
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
            #create PVC values.yaml from template
            for pvc_name in application-state-storage archive-storage logging-storage live-storage plugins-storage
@@ -782,12 +710,6 @@ jobs:
           task solo:block:add
 
           sleep 30
-
-      - name: Fix blocknode jsons
-        if: false
-        run: |
-          find $HOME/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
-          find $HOME/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
 
       - name: Deploy CNs
         run: |
@@ -828,26 +750,6 @@ jobs:
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json \
               ${pod}:/opt/hiero/block-node/application-state/rsa-bootstrap-roster.json
           done
-
-      - name: Update back-fill
-        if: false
-        run: |
-          set +x
-          set +e
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o wide | awk '{print $1" "$6}' | grep 'block-node-' | sort -n > block_ips.txt
-
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
-          do
-            echo '{"nodes": [' > block-node-sources_$i.json
-            grep -v "block-node-$i-0" block_ips.txt | awk '{ print "{ \"address\": \""$2"\", \"port\": 40840, \"priority\": 1 },"}' | perl -pne '~s/\n//g' | perl -pne '~s/^(.*)[,]$/$1/g' >> block-node-sources_$i.json
-            echo ']}' >> block-node-sources_$i.json
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "if [ -d /opt/hiero/block-node/backfill ]; then cat /opt/hiero/block-node/backfill/block-node-sources.json; rm -rf /opt/hiero/block-node/backfill; fi"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "mkdir -p /opt/hiero/block-node/backfill"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp block-node-sources_$i.json \
-              block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
-          done
-          exit 0
 
       - name: Temp down BlockNodes
         run: |
@@ -959,7 +861,7 @@ jobs:
         run: |
           set +x
           set +e
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "\
           apt update; \
@@ -968,30 +870,6 @@ jobs:
           echo \"deb https://packages.adoptium.net/artifactory/deb \$(awk -F= '/^VERSION_CODENAME/{print\$2}' /etc/os-release) main\" | tee /etc/apt/sources.list.d/adoptium.list; \
           apt update; \
           apt install -y temurin-25-jdk"
-
-      - name: Prepare NLG communication properties for CN
-        if: false
-        env:
-          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-        run: |
-          set +x
-          set +e
-          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
-
-          cat <<EOF > block-nodes.json
-          {
-            "nodes": [
-              { "address": "${NLG_IP}", "port": 8080, "streamingPort": 8080, "servicePort":-1, "priority": 0 }
-            ]
-          }
-          EOF
-
-          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
-
-          for i in $(seq 1 1 ${NofNodes})
-          do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ./block-nodes.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
-          done
 
       - name: Deploy Validator
         run: |
@@ -2027,7 +1905,6 @@ jobs:
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-rootly:
-    if: false
     name: Report Failures to Rootly
     runs-on: hl-cn-sdpt-lin-sm
     needs:
@@ -2042,17 +1919,17 @@ jobs:
       - performance-post-test-validation
       - single-day-performance-test-result
 
-#    if: ${{ (needs.performance-tests-start.result != 'success' ||
-#      needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
-#      needs.performance-NftTransferLoadTest-report.result != 'success' ||
-#      needs.performance-HCSLoadTest.result != 'success' ||
-#      needs.performance-CryptoTransferLoadTest.result != 'success' ||
-#      needs.performance-HeliSwapLoadTest.result != 'success' ||
-#      needs.performance-SmartContractLoadTest.result != 'success' ||
-#      needs.single-day-performance-test-result.result != 'success' ||
-#      needs.acquire-kubernetes-resources.result != 'success' ||
-#      needs.single-day-performance-test-result.outputs.result == 'failure') &&
-#      !cancelled() && always() }}
+    if: ${{ (needs.performance-tests-start.result != 'success' ||
+      needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
+      needs.performance-NftTransferLoadTest-report.result != 'success' ||
+      needs.performance-HCSLoadTest.result != 'success' ||
+      needs.performance-CryptoTransferLoadTest.result != 'success' ||
+      needs.performance-HeliSwapLoadTest.result != 'success' ||
+      needs.performance-SmartContractLoadTest.result != 'success' ||
+      needs.single-day-performance-test-result.result != 'success' ||
+      needs.acquire-kubernetes-resources.result != 'success' ||
+      needs.single-day-performance-test-result.outputs.result == 'failure') &&
+      !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -2147,10 +2024,10 @@ jobs:
 
           #last line is 6, it does not need comma block separator
           # use back-ticks for proper substitution in the json report
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
+          freport=$(/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
             perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int((($d-$l)/$l)*100); \
             $excl=""; if ($d <= $l) {$excl="\\\u2757";}
-            printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
+            printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);')
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},${freport},\
             {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
 
