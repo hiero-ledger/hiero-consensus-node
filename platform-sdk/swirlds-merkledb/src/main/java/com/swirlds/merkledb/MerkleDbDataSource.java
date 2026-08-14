@@ -318,8 +318,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             throw new IllegalStateException("Initial capacity must be greater than 0, but was " + this.initialCapacity);
         }
 
-        saveMetadata(dbPaths);
-
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
 
         // Get the max number of keys is set in the MerkleDb config, then multiply it by
@@ -459,6 +457,21 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         pathToKeyValueStoreScanner = new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection());
         objectKeyToPathScanner =
                 new GarbageScanner(keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), true);
+
+        // If this data source is restored from a snapshot, the storage dir may contain index files. They
+        // are no longer needed and can be deleted
+        if (Files.exists(dbPaths.pathToDiskLocationLeafNodesFile)) {
+            Files.delete(dbPaths.pathToDiskLocationLeafNodesFile);
+        }
+        if (Files.exists(dbPaths.idToDiskLocationHashChunksFile)) {
+            Files.delete(dbPaths.idToDiskLocationHashChunksFile);
+        }
+        // Also, delete the metadata file to make sure future metadata updates are in a new file, not the
+        // hard-linked file from the snapshot directory
+        if (Files.exists(dbPaths.metadataFile)) {
+            Files.delete(dbPaths.metadataFile);
+        }
+
         COUNT_OF_OPEN_DATABASES.increment();
         logger.info(
                 MERKLE_DB.getMarker(),

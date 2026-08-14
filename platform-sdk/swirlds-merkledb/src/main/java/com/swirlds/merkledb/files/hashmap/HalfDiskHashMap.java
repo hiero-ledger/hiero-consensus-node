@@ -241,6 +241,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     bucketIndexToBucketLocation.put(bucket.getBucketIndex(), dataLocation);
                 };
             }
+            // The bucket index file is no longer needed and should be deleted
+            if (Files.exists(indexFile)) {
+                Files.delete(indexFile);
+            }
         } else {
             // create store dir
             Files.createDirectories(storeDir);

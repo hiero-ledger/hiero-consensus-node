@@ -169,4 +169,31 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
             dataSource2.close();
         }
     }
+
+    @Test
+    void snapshotMetadataMustNotBeCorrupted() throws Exception {
+        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(
+                "snapshotMetadataMustNotBeCorrupted", DEFAULT_CONFIGURATION, fileSystemManager, 100);
+
+        final VirtualDataSource original = builder.build("state", null, false, false);
+        original.saveRecords(42, 84, Stream.of(), Stream.of(), Stream.of(), false);
+        final Path snapshotPath = fileSystemManager.resolveNewTemp("merkledb-snapshotMetadataMustNotBeCorrupted");
+        builder.snapshot(snapshotPath, original);
+        original.close();
+
+        final VirtualDataSource restored1 = builder.build("state", snapshotPath, false, false);
+        final long firstLeafPath = restored1.getFirstLeafPath();
+        final long lastLeafPath = restored1.getLastLeafPath();
+        restored1.saveRecords(45, 90, Stream.of(), Stream.of(), Stream.of(), false);
+        restored1.close();
+
+        // Restore from the same snapshot path. DB metadata must not be affected by restored1.saveRecords() above
+        final VirtualDataSource restored2 = builder.build("state", snapshotPath, false, false);
+        try {
+            Assertions.assertEquals(firstLeafPath, restored2.getFirstLeafPath());
+            Assertions.assertEquals(lastLeafPath, restored2.getLastLeafPath());
+        } finally {
+            restored2.close();
+        }
+    }
 }
