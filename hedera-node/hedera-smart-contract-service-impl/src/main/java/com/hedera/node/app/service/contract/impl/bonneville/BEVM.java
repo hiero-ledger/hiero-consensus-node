@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.bonneville;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
@@ -1001,9 +1002,9 @@ class BEVM {
         if( halt != null) return halt;
 
         Bytes bytes = _mem.asBytes(adr, len);
-        Bytes keccak = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
-        assert keccak.size() == 32; // Base implementation has changed?
-        return push32(keccak.toArrayUnsafe());
+        byte[] keccak = MiscCryptoUtils.keccak256DigestOf(bytes.toArrayUnsafe());
+        assert keccak.length == 32; // Base implementation has changed?
+        return push32(keccak);
     }
 
     // ---------------------

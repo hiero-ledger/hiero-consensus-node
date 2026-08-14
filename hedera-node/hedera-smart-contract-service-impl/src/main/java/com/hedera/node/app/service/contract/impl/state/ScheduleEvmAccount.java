@@ -2,11 +2,12 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
-import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.account.Account;
@@ -28,7 +29,8 @@ public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
 
     // EIP-7702 delegation to HSS system contract
     public static final Bytes CODE = Bytes.concatenate(CODE_DELEGATION_PREFIX, Address.fromHexString(HSS_EVM_ADDRESS));
-    public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
+    public static final Hash CODE_HASH =
+            Hash.wrap(Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(CODE.toArrayUnsafe())));
     public static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_PBJ =
             com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE.toArrayUnsafe());
 
