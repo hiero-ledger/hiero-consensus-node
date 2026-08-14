@@ -9,13 +9,6 @@ on:
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
-      # Test Asset is required for nightly runs of SDPT
-      # it goes away when Chewie runs the nightly SDPT test
-      test-asset:
-        description: "Which cluster to run tests on"
-        required: false
-        type: string
-        default: ""
       solo-version:
         required: true
         default: "v0.84.0"
@@ -52,29 +45,24 @@ on:
         description: "Test params"
         type: string
       duration-minutes:
-        required: false
-        default: 1200
+        required: true
         description: "Expected duration of all tests in minutes"
         type: number
-      delete-namespace:
-        required: false
-        default: true
-        type: boolean
-        description: "If true, automatically delete namespace when done"
       bnref:
         description: "BN version"
         type: string
         required: true
         default: ""
-      java-version:
-        required: true
-        default: "25.0.2"
-        description: "Java Version:"
-        type: string
       nlg-version:
         required: true
         default: "0.14.3"
         description: "NLG Version:"
+      chewie-request-timeout:
+        required: true
+        description: "Chewie request timeout in seconds"
+        type: number
+      java-version:
+        description: "Java JDK Version:"
         type: string
     secrets:
       slack-report-webhook:
@@ -83,12 +71,11 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
-      # TODO: The chewie secrets become required when SDPT is fully integrated with Chewie. For now, they are optional to allow for legacy SDPT runs.
       chewie-host:
-        required: false
+        required: true
         description: "Chewie Host"
       chewie-id-key:
-        required: false
+        required: true
         description: "Chewie Identity Key"
     outputs:
       result:
@@ -122,38 +109,13 @@ env:
   ValidatorExitCode: 0
 
 jobs:
-  # Remove when the chewie secrets are required (formal SDPT integration with Chewie)
-  validate-chewie-inputs:
-    if: ${{ inputs.test-asset == '' }}
-    runs-on: hl-cn-default-lin-sm
-    steps:
-      - name: Validate Chewie Inputs
-        env:
-          CHEWIE_HOST: ${{ secrets.chewie-host }}
-          CHEWIE_ID_KEY: ${{ secrets.chewie-id-key }}
-        run: |
-          missing=()
-          [[ -z "${CHEWIE_HOST}" ]] && missing+=("chewie-host")
-          [[ -z "${CHEWIE_ID_KEY}" ]] && missing+=("chewie-id-key")
-
-          if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "::error::Chewie requires the following secrets: ${missing[*]}."
-            exit 1
-          fi
-
-  # Remove if test-asset is not empty check when formal SDPT uses Chewie
   get-chewie-jwt:
-    if: ${{ inputs.test-asset == '' }}
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
-    needs:
-      - validate-chewie-inputs
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
 
-  # Remove if test-asset is not empty check when formal SDPT uses Chewie
   get-sdpt-config:
-    if: ${{ inputs.test-asset == '' }}
     uses: ./.github/workflows/861-call-get-test-config.yaml
     with:
       test-type: "sdpt"
@@ -161,9 +123,7 @@ jobs:
     secrets:
       checkout-token: ${{ secrets.github-token }}
 
-  # Remove if test-asset is not empty check when formal SDPT uses Chewie
   validate-chewie-jwt:
-    if: ${{ inputs.test-asset == '' }}
     needs: get-chewie-jwt
     uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
@@ -173,10 +133,7 @@ jobs:
       chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
       checkout-token: ${{ secrets.github-token }}
 
-  # Rename to acquire-kubernetes-resources when formal SDPT uses Chewie
-  # remove if test-asset is not empty check at that time
-  acquire-kubernetes-resources-chewie:
-    if: ${{ inputs.test-asset == '' }}
+  acquire-kubernetes-resources:
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
@@ -190,77 +147,11 @@ jobs:
       instances-aux-cpu: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-cpu-request) }}
       instances-aux-memory-mb: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-mem-request-mb) }}
       duration-minutes: ${{ inputs.duration-minutes }}
+      request-timeout: ${{ inputs.chewie-request-timeout }}
     secrets:
       github-token: ${{ secrets.github-token }}
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.chewie-host }}
-
-  # Remove when formal SDPT uses Chewie
-  acquire-kubernetes-resources-legacy:
-    name: "Acquire Kubernetes Resources (Legacy)"
-    if: ${{ inputs.test-asset != '' }}
-    uses: ./.github/workflows/834-call-read-chewie-response.yaml
-    with:
-      ref: ${{ github.ref }}
-      test-asset: ${{ inputs.test-asset }}
-      test-type: "sdpt"
-    secrets:
-      github-token: ${{ secrets.github-token }}
-
-  # Remove when formal SDPT uses Chewie
-  acquire-kubernetes-resources:
-    needs:
-      - acquire-kubernetes-resources-chewie
-      - acquire-kubernetes-resources-legacy
-    runs-on: hl-cn-sdpt-lin-sm
-    if: ${{ !cancelled() && (needs.acquire-kubernetes-resources-chewie.result == 'success' || needs.acquire-kubernetes-resources-legacy.result == 'success') }}
-    outputs:
-      namespace: ${{ steps.normalize.outputs.namespace }}
-      fqdn: ${{ steps.normalize.outputs.fqdn }}
-      cn-quantity: ${{ steps.normalize.outputs.cn-quantity }}
-      aux-quantity: ${{ steps.normalize.outputs.aux-quantity }}
-      cn-tolerations: ${{ steps.normalize.outputs.cn-tolerations }}
-      aux-tolerations: ${{ steps.normalize.outputs.aux-tolerations }}
-      cn-role: ${{ steps.normalize.outputs.cn-role }}
-      aux-role: ${{ steps.normalize.outputs.aux-role }}
-      network-id: ${{ steps.normalize.outputs.network-id }}
-      owner: ${{ steps.normalize.outputs.owner }}
-      request-expiration: ${{ steps.normalize.outputs.expiration }}
-    steps:
-      - name: Harden Runner
-        id: harden-runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Normalize Outputs
-        id: normalize
-        env:
-          NAMESPACE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace || needs.acquire-kubernetes-resources-legacy.outputs.namespace }}
-          FQDN: ${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn || needs.acquire-kubernetes-resources-legacy.outputs.fqdn }}
-          CN_QUANTITY: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity || needs.acquire-kubernetes-resources-legacy.outputs.cn-quantity }}
-          AUX_QUANTITY: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity || needs.acquire-kubernetes-resources-legacy.outputs.aux-quantity }}
-          CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.cn-tolerations }}
-          AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations || needs.acquire-kubernetes-resources-legacy.outputs.aux-tolerations }}
-          CN_ROLE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role || needs.acquire-kubernetes-resources-legacy.outputs.cn-role }}
-          AUX_ROLE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role || needs.acquire-kubernetes-resources-legacy.outputs.aux-role }}
-          NETWORK_ID: ${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id || needs.acquire-kubernetes-resources-legacy.outputs.network-id }}
-          OWNER: ${{ needs.acquire-kubernetes-resources-chewie.outputs.owner || needs.acquire-kubernetes-resources-legacy.outputs.owner }}
-          EXPIRATION: ${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration || needs.acquire-kubernetes-resources-legacy.outputs.request-expiration }}
-        run: |
-          echo "::group::Set Outputs"
-          echo "namespace=${NAMESPACE}" | tee -a "${GITHUB_OUTPUT}"
-          echo "fqdn=${FQDN}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-quantity=${CN_QUANTITY}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-quantity=${AUX_QUANTITY}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-tolerations=${CN_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-tolerations=${AUX_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-role=${CN_ROLE}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-role=${AUX_ROLE}" | tee -a "${GITHUB_OUTPUT}"
-          echo "network-id=${NETWORK_ID}" | tee -a "${GITHUB_OUTPUT}"
-          echo "owner=${OWNER}" | tee -a "${GITHUB_OUTPUT}"
-          echo "expiration=${EXPIRATION}" | tee -a "${GITHUB_OUTPUT}"
-          echo "::endgroup::"
 
   print-allocation-details:
     runs-on: hl-cn-default-lin-sm
@@ -308,35 +199,7 @@ jobs:
           checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Checkout target CN Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: target_consensus_node
-          ref: ${{ inputs.ref }}
-
-      - name: Checkout target BN Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: "hiero-ledger/hiero-block-node"
-          path: target_block_node
-          ref: ${{ inputs.bnref }}
-
-      - name: Checkout Perf Analysis
-        if: false
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: performance-analysis-automation
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout PBJ and Besu
-        if: false
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: "hashgraph/pbj"
-          path: pbj
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check Test Asset
+      - name: Set Kubernetes Cluster
         id: set-k8s-cluster
         run: |
           K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
@@ -1783,11 +1646,6 @@ jobs:
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validatorRun.log "${{ github.workspace }}"/report/validatorRun.log
           grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
           echo "value=${?}" >> "${GITHUB_OUTPUT}"
-
-      - name: Delete namespace
-        if: ${{ inputs.delete-namespace == true }}
-        run: |
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10

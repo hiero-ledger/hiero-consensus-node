@@ -34,7 +34,7 @@ public class ConsensusRoundValidator {
     public static void validate(
             @NonNull final List<ConsensusRound> rounds1, @NonNull final List<ConsensusRound> rounds2) {
         assertThat(rounds1)
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "The number of consensus rounds is not the same."
                                 + "first argument has %d rounds, second has %d rounds",
                         rounds1.size(), rounds2.size()))

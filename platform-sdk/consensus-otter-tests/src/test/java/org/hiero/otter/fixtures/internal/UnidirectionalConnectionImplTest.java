@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures.internal;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.otter.fixtures.internal.AbstractNetwork.BandwidthControlSupport.BANDWIDTH_CONTROL_SUPPORTED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -223,7 +223,7 @@ class UnidirectionalConnectionImplTest {
     private static class TestableNetwork extends AbstractNetwork {
 
         TestableNetwork() {
-            super(new java.util.Random(42), false, BANDWIDTH_CONTROL_SUPPORTED);
+            super(new Random(42), false);
         }
 
         @Override
