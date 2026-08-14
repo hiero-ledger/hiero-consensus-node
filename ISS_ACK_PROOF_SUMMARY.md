@@ -36,49 +36,60 @@ Measured outcomes before the change (simulator tests):
 
 ## The change
 
-1. **The ack carries a proof.** A `block_proof` field is added to the acknowledgement (a test-only mock: the text
-   `"ack-<blockNumber>"`).
-2. **The consensus node checks it.** A new flag `blockNode.requireAckProof` (default **off**): when on, a block is
-   marked acknowledged only if the ack's proof matches; otherwise the ack is ignored (and logged).
-3. **Simulator controls** so tests can drive it: send an **invalid** ack proof for a block, or **delay** a block's ack.
-4. **Three new simulator tests** that exercise these.
+1. **The ack carries the block's real proof.** A `block_proof` field is added to the acknowledgement, and the simulated
+   block node fills it with the **actual serialized proof** of the block it received — or deterministic garbage when a
+   test flags a block "invalid".
+2. **The consensus node compares it to its own block.** A new flag `blockNode.requireAckProof` (default **off**): when
+   on, the node extracts its own buffered block's proof and marks the block acknowledged only if the ack's proof
+   matches; otherwise the ack is ignored (and logged).
+3. **Simulator controls** so tests can drive it: corrupt a block's ack proof, or **delay** a block's ack.
+4. **Three simulator tests** that exercise these.
 
 ## After — the block is kept
 
 With the check on and the divergent block's proof not matching, the ack is rejected → the block stays unacknowledged →
-the buffer never prunes it → it is saved as the real block file.
+the buffer never prunes it → it is saved as the real block file. All three verified in the simulator:
 
-|                       Test                       |             What it does             |                      Result                       |
-|--------------------------------------------------|--------------------------------------|---------------------------------------------------|
-| C13 `selfIssInvalidAckProofKept`                 | `keep = 0`, **invalid** proof        | **KEPT** — flips C10's loss                       |
-| C15 `selfIssDelayedAckKept`                      | `keep = 0`, ack **delayed** 5 blocks | **KEPT** — block still unacked at save time (2/2) |
-| C14 `selfIssLateNotificationValidAckProofPruned` | late detection, **valid** proof      | **LOST** — control (2/2)                          |
+|               Test                |               What it does                |                                                    Result                                                     |
+|-----------------------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| C13 `selfIssInvalidAckProofKept`  | `keep=0`, **corrupted** proof (warm-up)   | **KEPT** — accepts valid proofs, then rejects the corrupted ISS-block proof (`highestAcked=20`, `rej=1`, 2/2) |
+| C14 `selfIssRealAckProofGateKept` | `keep=10`, **no injection** — real proofs | **KEPT** — node1 rejects the *honest* ack for its own divergent block (natural detection, `rej=2`)            |
+| C15 `selfIssDelayedAckKept`       | `keep=0`, ack **delayed** 5 blocks        | **KEPT** — block still unacked at save time (`highestAcked=issBlock−5`, 2/2)                                  |
 
-**C14 is the control that keeps the story honest:** with a *matching* proof the ack is still accepted and the block is
-still pruned/lost — proving the check rejects only *wrong* proofs, not all acks. So the change does not break normal
-acknowledgement.
+**C14 shows the mechanism working with no test injection at all:** the block node acks node1's divergent block with the
+*honest* block's proof, which does not match node1's own copy, so node1 rejects it and keeps the block — the real
+design's behavior. node1 still accepts every matching proof for its non-divergent blocks (observed: `highestAcked`
+advancing), so the gate is not a blanket reject.
 
 ## What this proves — and what is still a mock
 
-**Proves:** if an ack's proof fails to match the diverging node's own block, that block is never acknowledged, never
-pruned, and is reliably saved — **deterministically**, no matter the retention window or how late detection is. That is
-the fix, and it is the same reason a *catastrophic* ISS block is always safe today: it is never acknowledged.
+**Proves:** the consensus node now extracts its **own** block's proof and compares it, byte-for-byte, to the proof
+carried by the ack. On a self-ISS the block node's ack carries the *honest* block's proof, which does not match the
+diverging node's own divergent block → the ack is rejected → the block stays unacknowledged → never pruned → saved.
+This was verified in the simulator **with no test injection** (C14): node1 accepted the valid proofs for its normal
+blocks (`highestAcked` advanced) and rejected the honest ack for its divergent block, keeping it. It is the same reason
+a *catastrophic* ISS block is always safe today — it is never acknowledged — now extended to the self-ISS case.
 
-**Still a mock — not production-ready as-is:**
+**Still short of production:**
 
 - The flag is **off by default**, so production behavior is unchanged today.
-- The proof is a stand-in string (`"ack-<n>"`), not real cryptography. In the tests the block is kept only because the
-  simulator is *told* to send a bad proof. A **real** block node does not send this field at all — so turning the check
-  on against a real block node today would reject **every** ack and stall streaming. That is why it must stay behind the
-  flag.
-- The real version still to build: the ack carries the **actual block proof / root hash**, and the node compares it to
-  its own buffered block's hash. On a genuine self-ISS the diverging block's hash really is different from the honest
-  one the block node acked, so the mismatch happens on its own — no test injection needed.
+- The check is **byte-equality** of the serialized proof (echoed by the simulator). A real block node would carry the
+  actual proof and the node would **verify the TSS signature against its own block's root hash**, not compare bytes —
+  so this is now a genuine proof comparison, but not yet signature verification.
+- The simulator keeps only one copy of each block (the first publisher wins the block; the others are told to skip), so
+  it echoes that copy's proof to every node. Natural detection therefore relies on an honest node winning the divergent
+  block's race (~3-in-4 at four nodes); when the diverging node itself wins, it accepts its own proof (the block is
+  still kept by the retention window in the test). The **corrupt-proof** control (C13) forces the mismatch
+  deterministically regardless of who won the race.
+- The mock TSS signatures here are derived from block content — identical across nodes for the same block, different
+  for a divergent one — which is exactly why valid proofs match and the divergent one does not. Real TSS gives the same
+  property via the signed root hash.
 
 ## Where the changes live
 
-- Consensus-node check: `BlockNodeStreamingConnection.handleAcknowledgement` (the gate) and
-  `BlockNodeConnectionConfig.requireAckProof` (the flag).
-- Simulator: `SimulatedBlockNodeServer` (sets the proof; adds the invalid-ack and delay-ack hooks).
-- Mock proof field: `hapi/hapi/build.gradle.kts` (patches the external ack message to add `block_proof`).
+- Consensus-node check: `BlockNodeStreamingConnection.handleAcknowledgement` (the gate) + `ownBlockProof(...)` (extracts
+  this node's own block proof from the buffer to compare), and `BlockNodeConnectionConfig.requireAckProof` (the flag).
+- Simulator: `SimulatedBlockNodeServer` (echoes the received block's real serialized proof, corrupts it for a flagged
+  block, plus the delay-ack hook).
+- Mock proof field: `hapi/hapi/build.gradle.kts` (patches the external ack message to add `bytes block_proof`).
 - Tests + full results: `IssBufferRaceSimTest.java`, `ISS_TEST_RESULTS.md`, `ISS_SIM_BEHAVIOR_MATRIX.md`.

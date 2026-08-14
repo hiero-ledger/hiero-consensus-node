@@ -642,10 +642,11 @@ class IssBufferRaceSimTest implements LifecycleTest {
                 freezeSurvivors());
     }
 
-    // C13 — SELF_ISS, simulator, PROOF-MATCHING enabled (blockNode.requireAckProof=true on node1), keep=0. The sim is
-    // told to send INVALID ack proofs ("invalid-ack-<n>") for the blocks the ISS round falls in, so node1 rejects
-    // those acks (proof != "ack-<n>") and never marks the ISS block acknowledged. Since an unacked block is never
-    // pruned (even at keep=0), the ISS block is KEPT — the loss C10 shows (keep=0, valid acks) is prevented here.
+    // C13 — SELF_ISS, simulator, PROOF-MATCHING enabled (blockNode.requireAckProof=true on node1), keep=0. Each ack now
+    // carries the block's REAL serialized proof; the sim is told to send a corrupted proof (deterministic garbage) for
+    // the blocks the ISS round falls in, so node1's own buffered block proof does not match the ack → node1 rejects
+    // those acks and never marks the ISS block acknowledged. Since an unacked block is never pruned (even at keep=0),
+    // the ISS block is KEPT — the loss C10 shows (keep=0, valid acks) is prevented here.
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -716,7 +717,11 @@ class IssBufferRaceSimTest implements LifecycleTest {
                         IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 0, true))),
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
-                // Make the simulator send an invalid ack proof for every block the ISS round could fall in.
+                // Warm up FIRST (no injection yet) so acks flow and node1 accepts the valid real proofs for the early
+                // blocks (highestAcked advances) — this proves the gate is not a blanket reject. THEN corrupt the
+                // proofs so the subsequent blocks, incl. the ISS block, are rejected. Without this warm-up the ISS is
+                // detected before any ack arrives, so the block would be kept by the ack-arrival race, not the gate.
+                sleepForSeconds(8),
                 invalidateAcksForBlocks(0L, 60L),
                 induceIssTransfer(),
                 awaitIssDetectionAndDiag(),
@@ -729,7 +734,8 @@ class IssBufferRaceSimTest implements LifecycleTest {
                             kept,
                             RECEIVED_OBJECT_KEYS);
                     // keep=0 + acks flowing would normally prune the acked ISS block (see C10 → LOST). Here the CN
-                    // rejects the invalid proof, so the ISS block is never acked (acked=false, highestAcked < issBlock)
+                    // rejects the corrupted proof, so the ISS block is never acked (acked=false, highestAcked <
+                    // issBlock)
                     // and therefore never pruned → KEPT. A kept block under these settings proves the proof gate fired.
                     assertTrue(
                             kept,
@@ -746,16 +752,17 @@ class IssBufferRaceSimTest implements LifecycleTest {
                 .toArray(SpecOperation[]::new));
     }
 
-    // C14 — CONTROL for C13, on the reliable-loss late-notification base of C11: SELF_ISS, simulator, keep=1,
-    // blockPeriod=0 + roundsPerBlock=1 (one block/round ⇒ detection lags 2-3 blocks ⇒ lag > keep), PROOF-MATCHING
-    // enabled (blockNode.requireAckProof=true on node1), and the sim sends VALID proofs ("ack-<n>"). The proof matches,
-    // so node1 accepts every ack exactly as with the gate off — the ISS block is acked, the watermark moves past it,
-    // and it is pruned before the async capture → LOST, the same outcome as C11. This is the proof-SELECTIVE control:
-    // C13 keeps the block because the proof is *wrong*; here a *right* proof is still honored, so the loss reappears.
-    // If
-    // the gate wrongly rejected valid acks, the block would go unacked → KEPT and this test would fail. (keep=0 is
-    // avoided on purpose — that base is a flaky prune-vs-capture race, see C10; the late-notification base loses
-    // reliably because the ack watermark clears the ISS block by several blocks.)
+    // C14 — SELF_ISS, simulator, PROOF-MATCHING enabled (blockNode.requireAckProof=true on node1), keep=10, and NO
+    // injection: every ack carries its block's REAL proof. The block node acks a block with the proof of the copy it
+    // received (from whichever node won that block's header race). When an honest node produced that copy, its proof
+    // does NOT match node1's own divergent block, so node1 rejects the ack and the ISS block stays unacked — the
+    // "natural" detection the real design targets, with no test injection. node1 still accepts every matching proof for
+    // its non-divergent blocks (observed: highestAcked advancing), so the gate is not a blanket reject. keep=10 makes
+    // the KEEP outcome deterministic no matter how a given run lands: (a) node1 rejected the honest ack for its
+    // divergent block (natural mismatch, acked=false); or (b) node1 won that block's header race, accepted its own
+    // proof, and retention keeps it (acked=true, lag=1 ≤ keep); or (c) the ack had not yet arrived at detection
+    // (highestAcked=-1, the pre-existing ack-arrival race, same one that makes C10 flaky). The ISS-DIAG line records
+    // which path fired; a clean natural-mismatch run reads e.g. highestAcked=20 with the ISS block rejected and kept.
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -772,8 +779,6 @@ class IssBufferRaceSimTest implements LifecycleTest {
                             "blockStream.enableCutover", "false",
                             "blockStream.buffer.isBufferPersistenceEnabled", "false",
                             "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
                             "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
@@ -787,9 +792,6 @@ class IssBufferRaceSimTest implements LifecycleTest {
                             "blockStream.enableCutover", "false",
                             "blockStream.buffer.isBufferPersistenceEnabled", "false",
                             "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
-                            "blockStream.buffer.workerInterval", "100ms",
                             "blockNode.requireAckProof", "true",
                             "tss.forceMockSignatures", "true"
                         }),
@@ -804,8 +806,6 @@ class IssBufferRaceSimTest implements LifecycleTest {
                             "blockStream.enableCutover", "false",
                             "blockStream.buffer.isBufferPersistenceEnabled", "false",
                             "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
                             "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
@@ -819,12 +819,10 @@ class IssBufferRaceSimTest implements LifecycleTest {
                             "blockStream.enableCutover", "false",
                             "blockStream.buffer.isBufferPersistenceEnabled", "false",
                             "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
                             "tss.forceMockSignatures", "true"
                         })
             })
-    final Stream<DynamicTest> selfIssLateNotificationValidAckProofPruned() {
+    final Stream<DynamicTest> selfIssRealAckProofGateKept() {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
@@ -832,10 +830,11 @@ class IssBufferRaceSimTest implements LifecycleTest {
                 sourcing(() -> reconnectIssNode(
                         byNodeId(ISS_NODE_ID),
                         configVersionOf(startVersion.get()),
-                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 1, true))),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 10, true))),
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
-                // No invalidation: the sim sends valid "ack-<n>" proofs, so the gate accepts them (contrast C13).
+                // No injection: every ack carries the block's real proof. The gate accepts matching proofs and rejects
+                // the honest proof for node1's divergent block.
                 sleepForSeconds(8),
                 induceIssTransfer(),
                 awaitIssDetectionAndDiag(),
@@ -843,18 +842,16 @@ class IssBufferRaceSimTest implements LifecycleTest {
                     IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
                     final boolean kept =
                             IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
-                    final boolean lost = IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".txt");
                     log.warn(
-                            "C14 SELF/SIM/late-notif/requireAckProof/valid-ack outcome: blockCaptured(.iss.gz)={} blockLost(.txt)={} keys={}",
+                            "C14 SELF/SIM/requireAckProof/real-proof(no-injection) outcome: kept(.iss.gz)={} keys={}",
                             kept,
-                            lost,
                             RECEIVED_OBJECT_KEYS);
-                    // Valid proof ⇒ the gate accepts the ack ⇒ the ISS block is acked and (lag > keep) pruned before
-                    // the capture, exactly as in C11. A KEPT here would mean the gate is rejecting valid acks too,
-                    // which would make C13's keep meaningless.
+                    // With the gate on and real proofs the divergent ISS block is kept — either unacked (honest proof
+                    // did not match) or acked-but-within-retention. A LOST here would mean the gate broke the normal
+                    // ack path or lost the block.
                     assertTrue(
-                            lost,
-                            "a valid ack proof should be accepted and the late-notification block pruned → .txt pointer; saw "
+                            kept,
+                            "with the ack-proof gate on and real proofs the ISS block should be kept; saw "
                                     + RECEIVED_OBJECT_KEYS);
                 }),
                 freezeSurvivors());

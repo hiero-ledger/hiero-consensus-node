@@ -70,7 +70,7 @@ tasks.named("extractProto") {
                         Regex(
                             "(message BlockAcknowledgement \\{[\\s\\S]*?uint64 block_number = 1;)"
                         ),
-                        "$1\n\n        // Mock block proof (test-only): \"ack-\" + block_number on a valid ack.\n        string block_proof = 2;",
+                        "$1\n\n        // Mock block proof (test-only): the block's serialized BlockProof bytes on a valid ack.\n        bytes block_proof = 2;",
                     )
                 if (patched == text) {
                     throw GradleException(

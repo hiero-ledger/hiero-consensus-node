@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
@@ -101,6 +102,11 @@ public class SimulatedBlockNodeServer {
     private final Set<Long> invalidAckBlocks = ConcurrentHashMap.newKeySet();
     private final Map<Long, Integer> ackDelayBlocks = new ConcurrentHashMap<>();
     private final Set<Long> releasedDelayedAcks = ConcurrentHashMap.newKeySet();
+
+    // The real serialized BlockProof received for each block (from the stream that "owns" it — the header-race winner).
+    // Echoed back verbatim in that block's acknowledgement so the CN can compare it to its own block's proof; when the
+    // block is flagged invalid the ack instead carries deterministic garbage that no real proof equals.
+    private final Map<Long, Bytes> blockProofByNumber = new ConcurrentHashMap<>();
 
     // Store block items per block number for later retrieval (e.g., by StreamValidationOp)
     private static final int MAX_STORED_BLOCKS = 10_000;
@@ -577,6 +583,15 @@ public class SimulatedBlockNodeServer {
                                                                 .get(blockNumber)
                                                                 .hashCode()
                                                         : "none");
+                                    } else {
+                                        // Owner stream: remember the real serialized proof so this block's ack can
+                                        // echo it back for the CN to compare against its own block's proof.
+                                        blockProofByNumber.put(blockNumber, BlockProof.PROTOBUF.toBytes(proof));
+                                        while (blockProofByNumber.size() > MAX_STORED_BLOCKS) {
+                                            blockProofByNumber.keySet().stream()
+                                                    .min(Long::compareTo)
+                                                    .ifPresent(blockProofByNumber::remove);
+                                        }
                                     }
                                 }
 
@@ -1193,8 +1208,11 @@ public class SimulatedBlockNodeServer {
             return;
         }
 
-        final String proof =
-                invalidAckBlocks.contains(blockNumber) ? "invalid-ack-" + blockNumber : "ack-" + blockNumber;
+        // Echo the block's real proof (captured when the owning stream sent it). A flagged-invalid block instead
+        // carries deterministic garbage that no real BlockProof serialization equals, so the CN's match fails.
+        final Bytes realProof = blockProofByNumber.getOrDefault(blockNumber, Bytes.EMPTY);
+        final Bytes proof =
+                invalidAckBlocks.contains(blockNumber) ? Bytes.wrap("invalid-proof-" + blockNumber) : realProof;
         final BlockAcknowledgement ack = BlockAcknowledgement.newBuilder()
                 .blockNumber(blockNumber)
                 .blockProof(proof)

@@ -10,6 +10,8 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BE
 import com.hedera.hapi.block.internal.BlockItemSetBytes;
 import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats.HighLatencyResult;
 import com.hedera.node.app.blocks.impl.streaming.BlockState.BufferedItem;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
@@ -19,6 +21,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.UncheckedIOException;
@@ -305,18 +308,18 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
         logger.debug("{} BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
-        // Mark the block acknowledged (and thus eligible for pruning) only if the ack's proof matches. When
-        // blockNode.requireAckProof is off (production default), the ack is accepted by block number alone.
+        // Mark the block acknowledged (and thus eligible for pruning) only if the ack's proof matches this node's own
+        // block proof. When blockNode.requireAckProof is off (production default), the ack is accepted by block number
+        // alone. On a self-ISS the block node's ack carries the honest block's proof, which does not match this node's
+        // divergent block — so the divergent block is never acked and thus never pruned.
         final boolean ackProofValid = !bncConfig().requireAckProof()
-                || ("ack-" + acknowledgedBlockNumber).equals(acknowledgement.blockProof());
+                || ackProofMatchesOwnBlock(acknowledgedBlockNumber, acknowledgement.blockProof());
         if (ackProofValid) {
             acknowledgeBlocks(acknowledgedBlockNumber, true);
         } else {
             logger.warn(
-                    "{} Ignoring acknowledgement for block {}: proof '{}' does not match expected 'ack-{}'",
+                    "{} Ignoring acknowledgement for block {}: ack proof does not match this node's own block proof",
                     this,
-                    acknowledgedBlockNumber,
-                    acknowledgement.blockProof(),
                     acknowledgedBlockNumber);
         }
 
@@ -346,6 +349,45 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             sendEndStream(TIMEOUT);
             close(CloseReason.BLOCK_NODE_HIGH_LATENCY, true);
         }
+    }
+
+    /**
+     * Returns whether the acknowledgement's proof matches this node's own proof for the given block. On a self-ISS the
+     * block node acknowledges the honest block's proof, which will not match this (diverging) node's own block — so the
+     * divergent block is never marked acknowledged and thus never pruned. Test-only path, gated by
+     * {@code blockNode.requireAckProof}.
+     *
+     * @param blockNumber the acknowledged block number
+     * @param ackProof the proof carried by the acknowledgement
+     * @return true if this node has the block buffered and its proof matches {@code ackProof}
+     */
+    private boolean ackProofMatchesOwnBlock(final long blockNumber, @NonNull final Bytes ackProof) {
+        final Bytes ownProof = ownBlockProof(blockNumber);
+        return ownProof != null && ownProof.equals(ackProof);
+    }
+
+    /**
+     * Extracts this node's own serialized {@link BlockProof} for the given block from the in-memory buffer.
+     *
+     * @param blockNumber the block whose proof to extract
+     * @return the serialized proof, or null if the block or its proof is not (or no longer) buffered
+     */
+    private @Nullable Bytes ownBlockProof(final long blockNumber) {
+        final BlockState blockState = blockBufferService.getBlockState(blockNumber);
+        if (blockState == null) {
+            return null;
+        }
+        // The proof is the final item of a closed block; scan from the end.
+        for (int i = blockState.itemCount() - 1; i >= 0; i--) {
+            final BufferedItem bufferedItem = blockState.bufferedItem(i);
+            if (bufferedItem != null && bufferedItem.isProof()) {
+                final BlockItem item = blockState.blockItem(i);
+                if (item != null && item.hasBlockProof()) {
+                    return BlockProof.PROTOBUF.toBytes(item.blockProof());
+                }
+            }
+        }
+        return null;
     }
 
     private void updateAcknowledgementMetrics(final long acknowledgedBlockNumber) {
