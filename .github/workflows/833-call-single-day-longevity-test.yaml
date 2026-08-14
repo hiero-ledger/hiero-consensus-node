@@ -43,6 +43,16 @@ on:
         required: true
         description: "Expected duration of all tests in minutes"
         type: number
+      bnref:
+        description: "BN version"
+        type: string
+        required: true
+        default: ""
+      nlg-version:
+        required: true
+        default: "0.14.3"
+        description: "NLG Version:"
+        type: string
       chewie-request-timeout:
         required: true
         description: "Chewie request timeout in seconds"
