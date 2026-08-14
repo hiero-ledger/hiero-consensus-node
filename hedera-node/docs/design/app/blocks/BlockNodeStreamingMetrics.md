@@ -63,6 +63,7 @@ with "conn" for identification.
 | `blockStream_conn_connClose_newConnection`              | Counter         | Number of connections closed because another connection was created and preempted the existing one          |
 | `blockStream_conn_connClose_shutdown`                   | Counter         | Number of connections closed because the connection manager is shutting down                                |
 | `blockStream_conn_connClose_unknown`                    | Counter         | Number of connections closed for unknown reasons                                                            |
+| `blockStream_conn_connClose_timeout`                    | Counter         | Number of connections closed because of too many timeouts while sending requests to the block node          |
 
 ## Connection Receive Metrics
 
