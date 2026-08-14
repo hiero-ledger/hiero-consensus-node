@@ -16,16 +16,17 @@ import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.BlockHashOperation;
 import org.hyperledger.besu.evm.operation.Operation;
 
@@ -217,7 +218,7 @@ class BEVM {
     //
     ExceptionalHaltReason push(Address adr) {
         if (adr == null) return push0();
-        byte[] bs = adr.toArrayUnsafe();
+        byte[] bs = adr.getBytes().toArrayUnsafe();
         assert bs.length == 20;
         long val0 = 0;  for( int i = 0; i < 8; i++) val0 = (val0 << 8) | (bs[12 + i] & 0xFF);
         long val1 = 0;  for( int i = 0; i < 8; i++) val1 = (val1 << 8) | (bs[ 4 + i] & 0xFF);
@@ -1179,7 +1180,7 @@ class BEVM {
 
         AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0(); // No account, zero code size
-        return push32(acct.getCodeHash().toArrayUnsafe());
+        return push32(acct.getCodeHash().getBytes().toArrayUnsafe());
     }
 
     boolean assertValidSolidity(Address adr) {
@@ -1350,7 +1351,7 @@ class BEVM {
                   soughtBlock >= currentBlockNumber - blockHashLookup.getLookback()/*256*/) )
                 return push0();
             var blockHash = blockHashLookup.apply(_frame, soughtBlock);
-            return push32(blockHash.toArrayUnsafe());
+            return push32(blockHash.getBytes().toArrayUnsafe());
         }
 
         // assume custom from TransactionExecutorsTest
@@ -1410,7 +1411,7 @@ class BEVM {
         if( !(0 <= idx && idx < verHashes.size()) )
             return push0();
         var verHash = verHashes.get(idx);
-        return push((UInt256) verHash.toBytes());
+        return push((UInt256) verHash.getBytes());
     }
 
     private ExceptionalHaltReason blobBaseFee() {
@@ -1594,7 +1595,7 @@ class BEVM {
 
         ArrayList<LogTopic> ary = new ArrayList<>();
         for (int i = 0; i < ntopics; i++)
-            ary.add(LogTopic.create(popBytes()));
+            ary.add(LogTopic.create((Bytes32) popBytes()));
 
         // Since these are consumed by mirror nodes, which always want to know the Hedera id
         // of the emitting contract, we always resolve to a long-zero address for the log
@@ -1623,7 +1624,7 @@ class BEVM {
     // Returns true if the address lower 8 bytes, treated as a long, are
     // grandfathered accounts.
     private boolean contractRequired(Address address) {
-        byte[] bs = address.toArrayUnsafe();
+        byte[] bs = address.getBytes().toArrayUnsafe();
         Long longZeroAddr = ConversionUtils.isLongZeroAddress(bs)
             ? ConversionUtils.numberOfLongZero(bs)
             : null;
