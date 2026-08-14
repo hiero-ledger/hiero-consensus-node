@@ -112,7 +112,8 @@ public final class EthereumTransactionRollbackHandler implements HandleException
                             && account.accountId() != null) {
                         final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
                                 .accountIDToUpdate(account.accountId())
-                                .delegationAddress(tuweniToPbjBytes(delegation.delegationTarget()))
+                                .delegationAddress(tuweniToPbjBytes(
+                                        delegation.delegationTarget().getBytes()))
                                 .build();
                         final var dispatchOpts = stepDispatch(
                                 handleContext.payer(),
@@ -143,13 +144,13 @@ public final class EthereumTransactionRollbackHandler implements HandleException
                             : rootProxyWorldUpdater.lazyCreationCostInGas(delegation.authorityAddress());
                     if (remainingLazyCreationGas >= lazyCreationCost) {
                         final var cryptoCreateTxn = synthAccountCreationWithKeyAndCodeDelegation(
-                                tuweniToPbjBytes(delegation.authorityAddress()),
+                                tuweniToPbjBytes(delegation.authorityAddress().getBytes()),
                                 Key.newBuilder()
                                         .ecdsaSecp256k1(Bytes.wrap(delegation
                                                 .authorityEcdsaPublicKey()
                                                 .toArray()))
                                         .build(),
-                                tuweniToPbjBytes(delegation.delegationTarget()),
+                                tuweniToPbjBytes(delegation.delegationTarget().getBytes()),
                                 unlimitedAutoAssociationsEnabled);
                         final var dispatchOpts = stepDispatch(
                                 handleContext.payer(),

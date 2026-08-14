@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto;
+package org.hiero.consensus.fakes.crypto;
 
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
@@ -25,7 +25,6 @@ import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.futures.FutureUtils;
 import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
-import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningFactory;
 import org.hiero.base.crypto.SigningSchema;
@@ -162,22 +161,6 @@ public class KeysAndCertsGenerator {
             threadPool.shutdown();
             return keysAndCerts;
         }
-    }
-
-    /**
-     * Generates a new agreement key pair using {@link SecureRandom#getInstanceStrong()} as the CSPRNG.
-     *
-     * @return the generated agreement key pair
-     */
-    @NonNull
-    public static KeyPair generateAgreementKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
-        // getInstanceStrong() is no longer blocking - https://blogs.oracle.com/linux/post/rngd1
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-        // generate the agreement key pair
-        final KeyPairGenerator keyPairGenerator =
-                KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
-        keyPairGenerator.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, secureRandom);
-        return keyPairGenerator.generateKeyPair();
     }
 
     private static byte[] intToBytes(final int value) {

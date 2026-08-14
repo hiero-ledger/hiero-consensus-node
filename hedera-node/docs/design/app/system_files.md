@@ -1,6 +1,6 @@
 # System Files
 
-| Name                | FileNum *) | Record                      | Handling Class        |
+|        Name         | FileNum *) |           Record            |    Handling Class     |
 |---------------------|------------|-----------------------------|-----------------------|
 | addressBook         | 101        | `NodeAddressBook`           | N/A                   |
 | nodeDetails         | 102        | `NodeAddressBook`           | N/A                   |

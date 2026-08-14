@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle;
+package org.hiero.otter.fixtures.internal.simulator;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -9,17 +9,15 @@ import java.util.function.Supplier;
 
 /**
  * A utility for building random number generators.
+ *
+ * <p>Simulated environments must never use {@link SecureRandom#SecureRandom()}: the default provider is
+ * {@code NativePRNG}, which draws from the operating system and ignores {@link SecureRandom#setSeed(long)} for the
+ * purpose of reproducibility. This builder pins {@code SHA1PRNG}, whose output is a pure function of the seed, so a
+ * simulation that consumes it stays replayable.
  */
 public class SecureRandomBuilder implements Supplier<SecureRandom> {
 
     private final Random seedSource;
-
-    /**
-     * Constructor. Random seed is used.
-     */
-    public SecureRandomBuilder() {
-        seedSource = new Random();
-    }
 
     /**
      * Constructor.

@@ -25,7 +25,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public final class SystemContractUtils {
     public static final String HTS_PRECOMPILED_CONTRACT_ADDRESS = "0x167";
     public static final ContractID HTS_PRECOMPILE_MIRROR_ID = contractIdFromEvmAddress(
-            Address.fromHexString(HTS_PRECOMPILED_CONTRACT_ADDRESS).toArrayUnsafe());
+            Address.fromHexString(HTS_PRECOMPILED_CONTRACT_ADDRESS).getBytes().toArrayUnsafe());
 
     private SystemContractUtils() {
         throw new UnsupportedOperationException("Utility Class");
