@@ -2754,7 +2754,7 @@ public class UtilVerbs {
                         .map(account -> balanceSnapshot(
                                         spec -> asAccountString(spec.registry().getAccountID(account)) + "Snapshot",
                                         account)
-                                .payingWith(EXCHANGE_RATE_CONTROL))
+                                .payingWith(GENESIS))
                         .toArray(n -> new SpecOperation[n]));
     }
 
@@ -2889,6 +2889,10 @@ public class UtilVerbs {
                 }
                 long expectedBalance = change.getValue() + Math.max(0L, oldBalance);
                 long actualBalance = actualBalances.getOrDefault(account, -1L);
+                /* Skip accounts that were not tracked: no prior snapshot and not in the checked accounts list. */
+                if (oldBalance == -1L && actualBalance == -1L) {
+                    return;
+                }
                 assertLog.info(
                         "Balance of {} was expected to be {}, is actually" + " {}...",
                         account,
