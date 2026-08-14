@@ -498,6 +498,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void cannotLazyCreateOverExpiredAccount() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).expiredAndPendingRemoval(true));
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
@@ -700,12 +701,14 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void missingAliasIsNotHollow() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
     }
 
     @Test
     void missingAccountIsNotHollow() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
@@ -717,6 +720,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void extantAccountIsHollowOnlyIfHasAnEmptyKey() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
