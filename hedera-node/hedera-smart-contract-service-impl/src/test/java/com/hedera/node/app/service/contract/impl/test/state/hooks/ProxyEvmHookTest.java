@@ -16,7 +16,6 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.hooks.ProxyEvmHook;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import org.apache.tuweni.bytes.Bytes;
@@ -48,7 +47,7 @@ class ProxyEvmHookTest {
                 .hookContractId(hookContractId)
                 .build();
         final Bytes hookContractCode = Bytes.fromHexString("0x6001600055");
-        final Code expectedCode = TestHelpers.CODE_FACTORY.createCode(hookContractCode);
+        final Code expectedCode = new Code(hookContractCode);
         final Hash expectedHash = expectedCode.getCodeHash();
 
         given(state.getCode(hookContractId)).willReturn(hookContractCode);

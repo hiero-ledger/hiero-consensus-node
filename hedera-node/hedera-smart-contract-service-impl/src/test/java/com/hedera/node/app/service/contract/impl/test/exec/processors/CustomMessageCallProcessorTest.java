@@ -150,7 +150,8 @@ class CustomMessageCallProcessorTest {
         subject.start(frame, operationTracer);
 
         Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
-        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(prngPrecompile)
+                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
         verify(result).isRefundGas();
         verify(frame).decrementRemainingGas(GAS_REQUIREMENT);
         verify(frame).setOutputData(OUTPUT_DATA);
@@ -173,7 +174,8 @@ class CustomMessageCallProcessorTest {
 
         // Unlike a native precompile, a system contract's computeFully() has already run by the time the
         // affordability check fails - so the work was really performed and must still be metered.
-        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(prngPrecompile)
+                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
         Assertions.assertEquals(
                 GAS_REQUIREMENT,
                 opsDurationTestCounter.opsDurationUnitsConsumed(),
@@ -414,7 +416,7 @@ class CustomMessageCallProcessorTest {
         given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
         final var eoaAddress = Address.fromHexString("0x1234");
         final var eoaAccount = mock(AbstractMutableEvmAccount.class);
-        given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6));
+        given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6.getBytes()));
         given(proxyWorldUpdater.get(eoaAddress)).willReturn(eoaAccount);
         given(frame.getContractAddress()).willReturn(eoaAddress);
         given(frame.getInputData()).willReturn(Bytes.EMPTY);
@@ -436,7 +438,7 @@ class CustomMessageCallProcessorTest {
         given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
         final var eoaAddress = Address.fromHexString("0x1234");
         final var eoaAccount = mock(AbstractMutableEvmAccount.class);
-        given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6));
+        given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6.getBytes()));
         given(proxyWorldUpdater.get(eoaAddress)).willReturn(eoaAccount);
         given(frame.getContractAddress()).willReturn(eoaAddress);
         given(frame.getRecipientAddress()).willReturn(eoaAddress);
@@ -503,7 +505,7 @@ class CustomMessageCallProcessorTest {
 
     private void givenPrngCall(long gasRequirement) {
         givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
-        given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
+        given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes());
         given(prngPrecompile.computeFully(any(), any(), any()))
                 .willReturn(new FullResult(result, gasRequirement, null));
     }
