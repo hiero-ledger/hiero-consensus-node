@@ -57,6 +57,11 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
      */
     @Override
     protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+        final boolean limited = connections.values().stream()
+                .anyMatch(state -> !state.bandwidthLimit().isUnlimited());
+        if (limited) {
+            throw new UnsupportedOperationException("Bandwidth limits are not supported in this environment.");
+        }
         simulatedNetwork.setConnections(connections);
     }
 
