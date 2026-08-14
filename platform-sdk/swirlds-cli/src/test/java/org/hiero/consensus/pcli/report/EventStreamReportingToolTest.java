@@ -11,9 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Deque;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -56,7 +54,7 @@ class EventStreamReportingToolTest {
         final Duration eventStreamWindowSize = Duration.ofSeconds(1);
 
         // generate consensus events
-        final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
+        final List<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
                 DEFAULT_CONFIGURATION, DEFAULT_METRICS, DEFAULT_TIME, numNodes, numEvents, random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
@@ -67,8 +65,7 @@ class EventStreamReportingToolTest {
                 .filter(r -> r.getRoundNum() >= roundToReportFrom)
                 .mapToInt(ConsensusRound::getNumEvents)
                 .sum();
-        final List<PlatformEvent> lastRound =
-                Optional.ofNullable(rounds.peekLast()).orElseThrow().getConsensusEvents();
+        final List<PlatformEvent> lastRound = rounds.getLast().getConsensusEvents();
         final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
 
         // write event stream
@@ -98,7 +95,7 @@ class EventStreamReportingToolTest {
         final Duration eventStreamWindowSize = Duration.ofSeconds(1);
 
         // generate consensus events
-        final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
+        final List<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
                 DEFAULT_CONFIGURATION, DEFAULT_METRICS, DEFAULT_TIME, numNodes, numEvents, random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
@@ -117,8 +114,7 @@ class EventStreamReportingToolTest {
                 })
                 .mapToInt(ConsensusRound::getNumEvents)
                 .sum();
-        final List<PlatformEvent> lastRound =
-                Optional.ofNullable(rounds.peekLast()).orElseThrow().getConsensusEvents();
+        final List<PlatformEvent> lastRound = rounds.getLast().getConsensusEvents();
         final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
 
         // write event stream
