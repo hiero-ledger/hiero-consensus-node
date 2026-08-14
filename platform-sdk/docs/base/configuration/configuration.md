@@ -406,6 +406,16 @@ address a single property rather than a nested group. A `property` that matches 
 fails the build, and the error lists the properties that do exist, so a typo or a missed renaming is reported instead of
 being silently ignored. The annotation processor reports the same mistake at compile time.
 
+A dot can just as well be part of a single property name, since `@ConfigProperty(value = "foo.bar")` is a common way of
+grouping properties without a nested record. Both readings of a `property` are therefore tried, so such a name is
+addressable as it is spelled. Where both readings resolve, the `@ConfigDefault` matches two properties and the build
+fails rather than one of them being picked silently.
+
+Two `@ConfigDefault` annotations of one component must not address the same property, since one of the two values would
+simply be dropped. That is rejected rather than given a precedence, so that the value the application uses and the
+value the annotation processor documents can not drift apart. An annotation of an *enclosing* config data record
+addressing the same property is not a duplicate — that is the override described above and keeps working.
+
 ### Validating values of a config data record
 
 The config API provides some annotations that can be used to validate values of properties that are defined in a config

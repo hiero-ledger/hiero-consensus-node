@@ -14,9 +14,11 @@ import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -103,6 +105,11 @@ public final class ConfigReflectionUtils {
     /**
      * Returns all properties that are annotated with the given constraint annotation. The annotation itself can be read
      * from a returned property by {@link ConfigDataProperty#annotation(Class)}.
+     * <p>
+     * An annotated property is found wherever it is declared, including below a config data object that lives in a
+     * package its module does not export to this one. The value of such a property can not be read, so
+     * {@link ConfigDataProperty#propertyValue()} fails for it rather than the property being left out, which would read
+     * like a constraint that holds.
      *
      * @param constraintAnnotationType the type of the constraint annotation
      * @param configuration            the configuration that should be used for the search
@@ -131,7 +138,8 @@ public final class ConfigReflectionUtils {
      * <p>
      * The value of a property is read on demand by {@link ConfigDataProperty#propertyValue()}, so collecting the
      * properties does not access any config data object. A config data object that lives in a package its module does
-     * not export to this one is therefore still reported, but reading the value of one of its properties fails.
+     * not export to this one is therefore still reported, with every property below it, but reading the value of one
+     * of its properties fails.
      *
      * @param configuration the configuration
      * @return all properties of all registered config data objects as stream, including the properties of nested config data objects
@@ -273,17 +281,70 @@ public final class ConfigReflectionUtils {
             // Reading the value is the only way to walk into a record, so a component that is not walked into is left
             // alone and a caller that is only interested in the metadata of a property never causes the value to be
             // read.
-            //
-            // The accessibility is checked first since a config data object may live in a package that its module does
-            // not export to this one. Nothing inside such a record can be read either, so there is nothing to report
-            // for it and it is treated as a leaf. A nested config data object can default to null, so the pattern
-            // match doubles as the null check.
             final boolean descend =
                     traversal == Traversal.ALL_COMPONENTS ? component.getType().isRecord() : nested;
-            if (descend
-                    && component.getAccessor().canAccess(recordInstance)
-                    && getPropertyValue(component, recordInstance) instanceof final Record nestedInstance) {
+            if (!descend) {
+                return property;
+            }
+
+            // A config data object may live in a package that its module does not export to this one, and reading a
+            // value is the only way to walk into it. What would be dropped then is not the value of a property but the
+            // properties themselves, so the walk continues on the record type, which knows every name without any
+            // value being read. Whether that is enough is up to the caller: the properties are reported without an
+            // owner, so reading one of them fails while finding them does not.
+            if (!component.getAccessor().canAccess(recordInstance)) {
+                return Stream.concat(
+                        property, collectProperties(propertyName, component.getType(), traversal, Set.of()));
+            }
+
+            // a nested config data object can default to null, so the pattern match doubles as the null check
+            if (getPropertyValue(component, recordInstance) instanceof final Record nestedInstance) {
                 return Stream.concat(property, collectProperties(propertyName, nestedInstance, traversal));
+            }
+            return property;
+        });
+    }
+
+    /**
+     * Collects the properties of the given record type without reading any value, for a record instance that can not be
+     * accessed. The properties are reported with the names they have, since those follow from the type alone, and
+     * without an owner, so that {@link ConfigDataProperty#propertyValue()} fails for them.
+     * <p>
+     * Unlike the walk over the object graph this one has to stop at a repeated type on its own. A null value ends the
+     * walk over an object graph, while a record type that contains itself is unbounded here. A nested config data
+     * object can not do that, since the creation of a cycle of them fails, but a record that a converter populates can,
+     * and {@link Traversal#ALL_COMPONENTS} walks into those as well.
+     *
+     * @param namePrefix   the property name prefix of the given record type
+     * @param recordType   the record type to collect the properties from
+     * @param traversal    which record components to report
+     * @param visitedTypes the record types that are currently being walked
+     * @return all properties of the given record type and of all records below it
+     */
+    private static Stream<ConfigDataProperty> collectProperties(
+            final String namePrefix,
+            final Class<?> recordType,
+            final Traversal traversal,
+            final Set<Class<?>> visitedTypes) {
+        if (visitedTypes.contains(recordType)) {
+            return Stream.empty();
+        }
+        final Set<Class<?>> visited = new HashSet<>(visitedTypes);
+        visited.add(recordType);
+
+        return Arrays.stream(recordType.getRecordComponents()).flatMap(component -> {
+            final String propertyName = getPropertyNameForConfigDataProperty(namePrefix, component);
+            final boolean nested = isNestedConfig(component.getType());
+
+            final Stream<ConfigDataProperty> property = traversal == Traversal.ALL_COMPONENTS || !nested
+                    ? Stream.of(new ConfigDataProperty(propertyName, component, null))
+                    : Stream.empty();
+
+            final boolean descend =
+                    traversal == Traversal.ALL_COMPONENTS ? component.getType().isRecord() : nested;
+            if (descend) {
+                return Stream.concat(
+                        property, collectProperties(propertyName, component.getType(), traversal, visited));
             }
             return property;
         });
@@ -326,7 +387,9 @@ public final class ConfigReflectionUtils {
      * @param propertyName the full name of the property, including the prefixes of all enclosing config data objects
      * @param component    the record component that defines the property
      * @param owner        the record instance that declares the property. For a property of a nested config data
-     *                     object this is the nested record instance and not the root config data object
+     *                     object this is the nested record instance and not the root config data object. It is null
+     *                     for a property that was found without any value being read, which happens below a config
+     *                     data object that lives in a package its module does not export to this one
      */
     public record ConfigDataProperty(String propertyName, RecordComponent component, Record owner) {
 
@@ -335,8 +398,17 @@ public final class ConfigReflectionUtils {
          * metadata of a property never accesses the config data object it belongs to.
          *
          * @return the value of the property
+         * @throws IllegalArgumentException if the value can not be read, which is the case for every property of a
+         *                                  config data object that lives in a package its module does not export to
+         *                                  this one
          */
         public Object propertyValue() {
+            if (owner == null) {
+                throw new IllegalArgumentException("Can not read the value of the property '" + propertyName
+                        + "', since the config data object that declares it lives in a package that its module does"
+                        + " not export to '"
+                        + ConfigReflectionUtils.class.getModule().getName() + "'");
+            }
             return getPropertyValue(component, owner);
         }
 

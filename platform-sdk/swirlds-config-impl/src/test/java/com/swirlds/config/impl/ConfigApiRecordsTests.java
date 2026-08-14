@@ -1002,6 +1002,136 @@ class ConfigApiRecordsTests {
         public record Leaf(String value, String other) {}
     }
 
+    /**
+     * A dot separates the segments of the path to a more deeply nested property, and it can just as well be part of a
+     * single name that {@link ConfigProperty#value()} defines. Both readings have to be addressable, since a dotted
+     * property name is a common way of grouping properties without a nested record.
+     */
+    @Nested
+    class NestedRecordDefaultsForAPropertyNameContainingADot {
+
+        @Test
+        void testDefaultIsAppliedToTheLeafWhoseNameContainsTheDot() {
+            Configuration configuration =
+                    ConfigurationBuilder.create().withConfigDataType(Root.class).build();
+
+            assertEquals(
+                    "fromSite", configuration.getConfigData(Root.class).leaf().value());
+        }
+
+        @Test
+        void testDefinedValueStillBeatsTheDefault() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.foo.bar", "defined")
+                    .withConfigDataType(Root.class)
+                    .build();
+
+            assertEquals(
+                    "defined", configuration.getConfigData(Root.class).leaf().value());
+        }
+
+        /**
+         * Where both readings resolve there is no way to tell which one was meant, so neither is silently picked.
+         */
+        @Test
+        void testAmbiguousPathIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(AmbiguousRoot.class);
+
+            verifyBuildFails(builder, "root.ambiguous.foo.bar", "matches more than one property");
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigDefault(property = "foo.bar", defaultValue = "fromSite")
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(value = "foo.bar") String value) {}
+
+        @ConfigData("root")
+        public record AmbiguousRoot(
+                @ConfigDefault(property = "foo.bar", defaultValue = "fromSite")
+                Ambiguous ambiguous) {}
+
+        @NestedConfig
+        public record Ambiguous(
+                @ConfigProperty(value = "foo.bar") String flat,
+                @ConfigProperty(value = "foo") Nested nested) {}
+
+        @NestedConfig
+        public record Nested(@ConfigProperty(value = "bar") String bar) {}
+    }
+
+    /**
+     * Two annotations may address the same property, and there is no reading of that which is not a mistake: one of the
+     * two values is simply dropped. Rejecting it also keeps the runtime and the annotation processor, which documents
+     * these defaults, from having to agree on a precedence.
+     */
+    @Nested
+    class DuplicateNestedRecordDefaults {
+
+        @Test
+        void testRepeatedAnnotationForOneProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(RepeatedRoot.class);
+
+            verifyBuildFails(builder, "more than one ConfigDefault for the property 'root.leaf.value'");
+        }
+
+        @Test
+        void testListFormForOneProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(ListRoot.class);
+
+            verifyBuildFails(builder, "more than one ConfigDefault for the property 'root.leaf.value'");
+        }
+
+        /**
+         * An entry of an enclosing config data object addressing the same property is not a duplicate. It is the
+         * documented way of overriding a default from further out and has to keep working.
+         */
+        @Test
+        void testEnclosingAnnotationForTheSamePropertyIsNotADuplicate() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(EnclosingRoot.class)
+                    .build();
+
+            assertEquals(
+                    "fromRoot",
+                    configuration
+                            .getConfigData(EnclosingRoot.class)
+                            .middle()
+                            .leaf()
+                            .value());
+        }
+
+        @ConfigData("root")
+        public record RepeatedRoot(
+                @ConfigDefault(property = "value", defaultValue = "first")
+                @ConfigDefault(property = "value", defaultValue = "second")
+                Leaf leaf) {}
+
+        @ConfigData("root")
+        public record ListRoot(
+                @ConfigDefault.List({
+                    @ConfigDefault(property = "value", defaultValue = "first"),
+                    @ConfigDefault(property = "value", defaultValue = "second")
+                })
+                Leaf leaf) {}
+
+        @ConfigData("root")
+        public record EnclosingRoot(
+                @ConfigDefault(property = "leaf.value", defaultValue = "fromRoot")
+                Middle middle) {}
+
+        @NestedConfig
+        public record Middle(
+                @ConfigDefault(property = "value", defaultValue = "fromMiddle")
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(String value) {}
+    }
+
     @Nested
     class NestedRecordDefaultsBeatPropertyDefault {
 
@@ -1202,6 +1332,114 @@ class ConfigApiRecordsTests {
                 Leaf inner) {}
     }
 
+    /**
+     * Absent is the normal state of an optional group, so a group that is only declared wrongly would build on every
+     * node until a config defines one property below it. The mistakes are therefore reported while the group is absent
+     * as well, which is what every test here relies on: none of them defines a property below the group.
+     */
+    @Nested
+    class AbsentOptionalNestedRecordIsStillValidated {
+
+        @Test
+        void testConfigDefaultThatMatchesNoProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(UnknownEntryRoot.class);
+
+            verifyBuildFails(builder, "root.leaf.typo", "does not match any property");
+        }
+
+        @Test
+        void testConfigDefaultUsingTheRecordComponentNameOfARenamedProperty() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(RenamedPropertyRoot.class);
+
+            verifyBuildFails(builder, "root.leaf.value", "Known properties: [root.leaf.renamed]");
+        }
+
+        @Test
+        void testConfigDefaultOfAGroupThatIsItselfNestedInTheAbsentGroup() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(DeepEntryRoot.class);
+
+            verifyBuildFails(builder, "root.outer.inner.typo", "does not match any property");
+        }
+
+        @Test
+        void testCircularReference() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(CircularRoot.class);
+
+            verifyCircularReferenceException(builder);
+        }
+
+        @Test
+        void testNestedRecordThatIsNotPublic() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NotPublicRoot.class);
+
+            verifyBuildFails(builder, "is not public");
+        }
+
+        /**
+         * The validation must not reject a group that is merely absent, which is by far the common case.
+         */
+        @Test
+        void testCorrectlyDeclaredGroupStillStaysNull() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(ValidRoot.class)
+                    .build();
+
+            assertNull(configuration.getConfigData(ValidRoot.class).leaf());
+        }
+
+        @ConfigData("root")
+        public record UnknownEntryRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                @ConfigDefault(property = "typo", defaultValue = "1")
+                Leaf leaf) {}
+
+        @ConfigData("root")
+        public record RenamedPropertyRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                @ConfigDefault(property = "value", defaultValue = "1")
+                RenamedLeaf leaf) {}
+
+        @ConfigData("root")
+        public record DeepEntryRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Outer outer) {}
+
+        @NestedConfig
+        public record Outer(
+                @ConfigDefault(property = "typo", defaultValue = "1")
+                Leaf inner) {}
+
+        @ConfigData("root")
+        public record CircularRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Recursive recursive) {}
+
+        @NestedConfig
+        public record Recursive(Recursive again) {}
+
+        @ConfigData("root")
+        public record NotPublicRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                NotPublicLeaf leaf) {}
+
+        @NestedConfig
+        record NotPublicLeaf(String value) {}
+
+        @ConfigData("root")
+        public record ValidRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                @ConfigDefault(property = "value", defaultValue = "1")
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+
+        @NestedConfig
+        public record RenamedLeaf(
+                @ConfigProperty(value = "renamed") String value) {}
+    }
+
     @Nested
     class NestedConfigIsNotAConfigDataType {
 
@@ -1221,6 +1459,29 @@ class ConfigApiRecordsTests {
             ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(BothAnnotations.class);
 
             verifyBuildFails(builder, NestedConfig.class.getSimpleName(), "never registered on its own");
+        }
+
+        /**
+         * The two annotations describe the two different roles a config record can have, so a record carrying both is a
+         * mistake wherever it turns up. Being rejected only on the registration path would let it through as a
+         * component, where its prefix is silently ignored.
+         */
+        @Test
+        void testRecordWithBothAnnotationsIsRejectedAsANestedComponent() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(BothAnnotationsRoot.class);
+
+            verifyBuildFails(builder, "annotated with both ConfigData and NestedConfig", "mutually exclusive");
+        }
+
+        /**
+         * An optional group is normally absent, so the same mistake has to be reported without the group being created.
+         */
+        @Test
+        void testRecordWithBothAnnotationsIsRejectedAsAnAbsentOptionalComponent() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(OptionalBothAnnotationsRoot.class);
+
+            verifyBuildFails(builder, "annotated with both ConfigData and NestedConfig", "mutually exclusive");
         }
 
         /**
@@ -1246,6 +1507,14 @@ class ConfigApiRecordsTests {
 
         @ConfigData("root")
         public record Root(NestedOnly nested) {}
+
+        @ConfigData("root")
+        public record BothAnnotationsRoot(BothAnnotations nested) {}
+
+        @ConfigData("root")
+        public record OptionalBothAnnotationsRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                BothAnnotations nested) {}
     }
 
     @Nested

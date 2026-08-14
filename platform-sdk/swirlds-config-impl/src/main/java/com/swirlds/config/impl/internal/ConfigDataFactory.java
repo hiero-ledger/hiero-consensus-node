@@ -13,7 +13,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -133,6 +133,9 @@ class ConfigDataFactory {
                     + " registered. A nested config data object is read property by property, so the converter would"
                     + " never be used. Remove one of the two");
         }
+        if (isNestedRecord) {
+            validateIsNotAConfigDataType(name, valueType);
+        }
         if (component.getAnnotationsByType(ConfigDefault.class).length > 0 && !isNestedRecord) {
             throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
                     + " for the property '" + name + "' since '" + valueType
@@ -196,13 +199,6 @@ class ConfigDataFactory {
             @NonNull final Set<Class<?>> circularRefStack,
             @NonNull final DefaultValueOverrides defaultValueOverrides,
             @Nullable final String rawDefaultValue) {
-        if (Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)
-                && !isAnyPropertyDefined(name, component.getType())) {
-            // The group is optional and nothing below it is defined by the config, so it stays null. It is only the
-            // properties below the component that a config source can define, never the component itself, so the whole
-            // group has to be asked about rather than the name of the component.
-            return null;
-        }
         if (rawDefaultValue != null && !Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
             throw new IllegalArgumentException("Can not use a default value for the property '" + name + "' since '"
                     + component.getType() + "' is a nested config data object. Use "
@@ -212,9 +208,22 @@ class ConfigDataFactory {
         // the prefix of a nested config data object is always the name of the property that holds it, so a prefix that
         // the record defines for its own use as a registered config data type is not used here
         final Class<? extends Record> recordType = component.getType().asSubclass(Record.class);
+
+        if (Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)
+                && !isAnyPropertyDefined(name, component.getType())) {
+            // The group is optional and nothing below it is defined by the config, so it stays null. It is only the
+            // properties below the component that a config source can define, never the component itself, so the whole
+            // group has to be asked about rather than the name of the component.
+            //
+            // Absent is the normal state of an optional group, so the group is still checked for the mistakes that
+            // instantiating it would have reported. A group that is only declared wrongly would otherwise build
+            // everywhere until a config defines one property below it.
+            validateNestedSchema(name, component, recordType, circularRefStack);
+            return null;
+        }
+
         validateIsRecord(recordType);
-        validateConfigDefaults(name, component, recordType);
-        defaultValueOverrides.add(name, component);
+        defaultValueOverrides.add(resolveConfigDefaults(name, component, recordType));
 
         try {
             return instantiateRecord(name, recordType, circularRefStack, defaultValueOverrides);
@@ -224,41 +233,164 @@ class ConfigDataFactory {
     }
 
     /**
-     * Checks that every {@link ConfigDefault} of the given nested record component addresses a property that really
-     * exists, since an annotation that matches nothing has no effect and is most likely a typo. The most likely mistake
-     * is using the name of the record component instead of the name it was given by {@link ConfigProperty#value()}, so
-     * the properties that do exist are reported as well.
+     * Checks the whole nested config data object below the given component without creating it, which is what an
+     * optional group that the config does not ask for needs: every mistake that instantiating the group would have
+     * reported has to be reported while it is absent as well.
+     *
+     * @param name             the full name of the nested record component
+     * @param component        the nested record component
+     * @param recordType       the type of the nested record component
+     * @param circularRefStack the record types that are currently being instantiated
+     */
+    private void validateNestedSchema(
+            @NonNull final String name,
+            @NonNull final RecordComponent component,
+            @NonNull final Class<? extends Record> recordType,
+            @NonNull final Set<Class<?>> circularRefStack) {
+        validateIsRecord(recordType);
+        validateIsNotAConfigDataType(name, recordType);
+        resolveConfigDefaults(name, component, recordType);
+
+        if (!circularRefStack.add(recordType)) {
+            throw new IllegalStateException("Circular reference detected for record type '" + recordType + "'");
+        }
+        try {
+            for (final RecordComponent nested : recordType.getRecordComponents()) {
+                if (isNestedRecord(nested.getType())) {
+                    validateNestedSchema(
+                            createPropertyName(name, nested),
+                            nested,
+                            nested.getType().asSubclass(Record.class),
+                            circularRefStack);
+                }
+            }
+        } finally {
+            circularRefStack.remove(recordType);
+        }
+    }
+
+    /**
+     * Checks that the given type of a nested config data object is not a config data type of its own. The two
+     * annotations describe the two different roles a config record can have and are mutually exclusive: a
+     * {@link ConfigData} record is registered and provides the prefix of its properties, while a {@link NestedConfig}
+     * record takes its prefix from the component that holds it, so the prefix would silently be ignored here.
+     *
+     * @param name the full name of the nested record component
+     * @param type the type of the nested record component
+     */
+    private static void validateIsNotAConfigDataType(@NonNull final String name, @NonNull final Class<?> type) {
+        if (type.isAnnotationPresent(ConfigData.class)) {
+            throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + type
+                    + "' is annotated with both " + ConfigData.class.getSimpleName() + " and "
+                    + NestedConfig.class.getSimpleName() + ", which are mutually exclusive. A nested config data object"
+                    + " takes its prefix from the component that holds it, so the prefix of the "
+                    + ConfigData.class.getSimpleName() + " would never be used. Remove one of the two");
+        }
+    }
+
+    /**
+     * Resolves every {@link ConfigDefault} of the given nested record component into the full name of the property it
+     * defines the default value of.
      * <p>
-     * This is checked while the annotation is read instead of afterwards, because a default that does not arrive leaves
+     * An annotation that addresses a property that does not exist has no effect and is most likely a typo, so it fails
+     * here instead. The most likely mistake is using the name of the record component instead of the name it was given
+     * by {@link ConfigProperty#value()}, so the properties that do exist are reported as well.
+     * <p>
+     * This is done while the annotation is read instead of afterwards, because a default that does not arrive leaves
      * the property it was meant for without a value, which would fail with an unrelated error first.
      *
      * @param namePrefix the full name of the nested record component
      * @param component  the nested record component
      * @param recordType the type of the nested record component
+     * @return the default value of every addressed property, keyed by the full name of the property
      */
-    private void validateConfigDefaults(
+    @NonNull
+    private Map<String, String> resolveConfigDefaults(
             @NonNull final String namePrefix,
             @NonNull final RecordComponent component,
             @NonNull final Class<? extends Record> recordType) {
+        final Map<String, String> defaultValuesByPropertyName = new HashMap<>();
         for (final ConfigDefault configDefault : component.getAnnotationsByType(ConfigDefault.class)) {
-            Class<?> owner = recordType;
-            String prefix = namePrefix;
-            for (final String segment : configDefault.property().split("\\.", -1)) {
-                final RecordComponent match = isNestedRecord(owner) ? findComponent(owner, segment) : null;
-                if (match == null) {
-                    throw new IllegalArgumentException("The " + ConfigDefault.class.getSimpleName() + " for '"
-                            + createPropertyName(namePrefix, configDefault.property())
-                            + "' does not match any property. Known properties: " + getPropertyNames(prefix, owner));
+            final String addressed = createPropertyName(namePrefix, configDefault.property());
+            final List<RecordComponent> matches =
+                    findProperties(namePrefix, recordType, configDefault.property(), new HashSet<>());
+
+            final List<RecordComponent> leaves = matches.stream()
+                    .filter(match -> !isNestedRecord(match.getType()))
+                    .toList();
+            if (leaves.size() > 1) {
+                throw new IllegalArgumentException("The " + ConfigDefault.class.getSimpleName() + " for '" + addressed
+                        + "' matches more than one property, since a dot both separates the segments of a property of a"
+                        + " nested config data object and can be part of a single name. Rename one of them.");
+            }
+            if (leaves.isEmpty()) {
+                throw new IllegalArgumentException(
+                        matches.isEmpty()
+                                ? "The " + ConfigDefault.class.getSimpleName() + " for '" + addressed
+                                        + "' does not match any property. Known properties: "
+                                        + getPropertyNames(namePrefix, recordType)
+                                : "The " + ConfigDefault.class.getSimpleName() + " for '" + addressed
+                                        + "' addresses a nested config data object instead of a single property. Address one of"
+                                        + " its properties: "
+                                        + getPropertyNames(
+                                                addressed, matches.getFirst().getType()));
+            }
+
+            // Two annotations may address the same property, and there is no reading of that which is not a mistake:
+            // one of the two values is simply dropped. Rejecting it keeps the runtime and the annotation processor,
+            // which documents these defaults, from having to agree on a precedence.
+            final String clashing = defaultValuesByPropertyName.put(addressed, configDefault.defaultValue());
+            if (clashing != null) {
+                throw new IllegalArgumentException("There is more than one " + ConfigDefault.class.getSimpleName()
+                        + " for the property '" + addressed + "', defining '" + clashing + "' and '"
+                        + configDefault.defaultValue() + "'. Remove one of them.");
+            }
+        }
+        return defaultValuesByPropertyName;
+    }
+
+    /**
+     * Finds the properties that the given path addresses below the given nested config data object.
+     * <p>
+     * A dot has two meanings that can not be told apart by looking at the path alone: it separates the segments of a
+     * property of a more deeply nested record, and it may be part of a single name that {@link ConfigProperty#value()}
+     * defines. Every reading of the path is therefore followed, so that a name containing a dot is addressable and an
+     * ambiguous path can be reported as such instead of one reading silently winning.
+     *
+     * @param namePrefix   the full name of the given record
+     * @param recordType   the type to search in
+     * @param path         the path to resolve, relative to the given record
+     * @param visitedTypes the types that are currently being searched, to stop at a cycle
+     * @return the components the path addresses, which is empty when it addresses none
+     */
+    @NonNull
+    private static List<RecordComponent> findProperties(
+            @NonNull final String namePrefix,
+            @NonNull final Class<?> recordType,
+            @NonNull final String path,
+            @NonNull final Set<Class<?>> visitedTypes) {
+        // a cycle is reported by the schema validation with a message that names the offending type, so here it is
+        // enough to stop walking
+        if (!isNestedRecord(recordType) || !visitedTypes.add(recordType)) {
+            return List.of();
+        }
+        try {
+            final List<RecordComponent> matches = new ArrayList<>();
+            for (final RecordComponent candidate : recordType.getRecordComponents()) {
+                final String segment = getPropertyNameSegment(candidate);
+                if (Objects.equals(segment, path)) {
+                    matches.add(candidate);
+                } else if (path.startsWith(segment + ".")) {
+                    matches.addAll(findProperties(
+                            createPropertyName(namePrefix, segment),
+                            candidate.getType(),
+                            path.substring(segment.length() + 1),
+                            visitedTypes));
                 }
-                prefix = createPropertyName(prefix, segment);
-                owner = match.getType();
             }
-            if (isNestedRecord(owner)) {
-                throw new IllegalArgumentException("The " + ConfigDefault.class.getSimpleName() + " for '"
-                        + createPropertyName(namePrefix, configDefault.property())
-                        + "' addresses a nested config data object instead of a single property. Address one of its"
-                        + " properties: " + getPropertyNames(prefix, owner));
-            }
+            return matches;
+        } finally {
+            visitedTypes.remove(recordType);
         }
     }
 
@@ -272,22 +404,41 @@ class ConfigDataFactory {
         return ConfigReflectionUtils.isNestedConfig(type);
     }
 
-    @Nullable
-    private static RecordComponent findComponent(@NonNull final Class<?> recordType, @NonNull final String segment) {
-        return Arrays.stream(recordType.getRecordComponents())
-                .filter(candidate -> Objects.equals(segment, getPropertyNameSegment(candidate)))
-                .findAny()
-                .orElse(null);
+    /**
+     * Returns the full names of every property below the given nested config data object, so that a
+     * {@link ConfigDefault} that addresses none of them can report what it could have addressed. Only the properties
+     * that a default value can be defined for are listed, so a component that holds a nested config data object is
+     * replaced by the properties below it.
+     *
+     * @param prefix the full name of the given record
+     * @param owner  the nested config data object
+     * @return the full names of the properties below the given record
+     */
+    @NonNull
+    private static Set<String> getPropertyNames(@NonNull final String prefix, @NonNull final Class<?> owner) {
+        return getPropertyNames(prefix, owner, new HashSet<>());
     }
 
     @NonNull
-    private Set<String> getPropertyNames(@NonNull final String prefix, @NonNull final Class<?> owner) {
-        if (!isNestedRecord(owner)) {
+    private static Set<String> getPropertyNames(
+            @NonNull final String prefix, @NonNull final Class<?> owner, @NonNull final Set<Class<?>> visitedTypes) {
+        if (!isNestedRecord(owner) || !visitedTypes.add(owner)) {
             return Set.of();
         }
-        return Arrays.stream(owner.getRecordComponents())
-                .map(candidate -> createPropertyName(prefix, getPropertyNameSegment(candidate)))
-                .collect(Collectors.toCollection(TreeSet::new));
+        try {
+            final Set<String> names = new TreeSet<>();
+            for (final RecordComponent candidate : owner.getRecordComponents()) {
+                final String name = createPropertyName(prefix, getPropertyNameSegment(candidate));
+                if (isNestedRecord(candidate.getType())) {
+                    names.addAll(getPropertyNames(name, candidate.getType(), visitedTypes));
+                } else {
+                    names.add(name);
+                }
+            }
+            return names;
+        } finally {
+            visitedTypes.remove(owner);
+        }
     }
 
     /**
@@ -462,18 +613,17 @@ class ConfigDataFactory {
         private final Map<String, String> valuesByPropertyName = new HashMap<>();
 
         /**
-         * Adds the values that are defined by the {@link ConfigDefault} annotations of the given nested record
-         * component. The annotations have already been checked to address existing properties by
-         * {@link #validateConfigDefaults(String, RecordComponent, Class)}.
+         * Adds the values that the {@link ConfigDefault} annotations of one nested record component define, as resolved
+         * by {@link #resolveConfigDefaults(String, RecordComponent, Class)}.
+         * <p>
+         * A value that is already known is kept, which is what makes an enclosing config data object win: it is created
+         * top down, so its annotations are always added before the annotations of the records below it. A duplicate
+         * within one component is rejected while it is resolved and never arrives here.
          *
-         * @param namePrefix the full name of the nested record component
-         * @param component  the nested record component
+         * @param defaultValuesByPropertyName the default values, keyed by the full name of the property
          */
-        void add(@NonNull final String namePrefix, @NonNull final RecordComponent component) {
-            for (final ConfigDefault configDefault : component.getAnnotationsByType(ConfigDefault.class)) {
-                final String propertyName = createPropertyName(namePrefix, configDefault.property());
-                valuesByPropertyName.putIfAbsent(propertyName, configDefault.defaultValue());
-            }
+        void add(@NonNull final Map<String, String> defaultValuesByPropertyName) {
+            defaultValuesByPropertyName.forEach(valuesByPropertyName::putIfAbsent);
         }
 
         /**

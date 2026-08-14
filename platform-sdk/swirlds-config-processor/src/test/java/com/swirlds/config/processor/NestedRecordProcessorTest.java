@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.processor;
 
+import static com.swirlds.config.processor.ConfigDataAnnotationProcessor.DOCUMENTATION_FILE_OPTION;
+import static com.swirlds.config.processor.ConfigProcessorConstants.CONSTANTS_CLASS_SUFFIX;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,8 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
@@ -59,6 +64,16 @@ class NestedRecordProcessorTest {
                     @ConfigProperty(defaultValue = "100") long capacity) {}
             """;
 
+    private static final String DOTTED_LEAF = """
+            package test.cfg;
+
+            import com.swirlds.config.api.ConfigProperty;
+            import com.swirlds.config.api.NestedConfig;
+
+            @NestedConfig
+            public record DottedLeafConfig(@ConfigProperty(value = "foo.bar") String value) {}
+            """;
+
     @Test
     void nestedRecordIsExpandedIntoItsProperties() throws IOException {
         final String generated = compileAndReadConstants(ROOT, LEAF);
@@ -83,6 +98,86 @@ class NestedRecordProcessorTest {
         assertTrue(generated.contains("PREHANDLER_TYPE"), generated);
         assertTrue(generated.contains("PREHANDLER_CAPACITY"), generated);
         assertFalse(generated.contains("PREHANDLER.TYPE"), generated);
+    }
+
+    @Test
+    void constantNamesKeepTheSeparatorWhenTheRecordDefinesNoPrefix() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData
+                public record RootConfig(LeafConfig leaf) {}
+                """;
+
+        final String generated = compileAndReadConstants(root, LEAF);
+
+        // the prefix of a record without one is empty, so there is nothing to remove. Removing "." from every position
+        // would run the segments together into LEAFTYPE
+        assertTrue(generated.contains("LEAF_TYPE = \"leaf.type\""), generated);
+        assertTrue(generated.contains("LEAF_CAPACITY = \"leaf.capacity\""), generated);
+    }
+
+    @Test
+    void constantNamesRemoveOnlyTheLeadingPrefix() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData("root")
+                public record RootConfig(LeafConfig root, LeafConfig rootish) {}
+                """;
+
+        final String generated = compileAndReadConstants(root, LEAF);
+
+        // the prefix occurs again as the name of the component, where it is part of the property and has to be kept
+        assertTrue(generated.contains("ROOT_TYPE = \"root.root.type\""), generated);
+        assertTrue(generated.contains("ROOT_CAPACITY = \"root.root.capacity\""), generated);
+
+        // and it occurs a third time as the start of another component, which is not a segment of its own at all
+        assertTrue(generated.contains("ROOTISH_TYPE = \"root.rootish.type\""), generated);
+    }
+
+    @Test
+    void constantNameClashIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        LeafConfig leaf,
+                        @ConfigProperty(defaultValue = "0") long leafType) {}
+                """;
+
+        // "leaf.type" and "leafType" both become LEAF_TYPE, and adding the field twice would generate a class that
+        // does not compile
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("both map onto the constant name \"LEAF_TYPE\""), messages);
+        assertTrue(messages.contains("Error processing record: RootConfig"), messages);
+    }
+
+    @Test
+    void propertyNameThatIsNoValidConstantNameIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(@ConfigProperty(value = "1st", defaultValue = "0") long first) {}
+                """;
+
+        final String messages = compileExpectingFailure(root);
+
+        assertTrue(messages.contains("cannot be used as a valid constant name"), messages);
+        assertTrue(messages.contains("Error processing record: RootConfig"), messages);
     }
 
     @Test
@@ -133,18 +228,199 @@ class NestedRecordProcessorTest {
     }
 
     /**
-     * The processor writes the documentation relative to the working directory.
+     * A dot both separates the segments of the path to a more deeply nested property and can be part of a single name
+     * that {@code @ConfigProperty} defines. The processor documents these defaults, so it has to resolve the path the
+     * same way the runtime does.
      */
-    private static Path documentationFile() {
-        final Path doc = Path.of(System.getProperty("user.dir"), "build/docs/config.md");
+    @Test
+    void defaultIsAppliedToTheLeafWhoseNameContainsADot() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "foo.bar", defaultValue = "fromSite")
+                        DottedLeafConfig leaf) {}
+                """;
+
+        compileAndReadConstants(root, DOTTED_LEAF);
+
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertTrue(
+                documentation.split("## root\\.leaf\\.foo\\.bar")[1].contains("`fromSite`"),
+                "the ConfigDefault has to be resolved against the name containing the dot: " + documentation);
+    }
+
+    @Test
+    void ambiguousDefaultPathIsRejected() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "foo.bar", defaultValue = "fromSite")
+                        AmbiguousConfig ambiguous) {}
+                """;
+
+        final String ambiguous = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigProperty;
+                import com.swirlds.config.api.NestedConfig;
+
+                @NestedConfig
+                public record AmbiguousConfig(
+                        @ConfigProperty(value = "foo.bar") String flat,
+                        @ConfigProperty(value = "foo") DottedInnerConfig nested) {}
+                """;
+
+        final String inner = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigProperty;
+                import com.swirlds.config.api.NestedConfig;
+
+                @NestedConfig
+                public record DottedInnerConfig(@ConfigProperty(value = "bar") String bar) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, ambiguous, inner);
+
+        assertTrue(messages.contains("matches more than one property"), messages);
+    }
+
+    @Test
+    void duplicateDefaultForOnePropertyIsRejected() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "capacity", defaultValue = "1")
+                        @ConfigDefault(property = "capacity", defaultValue = "2")
+                        LeafConfig leaf) {}
+                """;
+
+        // one of the two values is simply dropped, and which one it is must not be something the runtime and the
+        // generated documentation can disagree about
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("more than one ConfigDefault for the property 'root.leaf.capacity'"), messages);
+    }
+
+    @Test
+    void defaultOnAComponentThatIsNotANestedRecordIsRejected() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "value", defaultValue = "1")
+                        @ConfigProperty(defaultValue = "x")
+                        String value) {}
+                """;
+
+        final String messages = compileExpectingFailure(root);
+
+        assertTrue(messages.contains("is not a nested config data object"), messages);
+    }
+
+    @Test
+    void recordWithBothAnnotationsIsRejectedAsANestedComponent() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData("root")
+                public record RootConfig(BothConfig both) {}
+                """;
+
+        final String both = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.NestedConfig;
+
+                @ConfigData("both")
+                @NestedConfig
+                public record BothConfig(String value) {}
+                """;
+
+        // the record would otherwise get its own constants under the "both" prefix and be expanded inline under
+        // "root.both" at the same time, which are two conflicting sets of property names
+        final String messages = compileExpectingFailure(root, both);
+
+        assertTrue(messages.contains("mutually exclusive"), messages);
+    }
+
+    /**
+     * The documentation the last compilation generated. The processor writes to {@code build/docs/config.md} of the
+     * working directory by default, which is the real build directory of this module and is shared by every test, so
+     * the compilations below direct it into the temporary directory instead.
+     */
+    private Path documentationFile() {
+        final Path doc = tempDir.resolve("config.md");
         assertTrue(Files.exists(doc), "no documentation was generated at " + doc);
         return doc;
     }
 
     /**
-     * Compiles the given sources with the config annotation processor and returns the generated constants class.
+     * Compiles the given sources with the config annotation processor and returns the generated constants class of
+     * {@code RootConfig}.
      */
     private String compileAndReadConstants(final String... sources) throws IOException {
+        return compileAndReadConstantsOf("RootConfig", sources);
+    }
+
+    /**
+     * Compiles the given sources with the config annotation processor and returns the generated constants class of the
+     * given record.
+     */
+    private String compileAndReadConstantsOf(final String recordName, final String... sources) throws IOException {
+        final CompilationResult result = compile(sources);
+        assertTrue(result.success(), "compilation of the test sources failed: " + result.messages());
+
+        final Path constants = tempDir.resolve("out/test/cfg/" + recordName + CONSTANTS_CLASS_SUFFIX + ".java");
+        assertTrue(Files.exists(constants), "no constants class was generated at " + constants);
+        return Files.readString(constants, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Compiles the given sources with the config annotation processor, expecting the processor to reject them, and
+     * returns the messages the compilation reported.
+     */
+    private String compileExpectingFailure(final String... sources) throws IOException {
+        final CompilationResult result = compile(sources);
+        assertFalse(result.success(), "the compilation was expected to fail but succeeded");
+        return result.messages();
+    }
+
+    /**
+     * The outcome of one compilation.
+     *
+     * @param success  whether the compilation succeeded
+     * @param messages everything the compilation reported, so that a rejection can be checked by its message
+     */
+    private record CompilationResult(boolean success, String messages) {}
+
+    /**
+     * Compiles the given sources with the config annotation processor.
+     */
+    private CompilationResult compile(final String... sources) throws IOException {
         final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         final Path sourceRoot = Files.createDirectories(tempDir.resolve("src/test/cfg"));
         final Path output = Files.createDirectories(tempDir.resolve("out"));
@@ -163,11 +439,13 @@ class NestedRecordProcessorTest {
                 .reduce((a, b) -> a + File.pathSeparator + b)
                 .orElseThrow();
 
+        final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        final boolean success;
         try (final StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null)) {
             final JavaCompiler.CompilationTask task = compiler.getTask(
                     null,
                     fileManager,
-                    null,
+                    diagnostics,
                     List.of(
                             "-d",
                             output.toString(),
@@ -176,16 +454,20 @@ class NestedRecordProcessorTest {
                             "-sourcepath",
                             tempDir.resolve("src").toString(),
                             "-classpath",
-                            path),
+                            path,
+                            // the default is build/docs/config.md of the working directory, which is the real build
+                            // directory of this module and would be shared by every test
+                            "-A" + DOCUMENTATION_FILE_OPTION + "=" + tempDir.resolve("config.md")),
                     null,
                     fileManager.getJavaFileObjectsFromPaths(paths));
             // the processor is handed over as an instance so that it is not loaded a second time from the path above
             task.setProcessors(List.of(new ConfigDataAnnotationProcessor()));
-            assertTrue(task.call(), "compilation of the test sources failed");
+            success = task.call();
         }
 
-        final Path constants = output.resolve("test/cfg/RootConfig_.java");
-        assertTrue(Files.exists(constants), "no constants class was generated at " + constants);
-        return Files.readString(constants, StandardCharsets.UTF_8);
+        final String messages = diagnostics.getDiagnostics().stream()
+                .map(diagnostic -> diagnostic.getMessage(null))
+                .collect(Collectors.joining(System.lineSeparator()));
+        return new CompilationResult(success, messages);
     }
 }

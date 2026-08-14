@@ -66,6 +66,14 @@ public @interface ConfigDefault {
      * The property is therefore always spelled the same way here, in the dotted path of a more deeply nested property
      * and in the config itself, where the example above is set by {@code "root.leaf.renamed"}. A property that does not
      * exist fails the creation of the config data object instead of being ignored.
+     * <p>
+     * A dot can be part of a single property name as well, since {@link ConfigProperty#value()} may contain one. Both
+     * readings are tried, so a name like {@code "foo.bar"} is addressable as it is spelled, and a property that matches
+     * both readings fails the creation of the config data object rather than one of them being picked silently.
+     * <p>
+     * Two annotations of one record component must not address the same property, since one of the two values would
+     * simply be dropped. An annotation of an enclosing config data object addressing the same property is not a
+     * duplicate but the override described above.
      *
      * @return the property
      */

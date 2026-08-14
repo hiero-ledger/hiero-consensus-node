@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.config.unreadable;
+
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.NestedConfig;
+import com.swirlds.config.api.validation.annotation.Min;
+
+/**
+ * A config data object whose value can not be read by the config reflection.
+ * <p>
+ * This package is not exported to {@code com.swirlds.config.extensions}, where the reflection runs, which is what makes
+ * every accessor below inaccessible to it. It is exported to {@code com.swirlds.config.impl} at runtime by the test, so
+ * that the record is still created normally.
+ */
+@ConfigData("unreadable")
+public record UnreadableConfig(UnreadableLeaf leaf) {
+
+    /**
+     * A nested config data object below the unreadable record. Its properties can only be found by walking into the
+     * record, which is what the accessibility decides about.
+     */
+    @NestedConfig
+    public record UnreadableLeaf(
+            @ConfigProperty(defaultValue = "plain") String plain,
+            @ConfigProperty(defaultValue = "2") long count) {}
+
+    /**
+     * The same shape with a constraint on one of the properties of the nested record. A constraint can only be checked
+     * against a value, so this one can not be checked at all.
+     */
+    @ConfigData("constrained")
+    public record ConstrainedConfig(ConstrainedLeaf leaf) {
+
+        /**
+         * @param constrained a property whose value has to be read for its constraint to be checked
+         */
+        @NestedConfig
+        public record ConstrainedLeaf(
+                @ConfigProperty(defaultValue = "1") @Min(0) long constrained) {}
+    }
+}

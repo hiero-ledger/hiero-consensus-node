@@ -65,13 +65,13 @@ public final class ConstantClassFactory {
         final Map<String, String> propertyNamesByConstantName = new HashMap<>();
         configDataRecordDefinition.propertyDefinitions().forEach(propertyDefinition -> {
             final String name = toConstantName(
-                    propertyDefinition.name().replace(configDataRecordDefinition.configDataName() + ".", ""));
+                    removePrefix(propertyDefinition.name(), configDataRecordDefinition.configDataName()));
 
             // two property names can map onto one constant name, for example "leaf.value" and "leafValue". Adding the
             // field twice would produce a class that does not compile, so the clash is reported here instead.
             final String clashing = propertyNamesByConstantName.put(name, propertyDefinition.name());
             if (clashing != null) {
-                throw new IllegalArgumentException("Error processing record:"
+                throw new IllegalArgumentException("Error processing record: "
                         + configDataRecordDefinition.simpleClassName() + " properties \"" + clashing + "\" and \""
                         + propertyDefinition.name() + "\" both map onto the constant name \"" + name
                         + "\". Rename one of them.");
@@ -92,7 +92,7 @@ public final class ConstantClassFactory {
                 constantsClassBuilder.addField(fieldSpec);
             } catch (Exception e) {
                 throw new IllegalArgumentException(
-                        "Error processing record:"
+                        "Error processing record: "
                                 + configDataRecordDefinition.simpleClassName() + " field:"
                                 + propertyDefinition.fieldName() + " annotation value:\"" + propertyDefinition.name()
                                 + "\" cannot be used as a valid constant name. Check if should be a " + DEFAULT_VALUE
@@ -108,6 +108,32 @@ public final class ConstantClassFactory {
         try (Writer writer = constantsSourceFile.openWriter()) {
             javaFile.writeTo(writer);
         }
+    }
+
+    /**
+     * Removes the prefix that a config data record defines for its properties from the name of one of its properties,
+     * so that the constant is named after the property alone.
+     * <p>
+     * Exactly one leading prefix is removed, and only when it is followed by the separator. A prefix that occurs again
+     * further along the name belongs to a property of a nested config data object and has to be kept, and a record
+     * without a prefix has nothing to remove at all: removing {@code "."} from every position would run the segments of
+     * a nested property together.
+     *
+     * @param propertyName the full name of the property. Must not be {@code null}.
+     * @param prefix       the prefix of the config data record, which is empty when it defines none. Must not be
+     *                     {@code null}.
+     *
+     * @return the name of the property without the prefix. Never {@code null}.
+     */
+    @NonNull
+    public static String removePrefix(@NonNull final String propertyName, @NonNull final String prefix) {
+        Objects.requireNonNull(propertyName, "propertyName must not be null");
+        Objects.requireNonNull(prefix, "prefix must not be null");
+
+        if (prefix.isEmpty() || !propertyName.startsWith(prefix + ".")) {
+            return propertyName;
+        }
+        return propertyName.substring(prefix.length() + 1);
     }
 
     /**
