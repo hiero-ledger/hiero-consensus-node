@@ -966,6 +966,123 @@ class IssBufferRaceSimTest implements LifecycleTest {
                 .toArray(SpecOperation[]::new));
     }
 
+    // C16 — CLAIM CHECK. Disproves: "on a self-ISS no block proof is produced, so the block can't leave the buffer even
+    // if the ISS notification comes late." FALSE for a self-ISS. On a self-ISS (3-of-4) the honest MAJORITY still forms
+    // a valid proof for block N; the block node acks N by number; the diverging node applies that ack to its OWN
+    // divergent block N → it is acknowledged. keep=1 with a LATE notification (blockPeriod=0 + roundsPerBlock=1 ⇒
+    // detection lags 2-3 blocks ⇒ lag > keep) then prunes it before the capture → the block LEAVES the buffer (LOST,
+    // .txt). The gate is OFF (production default) — this is the base behavior, not the ack-proof mechanism.
+    //
+    // Why a LOST outcome is a complete disproof of BOTH parts of the claim: BlockBufferService.pruneBuffer never prunes
+    // an UNACKNOWLEDGED closed block while backpressure is on (BLOCKS + gRPC) — the acked path requires isAcked, and
+    // the unacked path requires backpressure to be off. So if the block was pruned, it was necessarily ACKNOWLEDGED,
+    // which means a valid block proof WAS produced and honored. (The claim IS true only for a CATASTROPHIC ISS — 2-2,
+    // no majority, no valid proof, never acked, never pruned — see C6 in IssBufferRaceRealTest.)
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "blockStream.buffer.workerInterval", "100ms",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "blockStream.buffer.maxBlocks", "200",
+                            "blockStream.blockPeriod", "0",
+                            "blockStream.roundsPerBlock", "1",
+                            "tss.forceMockSignatures", "true"
+                        })
+            })
+    final Stream<DynamicTest> selfIssBlockLeavesBufferOnLateNotification() {
+        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
+        return hapiTest(
+                getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                sleepForSeconds(2),
+                sourcing(() -> reconnectIssNode(
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssBufferTestSupport.configureNode(ISS_NODE_ID, s3Port, true, 1, true))),
+                assertHgcaaLogContainsText(
+                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
+                // Warm up so the block node's acks are flowing before the ISS: the self-ISS block IS acknowledged (a
+                // proof was produced by the honest majority and applied by number), which is what makes it prunable.
+                sleepForSeconds(8),
+                induceIssTransfer(),
+                awaitIssDetectionAndDiag(),
+                verify(() -> {
+                    IssBufferTestSupport.awaitKey(RECEIVED_OBJECT_KEYS, "/iss/", "", Duration.ofSeconds(90));
+                    final boolean kept =
+                            IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".iss.gz");
+                    final boolean lost = IssBufferTestSupport.receivedKeyMatches(RECEIVED_OBJECT_KEYS, "/iss/", ".txt");
+                    log.warn(
+                            "C16 CLAIM CHECK — self-ISS block left the buffer on a late notification? blockLost(.txt)={} "
+                                    + "blockCaptured(.iss.gz)={} keys={}. A LOST block was necessarily acknowledged "
+                                    + "(the buffer never prunes an unacked block), so a block proof WAS produced → the "
+                                    + "claim 'no proof produced, block cannot leave the buffer' is FALSE for a self-ISS.",
+                            lost,
+                            kept,
+                            RECEIVED_OBJECT_KEYS);
+                    assertTrue(
+                            lost,
+                            "CLAIM DISPROVED expects the self-ISS block to LEAVE the buffer (→ .txt pointer) on a late "
+                                    + "notification; a lost block was necessarily acknowledged (proof produced). Saw "
+                                    + RECEIVED_OBJECT_KEYS);
+                }),
+                freezeSurvivors());
+    }
+
     // --- shared step builders (kept local to avoid touching existing tests) ---
 
     /** 1 debit + 6 credits = 7 balance adjustments — above node1's maxLen=5, within the others'. */
