@@ -21,6 +21,11 @@ testing {
     }
 
     suites.register<JvmTestSuite>("testOtter") {
+        targets.configureEach {
+            // Forwards e.g. -Dfalcon.repetitions=10 to the test JVM
+            testTask { systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get()) }
+        }
+
         // Runs tests against the Container environment
         targets.register("testContainer") {
             testTask {
@@ -39,13 +44,7 @@ testing {
         }
 
         // Runs tests against the Falcon environment
-        targets.register("testFalcon") {
-            testTask {
-                useJUnitPlatform { includeTags("falcon") }
-                // Forwards e.g. -Dfalcon.repetitions=10 to the test JVM
-                systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get())
-            }
-        }
+        targets.register("testFalcon") { testTask { useJUnitPlatform { includeTags("falcon") } } }
     }
 
     suites.register<JvmTestSuite>("testChaos") {
