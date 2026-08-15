@@ -396,14 +396,6 @@ public class TestHashgraphInfo {
             int roundInfoTargetNumRoundsNonAncient = 25;
             int roundInfoNumRoundsAddressBook = 2;
             RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
-//            roundInfoPrev = new RoundInfoPrev(
-//                    100, // long pendingRound
-//                    roundInfoPrev.prevJudgeCon1(),
-//                    roundInfoPrev.prevJudges(),
-//                    roundInfoPrev.prevJudgesCopied(),
-//                    roundInfoPrev.prevMinNonAncientRound(),
-//                    roundInfoPrev.prevNumCons(),
-//                    roundInfoPrev.prevMinJudgeBirthRound());
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
                 if (newHashgraph) {
