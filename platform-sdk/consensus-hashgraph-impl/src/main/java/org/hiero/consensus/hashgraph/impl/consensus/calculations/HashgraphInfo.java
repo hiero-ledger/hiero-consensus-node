@@ -822,7 +822,7 @@ public final class HashgraphInfo {
                         // For reconnect or a round with node changes, the previous judges haven't had update() called
                         // yet, so calculate their creatorIndex here, in the same way that update() would.
                         if (judge.gen == -1 || h.nodesChanged) {
-                            Integer index = h.nodeIdToIndex.get(creatorNodeID);
+                            final Integer index = h.nodeIdToIndex.get(judge.creatorNodeID);
                             judge.creatorIndex = (index == null) ? -1 : index;
                         }
                         totalStake += judge.creatorIndex < 0 ? 0 : r.stake[judge.creatorIndex];
