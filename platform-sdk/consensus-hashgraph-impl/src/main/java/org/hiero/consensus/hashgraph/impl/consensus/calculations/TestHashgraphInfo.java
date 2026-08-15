@@ -362,7 +362,7 @@ public class TestHashgraphInfo {
      */
     static void writeLogFile(String outputFilename) throws IOException {
         //final int MAX_NODE_ID = 999;
-        final int NUM_NODES = 4;
+        final int NUM_NODES = 7;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
         if (outputFile == null) {
@@ -387,8 +387,8 @@ public class TestHashgraphInfo {
             long minNonAncientRound = 1;
 
             //fields for the next roundInfo (default values that match old code on mainnet)
-            long[] roundInfoNodes = new long[] {100, 200, 300, 400};
-            long[] roundInfoStake = new long[] {101, 102, 103, 104};
+            long[] roundInfoNodes = new long[] {100, 200, 300, 400, 500, 600, 700};
+            long[] roundInfoStake = new long[] {101, 102, 103, 104, 105,   0,   0};
             int roundInfoCoinInterval = 10;
             int roundInfoSeeNum = 300;
             int roundInfoSeeDen = 300;
@@ -396,6 +396,14 @@ public class TestHashgraphInfo {
             int roundInfoTargetNumRoundsNonAncient = 25;
             int roundInfoNumRoundsAddressBook = 2;
             RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
+//            roundInfoPrev = new RoundInfoPrev(
+//                    100, // long pendingRound
+//                    roundInfoPrev.prevJudgeCon1(),
+//                    roundInfoPrev.prevJudges(),
+//                    roundInfoPrev.prevJudgesCopied(),
+//                    roundInfoPrev.prevMinNonAncientRound(),
+//                    roundInfoPrev.prevNumCons(),
+//                    roundInfoPrev.prevMinJudgeBirthRound());
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
                 if (newHashgraph) {
