@@ -819,21 +819,22 @@ public final class HashgraphInfo {
                 { // function voteD  /----------------------------------------------------------------------------
                     long totalStake = 0;
                     for (EventInfo judge : rp.prevJudges) {
-                        // if update() wasn't called on the judges yet (in a reconnect), then update their creatorIndex
-                        if (judge.gen == -1) {
+                        // For reconnect or a round with node changes, the previous judges haven't had update() called
+                        // yet, so calculate their creatorIndex here, in the same way that update() would.
+                        if (judge.gen == -1 || h.nodesChanged) {
                             Integer index = h.nodeIdToIndex.get(creatorNodeID);
-                            creatorIndex = (index == null) ? -1 : index;
+                            judge.creatorIndex = (index == null) ? -1 : index;
                         }
                         totalStake += judge.creatorIndex < 0 ? 0 : r.stake[judge.creatorIndex];
                     }
+                    // function supermajority /-------------------------------------------------------------------
+                    h.supermajorityThreshold = 2 * h.totalStake / 3;
                     h.voteD = (rp.prevJudgesCopied
                                     || (rp.prevJudgeCon1 && !r.judgeCon1)
                                     || (totalStake <= h.supermajorityThreshold))
                             ? 2
                             : 1;
                 }
-                // function supermajority /-----------------------------------------------------------------------
-                h.supermajorityThreshold = 2 * h.totalStake / 3;
                 // set prevJudge to true for the judges in the previous round
                 for (EventInfo judge : rp.prevJudges) {
                     judge.isPrevJudge = true;
