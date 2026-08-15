@@ -819,6 +819,11 @@ public final class HashgraphInfo {
                 { // function voteD  /----------------------------------------------------------------------------
                     long totalStake = 0;
                     for (EventInfo judge : rp.prevJudges) {
+                        // if update() wasn't called on the judges yet (in a reconnect), then update their creatorIndex
+                        if (judge.gen == -1) {
+                            Integer index = h.nodeIdToIndex.get(creatorNodeID);
+                            creatorIndex = (index == null) ? -1 : index;
+                        }
                         totalStake += judge.creatorIndex < 0 ? 0 : r.stake[judge.creatorIndex];
                     }
                     h.voteD = (rp.prevJudgesCopied
