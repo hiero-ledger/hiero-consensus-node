@@ -28,8 +28,8 @@ import org.hyperledger.besu.evm.account.MutableAccount;
 public class TokenEvmAccount extends AbstractEvmEntityAccount {
 
     // EIP-7702 delegation to HTS system contract
-    public static final Bytes CODE =
-            Bytes.concatenate(CODE_DELEGATION_PREFIX, Address.fromHexString(HTS_167_EVM_ADDRESS));
+    public static final Bytes CODE = Bytes.concatenate(
+            CODE_DELEGATION_PREFIX, Address.fromHexString(HTS_167_EVM_ADDRESS).getBytes());
     public static final Hash CODE_HASH =
             Hash.wrap(Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(CODE.toArrayUnsafe())));
     public static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_PBJ =

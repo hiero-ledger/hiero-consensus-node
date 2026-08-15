@@ -18,7 +18,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.TangerineWhistleGasCalculator;
@@ -98,7 +98,7 @@ public abstract class CallManager {
         // Create2OperationSuite and so cannot just be changed yet.
 
         // {FF, [sender 20bytes], [salt 32bytes], [code hash, 32bytes] }
-        Bytes bytes = Bytes.concatenate(CREATE2_PREFIX, sender, salt, code.getCodeHash());
+        Bytes bytes = Bytes.concatenate(CREATE2_PREFIX, sender.getBytes(), salt, code.getCodeHash().getBytes());
         Bytes32 hash = Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(bytes.toArrayUnsafe()));
         return Address.extract(hash);
     }
@@ -220,7 +220,7 @@ public abstract class CallManager {
         if( hasValue ) gas += bevm._gasCalc.callValueTransferGasCost();
         if( (contractAccount == null || contractAccount.isEmpty()) && hasValue )
             gas += bevm._gasCalc.newAccountGasCost();
-        if( (recipient == null || recipient.isEmpty()) && hasValue )
+        if( (recipient == null || recipient.getBytes().isEmpty()) && hasValue )
             throw new TODO();
         // Check the cold account cost but do not charge
         if( bevm._gas < gas + (isStatic ? bevm._gasCalc.getWarmStorageReadCost() : bevm._gasCalc.getColdAccountAccessCost()) )
@@ -272,7 +272,7 @@ public abstract class CallManager {
             .sender(sender)
             .value(value)
             .apparentValue(value)
-            .code(CodeV0.EMPTY_CODE)
+            .code(Code.EMPTY_CODE)
             .isStatic(isStatic)
             .completer(child0 -> {})
             .build();
