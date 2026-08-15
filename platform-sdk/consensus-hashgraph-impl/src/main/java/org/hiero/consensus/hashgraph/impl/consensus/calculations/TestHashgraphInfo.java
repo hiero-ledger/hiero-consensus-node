@@ -39,7 +39,7 @@ public class TestHashgraphInfo {
     private static final long SOFTWARE_VERSION = 1;
 
     /** how many events to write to the log file */
-    private static final int NUM_EVENTS_TO_WRITE = 1000;
+    private static final int NUM_EVENTS_TO_WRITE = 10000;
 
     /** the ancestor directory to search upward for */
     private static final String REPOSITORY_DIRECTORY_NAME = "hiero-consensus-node";
