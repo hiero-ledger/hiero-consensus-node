@@ -60,8 +60,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * calls to {@link EventInfo#update update} in the next round.
  * <p>
  * This file (1365 lines) has everything needed for consensus. The actual hashgraph consensus algorithm
- * ({@link EventInfo#graphSearch graphSearch} and {@link EventInfo#update udpate}) is only 619 lines of code, excluding comments
- * and blank lines.
+ * ({@link EventInfo#graphSearch graphSearch} and {@link EventInfo#update udpate}) is only 619 lines of code,
+ * excluding comments and blank lines.
  */
 @java.lang.SuppressWarnings("unused")
 public final class HashgraphInfo {
