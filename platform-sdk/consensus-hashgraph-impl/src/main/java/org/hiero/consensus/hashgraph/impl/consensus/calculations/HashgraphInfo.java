@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev} record, which should be used in further
  * calls to {@link EventInfo#update update} in the next round.
  * <p>
- * This file (1365 lines) has everything needed for consensus. The actual hashgraph consensus algorithm
+ * This file (1235 lines) has everything needed for consensus. The actual hashgraph consensus algorithm
  * ({@link EventInfo#graphSearch graphSearch} and {@link EventInfo#update udpate}) is only 619 lines of code,
  * excluding comments and blank lines.
  */
@@ -137,8 +137,10 @@ public final class HashgraphInfo {
         return benchmarks;
     }
 
-    /** Reset the benchmark timers, so {@link HashgraphInfo#getBenchmarks HashgraphInfo.getBenchmarks()}
-     *  only returns time spent since the last resetBencharks(). */
+    /**
+     * Reset the benchmark timers, so {@link HashgraphInfo#getBenchmarks HashgraphInfo.getBenchmarks()}
+     * only returns time spent since the last resetBencharks().
+     */
     void resetBenchmarks() {
         if (benchmarks == null) {
             benchmarks = new long[NUM_BENCHMARKS];
@@ -148,140 +150,97 @@ public final class HashgraphInfo {
     }
 
     // the following getters are just for metrics, debugging, testing, etc. Normal code should not rely on them.
-
+    // spotless:off
+    // keep these test/monitor getters more compact for readability
     public long getNumVoteD() {
         return numVoteD;
     }
-
     public long getNumUsedCoin() {
         return numUsedCoin;
     }
-
     public long getNumPrevJudgesCopied() {
         return numPrevJudgesCopied;
     }
-
     public static boolean isEnforceRoundAdvance() {
         return ENFORCE_ROUND_ADVANCE;
     }
-
     public ArrayList<EventInfo> getConsensusEvents() {
         return consensusEvents;
     }
-
     public Integer[] getSortInd() {
         return sortInd;
     }
-
     public static AtomicLong getLastHashgraphInfoID() {
         return lastHashgraphInfoID;
     }
-
     public long getHashgraphInfoID() {
         return hashgraphInfoID;
     }
-
     public boolean isNewRound() {
         return newRound;
     }
-
     public long getLastEventID() {
         return lastEventID;
     }
-
     public long getPendingRound() {
         return pendingRound;
     }
-
     public int getNumNodes() {
         return numNodes;
     }
-
     public long[] getNodeIDs() {
         return nodeIDs;
     }
-
     public HashMap<Long, Integer> getNodeIdToIndex() {
         return nodeIdToIndex;
     }
-
     public long getTotalStake() {
         return totalStake;
     }
-
     public long getMinNonAncientRound() {
         return minNonAncientRound;
     }
-
     public int getVoteD() {
         return voteD;
     }
-
     public ArrayList<EventInfo> getParents() {
         return parents;
     }
-
     public ArrayList<EventInfo> getJudges() {
         return judges;
     }
-
     public ArrayList<EventInfo> getJConsensusEvents() {
         return consensusEvents;
     }
-
     public int getParentsCapacity() {
         return parentsCapacity;
     }
-
     public int getJudgesCapacity() {
         return judgesCapacity;
     }
-
     public int getConsensusEventsCapacity() {
         return consensusEventsCapacity;
     }
-
     public int getCurrMark() {
         return currMark;
     }
-
     public long getSupermajorityThreshold() {
         return supermajorityThreshold;
     }
-
     public ArrayList<ArrayList<Integer>> getCandIndex() {
         return candIndex;
     }
-
     public EventInfo[] getCandEventInfo() {
         return candEventInfo;
     }
-
-    public long[] getCandStakeCollected() {
-        return candStakeCollected;
-    }
-
-    public long[] getCandMinVoter() {return candMinVoter;}
-
-    public boolean isNodesChanged() {
-        return nodesChanged;
-    }
-
-    public boolean isRoundDecided() {
-        return roundDecided;
-    }
-
-    public int getCandCount() {
-        return candCount;
-    }
-
-    public RoundInfo getLatestRoundInfo() {
-        return latestRoundInfo;
-    }
-
-    public RoundInfoPrev getLatestRoundInfoPrev() {
-        return latestRoundInfoPrev;
-    }
+    public long[] getCandStakeCollected() { return candStakeCollected; }
+    public long[] getCandMinVoter() { return candMinVoter; }
+    public boolean isNodesChanged() { return nodesChanged; }
+    public boolean isRoundDecided() { return roundDecided; }
+    public int getCandCount() { return candCount; }
+    public RoundInfo getLatestRoundInfo() { return latestRoundInfo; }
+    public RoundInfoPrev getLatestRoundInfoPrev() { return latestRoundInfoPrev; }
+    // spotless:on
 
     /**
      * The minimum birth round that counts as non-ancient, during the time when these two infos
@@ -434,130 +393,40 @@ public final class HashgraphInfo {
         }
 
         // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
-
-        public HashgraphInfo getHashgraph() {
-            return hashgraph;
-        }
-
-        public long getEventID() {
-            return eventID;
-        }
-
-        public long getCreatorNodeID() {
-            return creatorNodeID;
-        }
-
-        public int getCreatorIndex() {
-            return creatorIndex;
-        }
-
-        public Instant getTimeCreated() {
-            return timeCreated;
-        }
-
-        public EventInfo[] getParentsSigned() {
-            return parentsSigned;
-        }
-
-        public EventInfo getSelfParent() {
-            return selfParent;
-        }
-
-        public int coin() {
-            return coin;
-        }
-
-        public long getBirthRound() {
-            return birthRound;
-        }
-
-        public boolean[] getAncestorJudge() {
-            return ancestorJudge;
-        }
-
-        public long getGen() {
-            return gen;
-        }
-
-        public EventInfo[] getLastSee() {
-            return lastSee;
-        }
-
-        public EventInfo[] getStronglySeeP() {
-            return stronglySeeP;
-        }
-
-        public EventInfo getFirstSelfWitnessS() {
-            return firstSelfWitnessS;
-        }
-
-        public long getVotingRound() {
-            return votingRound;
-        }
-
-        public EventInfo getFirstWitnessS() {
-            return firstWitnessS;
-        }
-
-        public EventInfo[] getStronglySeeS1() {
-            return stronglySeeS1;
-        }
-
-        public EventInfo[] getVoteE() {
-            return voteE;
-        }
-
-        public boolean[] getVoteB() {
-            return voteB;
-        }
-
-        public Instant[] getReceivedTime() {
-            return receivedTime;
-        }
-
-        public long getMaxJudgeRound() {
-            return maxJudgeRound;
-        }
-
-        public long getSearchMark() {
-            return searchMark;
-        }
-
-        public int getSearchCount() {
-            return searchCount;
-        }
-
-        public int getSearchParent() {
-            return searchParent;
-        }
-
-        public EventInfo getSearchChild() {
-            return searchChild;
-        }
-
-        public int getSearchOrder() {
-            return searchOrder;
-        }
-
-        public int getCoin() {
-            return coin;
-        }
-
-        public int[] getVoteIndex() {
-            return voteIndex;
-        }
-
-        public boolean isPrevJudge() {
-            return isPrevJudge;
-        }
-
-        public int getEventCandIndex() {
-            return eventCandIndex;
-        }
-
-        public boolean isSearchJudgeSelfAncestor() {
-            return searchJudgeSelfAncestor;
-        }
+        // spotless:off
+        // keep these test/monitor getters more compact for readability
+        public HashgraphInfo getHashgraph() { return hashgraph; }
+        public long getEventID() { return eventID; }
+        public long getCreatorNodeID() { return creatorNodeID; }
+        public int getCreatorIndex() { return creatorIndex; }
+        public Instant getTimeCreated() { return timeCreated; }
+        public EventInfo[] getParentsSigned() { return parentsSigned; }
+        public EventInfo getSelfParent() { return selfParent; }
+        public int coin() { return coin; }
+        public long getBirthRound() { return birthRound; }
+        public boolean[] getAncestorJudge() { return ancestorJudge; }
+        public long getGen() { return gen; }
+        public EventInfo[] getLastSee() { return lastSee; }
+        public EventInfo[] getStronglySeeP() { return stronglySeeP; }
+        public EventInfo getFirstSelfWitnessS() { return firstSelfWitnessS; }
+        public long getVotingRound() { return votingRound; }
+        public EventInfo getFirstWitnessS() { return firstWitnessS; }
+        public EventInfo[] getStronglySeeS1() { return stronglySeeS1; }
+        public EventInfo[] getVoteE() { return voteE; }
+        public boolean[] getVoteB() { return voteB; }
+        public Instant[] getReceivedTime() { return receivedTime; }
+        public long getMaxJudgeRound() { return maxJudgeRound; }
+        public long getSearchMark() { return searchMark; }
+        public int getSearchCount() { return searchCount; }
+        public int getSearchParent() { return searchParent; }
+        public EventInfo getSearchChild() { return searchChild; }
+        public int getSearchOrder() { return searchOrder; }
+        public int getCoin() { return coin; }
+        public int[] getVoteIndex() { return voteIndex; }
+        public boolean isPrevJudge() { return isPrevJudge; }
+        public int getEventCandIndex() { return eventCandIndex; }
+        public boolean isSearchJudgeSelfAncestor() { return searchJudgeSelfAncestor; }
+        // spotless:on
 
         /**
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
@@ -904,7 +773,8 @@ public final class HashgraphInfo {
             h.parentsCapacity = Math.max(h.parentsCapacity, h.parents.size());
             // function selfParent /---------------------------------------------------------------------------
             selfParent = (h.parents.isEmpty() || h.parents.getFirst().creatorNodeID != creatorNodeID)
-                    ? null : h.parents.getFirst();
+                    ? null
+                    : h.parents.getFirst();
             // function maxJudgeRound /---------------------------------------------------------------------------
             maxJudgeRound = isPrevJudge ? (r.pendingRound - 1) : 0;
             for (EventInfo parent : h.parents) {
@@ -1252,8 +1122,8 @@ public final class HashgraphInfo {
                 long stake = 0; // sum of weights of judges with earlier created time
                 int medianPos;
                 for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
-                    int creator = judgesArray[h.sortInd[medianPos]].creatorIndex;
-                    stake += creator < 0 ? 0 : r.stake[creator];
+                    int creatorIndex = judgesArray[h.sortInd[medianPos]].creatorIndex;
+                    stake += creatorIndex < 0 ? 0 : r.stake[creatorIndex];
                     if (2 * stake >= totalJudgeStake) {
                         break;
                     }
@@ -1293,10 +1163,8 @@ public final class HashgraphInfo {
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(1 + i);
                 }
             } else if (consensusEventsArray.length > 0) { // each new consensus event is an ancestor of all judges
-                // put weighted median timestamp for each event into event.receivedTime[0]
+                // put weighted median timestamp for each event into event.consensusTimestamp
                 for (EventInfo event : consensusEventsArray) {
-                    long stake = 0;
-                    int medianPos;
                     Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
                     Arrays.sort(
                             h.sortInd,
@@ -1306,9 +1174,11 @@ public final class HashgraphInfo {
                                             : (i1 >= judgesArrayFinal.length)
                                                     ? 1
                                                     : event.receivedTime[i1].compareTo(event.receivedTime[i2]));
+                    long stake = 0;
+                    int medianPos;
                     for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
-                        int creator = judgesArray[h.sortInd[medianPos]].creatorIndex;
-                        stake += creator < 0 ? 0 : r.stake[creator];
+                        int creatorIndex = judgesArray[h.sortInd[medianPos]].creatorIndex;
+                        stake += creatorIndex < 0 ? 0 : r.stake[creatorIndex];
                         if (2 * stake >= totalJudgeStake) {
                             break;
                         }

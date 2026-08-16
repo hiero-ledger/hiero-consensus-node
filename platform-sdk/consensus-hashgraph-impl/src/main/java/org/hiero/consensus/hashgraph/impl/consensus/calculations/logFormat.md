@@ -27,7 +27,7 @@ If any field is an array, it is represented by its length followed by all elemen
     int32       min
     int32       sec
     int32       nano
-    
+
   RoundInfoPrev (type 1)
     int64       pendingRound
     boolean     prevJudgeCon1
@@ -83,12 +83,12 @@ If any field is an array, it is represented by its length followed by all elemen
     Instant     roundTimestamp
     int32       voteD // either 1 or 2
     boolean     usedCoin // were there any coin rounds while deciding this round?
-    
+
   EventInfoConsensus (type 6)
     int64       eventID
     boolean     isConsensus
     long        consensusOrder
-    Instant     consensusTimestamp    
+    Instant     consensusTimestamp
 ```
 
 Compared to the paper, this format skips `roundInfoPrev` in `UpdateResults` (because it's a separate line). It also takes the `EventInfo` from the paper (and Java implementation) and splits it into 3 kinds of rows: `EventSigned` for the immutable fields, `EventInfoConsensus` for the fields set when it reaches consensus, and `EventInfo` for all the other mutable fields. It skips `payload`, `parentBirthRounds`, `parentCreators`, and `signature` in `EventSigned`, because they don't affect consensus). It also adds fields for `EventID` and `PendingRound` to several of the row types to help identify the objects.

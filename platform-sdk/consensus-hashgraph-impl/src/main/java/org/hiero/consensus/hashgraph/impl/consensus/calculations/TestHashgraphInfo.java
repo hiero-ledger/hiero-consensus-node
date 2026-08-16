@@ -13,7 +13,6 @@ import java.security.CodeSource;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.*;
-
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo.UpdateResults;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfo;
@@ -59,8 +58,6 @@ public class TestHashgraphInfo {
             "consensus",
             "calculations");
 
-
-
     /** NewHashgraphRow is a CSV row starting with this number */
     private static final int NEW_HASHGRAPH_ROW_TYPE = 0;
 
@@ -89,7 +86,7 @@ public class TestHashgraphInfo {
      * proof that the Hashgraph consensus algorithm is ABFT.
      *
      */
-     static void main() throws IOException {
+    static void main() throws IOException {
         if (!OUTPUT_FILENAME.isEmpty()) {
             writeLogFile(OUTPUT_FILENAME);
         }
@@ -205,7 +202,8 @@ public class TestHashgraphInfo {
         line.append(",").append(newHashgraphRow.softwareVersion());
         line.append(",").append(newHashgraphRow.randomSeed());
         line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getYear());
-        line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getMonth().getValue());
+        line.append(",")
+                .append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getMonth().getValue());
         line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getDayOfMonth());
         line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getHour());
         line.append(",").append(newHashgraphRow.time().atZone(ZoneOffset.UTC).getMinute());
@@ -214,7 +212,7 @@ public class TestHashgraphInfo {
         out.println(line);
     }
 
-        /** write one line of the CSV file describing the RoundInfoPrev fields */
+    /** write one line of the CSV file describing the RoundInfoPrev fields */
     private static void writeRoundInfoPrev(PrintWriter out, RoundInfoPrev roundInfoPrev) {
         StringBuilder line = new StringBuilder();
         line.append(ROUND_INFO_PREV_TYPE);
@@ -361,7 +359,7 @@ public class TestHashgraphInfo {
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
     static void writeLogFile(String outputFilename) throws IOException {
-        //final int MAX_NODE_ID = 999;
+        // final int MAX_NODE_ID = 999;
         final int NUM_NODES = 7;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
@@ -373,22 +371,22 @@ public class TestHashgraphInfo {
             final EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEventsToRecalculate = new LinkedList<>();
-            //HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
-            //HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<>();
-            //HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<>();
-            //HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
-            //HashMap<Integer, Long> mapCurrNodeIndexToNodeId; // = new HashMap<Integer, Long>();
+            // HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
+            // HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<>();
+            // HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<>();
+            // HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
+            // HashMap<Integer, Long> mapCurrNodeIndexToNodeId; // = new HashMap<Integer, Long>();
             UpdateResults updateResults;
-            long nextEventID  = 1;
-            long eventsWritten = 0; //number of times an EventInfo row has been written so far
+            long nextEventID = 1;
+            long eventsWritten = 0; // number of times an EventInfo row has been written so far
             boolean newHashgraph = true;
             boolean newRound = true;
             RoundInfo roundInfo = null;
             long minNonAncientRound = 1;
 
-            //fields for the next roundInfo (default values that match old code on mainnet)
+            // fields for the next roundInfo (default values that match old code on mainnet)
             long[] roundInfoNodes = new long[] {100, 200, 300, 400, 500, 600, 700};
-            long[] roundInfoStake = new long[] {101, 102, 103, 104, 105,   0,   0};
+            long[] roundInfoStake = new long[] {101, 102, 103, 104, 105, 0, 0};
             int roundInfoCoinInterval = 10;
             int roundInfoSeeNum = 300;
             int roundInfoSeeDen = 300;
@@ -399,54 +397,65 @@ public class TestHashgraphInfo {
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
                 if (newHashgraph) {
-                    writeNewHashgraphRow(out, new NewHashgraphRow(hashgraphInfo.getHashgraphInfoID(), SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
+                    writeNewHashgraphRow(
+                            out,
+                            new NewHashgraphRow(
+                                    hashgraphInfo.getHashgraphInfoID(), SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
                     newHashgraph = false;
                 }
                 while (newRound) { // start new round, update old events, if one of them reaches consensus, loop
                     newRound = false;
-//                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order of nodes and stake
-//                        int p = random.nextInt(i+1);
-//                        long t1 = roundInfoNodes[i];
-//                        long t2 = roundInfoStake[i];
-//                        roundInfoNodes[i] = roundInfoNodes[p];
-//                        roundInfoStake[i] = roundInfoStake[p];
-//                        roundInfoNodes[p] = t1;
-//                        roundInfoStake[p] = t2;
-//                    }
+                    //                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order
+                    // of nodes and stake
+                    //                        int p = random.nextInt(i+1);
+                    //                        long t1 = roundInfoNodes[i];
+                    //                        long t2 = roundInfoStake[i];
+                    //                        roundInfoNodes[i] = roundInfoNodes[p];
+                    //                        roundInfoStake[i] = roundInfoStake[p];
+                    //                        roundInfoNodes[p] = t1;
+                    //                        roundInfoStake[p] = t2;
+                    //                    }
                     // choose random values for every RoundInfo field except nodes and stake
-                    roundInfoCoinInterval = random.nextInt(4,11);
-                    roundInfoSeeDen = 3 * random.nextInt(1,1000);
-                    roundInfoSeeNum =
-                            (random.nextInt(100) < 20) ? 2 * roundInfoSeeDen / 3
-                                    : (random.nextInt(100) < 20) ? roundInfoSeeDen
+                    roundInfoCoinInterval = random.nextInt(4, 11);
+                    roundInfoSeeDen = 3 * random.nextInt(1, 1000);
+                    roundInfoSeeNum = (random.nextInt(100) < 20)
+                            ? 2 * roundInfoSeeDen / 3
+                            : (random.nextInt(100) < 20)
+                                    ? roundInfoSeeDen
                                     : random.nextInt(2 * roundInfoSeeDen / 3, roundInfoSeeDen + 1);
                     roundInfoJudgeCon1 = random.nextBoolean();
-                    roundInfoTargetNumRoundsNonAncient = random.nextInt(1,6);
-                    roundInfoNumRoundsAddressBook = random.nextInt(1,4);
-                    //TODO randomly decide whether to make a new hashgraph
-                    //TODO randomly choose address book (and randomly shuffle it)
-                    //TODO randomly choose other parents, including branching
+                    roundInfoTargetNumRoundsNonAncient = random.nextInt(1, 6);
+                    roundInfoNumRoundsAddressBook = random.nextInt(1, 4);
+                    // TODO randomly decide whether to make a new hashgraph
+                    // TODO randomly choose address book (and randomly shuffle it)
+                    // TODO randomly choose other parents, including branching
 
-                    roundInfo = new RoundInfo(roundInfoPrev.pendingRound(),
-                            roundInfoNodes.clone(), roundInfoStake.clone(), roundInfoCoinInterval, roundInfoSeeNum,
-                            roundInfoSeeDen, roundInfoJudgeCon1, roundInfoTargetNumRoundsNonAncient,
+                    roundInfo = new RoundInfo(
+                            roundInfoPrev.pendingRound(),
+                            roundInfoNodes.clone(),
+                            roundInfoStake.clone(),
+                            roundInfoCoinInterval,
+                            roundInfoSeeNum,
+                            roundInfoSeeDen,
+                            roundInfoJudgeCon1,
+                            roundInfoTargetNumRoundsNonAncient,
                             roundInfoNumRoundsAddressBook);
                     writeRoundInfoPrev(out, roundInfoPrev);
                     writeRoundInfo(out, roundInfo);
-                    minNonAncientRound = HashgraphInfo.minNonAncientRound(roundInfo,roundInfoPrev);
+                    minNonAncientRound = HashgraphInfo.minNonAncientRound(roundInfo, roundInfoPrev);
                     Iterator<EventInfo> iterator = recentEventsToRecalculate.iterator();
                     while (iterator.hasNext()) {
-                         EventInfo event = iterator.next();
-                         if (event.getBirthRound() < minNonAncientRound) {
+                        EventInfo event = iterator.next();
+                        if (event.getBirthRound() < minNonAncientRound) {
                             iterator.remove();
                         } else {
                             updateResults = event.update(roundInfo, roundInfoPrev);
-                            writeEventInfo(out,event,roundInfoPrev);
+                            writeEventInfo(out, event, roundInfoPrev);
                             eventsWritten++;
                             if (updateResults != null) {
                                 newRound = true;
                                 roundInfoPrev = updateResults.nextRoundInfoPrev();
-                                writeUpdateResults(out,updateResults);
+                                writeUpdateResults(out, updateResults);
                                 break;
                             }
                         }
@@ -458,17 +467,19 @@ public class TestHashgraphInfo {
                 if (lastEvent[creatorIndex] != null) {
                     parents.add(lastEvent[creatorIndex]);
                 }
-                for (int i=0; i<lastEvent.length; i++) {
+                for (int i = 0; i < lastEvent.length; i++) {
                     if (lastEvent[i] != null && i != creatorIndex) {
                         possibleOtherParents.add(lastEvent[i]);
                     }
                 }
                 Collections.shuffle(possibleOtherParents, random);
-                parents.addAll(possibleOtherParents.subList(0, Math.min(possibleOtherParents.size(), MAX_OTHER_PARENTS)));
+                parents.addAll(
+                        possibleOtherParents.subList(0, Math.min(possibleOtherParents.size(), MAX_OTHER_PARENTS)));
 
                 // create a random time, greater than self-parent, and greater than a randomly chosen potential parent
                 Instant timeCreated = Instant.EPOCH;
-                if (!parents.isEmpty() && timeCreated.isBefore(parents.getFirst().getTimeCreated())) {
+                if (!parents.isEmpty()
+                        && timeCreated.isBefore(parents.getFirst().getTimeCreated())) {
                     timeCreated = parents.getFirst().getTimeCreated();
                 }
                 if (!parents.isEmpty() && timeCreated.isBefore(parents.getLast().getTimeCreated())) {
@@ -485,8 +496,8 @@ public class TestHashgraphInfo {
                         random.nextInt(), // int coin
                         parents.toArray(new EventInfo[0]).clone(), // EventInfo[] parents
                         null); // Object payload
-                //lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
-                //mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
+                // lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
+                // mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEventsToRecalculate.add(eventInfo);
                 writeEventSigned(out, eventInfo);
                 lastEvent[creatorIndex] = eventInfo;
