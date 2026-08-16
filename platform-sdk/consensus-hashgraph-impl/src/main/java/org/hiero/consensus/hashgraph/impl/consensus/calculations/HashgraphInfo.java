@@ -1152,7 +1152,7 @@ public final class HashgraphInfo {
                     // find the top vote (candidate with the max total stake). If it's a tie, then choose the one
                     // that had the minimum node index voting for it. So if several voters vote for X and several
                     // vote for Y, and the total stake voting for X equals the total stake voting for Y, then find
-                    // the minimum node index of the creators of all the voters for X, and the same for Y, and choose
+                    // the minimum node index of the creators of all the voters for X. And the same for Y. And choose
                     // whichever had the min voter creator index.
                     int bestIndex = 0;
                     long bestStake = -1;

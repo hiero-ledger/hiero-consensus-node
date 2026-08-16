@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.structures.SequentialRingBuffer;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger; //TODO: it was hiero.consensus rather than hiero.base. OK?
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo;
