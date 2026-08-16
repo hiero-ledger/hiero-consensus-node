@@ -133,7 +133,7 @@ jobs:
     name: Extract Chewie Properties
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
