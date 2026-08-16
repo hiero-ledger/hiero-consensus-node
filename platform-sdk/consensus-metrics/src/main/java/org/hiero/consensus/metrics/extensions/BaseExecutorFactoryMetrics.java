@@ -3,9 +3,9 @@ package org.hiero.consensus.metrics.extensions;
 
 import static com.swirlds.base.units.UnitConstants.MILLISECOND_UNIT;
 
-import com.swirlds.base.internal.BaseExecutorFactory;
-import com.swirlds.base.internal.observe.BaseExecutorObserver;
-import com.swirlds.base.internal.observe.BaseTaskDefinition;
+import com.swirlds.base.metrics.BaseExecutorMetricsRegistrar;
+import com.swirlds.base.metrics.BaseExecutorMetricsRegistrar.Observer;
+import com.swirlds.base.metrics.BaseExecutorMetricsRegistrar.TaskInfo;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * This class installs metrics for the {@link BaseExecutorFactory}.
+ * This class installs metrics for the base executor (see the swirlds base executor factory).
  */
 public class BaseExecutorFactoryMetrics {
 
@@ -41,7 +41,7 @@ public class BaseExecutorFactoryMetrics {
     private final Counter tasksFailedCountAccumulator;
 
     /**
-     * Creates a new instance and installs metrics for the {@link BaseExecutorFactory}.
+     * Creates a new instance and installs metrics for the base executor.
      *
      * @param metrics the metrics system
      */
@@ -74,33 +74,33 @@ public class BaseExecutorFactoryMetrics {
 
         taskFailExecutionTimeMetric = new TaskExecutionTimeMetric(BASE_EXECUTOR, "task_failed_execution", metrics);
 
-        final BaseExecutorObserver observer = new BaseExecutorObserver() {
+        final Observer observer = new Observer() {
 
             @Override
-            public void onTaskSubmitted(@NonNull BaseTaskDefinition taskDefinition) {
+            public void onTaskSubmitted(@NonNull final TaskInfo taskInfo) {
                 taskCountAccumulator.increment();
             }
 
             @Override
-            public void onTaskStarted(@NonNull BaseTaskDefinition taskDefinition) {
+            public void onTaskStarted(@NonNull final TaskInfo taskInfo) {
                 taskExecutionCountAccumulator.increment();
             }
 
             @Override
-            public void onTaskDone(@NonNull BaseTaskDefinition taskDefinition, @NonNull Duration duration) {
+            public void onTaskDone(@NonNull final TaskInfo taskInfo, @NonNull final Duration duration) {
                 tasksDoneCountAccumulator.increment();
                 taskExecutionTimeMetric.update(duration);
                 taskDoneExecutionTimeMetric.update(duration);
             }
 
             @Override
-            public void onTaskFailed(@NonNull BaseTaskDefinition taskDefinition, @NonNull Duration duration) {
+            public void onTaskFailed(@NonNull final TaskInfo taskInfo, @NonNull final Duration duration) {
                 tasksFailedCountAccumulator.increment();
                 taskExecutionTimeMetric.update(duration);
                 taskFailExecutionTimeMetric.update(duration);
             }
         };
-        BaseExecutorFactory.addObserver(observer);
+        BaseExecutorMetricsRegistrar.addObserver(observer);
     }
 
     /**
