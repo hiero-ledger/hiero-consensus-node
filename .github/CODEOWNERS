@@ -148,24 +148,20 @@
 /.github/workflows/templates/                       @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
 
 # specific to CITR
-/.github/workflows/200-user-mqpt-controller-adhoc.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/201-user-sdpt-controller-adhoc.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/202-user-sdlt-controller-adhoc.yaml          @hiero-ledger/github-maintainers
-/.github/workflows/220-disp-mqpt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/221-disp-sdpt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/222-disp-sdlt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/223-disp-sdct-controller.yaml                @hiero-ledger/github-maintainers
-/.github/workflows/602-flow-merge-queue-controller.yaml         @hiero-ledger/github-maintainers
-/.github/workflows/830-call-merge-queue-performance-test.yaml   @hiero-ledger/github-maintainers
 /.github/workflows/831-call-single-day-performance-test.yaml    @hiero-ledger/github-maintainers
 /.github/workflows/832-call-execute-performance-test.yaml       @hiero-ledger/github-maintainers
 /.github/workflows/833-call-single-day-longevity-test.yaml      @hiero-ledger/github-maintainers
-/.github/workflows/834-call-read-chewie-response.yaml           @hiero-ledger/github-maintainers
 /.github/workflows/855-call-extract-citr-vars.yaml              @hiero-ledger/github-maintainers
 /.github/workflows/858-call-get-chewie-jwt.yaml                 @hiero-ledger/github-maintainers
 /.github/workflows/859-call-create-chewie-request.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/860-call-validate-chewie-jwt.yaml            @hiero-ledger/github-maintainers
 /.github/workflows/861-call-get-test-config.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/862-call-get-chewie-properties.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/901-cron-promote-build-candidate.yaml        @hiero-ledger/github-maintainers
 /.github/workflows/902-cron-auto-namespace-delete.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/903-cron-clean.yaml                          @hiero-ledger/github-maintainers

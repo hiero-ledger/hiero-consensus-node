@@ -24,7 +24,7 @@ public enum RoundInternalConsistencyValidation implements ConsensusRoundConsiste
             final MinimumJudgeInfo minimumJudgeInfo =
                     round.getSnapshot().minimumJudgeInfoList().getLast();
             assertThat(round.getRoundNum())
-                    .withFailMessage(String.format(
+                    .withFailMessage(() -> String.format(
                             "the last threshold should be equal for the current round %d", round.getRoundNum()))
                     .isEqualTo(minimumJudgeInfo.round());
 

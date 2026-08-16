@@ -13,8 +13,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
@@ -56,6 +54,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +67,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
@@ -168,8 +166,8 @@ public class Utils {
 
     public static ByteString extractBytecodeUnhexed(final String path) {
         try {
-            final var bytes = Files.readAllBytes(Path.of(path));
-            return ByteString.copyFrom(Hex.decode(bytes));
+            final var string = Files.readString(Path.of(path));
+            return ByteString.copyFrom(HexFormat.of().parseHex(string));
         } catch (IOException e) {
             log.warn("An error occurred while reading file", e);
             return ByteString.EMPTY;
@@ -630,12 +628,7 @@ public class Utils {
 
     public static long expectedPrecompileGasFor(
             final HapiSpec spec, final HederaFunctionality function, final SubType type) {
-        final var gasThousandthsOfTinycentPrice = spec.fees()
-                .getCurrentOpFeeData()
-                .get(ContractCall)
-                .get(DEFAULT)
-                .getServicedata()
-                .getGas();
+        final var gasThousandthsOfTinycentPrice = spec.ratesProvider().gasPriceInThousandthsOfTinycent();
         final BigDecimal hapiUsdPrice = CANONICAL_USD_PRICES.get(function).get(type);
         final var precompileTinycentPrice = hapiUsdPrice
                 .multiply(BigDecimal.valueOf(1.2))

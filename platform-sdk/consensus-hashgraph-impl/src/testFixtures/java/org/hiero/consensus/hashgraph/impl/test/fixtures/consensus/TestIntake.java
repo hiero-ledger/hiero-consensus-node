@@ -167,9 +167,9 @@ public class TestIntake {
     }
 
     /**
-     * @return a queue of all rounds that have reached consensus
+     * @return a list of all rounds that have reached consensus
      */
-    public @NonNull LinkedList<ConsensusRound> getConsensusRounds() {
+    public @NonNull List<ConsensusRound> getConsensusRounds() {
         return output.getConsensusRounds();
     }
 

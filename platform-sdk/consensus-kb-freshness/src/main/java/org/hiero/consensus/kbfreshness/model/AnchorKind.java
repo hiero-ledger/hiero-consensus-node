@@ -41,6 +41,12 @@ public enum AnchorKind {
     CLASS(1),
     /** A method named on a resolvable class (e.g. {@code verification:} "Class — method"). */
     METHOD_ON_CLASS(1),
+    /**
+     * A named symbol on a source file, cited as {@code File.java#symbol} — a method, field, enum
+     * constant, or nested type. Resolved by parsing the file and checking the symbol is declared; absent
+     * asserts (a rename or removal). The durable replacement for a {@code File.java:NN} line reference.
+     */
+    SOURCE_SYMBOL(1),
     /** A method reference of the form {@code Class::method}. */
     METHOD_REF(1),
     /** An enum constant, e.g. {@code EventOrigin.RUNTIME}. */

@@ -6,7 +6,7 @@ plugins {
 }
 
 testModuleInfo {
-    requires("org.hiero.consensus.concurrent")
+    requires("org.hiero.base.concurrent")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 

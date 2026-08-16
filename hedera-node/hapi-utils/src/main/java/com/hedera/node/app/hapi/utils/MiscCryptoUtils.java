@@ -3,14 +3,14 @@ package com.hedera.node.app.hapi.utils;
 
 import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
 import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
+import com.hedera.cryptography.libxkcp.Libxkcp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.lang.foreign.MemorySegment;
-import java.security.MessageDigest;
 import java.util.Arrays;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 
 public class MiscCryptoUtils {
     private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
+    private static final Libxkcp LIBXKCP = Libxkcp.getInstance();
 
     private static final int EVM_ADDRESS_SIZE = 20;
 
@@ -63,14 +63,40 @@ public class MiscCryptoUtils {
         throw new UnsupportedOperationException("Utility Class");
     }
 
+    public static byte[] keccak256DigestOf(final MemorySegment msgSegment) {
+        final byte[] hashInstance = new byte[LIBXKCP.sizeOfKeccakHashInstance];
+        final MemorySegment hashInstanceSeg = MemorySegment.ofArray(hashInstance);
+        int ret;
+
+        ret = LIBXKCP.keccakHashInitialize(
+                hashInstanceSeg,
+                Libxkcp.SHA3_256_RATE,
+                Libxkcp.SHA3_256_CAPACITY,
+                Libxkcp.SHA3_256_HASHBITLEN,
+                Libxkcp.SHA3_256_DELIMITED_SUFFIX_ORIGINAL);
+        if (ret != Libxkcp.KECCAK_SUCCESS) {
+            throw new RuntimeException("keccakHashInitialize returned " + ret);
+        }
+
+        ret = LIBXKCP.keccakHashUpdate(hashInstanceSeg, msgSegment, msgSegment.byteSize() * 8L);
+        if (ret != Libxkcp.KECCAK_SUCCESS) {
+            throw new RuntimeException("keccakHashUpdate returned " + ret);
+        }
+
+        final byte[] hash = new byte[Libxkcp.SHA3_256_HASHVAL_LENGTH_BYTES];
+        ret = LIBXKCP.keccakHashFinal(hashInstanceSeg, MemorySegment.ofArray(hash));
+        if (ret != Libxkcp.KECCAK_SUCCESS) {
+            throw new RuntimeException("keccakHashFinal returned " + ret);
+        }
+        return hash;
+    }
+
     public static byte[] keccak256DigestOf(final byte[] msg) {
-        return new Keccak.Digest256().digest(msg);
+        return keccak256DigestOf(MemorySegment.ofArray(msg));
     }
 
     public static Bytes keccak256DigestOf(final Bytes msg) {
-        final MessageDigest digest = new Keccak.Digest256();
-        msg.writeTo(digest);
-        return Bytes.wrap(digest.digest());
+        return Bytes.wrap(keccak256DigestOf(msg.toMemorySegment()));
     }
 
     /**
