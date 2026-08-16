@@ -99,6 +99,7 @@ public final class HashgraphInfo {
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
     private EventInfo[] candEventInfo; // all the judge candidate events for voting
     private long[] candStakeCollected; // the total stake of all votes collected, for each candidate event
+    private long[] candMinVoter; // for each candidate, the min node index of creators of voters voting for that it
     private RoundInfo latestRoundInfo; // the latest roundInfo passed to update() for any hashgraph instance
     private RoundInfoPrev latestRoundInfoPrev; // the most recent roundInfoPrev passed to any update()
 
@@ -255,6 +256,8 @@ public final class HashgraphInfo {
     public long[] getCandStakeCollected() {
         return candStakeCollected;
     }
+
+    public long[] getCandMinVoter() {return candMinVoter;}
 
     public boolean isNodesChanged() {
         return nodesChanged;
@@ -777,6 +780,7 @@ public final class HashgraphInfo {
                     h.candIndex = new ArrayList<>(h.numNodes);
                     h.candEventInfo = new EventInfo[2 * h.numNodes];
                     h.candStakeCollected = new long[2 * h.numNodes];
+                    h.candMinVoter = new long[2 * h.numNodes];
                     for (int i = 0; i < h.numNodes; i++) {
                         ArrayList<Integer> list = new ArrayList<>(2);
                         h.candIndex.add(list);
@@ -788,6 +792,7 @@ public final class HashgraphInfo {
                     h.candIndex.get(m).add(m); // add back the entry for the null candidate
                     h.candEventInfo[m] = null; // index m represents a vote that node m have a judge of null
                     Arrays.fill(h.candStakeCollected, 0L); // this could be skipped, but it's cheap and safer to do it
+                    Arrays.fill(h.candMinVoter, 0L); // this could be skipped, but it's cheap and safer to do it
                 }
                 // if r.nodes changed this round (or it's the first time called), then store it, create nodeIdToIndex
                 h.nodesChanged = false;
@@ -1073,6 +1078,7 @@ public final class HashgraphInfo {
                 h.candIndex.get(creatorIndex).add(eventCandIndex); // maintain a list of indices for each creator
                 if (h.candCount > h.candStakeCollected.length) { // if too big for arrays, then double their sizes
                     h.candStakeCollected = Arrays.copyOf(h.candStakeCollected, h.candCount * 2);
+                    h.candMinVoter = Arrays.copyOf(h.candMinVoter, h.candCount * 2);
                     h.candEventInfo = Arrays.copyOf(h.candEventInfo, h.candCount * 2);
                 }
                 h.candEventInfo[eventCandIndex] = this;
@@ -1130,20 +1136,29 @@ public final class HashgraphInfo {
                     // Instead of using these 2 functions from the paper, use h.cand* fields for more efficiency
                     // collect all votes
                     Arrays.fill(h.candStakeCollected, 0);
+                    Arrays.fill(h.candMinVoter, Long.MAX_VALUE);
                     for (int mp = 0; mp < numNodes; mp++) {
                         EventInfo t = stronglySeeS1[mp];
                         if (t != null) {
                             h.candStakeCollected[t.voteIndex[m]] += r.stake[mp];
+                            h.candMinVoter[t.voteIndex[m]] = Math.min(h.candMinVoter[t.voteIndex[m]], mp);
                         }
                     }
-                    // find the top vote
+                    // find the top vote (candidate with the max total stake). If it's a tie, then choose the one
+                    // that had the minimum node index voting for it. So if several voters vote for X and several
+                    // vote for Y, and the total stake voting for X equals the total stake voting for Y, then find
+                    // the minimum node index of the creators of all the voters for X, and the same for Y, and choose
+                    // whichever had the min voter creator index.
                     int bestIndex = 0;
                     long bestStake = -1;
+                    long bestVoter = 0; // index of the voter with the lowest creator index (for when stake is a tie)
                     for (int index : h.candIndex.get(m)) {
                         long stake = h.candStakeCollected[index];
-                        if (stake > bestStake) {
+                        long minIndex = h.candMinVoter[index];
+                        if ((stake > bestStake) || (stake == bestStake && minIndex < bestVoter)) {
                             bestStake = stake;
                             bestIndex = index;
+                            bestVoter = minIndex;
                         }
                     }
                     EventInfo v = h.candEventInfo[bestIndex];
