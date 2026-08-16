@@ -25,10 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * be treated as immutable objects.
  * <p>
  * There are constructors and getters, but no setters, and no public fields. Other than that, there are only 3 public
- * methods: the static method {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()},
+ * methods: the static method {@link HashgraphInfo#minNonAncientRound minNonAncientRound},
  * which gives the minimum birth round that is not ancient,
- * {@link EventInfo#update EventInfo.update()}, which updates an event with the consensus calculations, and
- * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
+ * {@link EventInfo#update update}, which updates an event with the consensus calculations, and
+ * {@link EventInfo#clear clear}, which erases references in it when it is time to discard it.
  * This file implements the equations from the tech report Swirlds-TR-2026-01. Search this file for "/-" to
  * find all the function equations from that paper that are implemented.
  * <p>
@@ -36,15 +36,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
  * <p>
  * An {@link EventInfo EventInfo} should be instantiated for each event. The
- * {@link EventInfo#update EventInfo.update()} method is called on all the events to calculate consensus. At some
- * time after an event becomes ancient, it should have its {@link EventInfo#clear EventInfo.clear()} method called to
+ * {@link EventInfo#update update} method is called on all the events to calculate consensus. At some
+ * time after an event becomes ancient, it should have its {@link EventInfo#clear clear} method called to
  * clean up memory by erasing all its references to older events. This can happen immediately after it becomes
  * ancient, or many rounds later when it expires, or at any other time after becoming ancient.
  * <p>
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
  * It should instantiate a {@link RoundInfo RoundInfo} and {@link RoundInfoPrev RoundInfoPrev} for the pending round
  * (the round for which consensus is currently being calculated). After a round reaches consensus, a new
- * {@link RoundInfoPrev RoundInfoPrev} is calculated and returned by {@link EventInfo#update EventInfo.update()},
+ * {@link RoundInfoPrev RoundInfoPrev} is calculated and returned by {@link EventInfo#update update},
  * which can then be used for the next round.
  * <p>
  * The network's overall consensus state should include the {@link RoundInfoPrev RoundInfoPrev} for the pending round
@@ -53,11 +53,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * might contain info such as the public keys for all the nodes, used to verify their signatures. This class doesn't
  * use rosters. It only uses the two round info records.
  * <p>
- * If a call to {@link EventInfo#update EventInfo.update} returns a non-null value, then the event caused consensus to
+ * If a call to {@link EventInfo#update update} returns a non-null value, then the event caused consensus to
  * be reached for that round (a "keystone event"). In that case, it returns a record that contains
  * the list of all the events that reached consensus in that round. Which might be an empty list if none reached
  * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev} record, which should be used in further
- * calls to {@link EventInfo#update update()} in the next round.
+ * calls to {@link EventInfo#update update} in the next round.
+ * <p>
+ * This file (1365 lines) has everything needed for consensus. The actual hashgraph consensus algorithm
+ * ({@link EventInfo#graphSearch graphSearch} and {@link EventInfo#update udpate}) is only 619 lines of code, excluding comments
+ * and blank lines.
  */
 @java.lang.SuppressWarnings("unused")
 public final class HashgraphInfo {
@@ -899,7 +903,8 @@ public final class HashgraphInfo {
             }
             h.parentsCapacity = Math.max(h.parentsCapacity, h.parents.size());
             // function selfParent /---------------------------------------------------------------------------
-            selfParent = (h.parents.isEmpty() || h.parents.getFirst().creatorNodeID != creatorNodeID) ? null : h.parents.getFirst();
+            selfParent = (h.parents.isEmpty() || h.parents.getFirst().creatorNodeID != creatorNodeID)
+                    ? null : h.parents.getFirst();
             // function maxJudgeRound /---------------------------------------------------------------------------
             maxJudgeRound = isPrevJudge ? (r.pendingRound - 1) : 0;
             for (EventInfo parent : h.parents) {
