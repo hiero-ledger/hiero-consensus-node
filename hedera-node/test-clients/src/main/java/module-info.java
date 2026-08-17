@@ -118,6 +118,7 @@ open module com.hedera.node.test.clients {
     requires org.hiero.consensus.pces.impl.test.fixtures;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;

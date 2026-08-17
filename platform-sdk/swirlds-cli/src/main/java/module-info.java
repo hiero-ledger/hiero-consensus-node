@@ -28,15 +28,14 @@ module org.hiero.consensus.pcli {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.event.stream;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.iss.detection;
-    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;

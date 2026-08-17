@@ -206,7 +206,7 @@ and fixed per document class.
 Two header orderings apply:
 
 - **Catalog entries** (`decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`):
-  `type` / `id` / `title` / … (all other existing fields unchanged)
+  `type` / `id` / `title` / … / `last_reviewed` (the trailing key)
 - **Narrative and single-file catalog files** (`concepts/`, `architecture/**`, `glossary.md`,
   `symptoms.md`, `tunables.md`): `type` / `title` / `description` (catalog files only) /
   `last_reviewed`
