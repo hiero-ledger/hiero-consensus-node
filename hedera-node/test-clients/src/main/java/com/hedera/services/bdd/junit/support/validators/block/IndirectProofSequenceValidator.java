@@ -472,7 +472,10 @@ class IndirectProofSequenceValidator {
         final var allSiblings = mp2.siblings();
         var hash = mp2.hashOrThrow();
         for (final SiblingNode sibling : allSiblings) {
-            if (sibling.isLeft()) {
+            if (sibling.hash().length() == 0) {
+                // Null-hash sentinel: applies single-child wrap (depth3→depth2). Present for every block.
+                hash = BlockImplUtils.hashInternalNodeSingleChild(hash);
+            } else if (sibling.isLeft()) {
                 hash = BlockImplUtils.hashInternalNode(sibling.hash(), hash);
             } else {
                 hash = BlockImplUtils.hashInternalNode(hash, sibling.hash());
@@ -491,10 +494,10 @@ class IndirectProofSequenceValidator {
 
     private static int expectedSiblingsFrom(final long numIntermediateBlocks) {
         // Each intermediate block (between the proven block and the signed block) contributes
-        // UNSIGNED_BLOCK_SIBLING_COUNT siblings (4 right siblings + timestamp)
+        // UNSIGNED_BLOCK_SIBLING_COUNT siblings (3 right siblings + null sentinel + timestamp)
         final var intermediateSiblingCount = (int) (numIntermediateBlocks * UNSIGNED_BLOCK_SIBLING_COUNT);
 
-        // The signed block contributes SIGNED_BLOCK_SIBLING_COUNT siblings (4 right siblings).
+        // The signed block contributes SIGNED_BLOCK_SIBLING_COUNT siblings (3 right siblings + null sentinel).
         // Its timestamp lives in Merkle Path 1, not in the sibling list.
         return intermediateSiblingCount + SIGNED_BLOCK_SIBLING_COUNT;
     }

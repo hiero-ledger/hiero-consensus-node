@@ -34,12 +34,10 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
     Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
 
-    /**
-     * The number of sibling hashes on the path from a block's first branch up to its root: one per level
-     * of the eight assigned branches, plus the root of the reserved branches 9-16. The block root's other
-     * child, the consensus timestamp leaf, is carried separately and is not counted here.
+    /*
+     * Typically there are four siblings per block, but in our case the right penultimate root (i.e. the right child of a block's root hash) is merely a composition of its left child hash, requiring no other inputs. <b>This must change if we ever use one of the reserved roots for anything.</b>
      */
-    int NUM_SIBLINGS_PER_BLOCK = 4;
+    int NUM_SIBLINGS_PER_BLOCK = 3;
 
     /**
      * The types of work that may be identified as pending within a block.

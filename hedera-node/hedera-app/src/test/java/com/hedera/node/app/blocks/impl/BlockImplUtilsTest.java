@@ -94,6 +94,29 @@ class BlockImplUtilsTest {
 
     @SuppressWarnings("DataFlowIssue")
     @Test
+    void hashInternalNodeSingleChildWithNullParamThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNodeSingleChild(null));
+    }
+
+    @Test
+    void hashInternalNodeSingleChildAppendsSingleNodePrefix() {
+        final Bytes expected = Bytes.fromHex(
+                "25eeda015d2d5506ca98944d615c7502baede45e5d03725184b9516c923485738c0bba382a6ef4840a02c6bb3c27c452");
+
+        final MessageDigest digest = sha384DigestOrThrow();
+        final Bytes data = Bytes.fromHex(
+                "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
+        // Precondition: verify expected matches computed value
+        assertEquals(expected, computed);
+
+        final Bytes actual = BlockImplUtils.hashInternalNodeSingleChild(data);
+        assertEquals(expected, actual);
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
     void hashInternalNodeBytesWithNullParamsThrows() {
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, Bytes.EMPTY));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (Bytes) null));
@@ -168,6 +191,14 @@ class BlockImplUtilsTest {
         final var actualLeafPrefix = BlockImplUtils.hashLeaf(data);
         assertEquals(computedLeafPrefix, actualLeafPrefix);
         assertNotEquals(computedNoPrefix, actualLeafPrefix);
+
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        // 264184f6b083b2927d15d0a36395c653b98c4ea679e9e5df3c50848728015338d0a6a2649058a8e4671194843034b51f
+        data.writeTo(digest);
+        final var computedSingleChildPrefix = Bytes.wrap(digest.digest());
+        final var actualSingleChildPrefix = BlockImplUtils.hashInternalNodeSingleChild(data);
+        assertEquals(computedSingleChildPrefix, actualSingleChildPrefix);
+        assertNotEquals(computedNoPrefix, actualSingleChildPrefix);
 
         digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
         // The internal node hash calculation requires two inputs, so use data twice

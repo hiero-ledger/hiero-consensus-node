@@ -20,6 +20,7 @@ public class BlockImplUtils {
 
     public static final byte[] LEAF_PREFIX = {0x0};
     public static final Bytes LEAF_PREFIX_BYTES = Bytes.wrap(LEAF_PREFIX);
+    public static final byte[] SINGLE_CHILD_INTERNAL_NODE_PREFIX = {0x1};
     public static final byte[] INTERNAL_NODE_PREFIX = {0x2};
     public static final Bytes INTERNAL_NODE_PREFIX_BYTES = Bytes.wrap(INTERNAL_NODE_PREFIX);
 
@@ -120,6 +121,10 @@ public class BlockImplUtils {
 
     public static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
         return hashOfAll(digest, LEAF_PREFIX, leafData);
+    }
+
+    public static Bytes hashInternalNodeSingleChild(@NonNull final Bytes hash) {
+        return sha384HashOfAll(SINGLE_CHILD_INTERNAL_NODE_PREFIX, hash.toByteArray());
     }
 
     public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final byte[] rightHash) {
