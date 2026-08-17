@@ -2284,14 +2284,13 @@ public class ContractCallSuite {
                                 "createChildThenFailToAssociate",
                                 asHeadlongAddress(new byte[20]),
                                 asHeadlongAddress(new byte[20]))
-                        .gas(1_000_000)
                         .via(failingCall)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 getTxnRecord(failingCall)
                         .exposingTo(failureRecord -> parentConsTime.set(failureRecord.getConsensusTimestamp())),
                 sourcing(() -> childRecordsCheck(
                         failingCall,
-                        CONTRACT_REVERT_EXECUTED,
+                        INSUFFICIENT_GAS,
                         recordWith().status(INSUFFICIENT_GAS).consensusTimeImpliedByOffset(parentConsTime.get(), 1))));
     }
 
