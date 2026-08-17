@@ -988,61 +988,61 @@ class IssBufferRaceSimTest implements LifecycleTest {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
-                            "tss.forceMockSignatures", "true"
+//                            "blockStream.streamMode", "BLOCKS",
+//                            "blockStream.writerMode", "GRPC",
+//                            "blockStream.streamWrappedRecordBlocks", "false",
+//                            "blockStream.enableCutover", "false",
+//                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+//                            "blockStream.buffer.maxBlocks", "200",
+//                            "blockStream.blockPeriod", "0",
+//                            "blockStream.roundsPerBlock", "1"
+//                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
-                            "blockStream.buffer.workerInterval", "100ms",
-                            "tss.forceMockSignatures", "true"
+//                            "blockStream.streamMode", "BLOCKS",
+//                            "blockStream.writerMode", "GRPC",
+//                            "blockStream.streamWrappedRecordBlocks", "false",
+//                            "blockStream.enableCutover", "false",
+//                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+//                            "blockStream.buffer.maxBlocks", "200",
+//                            "blockStream.blockPeriod", "0",
+//                            "blockStream.roundsPerBlock", "1",
+//                            "blockStream.buffer.workerInterval", "100ms"
+//                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
-                            "tss.forceMockSignatures", "true"
+//                            "blockStream.streamMode", "BLOCKS",
+//                            "blockStream.writerMode", "GRPC",
+//                            "blockStream.streamWrappedRecordBlocks", "false",
+//                            "blockStream.enableCutover", "false",
+//                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+//                            "blockStream.buffer.maxBlocks", "200",
+//                            "blockStream.blockPeriod", "0",
+//                            "blockStream.roundsPerBlock", "1"
+//                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.maxBlocks", "200",
-                            "blockStream.blockPeriod", "0",
-                            "blockStream.roundsPerBlock", "1",
-                            "tss.forceMockSignatures", "true"
+//                            "blockStream.streamMode", "BLOCKS",
+//                            "blockStream.writerMode", "GRPC",
+//                            "blockStream.streamWrappedRecordBlocks", "false",
+//                            "blockStream.enableCutover", "false",
+//                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+//                            "blockStream.buffer.maxBlocks", "200",
+//                            "blockStream.blockPeriod", "0",
+//                            "blockStream.roundsPerBlock", "1"
+//                            "tss.forceMockSignatures", "true"
                         })
             })
     final Stream<DynamicTest> selfIssBlockLeavesBufferOnLateNotification() {
