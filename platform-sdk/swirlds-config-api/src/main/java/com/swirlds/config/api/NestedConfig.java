@@ -40,7 +40,7 @@ import java.lang.annotation.Target;
  *     <li>a record type annotated with this annotation that also has a registered
  *     {@link com.swirlds.config.api.converter.ConfigConverter}</li>
  *     <li>a record valued component whose type has neither this annotation nor a converter</li>
-` *     <li>a {@link java.util.List} or {@link java.util.Set} whose element type is annotated with this annotation, since
+ *     <li>a {@link java.util.List} or {@link java.util.Set} whose element type is annotated with this annotation, since
  *     a group takes its name from the single component holding it and an element of a collection has none</li>
  * </ul>
  * A record type without this annotation therefore stays a single property whose raw value is converted by a registered
