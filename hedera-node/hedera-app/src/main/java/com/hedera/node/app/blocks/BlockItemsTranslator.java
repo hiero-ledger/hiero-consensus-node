@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.hiero.base.utility.ByteUtils;
-import org.hyperledger.besu.evm.log.Log;
+import org.hyperledger.besu.datatypes.Log;
 
 /**
  * Translates a {@link TransactionResult} and, optionally, one or more {@link TransactionOutput}s within a given

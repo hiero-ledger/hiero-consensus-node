@@ -59,10 +59,10 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
+import org.hyperledger.besu.datatypes.LogsBloomFilter;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
-import org.hyperledger.besu.evm.log.LogsBloomFilter;
 
 /**
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
@@ -504,7 +504,7 @@ public class ConversionUtils {
         final var loggerNumber = numberOfLongZero(log.getLogger());
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> loggedTopics = new ArrayList<>();
         for (final var topic : log.getTopics()) {
-            loggedTopics.add(tuweniToPbjBytes(topic));
+            loggedTopics.add(tuweniToPbjBytes(topic.getBytes()));
         }
         return ContractLoginfo.newBuilder()
                 .contractID(entityIdFactory.newContractId(loggerNumber))
@@ -542,7 +542,7 @@ public class ConversionUtils {
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> topics =
                 new ArrayList<>(log.getTopics().size());
         for (final var topic : log.getTopics()) {
-            topics.add(tuweniToPbjBytes(topic.trimLeadingZeros()));
+            topics.add(tuweniToPbjBytes(topic.getBytes().trimLeadingZeros()));
         }
         return new EvmTransactionLog(
                 entityIdFactory.newContractId(numberOfLongZero(log.getLogger())),
@@ -635,7 +635,7 @@ public class ConversionUtils {
      */
     public static long maybeMissingNumberOf(
             @NonNull final Address address, @NonNull final HederaNativeOperations nativeOperations) {
-        return maybeMissingNumberOf(address.toArrayUnsafe(), nativeOperations);
+        return maybeMissingNumberOf(address.getBytes().toArrayUnsafe(), nativeOperations);
     }
 
     /**
@@ -646,7 +646,7 @@ public class ConversionUtils {
      */
     @SuppressWarnings("java:S2201")
     public static long numberOfLongZero(@NonNull final Address address) {
-        return numberOfLongZero(address.toArray());
+        return numberOfLongZero(address.getBytes().toArray());
     }
 
     /**
@@ -656,7 +656,7 @@ public class ConversionUtils {
      * @return whether it is long-zero
      */
     public static boolean isLongZero(@NonNull final Address address) {
-        return isLongZeroAddress(address.toArrayUnsafe());
+        return isLongZeroAddress(address.getBytes().toArrayUnsafe());
     }
 
     /**
@@ -693,7 +693,7 @@ public class ConversionUtils {
      * @return the PBJ bytes alias
      */
     public static com.hedera.pbj.runtime.io.buffer.Bytes aliasFrom(@NonNull final Address address) {
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(address.toArrayUnsafe());
+        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(address.getBytes().toArrayUnsafe());
     }
 
     /**
@@ -734,7 +734,7 @@ public class ConversionUtils {
      */
     public static ContractID asEvmContractId(
             @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        return entityIdFactory.newContractIdWithEvmAddress(tuweniToPbjBytes(address));
+        return entityIdFactory.newContractIdWithEvmAddress(tuweniToPbjBytes(address.getBytes()));
     }
 
     /**
@@ -924,7 +924,7 @@ public class ConversionUtils {
      */
     public static com.hedera.pbj.runtime.io.buffer.Bytes bloomForAll(@NonNull final List<Log> logs) {
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
-                LogsBloomFilter.builder().insertLogs(logs).build().toArray());
+                LogsBloomFilter.builder().insertLogs(logs).build().getBytes().toArray());
     }
 
     private static byte[] clampedBytes(
@@ -1027,7 +1027,7 @@ public class ConversionUtils {
     public static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
         requireNonNull(log);
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
-                LogsBloomFilter.builder().insertLog(log).build().toArray());
+                LogsBloomFilter.builder().insertLog(log).build().getBytes().toArray());
     }
 
     private static Address longZeroAddressIn(@NonNull final MessageFrame frame, @NonNull final Address address) {

@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_LABEL;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.upgradeDataStateKey;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
@@ -202,9 +202,7 @@ public class FileTestBase {
         writableUpgradeFileStates = emptyUpgradeFileState();
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(readableFileState);
         given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
-        final var fileStateKey = UPGRADE_DATA_STATE_KEY_PATTERN
-                .formatted(fileUpgradeFileId.fileNum())
-                .toUpperCase();
+        final var fileStateKey = upgradeDataStateKey(fileUpgradeFileId.fileNum());
         final var fileStateId = StateKey.KeyOneOfType.valueOf(fileStateKey).protoOrdinal();
         given(filteredReadableStates.<ProtoBytes>getQueue(fileStateId)).willReturn(readableUpgradeStates);
         given(filteredWritableStates.<ProtoBytes>getQueue(fileStateId)).willReturn(writableUpgradeStates);
@@ -257,9 +255,7 @@ public class FileTestBase {
         writableUpgradeFileStates = writableUpgradeFileState();
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(readableFileState);
         given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
-        final var fileStateKey = UPGRADE_DATA_STATE_KEY_PATTERN
-                .formatted(fileUpgradeFileId.fileNum())
-                .toUpperCase();
+        final var fileStateKey = upgradeDataStateKey(fileUpgradeFileId.fileNum());
         final var fileStateId = StateKey.KeyOneOfType.valueOf(fileStateKey).protoOrdinal();
         given(filteredReadableStates.<ProtoBytes>getQueue(fileStateId)).willReturn(readableUpgradeStates);
         given(filteredWritableStates.<ProtoBytes>getQueue(fileStateId)).willReturn(writableUpgradeStates);

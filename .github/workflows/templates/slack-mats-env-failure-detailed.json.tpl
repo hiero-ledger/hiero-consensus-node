@@ -18,7 +18,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ printf "*Environment issue detected on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") (getenv "REF_NAME") | data.ToJSON }}
+            "text": {{ printf "*Environment issue detected on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") | data.ToJSON }}
           },
           "fields": [
             {
