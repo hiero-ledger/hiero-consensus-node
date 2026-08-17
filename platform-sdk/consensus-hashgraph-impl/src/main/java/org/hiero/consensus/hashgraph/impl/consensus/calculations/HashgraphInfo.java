@@ -328,6 +328,7 @@ public final class HashgraphInfo {
         private boolean isPrevJudge; // true if this is a judge in previous round (updated when round reaches consensus)
         private long maxJudgeRound;
         private int eventCandIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
+        private Object payload; // passed to the constructor and never used in consensus
         // the following are used for graph searches in the hashgraph
         private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
         private int searchCount; // number of judges that are descendents of this event
@@ -375,6 +376,7 @@ public final class HashgraphInfo {
             this.coin = coin;
             this.isConsensus = false;
             this.gen = -1; // -1 iff update() has never been called yet on this event
+            this.payload = payload;
         }
 
         /** True iff this event has reached consensus. (If false, it may still reach consensus later). */
@@ -426,6 +428,7 @@ public final class HashgraphInfo {
         public boolean isPrevJudge() { return isPrevJudge; }
         public int getEventCandIndex() { return eventCandIndex; }
         public boolean isSearchJudgeSelfAncestor() { return searchJudgeSelfAncestor; }
+        public Object getPayload() { return payload; }
         // spotless:on
 
         /**
