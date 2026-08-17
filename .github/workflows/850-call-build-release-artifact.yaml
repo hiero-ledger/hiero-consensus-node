@@ -863,14 +863,16 @@ jobs:
         if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           RELEASE_PROFILE: ${{ inputs.release-profile }}
-        run: ./gradlew "release${RELEASE_PROFILE}" -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false
+        # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
+        run: ./gradlew "release${RELEASE_PROFILE}" -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --no-parallel
 
       - name: Gradle Publish to Maven Central
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false
+        # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --no-parallel
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}

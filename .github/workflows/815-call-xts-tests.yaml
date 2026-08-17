@@ -382,7 +382,7 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
       solo-version: "${{ inputs.solo-version }}"
       helm-release-name: "${{ inputs.helm-release-name }}"
-      mirror-node-version: "${{ inputs.mirror-node-version || '0.145.2' }}"
+      mirror-node-version: "${{ inputs.mirror-node-version || '0.161.0' }}"
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}

@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.hiero.base.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
 import org.hiero.consensus.gossip.impl.network.PeerCommunication;

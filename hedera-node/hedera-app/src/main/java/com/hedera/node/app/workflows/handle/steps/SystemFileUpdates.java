@@ -100,9 +100,7 @@ public class SystemFileUpdates {
         // We load the file only, if there is an updater for it.
         final var filesConfig = configuration.getConfigData(FilesConfig.class);
 
-        if (fileNum == filesConfig.feeSchedules()) {
-            return feeManager.update(FileUtilities.getFileContent(state, fileID));
-        } else if (fileNum == filesConfig.simpleFeesSchedules()) {
+        if (fileNum == filesConfig.simpleFeesSchedules()) {
             return feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID));
         } else if (fileNum == filesConfig.exchangeRates()) {
             exchangeRateManager.update(FileUtilities.getFileContent(state, fileID), payer);
