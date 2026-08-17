@@ -25,7 +25,7 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
  */
-public class SimulatedNetwork {
+public class SimulatedNetworkConnectivity {
 
     /**
      * The random number generator to use for simulating network delays.
@@ -57,7 +57,7 @@ public class SimulatedNetwork {
      *
      * @param random the random number generator to use for simulating network delays
      */
-    public SimulatedNetwork(@NonNull final Random random) {
+    public SimulatedNetworkConnectivity(@NonNull final Random random) {
         this.random = requireNonNull(random);
     }
 
