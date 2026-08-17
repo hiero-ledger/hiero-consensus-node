@@ -2284,6 +2284,7 @@ public class ContractCallSuite {
                                 "createChildThenFailToAssociate",
                                 asHeadlongAddress(new byte[20]),
                                 asHeadlongAddress(new byte[20]))
+                        .gas(1_000_000)
                         .via(failingCall)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                 getTxnRecord(failingCall)
@@ -2349,7 +2350,9 @@ public class ContractCallSuite {
                                                 tokenAddress.get(), treasuryAddress.get(), receiverAddress.get(), 13L)
                                         .array(),
                                 BigInteger.valueOf(13_000L))
-                        .via("callTxn")),
+                        .gas(1_000_000)
+                        .via("callTxn")
+                ),
                 childRecordsCheck("callTxn", SUCCESS, recordWith().status(INSUFFICIENT_GAS)),
                 // Verify no token balances changed
                 getAccountDetails(TOKEN_TREASURY)

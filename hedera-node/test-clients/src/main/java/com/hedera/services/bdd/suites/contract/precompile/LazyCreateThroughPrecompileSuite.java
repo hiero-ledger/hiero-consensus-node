@@ -325,7 +325,7 @@ public class LazyCreateThroughPrecompileSuite {
                                     .logged()
                                     .signedBy(DEFAULT_PAYER, OWNER)
                                     .fee(ONE_HBAR),
-                            // lazy create attempt with unsufficient gas
+                            // lazy create attempt with insufficient gas
                             contractCall(
                                             ERC_20_CONTRACT,
                                             TRANSFER_FROM,
@@ -338,7 +338,7 @@ public class LazyCreateThroughPrecompileSuite {
                                     .refusingEthConversion()
                                     .gas(500_000)
                                     .via(NOT_ENOUGH_GAS_TXN)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                                    .hasKnownStatus(INSUFFICIENT_GAS),
                             // lazy create with revert afterwards
                             contractCall(
                                             ERC_20_CONTRACT,
@@ -379,7 +379,7 @@ public class LazyCreateThroughPrecompileSuite {
                                     .logged(),
                             childRecordsCheck(
                                     NOT_ENOUGH_GAS_TXN,
-                                    CONTRACT_REVERT_EXECUTED,
+                                    INSUFFICIENT_GAS,
                                     recordWith().status(INSUFFICIENT_GAS)),
                             childRecordsCheck(
                                     TRANSFER_FROM_ACCOUNT_REVERT_TXN,

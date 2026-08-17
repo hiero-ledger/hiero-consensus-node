@@ -2242,6 +2242,7 @@ class AtomicContractCallSuite {
                                         "createChildThenFailToAssociate",
                                         asHeadlongAddress(new byte[20]),
                                         asHeadlongAddress(new byte[20]))
+                                .gas(1_000_000L)
                                 .via(failingCall)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .batchKey(BATCH_OPERATOR))
