@@ -460,17 +460,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // If this data source is restored from a snapshot, the storage dir may contain index files. They
         // are no longer needed and can be deleted
-        if (Files.exists(dbPaths.pathToDiskLocationLeafNodesFile)) {
-            Files.delete(dbPaths.pathToDiskLocationLeafNodesFile);
-        }
-        if (Files.exists(dbPaths.idToDiskLocationHashChunksFile)) {
-            Files.delete(dbPaths.idToDiskLocationHashChunksFile);
-        }
+        Files.deleteIfExists(dbPaths.pathToDiskLocationLeafNodesFile);
+        Files.deleteIfExists(dbPaths.idToDiskLocationHashChunksFile);
         // Also, delete the metadata file to make sure future metadata updates are in a new file, not the
         // hard-linked file from the snapshot directory
-        if (Files.exists(dbPaths.metadataFile)) {
-            Files.delete(dbPaths.metadataFile);
-        }
+        Files.deleteIfExists(dbPaths.metadataFile);
         // Write metadata to disk to have consistent set of files on disk at any given moment. This
         // will create a new file, not reuse the hard-linked file shared with a snapshot dir
         saveMetadata(dbPaths);
