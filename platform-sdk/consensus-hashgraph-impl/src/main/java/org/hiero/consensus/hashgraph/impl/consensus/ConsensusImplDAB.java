@@ -188,10 +188,6 @@ public class ConsensusImplDAB implements Consensus {
      * it be adopted) and it being used to calculate consensus. */
     private static final int NUM_ROUNDS_ROSTER = 5;
 
-    /** A map used to lookup events from the memos object. Once an event reaches consensus and is returned in a round,
-     * the entry is no longer needed in this map. It mirrors recentEvents. */
-    private final Map<EventInfo, EventImpl> memosEventMap = new IdentityHashMap<>();
-
     /** stores the minimum judge ancient identifier for all decided and non-expired rounds */
     private final SequentialRingBuffer<MinimumJudgeInfo> minimumJudgeStorage;
 
@@ -242,7 +238,6 @@ public class ConsensusImplDAB implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         recentEvents.clear();
-        memosEventMap.clear();
         hashgraphInfo = new HashgraphInfo();
         roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
 
@@ -332,7 +327,6 @@ public class ConsensusImplDAB implements Consensus {
                     event);
             event.setEventInfo(eventInfo);
             recentEvents.add(event);
-            memosEventMap.put(eventInfo, event);
             final boolean lastJudgeFound = checkInitJudges(event);
 
             if (waitingForInitJudges()) {
@@ -414,7 +408,6 @@ public class ConsensusImplDAB implements Consensus {
                 // we only remove events once they are below the birth round threshold AND are consensus or ancient.
                 if (insertedEvent.isConsensus() || ancient(insertedEvent)) {
                     iterator.remove();
-                    memosEventMap.remove(insertedEvent.getEventInfo());
                 }
             }
         }
@@ -433,14 +426,17 @@ public class ConsensusImplDAB implements Consensus {
      * @return the consensus round
      */
     private @NonNull ConsensusRound createConsensusRound(@NonNull final UpdateResults results) {
-        final List<EventImpl> judges = Arrays.stream(results.nextRoundInfoPrev().prevJudges())
-                .map(memosEventMap::get)
-                .toList();
+        final EventInfo[] judges = results.nextRoundInfoPrev().prevJudges();
+        final List<EventImpl> judgeImpls = new ArrayList<>(judges.length);
+        for (final EventInfo judge : judges) {
+            final EventImpl judgeImpl = (EventImpl) judge.getPayload();
+            judgeImpls.add(judgeImpl);
+        }
         final long consensusRoundNum = roundInfo.pendingRound();
         final long pendingRound = consensusRoundNum + 1;
 
         // Check for no judges or super majority conditions.
-        logJudgeErrors(judges, consensusRoundNum);
+        logJudgeErrors(judgeImpls, consensusRoundNum);
 
         final List<PlatformEvent> consensusEvents = Arrays.stream(results.consensusEvents())
                 .map(eventInfo -> finalizeConsensusData(eventInfo, consensusRoundNum))
@@ -469,7 +465,7 @@ public class ConsensusImplDAB implements Consensus {
         final long nonAncientThreshold = HashgraphInfo.minNonAncientRound(roundInfo, roundInfoPrev);
 
         // Extract the judge ids for the consensus snapshot
-        final List<JudgeId> judgeIds = judges.stream()
+        final List<JudgeId> judgeIds = judgeImpls.stream()
                 .map(j -> JudgeId.newBuilder()
                         .judgeHash(j.getBaseHash().getBytes())
                         .creatorId(j.getCreatorId().id())
@@ -490,7 +486,7 @@ public class ConsensusImplDAB implements Consensus {
                 // if this is the first round ever, and there are no events (which is usually the case)
                 // we take the median of all the judge created times
                 final List<Instant> judgeTimes =
-                        judges.stream().map(EventImpl::getTimeCreated).sorted().toList();
+                        judgeImpls.stream().map(EventImpl::getTimeCreated).sorted().toList();
                 lastConsensusTime = judgeTimes.get(judgeTimes.size() / 2);
             } else {
                 // if we have reached consensus before, we simply increase the lastConsensusTime by the min amount
@@ -531,7 +527,7 @@ public class ConsensusImplDAB implements Consensus {
      */
     @NonNull
     private PlatformEvent finalizeConsensusData(@NonNull final EventInfo eventInfo, final long consensusRoundNum) {
-        final EventImpl e = memosEventMap.get(eventInfo);
+        final EventImpl e = (EventImpl) eventInfo.getPayload();
         if (e == null) {
             throw new IllegalStateException("Could not find event in memos map for consensus event");
         }
