@@ -176,9 +176,12 @@ public class TipsetEventCreator implements EventCreator {
         if (selfEvent) {
             if (lastSelfEvent == null) {
                 updateLastSelfEvent(event);
-            } else if (eventWindow.isAncient(lastSelfEvent)) {
-                // Our lastSelfEvent is ancient and the new self event is not ancient, so it is higher in
-                // the hashgraph and must be adopted.
+            } else if (event.getBirthRound() > lastSelfEvent.getBirthRound()) {
+                // The incoming self event has a higher birth round than lastSelfEvent, therefore it is
+                // either higher in the hashgraph as a non-branched event, or it is a branched event.
+                // In the first case, it must be adopted. In the second case, it might not be as higher
+                // as lastSelfEvent structurally, but since it has a higher birth round it was created
+                // at a later point in consensus and there is no downside in adopting it.
                 updateLastSelfEvent(event);
             } else if (event.getSelfParent() != null && event.getSelfParent().equals(lastSelfEvent.getDescriptor())) {
                 // If we ingest a self event that is a child of lastSelfEvent, it is by definition higher

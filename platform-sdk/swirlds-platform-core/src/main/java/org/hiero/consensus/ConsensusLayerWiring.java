@@ -141,13 +141,10 @@ public class ConsensusLayerWiring {
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = hashgraph.consensusRoundOutputWire();
 
-        // Solder the event window to the event creator before event intake to prevent the orphan buffer from
-        // releasing self events that could appear to the event creator as a gap, causing it to not adopt the most
-        // recent self event.
-        consensusRoundOutputWire.solderTo(buildingBlocks.eventCreatorModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.eventIntakeModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.gossipModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.pcesModule().consensusRoundInputWire(), INJECT);
+        consensusRoundOutputWire.solderTo(buildingBlocks.eventCreatorModule().consensusRoundInputWire(), INJECT);
         consensusRoundOutputWire.solderTo(buildingBlocks.stateModule().consensusRoundInputWire(), INJECT);
 
         consensusRoundOutputWire.solderTo(
@@ -167,10 +164,10 @@ public class ConsensusLayerWiring {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 buildingBlocks.initialEventWindowDispatcher().getOutputWire();
 
-        eventWindowOutputWire.solderTo(buildingBlocks.eventCreatorModule().initialEventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(buildingBlocks.eventIntakeModule().initialEventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(buildingBlocks.gossipModule().initialEventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(buildingBlocks.pcesModule().initialEventWindowInputWire(), INJECT);
+        eventWindowOutputWire.solderTo(buildingBlocks.eventCreatorModule().initialEventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(buildingBlocks.stateModule().initialEventWindowInputWire());
     }
 

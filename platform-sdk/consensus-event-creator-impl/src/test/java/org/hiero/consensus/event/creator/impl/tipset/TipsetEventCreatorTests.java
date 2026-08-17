@@ -1220,11 +1220,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * The latest self event advances only to a direct child of itself, so advancing it at all relies on self events
-     * arriving in topological order. Nothing in the event creator enforces that order; it is a property of the intake
-     * pipeline. This test breaks the order deliberately in one creator - withholding the middle event of a chain, so
-     * the last event of the chain arrives as a descendant but not a child, and must be ignored - and honours it in a
-     * second creator, which walks the chain link by link to the tip.
+     * Within a single birth round the latest self event advances only to a direct child of itself, so advancing it at
+     * all relies on self events arriving in topological order. Nothing in the event creator enforces that order; it is a
+     * property of the intake pipeline. This test uses a chain that shares one birth round, so the birth-round rule in
+     * {@link #higherBirthRoundSelfEventIsAdopted} cannot bridge a gap, and breaks the order deliberately in one creator
+     * - withholding the middle event of the chain, so the last event arrives as a descendant but not a child, and must
+     * be ignored - and honours it in a second creator, which walks the chain link by link to the tip.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1274,11 +1275,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * The latest self event is only useful as a self parent while it is non-ancient. Once it goes ancient the creator
-     * has nothing to lose by replacing it: a non-ancient self event has a higher birth round, so by INV-011 it cannot
-     * be an ancestor of the ancient one. This test lets the held self event go ancient, offers an unrelated
-     * non-ancient self event, and verifies it is adopted - and that the ancient event, offered again afterwards, does
-     * not win it back.
+     * A self event with a higher birth round is adopted even when it is not a child of the event being held. Birth
+     * round never decreases along ancestry (INV-011), so a higher one proves the arriving event is not a self-ancestor,
+     * which is the only thing that has to be ruled out - a gap between the two is therefore safe to skip over. This is
+     * what lets the creator recover when the self events linking it to its own latest event are never delivered,
+     * without having to consult the event window. The comparison is strict, so a lower birth round is discarded, which
+     * is what keeps a re-received self-ancestor from displacing the held event.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1290,38 +1292,49 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("An ancient latest self event is replaced by a non-ancient self event")
-    void ancientLastSelfEventIsReplaced(@ParamName("random") final Random random) {
+    @DisplayName("A self event with a higher birth round is adopted even if it is not a child")
+    void higherBirthRoundSelfEventIsAdopted(@ParamName("random") final Random random) {
         final int networkSize = 1;
-        final long ancientThreshold = 10;
+        final long heldBirthRound = 10;
         final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final EventCreator eventCreator =
+
+        // A window that leaves every event below non-ancient, and stamps new events above all of them.
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setLatestConsensusRound(heldBirthRound + 1)
+                .setNewEventBirthRound(heldBirthRound + 2)
+                .setAncientThreshold(ROUND_FIRST)
+                .build();
+
+        final PlatformEvent held = createTestEventWithSelfParent(random, selfId, heldBirthRound, null);
+
+        // The event that would link the held event to the one below never arrives, so the arriving event is a
+        // descendant of the held event but not a child of it. Its higher birth round is enough to adopt it.
+        final PlatformEvent undelivered = createTestEventWithSelfParent(random, selfId, heldBirthRound + 1, held);
+        final PlatformEvent higher = createTestEventWithSelfParent(random, selfId, heldBirthRound + 1, undelivered);
+
+        final EventCreator adopting =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+        adopting.setEventWindow(eventWindow);
+        adopting.registerEvent(held);
+        adopting.registerEvent(higher);
 
-        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+        final PlatformEvent adoptingEvent = adopting.maybeCreateEvent();
+        assertNotNull(adoptingEvent);
+        assertEquals(higher.getDescriptor(), adoptingEvent.getSelfParent());
 
-        final PlatformEvent oldSelfEvent = createTestEventWithSelfParent(random, selfId, ROUND_FIRST, null);
-        eventCreator.registerEvent(oldSelfEvent);
+        // A self event with a lower birth round is not a descendant of the held event, and must be discarded.
+        final PlatformEvent lower = createTestEventWithSelfParent(random, selfId, heldBirthRound - 1, null);
 
-        // Advance the event window past the birth round of the event we are holding, making it ancient.
-        eventCreator.setEventWindow(EventWindowBuilder.builder()
-                .setLatestConsensusRound(ancientThreshold)
-                .setNewEventBirthRound(ancientThreshold + 1)
-                .setAncientThreshold(ancientThreshold)
-                .build());
+        final EventCreator rejecting =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+        rejecting.setEventWindow(eventWindow);
+        rejecting.registerEvent(held);
+        rejecting.registerEvent(lower);
 
-        // An unrelated non-ancient self event must be adopted, even though it is not a child of the ancient one.
-        final PlatformEvent recentSelfEvent = createTestEventWithSelfParent(random, selfId, ancientThreshold, null);
-        eventCreator.registerEvent(recentSelfEvent);
-
-        // The ancient event is re-received; it must not displace the non-ancient event we now hold.
-        eventCreator.registerEvent(oldSelfEvent);
-
-        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(newEvent);
-        assertEquals(recentSelfEvent.getDescriptor(), newEvent.getSelfParent());
+        final PlatformEvent rejectingEvent = rejecting.maybeCreateEvent();
+        assertNotNull(rejectingEvent);
+        assertEquals(held.getDescriptor(), rejectingEvent.getSelfParent());
     }
 
     /**

@@ -88,9 +88,12 @@ fundamental need for a graph height:
   the maintained latest self event and overwrote it, so the node built on an older
   self-parent. The `lastSelfEvent` tracking has since been reworked
   ([#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)) to
-  a structural test on the self-parent edge, so the consumer needs no ordering key
-  at all — see [event-creator.md § Latest self
-  event](../architecture/topics/event-creator.md#latest-self-event) for the rule.
+  rank self events by birth round, falling back to the self-parent edge, so the
+  consumer needs no *local* ordering key at all — see [event-creator.md § Latest
+  self event](../architecture/topics/event-creator.md#latest-self-event) for the
+  rule. Birth round is agreed across the network and fixed in the signed event
+  core, so it is immune to the re-numbering described in
+  [Limitations](#limitations).
 
 Separately, the name "sequence" was already taken: `EventImpl.sequence`, assigned
 by `Sequencer` in the order events are **added to consensus**, is used only for
@@ -114,7 +117,8 @@ unblocked:
 Already migrated and stable: event creation's advancement scoring and
 `ChildlessEventTracker` (#24991), and the sync send-list order (#24843). The
 event creator's `lastSelfEvent` recency is absent from the table because #26530
-retired it as a consumer rather than converting it (see Context above).
+retired it as a consumer of any local ordering key rather than converting it (see
+Context above).
 
 **Assignment (current code).** `PlatformEvent` carries a `sequenceNumber`,
 defaulting to `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
@@ -249,7 +253,8 @@ See **Decision** above.
   `ChildlessEventTracker.java` — advancement scoring, on the sequence number
   (#24991).
 - `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java` —
-  `registerEvent` reads no ordering key since #26530 (SCN-003).
+  `registerEvent` reads no local ordering key since #26530; it ranks self events by
+  birth round instead (SCN-003).
 - `consensus-hashgraph-impl/.../consensus/ConsensusImpl.java` — `round(x)` and its
   short-circuits; the no-parent branch that assigns `ROUND_FIRST` regardless of the
   pending round is the #26529 bug behind SCN-002. `ConsensusRounds`, `RoundElections` hold the threshold
@@ -306,8 +311,10 @@ See **Decision** above.
   the threshold-safety argument and INV-015; corrected the GUI claim (`nGen` is a
   rendering choice and value label, not a required graph height) — Kelly Greco
   (@poulok).
-- 2026-08-14 — #26530 landed. The event creator's `lastSelfEvent` recency left the
-  migration table without converting: it ranks self events by no key at all, so
-  three consumers remain and only the threshold is still gated (#26529). Decision
+- 2026-08-17 — #26530 landed. The event creator's `lastSelfEvent` recency left the
+  migration table without converting: it reads no local ordering key, ranking self
+  events by birth round instead — a network-agreed value in the signed event core,
+  out of reach of the [Limitations](#limitations) re-numbering hazard. Three
+  consumers remain and only the threshold is still gated (#26529). Decision
   unchanged; the staging table, Limitations, Negative consequences, and References
   were refreshed to match — Kelly Greco (@poulok).

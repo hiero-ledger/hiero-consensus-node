@@ -306,56 +306,51 @@ currently holds in `lastSelfEvent`. It is set in two places:
   rather than waiting for that event to come back through intake.
 - **On registration** — `TipsetEventCreator#registerEvent` adopts a
   self-event arriving from event intake in exactly three cases: nothing
-  is held yet, the held event is ancient under the current `EventWindow`,
-  or the arriving event's self-parent *is* the held event. Every other
-  self-event is discarded.
+  is held yet, the arriving event's birth round is higher than the held
+  event's, or the arriving event's self-parent *is* the held event. Every
+  other self-event is discarded.
 
-Adopting only a direct child is what keeps an honest node from
-branching. Building on anything other than the node's own newest
-self-event yields an event that is not a descendant of it, so the node
-has signed two events sharing a self-parent — a branch
-([branching.md](../../concepts/branching.md)). Because the adoption test
-is structural — a self-parent match, not a comparison of local ordering
-numbers — no re-numbering of a re-received self-event can displace the
-held one, which is how the node branched in SCN-003.
+What must never happen is building on an *ancestor* of the node's newest
+self-event: the new event then shares a self-parent with the event already
+extending that ancestor — a branch
+([branching.md](../../concepts/branching.md)). Each of the two tests rules
+that out.
+
+- **Higher birth round.** Birth round never decreases along ancestry
+  (INV-011), so an event with a strictly higher birth round cannot be an
+  ancestor of the held one. It does not follow that it is a descendant —
+  the remaining possibility is a branched self-event, which exists only if
+  the node has already branched, and adopting the later-born of the two
+  costs nothing.
+- **Self-parent match.** A direct child is a descendant by construction,
+  and is adopted whatever its birth round. This is what advances the held
+  event within a single birth round, where the comparison above cannot
+  separate two self-events.
+
+Both tests read only the arriving event and the held one — the birth round
+carried in the signed event core, and the self-parent edge. No local
+ordering number takes part, so no re-numbering of a re-received self-event
+can displace the held one. That is what closed SCN-003.
 
 Two consequences follow.
 
-1. **Advancing the held event depends on arrival order, and on two
-   orderings the event creator does not itself enforce.** A descendant
-   that reaches `registerEvent` before its own self-parent is discarded,
-   and the held event stays where it is.
-   - *An event after its self-parent.* Established by the orphan buffer
-     and preserved by the stages below it (see
-     [event-intake.md](event-intake.md#orphan-buffer)).
-   - *An event window no later than the events it releases.* Only the
-     orphan buffer can produce a descendant-not-child gap, because it
-     stops treating an ancient self-parent as missing — and by INV-011 it
-     can only do so once the held event is ancient too. So the two cases
-     coincide, and the creator adopts the descendant under case 2 —
-     unless it is still holding an older window, in which case it
-     discards a legitimately higher self-event while believing the held
-     one is non-ancient. Both window paths therefore solder the event
-     creator ahead of event intake
-     (`swirlds-platform-core/.../ConsensusLayerWiring.java#wireHashgraphOutputs`,
-     `#wireInitialEventWindowDispatcher`), and the creator's window hop is
-     direct
-     (`consensus-event-creator-impl/.../DefaultEventCreatorModule.java#consensusRoundInputWire`),
-     so the window is queued on the creator's sequential scheduler before
-     the orphan buffer is notified of it.
-2. **An ancient held event is replaced by any non-ancient self-event.**
-   An ancient event is no longer usable as a self-parent, and the
-   replacement's higher birth round rules out its being an ancestor of
-   the ancient one (INV-011) — though nothing here establishes that it
-   is a descendant either.
-
-`EventCreator#clear`, called only on the reconnect path, resets the window
-to `EventWindow.getGenesisEventWindow()` while deliberately keeping
-`lastSelfEvent`. Under a genesis window nothing is ancient, so until the
-next window arrives neither case 2 nor the ancient guard at the top of
-`registerEvent` can fire, and only a direct child would be adopted.
-`ReconnectCoordinator#loadReconnectState` closes that window by injecting
-the reconnect state's `EventWindow` before gossip resumes.
+1. **Advancing within a birth round depends on topological arrival
+   order.** A same-birth-round descendant that reaches `registerEvent`
+   before its own self-parent is discarded, and the held event stays where
+   it is. Nothing in the event creator enforces that order; the orphan
+   buffer establishes it and the stages below it preserve it (see
+   [event-intake.md](event-intake.md#orphan-buffer)). Across birth rounds
+   no gap can strand the held event, because the birth-round comparison
+   bridges it — including after a restart or a long outage, where the
+   self-events the node still holds have gone ancient and the intermediate
+   ones are never re-delivered.
+2. **An adopted self-event never out-runs the birth round of the event
+   built on it.** The creator's `FutureEventBuffer` withholds any event
+   whose birth round exceeds `EventWindow#newEventBirthRound`
+   (`consensus-utility/.../event/FutureEventBufferingOption.java#getMaximumReleasableRound`),
+   and `DefaultEventCreationManager#setEventWindow` refreshes the creator
+   before draining that buffer — so the self-parent edge of each created
+   event stays birth-round monotonic, as INV-011 requires.
 
 ## Self-event persistence
 

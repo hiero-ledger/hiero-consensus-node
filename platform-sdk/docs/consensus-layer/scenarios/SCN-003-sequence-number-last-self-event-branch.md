@@ -111,13 +111,14 @@ Fixed in two stages.
 1. **#26376 — keyed self-event recency on nGen** (`hasNGen()` / `getNGen()`), an
    interim revert. It removed this instance but kept the shape that produced it:
    an ordering-key comparison whose meaning the guard has to trust.
-2. **#26530 — removed the comparison.** `registerEvent` no longer ranks self
-   events at all; it tests the self-parent edge instead — see
+2. **#26530 — stopped ranking self events by a local key.** `registerEvent` now
+   ranks them by birth round, and otherwise tests the self-parent edge — see
    [event-creator.md § Latest self
    event](../architecture/topics/event-creator.md#latest-self-event) for the rule
-   and its consequences. A self-ancestor fails that test however it was
-   re-numbered, so this scenario is closed by structure rather than by the choice
-   of key.
+   and its consequences. Both inputs come from the arriving event itself and
+   neither can be re-stamped on re-receipt: the birth round is fixed in the signed
+   event core, and by INV-011 a self-ancestor can never carry a higher one. This
+   scenario is closed by the choice of value, not by which comparison is used.
 
 Regression guards: `ReconnectTest.testSyntheticBottleneckReconnect` (the original
 reproduction) and, at unit level,
@@ -146,8 +147,8 @@ None.
   buffer stamps the held self event's key, after which the strictly-greater
   comparison governs — so it delays the overwrite rather than preventing it
   — Kelly Greco (@poulok).
-- 2026-08-14 — #26530 landed: `registerEvent` no longer compares ordering keys, so
-  the sequence and contributing factors above describe a shape the code no longer
-  has. Rewrote Summary and Mitigation around the two-stage fix, re-anchored step 1
-  to `#registerEvent`, and added the unit-level regression guard — Kelly Greco
-  (@poulok).
+- 2026-08-17 — #26530 landed: `registerEvent` no longer ranks self events by a local
+  ordering key, so the sequence and contributing factors above describe a shape the
+  code no longer has. Rewrote Summary and Mitigation around the two-stage fix,
+  re-anchored step 1 to `#registerEvent`, and added the unit-level regression guard
+  — Kelly Greco (@poulok).
