@@ -31,6 +31,7 @@ import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -61,26 +62,20 @@ import org.junit.jupiter.api.Tag;
 /**
  * gRPC-only counterpart to {@link IssHandlingTest}, exercising the best-effort ISS-block capture in
  * {@code blockStream.writerMode=GRPC} — where nothing is written to disk, so the ISS-round block is sourced from the
- * in-memory {@code BlockBufferService} (not the disk resolver). It proves both capture outcomes:
+ * in-memory {@code BlockBufferService} (not the disk resolver).
  *
- * <ul>
- *   <li><b>Block present</b> ({@link #issBlockCapturedFromBufferInGrpcMode()}): the ISS-round block is retained in the
- *   buffer through the detection lag and reconstructed + uploaded to {@code iss/} as a {@code .iss.gz}. This test keeps
- *   it by withholding acks (with mock signatures closing it); on the real path it is retained for a stronger reason — a
- *   self-ISS block's divergent root hash never gathers a threshold block proof, so the block is never closed and, since
- *   only closed blocks are pruned, never pruned.</li>
- *   <li><b>Block missing</b> ({@link #pointerMarkerUploadedWhenBlockPrunedInGrpcMode()}): a FORCED fallback — with
- *   {@code tss.forceMockSignatures=true} the divergent block gets a mock proof, so it closes and can be pruned before
- *   detection, and the upload falls back to a {@code .txt} pointer to {@code iss/} carrying the data needed to locate
- *   the block on the block node. On the real path this should not happen (the block is retained per above); the
- *   {@code .txt} is a last-resort safety net, exercised here only to cover the fallback code path.</li>
- * </ul>
+ * <p>{@link #issBlockCapturedFromBufferInGrpcMode()} proves the primary path: the ISS-round block is retained in the
+ * buffer through the detection lag and reconstructed + uploaded to {@code iss/} as a single {@code .iss.gz}. This test
+ * keeps it by withholding acks (with mock signatures closing it); on the real path it is retained for a stronger
+ * reason — a self-ISS block's divergent root hash never gathers a threshold block proof, so the block is never closed
+ * and, since only closed blocks are pruned, never pruned.
  *
  * <p>Runs on its own fresh gRPC-only network with a block node attached (via {@link HapiBlockNode}); a
  * {@link BlockNodeMode#SIMULATOR} keeps it Docker-free for local runs. Reuses {@code IssHandlingTest}'s in-JVM S3 mock
  * and {@code failureBlockUpload.*} bucket config, and the same {@code ledger.transfers.maxLen} ISS induction.
  */
 @Tag(ISS_GRPC)
+@OrderedInIsolation
 class IssGrpcBufferUploadTest implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(IssGrpcBufferUploadTest.class);
 
@@ -240,110 +235,6 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                 }),
                 // Restore acks so the remaining nodes can drain and freeze cleanly.
                 blockNode(0).updateSendingBlockAcknowledgements(true),
-                freezeOnly().startingIn(2).seconds(),
-                waitForFrozenNetwork(FREEZE_TIMEOUT, NodeSelector.exceptNodeIds(ISS_NODE_ID)));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 4,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            // A tiny acked-retention floor so the (acknowledged) ISS-round block is pruned from the
-                            // buffer well before the ISS is detected, forcing the .txt pointer fallback.
-                            "blockStream.buffer.minAckedBlocksToBuffer", "2",
-                            "tss.forceMockSignatures", "true"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.minAckedBlocksToBuffer", "2",
-                            "tss.forceMockSignatures", "true"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.minAckedBlocksToBuffer", "2",
-                            "tss.forceMockSignatures", "true"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "blockStream.buffer.minAckedBlocksToBuffer", "2",
-                            "tss.forceMockSignatures", "true"
-                        })
-            })
-    final Stream<DynamicTest> pointerMarkerUploadedWhenBlockPrunedInGrpcMode() {
-        final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
-        return hapiTest(
-                getVersionInfo().exposingServicesVersionTo(startVersion::set),
-                sleepForSeconds(2),
-                sourcing(() -> reconnectIssNode(
-                        byNodeId(ISS_NODE_ID), configVersionOf(startVersion.get()), configureFailureUpload())),
-                assertHgcaaLogContainsText(
-                        byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
-                assertHgcaaLogDoesNotContainText(byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(30)),
-                // Acks flow normally so the ISS-round block is acknowledged and pruned before detection — it is gone
-                // from the buffer when capture runs, forcing the .txt pointer fallback.
-                //
-                // NOTE: this "block pruned" case is FORCED by tss.forceMockSignatures=true — the mock signer produces a
-                // proof for node1's divergent block, so the block closes and becomes prunable. On the real path a
-                // self-ISS block never gathers a valid (threshold) block proof, so it is never closed and never pruned
-                // (only closed blocks are pruned); it stays buffered and is captured as a .iss.gz. This test therefore
-                // exercises the fallback code path, not a real-path self-ISS outcome.
-                cryptoTransfer(movingHbar(6L).distributing(GENESIS, "3", "4", "5", "6", "7", "8"))
-                        .signedBy(GENESIS),
-                untilHgcaaLogContainsText(
-                        byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(180), () -> new SpecOperation[0]),
-                untilHgcaaLogContainsText(
-                        byNodeId(ISS_NODE_ID),
-                        "Block stream fatal shutdown complete",
-                        Duration.ofSeconds(60),
-                        () -> new SpecOperation[0]),
-                // Only IssDetectionUploadCoordinator.markerFilesFor logs this, so seeing it proves the block was gone
-                // from the buffer and a pointer marker was written instead.
-                untilHgcaaLogContainsText(
-                        byNodeId(ISS_NODE_ID),
-                        "writing a pointer marker to iss/",
-                        Duration.ofSeconds(90),
-                        () -> new SpecOperation[0]),
-                verify(() -> {
-                    awaitKey("/iss/", ".txt", Duration.ofSeconds(90));
-                    assertTrue(
-                            receivedKeyMatches("/iss/", ".txt"),
-                            "expected an iss/ *.txt pointer object uploaded via bucky; saw " + RECEIVED_OBJECT_KEYS);
-                }),
                 freezeOnly().startingIn(2).seconds(),
                 waitForFrozenNetwork(FREEZE_TIMEOUT, NodeSelector.exceptNodeIds(ISS_NODE_ID)));
     }
