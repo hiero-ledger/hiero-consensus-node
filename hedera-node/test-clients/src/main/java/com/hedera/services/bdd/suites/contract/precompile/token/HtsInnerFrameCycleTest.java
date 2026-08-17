@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThr
 import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThrottleTest.THROTTLE_THROTTLE_BY_OPS_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -67,41 +68,69 @@ public class HtsInnerFrameCycleTest {
                 account.getInfo().andAssert(e -> e.exposingIdTo(accountId::set)));
     }
 
+    public record FrameCycleTestInput(long childGas, long txGas, String functionName, Object... params) {
+
+        static final int entryCount = 20;
+        static final int repetitions =
+                60; // more than consensus.handle.maxFollowingRecords (MAX_CHILD_RECORDS_EXCEEDED)
+        static final int expectedCycles = 20;
+        static final int expectedGasUsedForExecution = 15284;
+
+        public static FrameCycleTestInput transferTokensCycle(long childGas) {
+            final int additionalCycleGas = 1000; // gas for regular cycle
+            return new FrameCycleTestInput(
+                    childGas,
+                    (expectedGasUsedForExecution + additionalCycleGas) * (expectedCycles),
+                    "transferTokensCycle",
+                    BigInteger.valueOf(tokenId.get().getTokenNum()),
+                    BigInteger.valueOf(accountId.get().getAccountNum()),
+                    BigInteger.valueOf(entryCount),
+                    BigInteger.valueOf(repetitions),
+                    BigInteger.valueOf(childGas));
+        }
+
+        public static FrameCycleTestInput transferTokensCycleWithChildFrame(long childGas) {
+            final int additionalOuterCycleGas = 4000; // just enough gas for outer cycle
+            return new FrameCycleTestInput(
+                    childGas,
+                    (expectedGasUsedForExecution + additionalOuterCycleGas) * (expectedCycles),
+                    "transferTokensCycleWithChildFrame",
+                    BigInteger.valueOf(tokenId.get().getTokenNum()),
+                    BigInteger.valueOf(accountId.get().getAccountNum()),
+                    BigInteger.valueOf(entryCount),
+                    BigInteger.valueOf(repetitions),
+                    BigInteger.valueOf(childGas + additionalOuterCycleGas),
+                    BigInteger.valueOf(childGas));
+        }
+    }
+
     @HapiTest
     public Stream<DynamicTest> innerFrameCycleZeroGasTest() {
         return Stream.of(
-                        0, // minimum gas
-                        1, // low gas
-                        10000, // some gas, but less than required
-                        20000 // enough gas
+                        FrameCycleTestInput.transferTokensCycle(0), // minimum gas
+                        FrameCycleTestInput.transferTokensCycle(1), // low gas
+                        FrameCycleTestInput.transferTokensCycle(1_000), // some gas, but less than required
+                        FrameCycleTestInput.transferTokensCycle(20_000), // enough gas
+                        FrameCycleTestInput.transferTokensCycleWithChildFrame(0), // minimum gas
+                        FrameCycleTestInput.transferTokensCycleWithChildFrame(1), // low gas
+                        FrameCycleTestInput.transferTokensCycleWithChildFrame(1_000) // some gas, but less than required
                         )
-                .map(gas -> namedHapiTest(
-                        "innerFrameCycl gas=" + gas, doingContextual(e -> transferTokensCycleFrames(e, gas))));
+                .map(input -> namedHapiTest(
+                        "%s gas=%s".formatted(input.functionName(), input.childGas()),
+                        doingContextual(e -> transferTokensCycleFrames(e, input))));
     }
 
-    public void transferTokensCycleFrames(HapiSpec spec, final int childGas) {
-        final int entryCount = 20;
-        final int repetitions = 60;
-        final int expectedGasUsedForCycle = 15284;
-        // amount of transfer repetitions up to parent frame gas
-        final int expectedCycles = 20;
-        final var op = contractCall(
-                        CONTRACT,
-                        "transferTokensCycle",
-                        BigInteger.valueOf(tokenId.get().getTokenNum()),
-                        BigInteger.valueOf(accountId.get().getAccountNum()),
-                        BigInteger.valueOf(entryCount),
-                        BigInteger.valueOf(repetitions),
-                        BigInteger.valueOf(childGas))
+    public void transferTokensCycleFrames(HapiSpec spec, FrameCycleTestInput input) {
+        final var op = contractCall(CONTRACT, input.functionName(), input.params())
                 .via(ATTACK_TXN)
-                .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, INSUFFICIENT_GAS)
+                .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, INSUFFICIENT_GAS, SUCCESS)
                 .noLogging()
-                .gas(expectedGasUsedForCycle * (expectedCycles + 1));
+                .gas(input.txGas());
         allRunFor(
                 spec,
                 op,
                 getTxnRecord(ATTACK_TXN)
-                        .exposingAllTo(e -> Assertions.assertEquals(expectedCycles, e.size()))
+                        .exposingAllTo(e -> Assertions.assertEquals(FrameCycleTestInput.expectedCycles, e.size()))
                         .andAllChildRecords());
     }
 }

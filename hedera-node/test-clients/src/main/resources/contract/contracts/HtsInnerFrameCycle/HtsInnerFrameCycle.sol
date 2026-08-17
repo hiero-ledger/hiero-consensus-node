@@ -13,10 +13,44 @@ contract HtsInnerFrameCycle {
     ) external returns (uint256 successes, uint256 failures) {
         successes = 0;
         failures = 0;
+        bytes memory payload = _buildTransferTokensPayload(tokenNum, accountNum, entryCount);
+        address hts = address(uint160(HTS_PRECOMPILE));
+        for (uint256 i = 0; i < repetitions; i++) {
+            if (_callHts(hts, payload, childGas)) {successes++;} else {failures++;}
+        }
+    }
+
+    function transferTokensCycleWithChildFrame(
+        uint256 tokenNum,
+        uint256 accountNum,
+        uint256 entryCount,
+        uint256 repetitions,
+        uint256 childGas,
+        uint256 innerChildGas
+    ) external returns (uint256 successes, uint256 failures) {
+        successes = 0;
+        failures = 0;
+        bytes memory payload = _buildTransferTokensPayload(tokenNum, accountNum, entryCount);
+        bytes memory outerCall = abi.encodeWithSelector(this.innerHtsCall.selector, payload, innerChildGas);
+        address self = address(this);
+        for (uint256 i = 0; i < repetitions; i++) {
+            bool ok;
+            assembly {
+                ok := call(childGas, self, 0, add(outerCall, 32), mload(outerCall), 0, 0)
+            }
+            if (ok) {successes++;} else {failures++;}
+        }
+    }
+
+    function _buildTransferTokensPayload(
+        uint256 tokenNum,
+        uint256 accountNum,
+        uint256 entryCount
+    ) private pure returns (bytes memory payload) {
         bytes4 selector = bytes4(keccak256("transferTokens(address,address[],int64[])"));
         uint256 N = entryCount;
         uint256 size = 164 + 64 * N;
-        bytes memory payload = new bytes(size);          // built IN EVM MEMORY -> top-level tx stays < 6KB
+        payload = new bytes(size);                       // built IN EVM MEMORY -> top-level tx stays < 6KB
         uint256 tokenAddr = tokenNum;
         uint256 acct = accountNum;
         assembly {
@@ -36,15 +70,16 @@ contract HtsInnerFrameCycle {
                 mstore(add(amtData, mul(32, i)), 1)      // amount = 1 (int64, credit branch)
             }
         }
-        address hts = address(uint160(HTS_PRECOMPILE));
-        for (uint256 i = 0; i < repetitions; i++) {      // 50 inner system-contract calls per tx
-            bool ok;
-            assembly {
-                ok := call(childGas, hts, 0, add(payload, 32), mload(payload), 0, 0)   // childGas = 1
-            }
-            if (ok) {successes++;} else {failures++;}
-        }
     }
 
+    function innerHtsCall(bytes memory payload, uint256 innerChildGas) external returns (bool) {
+        return _callHts(address(uint160(HTS_PRECOMPILE)), payload, innerChildGas);
+    }
+
+    function _callHts(address hts, bytes memory payload, uint256 childGas) internal returns (bool ok) {
+        assembly {
+            ok := call(childGas, hts, 0, add(payload, 32), mload(payload), 0, 0)
+        }
+    }
 
 }

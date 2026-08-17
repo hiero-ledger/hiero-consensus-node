@@ -284,12 +284,15 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                         systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
 
         if (frame.getRemainingGas() < gasRequirement) {
-            if (frame.getMessageFrameStack().size() > 1) {
-                MessageFrame parentFrame = FrameUtils.parentFrameOf(frame);
-                if (parentFrame != null && !fullResult.isRefundGas()) {
-                    final var parentGasCharging =
-                            Math.min(parentFrame.getRemainingGas(), gasRequirement - frame.getRemainingGas());
-                    parentFrame.decrementRemainingGas(parentGasCharging);
+            if (!fullResult.isRefundGas() && frame.getMessageFrameStack().size() > 1) {
+                var gasStillOwed = gasRequirement - frame.getRemainingGas();
+                final var framesIterator = frame.getMessageFrameStack().iterator();
+                framesIterator.next(); // skip the current frame, already accounted for above
+                while (gasStillOwed > 0 && framesIterator.hasNext()) {
+                    final var parentFrame = framesIterator.next();
+                    final var gasChargedToParent = Math.min(parentFrame.getRemainingGas(), gasStillOwed);
+                    parentFrame.decrementRemainingGas(gasChargedToParent);
+                    gasStillOwed -= gasChargedToParent;
                 }
             }
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
