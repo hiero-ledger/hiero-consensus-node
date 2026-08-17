@@ -481,7 +481,10 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             final long correlationId = input.readLong();
                             final long pingMillis =
                                     TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(correlationId));
-                            overloadMonitor.reportPing(pingMillis);
+                            // we are still reporting delay to receive, not to handle
+                            // we want to measure the network ping, rather than dispatch thread ping
+                            // it is still handled over there, to make overloadMonitor managed from same thread
+                            inputQueue.add(() -> overloadMonitor.reportPing(pingMillis));
                             break;
                     }
                 }

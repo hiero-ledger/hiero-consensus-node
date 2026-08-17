@@ -19,14 +19,14 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
+import org.hiero.otter.fixtures.internal.simulator.SimulatedNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * An implementation of {@link Network} that is based on the Falcon framework.
  */
-public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver {
+public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver {
 
     /**
      * The keys and certificates of every node ever created by a Falcon network in this JVM.
@@ -56,7 +56,13 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @NonNull
     protected Node doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         return new FalconNode(
-                random, timeManager, nodeId, keysAndCerts, simulatedNetwork, networkConfiguration, consensusRoundPool);
+                random,
+                timeManager,
+                nodeId,
+                keysAndCerts,
+                simulatedNetworkConnectivity,
+                networkConfiguration,
+                consensusRoundPool);
     }
 
     /**
@@ -163,7 +169,7 @@ public class FalconNetwork extends SimulatorNetwork implements TimeTickReceiver 
             return;
         }
 
-        simulatedNetwork.tick(now);
+        simulatedNetworkConnectivity.tick(now);
 
         for (final Node node : nodes()) {
             final FalconNode falconNode = (FalconNode) node;
