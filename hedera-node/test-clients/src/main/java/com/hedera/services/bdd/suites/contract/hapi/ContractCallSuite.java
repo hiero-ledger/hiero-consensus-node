@@ -2351,8 +2351,7 @@ public class ContractCallSuite {
                                         .array(),
                                 BigInteger.valueOf(13_000L))
                         .gas(1_000_000)
-                        .via("callTxn")
-                ),
+                        .via("callTxn")),
                 childRecordsCheck("callTxn", SUCCESS, recordWith().status(INSUFFICIENT_GAS)),
                 // Verify no token balances changed
                 getAccountDetails(TOKEN_TREASURY)
