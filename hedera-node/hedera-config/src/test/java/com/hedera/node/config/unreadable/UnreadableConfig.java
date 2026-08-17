@@ -64,4 +64,16 @@ public record UnreadableConfig(UnreadableLeaf leaf) {
             }
         }
     }
+
+    /**
+     * A config data object that defines a property name a readable record defines as well, so that the export has to
+     * decide between the two rather than reporting both.
+     * <p>
+     * The property is a scalar of this record instead of one of a nested record, so it is the invocation of the accessor
+     * that fails rather than the walk into a component. Both are ways for a value to be unreadable and only the latter
+     * is covered by the rest of this fixture.
+     */
+    @ConfigData("shared")
+    public record SharedUnreadableConfig(
+            @ConfigProperty(defaultValue = "5") int value) {}
 }

@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.node.config.unreadable.UnreadableConfig;
 import com.hedera.node.config.unreadable.UnreadableConfig.ConstrainedByMethodConfig;
 import com.hedera.node.config.unreadable.UnreadableConfig.ConstrainedConfig;
+import com.hedera.node.config.unreadable.UnreadableConfig.SharedUnreadableConfig;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
@@ -173,6 +174,30 @@ final class UnreadableConfigDataTest {
     }
 
     /**
+     * Two config data objects may define the same property name, and one of them being unreadable must not turn one
+     * property into two lines that contradict each other. The value that could be read is the more useful of the two
+     * answers, so it is the one that survives.
+     */
+    @Test
+    @DisplayName("a property name that several records define is exported once, with the value that could be read")
+    void duplicatePropertyNameIsExportedOnce() throws IOException {
+        final Configuration configuration = new TestConfigBuilder(false)
+                .withConfigDataType(SharedReadableConfig.class)
+                .withConfigDataType(SharedUnreadableConfig.class)
+                .getOrCreateConfig();
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        ConfigExport.printConfig(configuration, out);
+        final List<String> lines = out.toString(StandardCharsets.UTF_8).lines().toList();
+
+        assertThat(lines)
+                .filteredOn(line -> line.startsWith("shared.value,"))
+                .as("one definition being unreadable must not add a second, contradicting line")
+                .hasSize(1);
+        assertThat(lines).anySatisfy(line -> assertThat(line).matches("^shared\\.value, 5$"));
+    }
+
+    /**
      * A config data object that the reflection can read, for the half of the export that has to keep working. This
      * package is exported, unlike the one holding {@link UnreadableConfig}, which is the whole difference between the
      * two.
@@ -180,6 +205,14 @@ final class UnreadableConfigDataTest {
     @ConfigData("readable")
     public record ReadableConfig(
             @ConfigProperty(defaultValue = "exported") String value) {}
+
+    /**
+     * Defines the same property name as {@link UnreadableConfig.SharedUnreadableConfig}, from a package the reflection
+     * can read.
+     */
+    @ConfigData("shared")
+    public record SharedReadableConfig(
+            @ConfigProperty(defaultValue = "5") int value) {}
 
     /**
      * Only a property that really carries a constraint is unresolvable. An unreadable record without one has nothing
