@@ -226,13 +226,17 @@ public class IssDetectionUploadCoordinator {
                             materializeFromDisk(
                                     resolveWithWait(issType, round, config.precedingBlocks(), config.captureTimeout()),
                                     incidentDir);
-                        // Best-effort: the ISS block is expected to still be buffered (the block node does not
-                        // acknowledge it, and unacknowledged blocks are not pruned) but that is not guaranteed;
-                        // capture it if present, else fall through to the pointer marker below.
+                        // The ISS-round block is expected to still be buffered: a self-ISS block's divergent root hash
+                        // never gathers a threshold block proof, so the block is never closed and (since only closed
+                        // blocks are pruned) never pruned — it stays in the buffer for capture. Capture it if present,
+                        // else fall through to the pointer marker below.
                         case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
                     };
-            // GRPC best-effort fallback: if the ISS block is no longer in the buffer, upload a pointer marker to iss/
-            // (with the data needed to find it on the block node) instead of preserving nothing.
+            // GRPC last-resort fallback: if the ISS block is somehow NOT in the buffer, upload a plain-text pointer
+            // marker to iss/ instead of preserving nothing.
+            // Under normal operation this should NOT be reached — per the reasoning above the ISS block is retained —
+            // so reaching it means the block was unexpectedly absent (e.g. a regression in buffer/proof/prune
+            // behavior). It logs at WARN; kept as a cheap safety net and regression guard.
             if (writerMode == BlockStreamWriterMode.GRPC && files.isEmpty()) {
                 files = markerFilesFor(config, issType, round, writerMode, incidentDir);
             }
@@ -283,8 +287,10 @@ public class IssDetectionUploadCoordinator {
                         // the active-connection snapshot (used by the pointer marker) is still available.
                         case GRPC -> bufferReader.captureToDir(iss.round(), config.precedingBlocks(), incidentDir);
                     };
-            // GRPC best-effort fallback: if the block is no longer in the buffer, upload a pointer marker to iss/ so
-            // triage still gets the data needed to locate it on the block node.
+            // GRPC last-resort fallback (same rationale as the detection path): the block is expected to still be
+            // buffered — a diverging block never gathers a threshold proof, so it is never closed and never pruned — so
+            // this pointer marker should not normally be needed. Upload it if the block is somehow gone so triage still
+            // gets data.
             final boolean grpcMarker = writerMode == BlockStreamWriterMode.GRPC && files.isEmpty();
             if (grpcMarker) {
                 files = markerFilesFor(config, iss.issType(), iss.round(), writerMode, incidentDir);

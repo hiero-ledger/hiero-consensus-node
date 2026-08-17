@@ -26,8 +26,9 @@ import org.apache.logging.log4j.Logger;
  * Locates the block containing a given ISS round in the in-memory {@link BlockBufferService} and writes it to disk as
  * an {@code .iss.gz} artifact, so it can be uploaded for triage. This is the source for the detection
  * path in {@code GRPC} mode, where closed blocks are never written to disk and the buffer is the only place the ISS
- * round still lives at detection time. Capture is best-effort — the block is normally still buffered (a block node
- * does not acknowledge the ISS block, and unacknowledged blocks are not pruned) — and this returns empty if it is not.
+ * round still lives at detection time. Capture is best-effort — the block is normally still buffered (a self-ISS block
+ * never gathers a valid threshold proof, so it is never closed and, since only closed blocks are pruned, never pruned)
+ * — and this returns empty if it is not.
  *
  * <p>The round is found the same way as on disk: every round's first block item is a {@code RoundHeader}, so a block's
  * first {@code RoundHeader} is its first round, and first-round-per-block increases monotonically with block number.

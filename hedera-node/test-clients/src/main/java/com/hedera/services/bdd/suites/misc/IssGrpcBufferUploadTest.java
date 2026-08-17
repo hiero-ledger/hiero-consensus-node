@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp.ISS_NODE_ID;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.configVersionOf;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -63,13 +64,16 @@ import org.junit.jupiter.api.Tag;
  * in-memory {@code BlockBufferService} (not the disk resolver). It proves both capture outcomes:
  *
  * <ul>
- *   <li><b>Block present</b> ({@link #issBlockCapturedFromBufferInGrpcMode()}): acks are withheld so the ISS-round
- *   block stays unacknowledged — the production invariant, since a block node never acknowledges an ISS block — and is
- *   therefore retained in the buffer through the detection lag; it is reconstructed and uploaded to {@code iss/} as a
- *   {@code .iss.gz}.</li>
- *   <li><b>Block missing</b> ({@link #pointerMarkerUploadedWhenBlockPrunedInGrpcMode()}): acks flow normally so the
- *   ISS block is acknowledged and (with a tiny acked-retention floor) pruned before detection; the upload falls back to
- *   a {@code .txt} pointer to {@code iss/} carrying the data needed to locate the block on the block node.</li>
+ *   <li><b>Block present</b> ({@link #issBlockCapturedFromBufferInGrpcMode()}): the ISS-round block is retained in the
+ *   buffer through the detection lag and reconstructed + uploaded to {@code iss/} as a {@code .iss.gz}. This test keeps
+ *   it by withholding acks (with mock signatures closing it); on the real path it is retained for a stronger reason — a
+ *   self-ISS block's divergent root hash never gathers a threshold block proof, so the block is never closed and, since
+ *   only closed blocks are pruned, never pruned.</li>
+ *   <li><b>Block missing</b> ({@link #pointerMarkerUploadedWhenBlockPrunedInGrpcMode()}): a FORCED fallback — with
+ *   {@code tss.forceMockSignatures=true} the divergent block gets a mock proof, so it closes and can be pruned before
+ *   detection, and the upload falls back to a {@code .txt} pointer to {@code iss/} carrying the data needed to locate
+ *   the block on the block node. On the real path this should not happen (the block is retained per above); the
+ *   {@code .txt} is a last-resort safety net, exercised here only to cover the fallback code path.</li>
  * </ul>
  *
  * <p>Runs on its own fresh gRPC-only network with a block node attached (via {@link HapiBlockNode}); a
@@ -206,6 +210,10 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                         "from buffer block #",
                         Duration.ofSeconds(90),
                         () -> new SpecOperation[0]),
+                // Exactly one block is captured: with failureBlockUpload.precedingBlocks=0 (default) the reader writes
+                // only the ISS-round block, so the capture reports "wrote 1 block(s)". Guards against a capture that
+                // uploads context/extra blocks or fires repeatedly for the same incident.
+                assertHgcaaLogContainsText(byNodeId(ISS_NODE_ID), "wrote 1 block(s)", Duration.ofSeconds(90)),
                 untilHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID),
                         "Uploaded ISS block file",
@@ -217,6 +225,18 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                     assertTrue(
                             receivedKeyMatches("/iss/", ".iss.gz"),
                             "expected an iss/ *.iss.gz block object uploaded via bucky; saw " + RECEIVED_OBJECT_KEYS);
+                    // Exactly ONE block object is uploaded: precedingBlocks=0 (default) captures only the ISS block,
+                    // and
+                    // a single self-ISS incident is a single capture. Distinct object keys == distinct blocks (the
+                    // multipart parts of one object share the same key/path), so this guards against a capture that
+                    // uploads context/extra blocks or fires repeatedly for the same incident.
+                    final long issBlockObjects = RECEIVED_OBJECT_KEYS.stream()
+                            .filter(key -> key.contains("/iss/") && key.endsWith(".iss.gz"))
+                            .count();
+                    assertEquals(
+                            1L,
+                            issBlockObjects,
+                            "expected exactly one iss/ *.iss.gz block object; saw " + RECEIVED_OBJECT_KEYS);
                 }),
                 // Restore acks so the remaining nodes can drain and freeze cleanly.
                 blockNode(0).updateSendingBlockAcknowledgements(true),
@@ -294,8 +314,14 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
                 assertHgcaaLogDoesNotContainText(byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(30)),
-                // Acks flow normally, so the ISS-round block is acknowledged and pruned (minAckedBlocksToBuffer=2)
-                // before detection — the block is gone from the buffer when capture runs.
+                // Acks flow normally so the ISS-round block is acknowledged and pruned before detection — it is gone
+                // from the buffer when capture runs, forcing the .txt pointer fallback.
+                //
+                // NOTE: this "block pruned" case is FORCED by tss.forceMockSignatures=true — the mock signer produces a
+                // proof for node1's divergent block, so the block closes and becomes prunable. On the real path a
+                // self-ISS block never gathers a valid (threshold) block proof, so it is never closed and never pruned
+                // (only closed blocks are pruned); it stays buffered and is captured as a .iss.gz. This test therefore
+                // exercises the fallback code path, not a real-path self-ISS outcome.
                 cryptoTransfer(movingHbar(6L).distributing(GENESIS, "3", "4", "5", "6", "7", "8"))
                         .signedBy(GENESIS),
                 untilHgcaaLogContainsText(
