@@ -121,23 +121,27 @@ public final class ConsensusLayerStaticSetup {
      */
     private static void writeSettingsUsed(@NonNull final Configuration configuration) {
         requireNonNull(configuration);
-        final StringBuilder settingsUsedBuilder = new StringBuilder();
 
         // Add all settings values to the string builder
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-
-        settingsUsedBuilder.append(System.lineSeparator());
-        settingsUsedBuilder.append("------------- All Configuration -------------");
-        settingsUsedBuilder.append(System.lineSeparator());
-
-        // Add all config values to the string builder
-        ConfigExport.addConfigContents(configuration, settingsUsedBuilder);
-
-        // Write the settingsUsed.txt file
         final Path settingsUsedPath =
                 pathsConfig.getSettingsUsedDir().resolve(PlatformConfigUtils.SETTING_USED_FILENAME);
-        try (final OutputStream outputStream = new FileOutputStream(settingsUsedPath.toFile())) {
-            outputStream.write(settingsUsedBuilder.toString().getBytes(StandardCharsets.UTF_8));
+
+        // settingsUsed.txt is a diagnostic, so collecting its contents is guarded along with writing it: failing to
+        // produce a diagnostic file must never be what stops the node from starting.
+        try {
+            final StringBuilder settingsUsedBuilder = new StringBuilder();
+            settingsUsedBuilder.append(System.lineSeparator());
+            settingsUsedBuilder.append("------------- All Configuration -------------");
+            settingsUsedBuilder.append(System.lineSeparator());
+
+            // Add all config values to the string builder
+            ConfigExport.addConfigContents(configuration, settingsUsedBuilder);
+
+            // Write the settingsUsed.txt file
+            try (final OutputStream outputStream = new FileOutputStream(settingsUsedPath.toFile())) {
+                outputStream.write(settingsUsedBuilder.toString().getBytes(StandardCharsets.UTF_8));
+            }
         } catch (final IOException | RuntimeException e) {
             logger.error(EXCEPTION.getMarker(), "Failed to write settingsUsed to file {}", settingsUsedPath, e);
         }

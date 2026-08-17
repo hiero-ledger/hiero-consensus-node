@@ -24,7 +24,6 @@ import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 import com.swirlds.config.extensions.sources.PropertyFileConfigSource;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.impl.validators.DefaultConfigViolation;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -41,7 +40,7 @@ class ConfigApiRecordsTests {
     void getConfigProxy() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new SimpleConfigSource("network.port", 8080))
+                .withValue("network.port", "8080")
                 .withConfigDataType(NetworkConfig.class)
                 .build();
 
@@ -81,7 +80,7 @@ class ConfigApiRecordsTests {
     void getConfigProxyDefaultValue() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new SimpleConfigSource("network.port", "8080"))
+                .withValue("network.port", "8080")
                 .withConfigDataType(NetworkConfig.class)
                 .build();
 
@@ -96,7 +95,7 @@ class ConfigApiRecordsTests {
     void getConfigProxyDefaultValuesList() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new SimpleConfigSource("network.port", "8080"))
+                .withValue("network.port", "8080")
                 .withConfigDataType(NetworkConfig.class)
                 .build();
 
@@ -126,8 +125,8 @@ class ConfigApiRecordsTests {
     void getConfigProxyValuesList() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new SimpleConfigSource("network.port", "8080"))
-                .withSource(new SimpleConfigSource("network.errorCodes", "1,2,3"))
+                .withValue("network.port", "8080")
+                .withValue("network.errorCodes", "1,2,3")
                 .withConfigDataType(NetworkConfig.class)
                 .build();
 
@@ -165,8 +164,8 @@ class ConfigApiRecordsTests {
     void getConfigProxyOverwrittenDefaultValue() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new SimpleConfigSource("network.port", "8080"))
-                .withSource(new SimpleConfigSource("network.server", "example.net"))
+                .withValue("network.port", "8080")
+                .withValue("network.server", "example.net")
                 .withConfigDataType(NetworkConfig.class)
                 .build();
 
@@ -183,9 +182,8 @@ class ConfigApiRecordsTests {
     @Test
     void testMinConstrainAnnotation() {
         // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("network.port", "-1"))
-                .withConfigDataType(NetworkConfig.class);
+        final ConfigurationBuilder configurationBuilder =
+                ConfigurationBuilder.create().withValue("network.port", "-1").withConfigDataType(NetworkConfig.class);
 
         // when
         final ConfigViolationException exception = assertThrows(
@@ -205,8 +203,8 @@ class ConfigApiRecordsTests {
     void testConstrainAnnotation() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("network.port", "8080"))
-                .withSources(new SimpleConfigSource("network.server", "invalid"))
+                .withValue("network.port", "8080")
+                .withValue("network.server", "invalid")
                 .withConfigDataType(NetworkConfig.class);
 
         // when
@@ -228,8 +226,8 @@ class ConfigApiRecordsTests {
     void testMultipleConstrainAnnotationsFail() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("network.port", "-1"))
-                .withSources(new SimpleConfigSource("network.server", "invalid"))
+                .withValue("network.port", "-1")
+                .withValue("network.server", "invalid")
                 .withConfigDataType(NetworkConfig.class);
 
         // when
@@ -1229,6 +1227,42 @@ class ConfigApiRecordsTests {
         public record Leaf(@Positive int value) {}
     }
 
+    /**
+     * The runtime decides whether a component holds a group of properties from
+     * {@link java.lang.reflect.RecordComponent#getType()}, which is the erasure of the declared type. The annotation
+     * processor erases as well, so the constant it generates names the property that is read here.
+     */
+    @Nested
+    class NestedRecordHeldByATypeVariableComponent {
+
+        @Test
+        void testTheBoundIsExpandedIntoItsProperties() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.value", "defined")
+                    .withConfigDataType(Root.class)
+                    .build();
+
+            assertEquals(
+                    "defined", configuration.getConfigData(Root.class).leaf().value());
+        }
+
+        @Test
+        void testThePropertyOfTheGroupIsWhatIsRead() {
+            // the name of the component itself is not a property, so setting it leaves the group without a value
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withValue("root.leaf", "defined")
+                    .withConfigDataType(Root.class);
+
+            assertThrows(IllegalStateException.class, builder::build);
+        }
+
+        @ConfigData("root")
+        public record Root<T extends Leaf>(T leaf) {}
+
+        @NestedConfig
+        public record Leaf(String value) {}
+    }
+
     @Nested
     class OptionalNestedRecord {
 
@@ -1376,6 +1410,43 @@ class ConfigApiRecordsTests {
         }
 
         /**
+         * The mistakes below are about a component of the absent group rather than about the group itself, so they are
+         * the ones a validation that only walks the nested records would miss. Each of them is rejected for a group
+         * that is created by {@link InvalidNestedRecordDefaults}, and the message has to be the same one: it is the
+         * declaration that is wrong, not the configuration.
+         */
+        @Test
+        void testComponentThatIsNeitherNestedNorConverted() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UnmarkedComponentRoot.class);
+
+            verifyBuildFails(builder, "is neither annotated with NestedConfig", "nor has a converter registered");
+        }
+
+        @Test
+        void testConfigDefaultOnAComponentThatIsNotANestedRecord() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(ScalarDefaultRoot.class);
+
+            verifyBuildFails(builder, "root.group.value", "is not a nested config data object");
+        }
+
+        @Test
+        void testNestedRecordThatAlsoHasAConverter() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withConfigDataType(ConvertedComponentRoot.class)
+                    .withConverter(Leaf.class, _ -> new Leaf("converted"));
+
+            verifyBuildFails(builder, "also has a converter", "Remove one of the two");
+        }
+
+        @Test
+        void testNonNullDefaultOnANestedComponent() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NonNullDefaultRoot.class);
+
+            verifyBuildFails(builder, "root.group.leaf", "is a nested config data object");
+        }
+
+        /**
          * The validation must not reject a group that is merely absent, which is by far the common case.
          */
         @Test
@@ -1430,6 +1501,43 @@ class ConfigApiRecordsTests {
                 @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
                 @ConfigDefault(property = "value", defaultValue = "1")
                 Leaf leaf) {}
+
+        @ConfigData("root")
+        public record UnmarkedComponentRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                UnmarkedComponentGroup group) {}
+
+        @NestedConfig
+        public record UnmarkedComponentGroup(UnmarkedLeaf leaf) {}
+
+        public record UnmarkedLeaf(String value) {}
+
+        @ConfigData("root")
+        public record ScalarDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                ScalarDefaultGroup group) {}
+
+        @NestedConfig
+        public record ScalarDefaultGroup(
+                @ConfigDefault(property = "whatever", defaultValue = "1")
+                String value) {}
+
+        @ConfigData("root")
+        public record ConvertedComponentRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                ConvertedComponentGroup group) {}
+
+        @NestedConfig
+        public record ConvertedComponentGroup(Leaf leaf) {}
+
+        @ConfigData("root")
+        public record NonNullDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                NonNullDefaultGroup group) {}
+
+        @NestedConfig
+        public record NonNullDefaultGroup(
+                @ConfigProperty(defaultValue = "whatever") Leaf leaf) {}
 
         @NestedConfig
         public record Leaf(
@@ -1537,6 +1645,23 @@ class ConfigApiRecordsTests {
 
             verifyBuildFails(builder, "root.leaf.value", "Known properties: [root.leaf.renamed]");
         }
+
+        /**
+         * The marker is what {@link ConfigProperty#defaultValue()} uses to say that no default is defined, so a
+         * {@link ConfigDefault} carrying it says nothing while overriding the default that the property declares
+         * itself. Storing it would assign its text as the value of the property.
+         */
+        @Test
+        void testUndefinedDefaultValueMarkerIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(UndefinedMarkerRoot.class);
+
+            verifyBuildFails(builder, "root.leaf.value", "UNDEFINED_DEFAULT_VALUE", "no default is defined");
+        }
+
+        @ConfigData("root")
+        public record UndefinedMarkerRoot(
+                @ConfigDefault(property = "value", defaultValue = ConfigProperty.UNDEFINED_DEFAULT_VALUE)
+                Leaf leaf) {}
 
         @Test
         void testAnnotationOnComponentThatIsNotANestedRecord() {

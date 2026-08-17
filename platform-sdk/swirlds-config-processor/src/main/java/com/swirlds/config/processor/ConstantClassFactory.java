@@ -140,6 +140,12 @@ public final class ConstantClassFactory {
      * Converts a property name into a constant name. The conversion is based on changing from camel case to snake case.
      * The dots that separate the segments of the name of a property of a nested config data object become underscores
      * as well, since a dot is not valid in a constant name.
+     * <p>
+     * A camel case boundary, a dot and an underscore are all read as one and the same word separator and each produces
+     * exactly one underscore, so {@code "fooBar"}, {@code "foo.Bar"}, {@code "foo.bar"}, {@code "foo_Bar"} and
+     * {@code "foo_bar"} all become {@code "FOO_BAR"}. Two property names of one record that collapse onto the same
+     * constant name this way are reported by {@link #doWork(ConfigDataRecordDefinition, JavaFileObject)} rather than
+     * generating a class that declares the same field twice.
      *
      * @param propertyName The property name to be converted. Must not be {@code null}.
      *

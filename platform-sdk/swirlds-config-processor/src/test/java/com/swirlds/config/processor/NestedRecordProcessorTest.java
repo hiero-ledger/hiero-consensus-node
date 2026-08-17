@@ -228,6 +228,101 @@ class NestedRecordProcessorTest {
     }
 
     /**
+     * The runtime decides whether a component holds a group of properties from
+     * {@code RecordComponent#getType()}, which is the erasure, so the processor has to erase as well. A type variable
+     * would otherwise be taken for a single property here while the runtime reads the properties of its bound.
+     */
+    @Test
+    void componentWhoseTypeIsATypeVariableIsExpanded() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData("root")
+                public record RootConfig<T extends LeafConfig>(T leaf) {}
+                """;
+
+        final String generated = compileAndReadConstants(root, LEAF);
+
+        // the erasure of T is LeafConfig, which is what the runtime expands
+        assertTrue(generated.contains("\"root.leaf.type\""), generated);
+        assertTrue(generated.contains("\"root.leaf.capacity\""), generated);
+
+        // and the component itself is not a settable property, so a constant naming it would name one nothing reads
+        assertFalse(generated.contains("\"root.leaf\";"), generated);
+    }
+
+    /**
+     * The components of a nested config data object are read from its declaration, so a generic one would document a
+     * bare type variable. The erasure is what the runtime converts the value to and is therefore documented instead.
+     */
+    @Test
+    void typeVariableOfAGenericNestedRecordIsDocumentedAsItsErasure() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData("root")
+                public record RootConfig(WrapperConfig timeout) {}
+                """;
+        final String wrapper = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigProperty;
+                import com.swirlds.config.api.NestedConfig;
+                import java.time.Duration;
+
+                @NestedConfig
+                public record WrapperConfig<T extends Duration>(
+                        @ConfigProperty(defaultValue = "1s") T value) {}
+                """;
+
+        compileAndReadConstants(root, wrapper);
+
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertTrue(
+                documentation.split("## root\\.timeout\\.value")[1].contains("java.time.Duration"),
+                "the erasure of the type variable has to be documented: " + documentation);
+    }
+
+    /**
+     * Erasing the component type must not throw away the type arguments of an ordinary generic type, which are what
+     * tells the runtime what to convert the elements of a collection to.
+     */
+    @Test
+    void typeArgumentsOfAGenericPropertyAreKept() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData("root")
+                public record RootConfig(GenericLeafConfig leaf) {}
+                """;
+        final String leaf = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigProperty;
+                import com.swirlds.config.api.NestedConfig;
+                import java.time.Duration;
+                import java.util.Set;
+
+                @NestedConfig
+                public record GenericLeafConfig(
+                        @ConfigProperty(defaultValue = "1s") Set<Duration> values) {}
+                """;
+
+        compileAndReadConstants(root, leaf);
+
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertTrue(
+                documentation.split("## root\\.leaf\\.values")[1].contains("java.util.Set<java.time.Duration>"),
+                "the type arguments have to be kept: " + documentation);
+    }
+
+    /**
      * A dot both separates the segments of the path to a more deeply nested property and can be part of a single name
      * that {@code @ConfigProperty} defines. The processor documents these defaults, so it has to resolve the path the
      * same way the runtime does.
@@ -318,6 +413,29 @@ class NestedRecordProcessorTest {
     }
 
     @Test
+    void undefinedDefaultValueMarkerIsRejected() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "capacity", defaultValue = ConfigProperty.UNDEFINED_DEFAULT_VALUE)
+                        LeafConfig leaf) {}
+                """;
+
+        // the marker means "no default is defined", so documenting it as the default of the property would be wrong and
+        // the runtime rejects it as well
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("root.leaf.capacity"), messages);
+        assertTrue(messages.contains("UNDEFINED_DEFAULT_VALUE"), messages);
+    }
+
+    @Test
     void defaultOnAComponentThatIsNotANestedRecordIsRejected() throws IOException {
         final String root = """
                 package test.cfg;
@@ -365,6 +483,30 @@ class NestedRecordProcessorTest {
         final String messages = compileExpectingFailure(root, both);
 
         assertTrue(messages.contains("mutually exclusive"), messages);
+    }
+
+    /**
+     * The two annotations are a mistake wherever the record turns up, so the record being processed has to be checked
+     * as well and not only the records it holds. The runtime refuses to register such a record, so generating constants
+     * and documentation for it describes a config data object that can never be created.
+     */
+    @Test
+    void recordWithBothAnnotationsIsRejectedAsARoot() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.NestedConfig;
+
+                @ConfigData("root")
+                @NestedConfig
+                public record RootConfig(String value) {}
+                """;
+
+        final String messages = compileExpectingFailure(root);
+
+        assertTrue(messages.contains("mutually exclusive"), messages);
+        assertTrue(messages.contains("test.cfg.RootConfig"), messages);
     }
 
     /**

@@ -24,6 +24,8 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
@@ -64,6 +66,13 @@ public final class NestedRecordExpander {
             @NonNull final ConfigDataRecordDefinition definition, @NonNull final TypeElement typeElement) {
         Objects.requireNonNull(definition, "definition must not be null");
         Objects.requireNonNull(typeElement, "typeElement must not be null");
+
+        // The record that is being processed carries ConfigData, since that is what the processor runs over, so it must
+        // not carry NestedConfig as well. Checking only the components would let the mistake through for the record it
+        // is declared on and generate constants and documentation that the runtime then refuses to use.
+        if (typeElement.getAnnotation(NestedConfig.class) != null) {
+            throw new IllegalArgumentException(bothAnnotationsMessage(typeElement));
+        }
 
         final Map<String, RecordComponentElement> componentsByName = new HashMap<>();
         ElementFilter.recordComponentsIn(typeElement.getEnclosedElements())
@@ -142,7 +151,7 @@ public final class NestedRecordExpander {
                     properties.add(new ConfigDataPropertyDefinition(
                             fieldName,
                             propertyName,
-                            component.asType().toString(),
+                            getReportedTypeName(component),
                             defaultOverrides.getOrDefault(propertyName, getDefaultValue(component)),
                             descriptions.getOrDefault(component.getSimpleName().toString(), "")));
                 }
@@ -155,13 +164,18 @@ public final class NestedRecordExpander {
 
     /**
      * Returns the element of the nested config data object that the given record component holds.
+     * <p>
+     * The type is erased first, since that is what the runtime sees: it decides the same question from
+     * {@link java.lang.reflect.RecordComponent#getType()}, which is the erasure. A component whose type is a type
+     * variable like {@code T extends Leaf} would otherwise be taken for a single property here while the runtime reads
+     * the properties of {@code Leaf}, so the generated constant would name a property that is never read.
      *
      * @param component the record component
      * @return the element of the nested config data object, or null if the component does not hold one
      */
     @Nullable
     private TypeElement asNestedConfig(@NonNull final RecordComponentElement component) {
-        final Element element = types.asElement(component.asType());
+        final Element element = types.asElement(types.erasure(component.asType()));
         if (element instanceof final TypeElement typeElement
                 && element.getKind() == ElementKind.RECORD
                 && typeElement.getAnnotation(NestedConfig.class) != null) {
@@ -169,14 +183,48 @@ public final class NestedRecordExpander {
             // exclusive: a nested config data object takes its prefix from the component that holds it, so the prefix
             // of the ConfigData would never be used
             if (typeElement.getAnnotation(ConfigData.class) != null) {
-                throw new IllegalArgumentException("The record '" + typeElement.getQualifiedName() + "' that '"
-                        + component.getSimpleName() + "' holds is annotated with both "
-                        + ConfigData.class.getSimpleName() + " and " + NestedConfig.class.getSimpleName()
-                        + ", which are mutually exclusive. Remove one of the two");
+                throw new IllegalArgumentException(
+                        bothAnnotationsMessage(typeElement) + ", reached through '" + component.getSimpleName() + "'");
             }
             return typeElement;
         }
         return null;
+    }
+
+    /**
+     * Returns the message for a record that carries both {@link ConfigData} and {@link NestedConfig}. The two
+     * annotations describe the two different roles a config record can have and are mutually exclusive: a nested config
+     * data object takes its prefix from the component that holds it, so the prefix of the {@link ConfigData} would
+     * never be used.
+     *
+     * @param typeElement the element of the record
+     * @return the message
+     */
+    @NonNull
+    private static String bothAnnotationsMessage(@NonNull final TypeElement typeElement) {
+        return "The record '" + typeElement.getQualifiedName() + "' is annotated with both "
+                + ConfigData.class.getSimpleName() + " and " + NestedConfig.class.getSimpleName()
+                + ", which are mutually exclusive. Remove one of the two";
+    }
+
+    /**
+     * Returns the name of the type that is documented for the given record component.
+     * <p>
+     * A type variable is erased, since the components of a nested config data object are read from its declaration and
+     * a bare name like {@code T} describes nothing. The erasure is also the type the runtime converts the value to, so
+     * a bound like {@code T extends Duration} is documented as {@code java.time.Duration} and an unbounded one as
+     * {@code java.lang.Object}. Any other type is reported as it is written, which keeps the type arguments of a
+     * generic type like {@code java.util.Set<java.time.Duration>}.
+     *
+     * @param component the record component
+     * @return the name of the type to document
+     */
+    @NonNull
+    private String getReportedTypeName(@NonNull final RecordComponentElement component) {
+        final TypeMirror componentType = component.asType();
+        return componentType.getKind() == TypeKind.TYPEVAR
+                ? types.erasure(componentType).toString()
+                : componentType.toString();
     }
 
     /**
@@ -238,6 +286,18 @@ public final class NestedRecordExpander {
                                         + " its properties: "
                                         + getPropertyNames(
                                                 addressed, asNestedConfig(matches.getFirst()), new HashSet<>()));
+            }
+
+            // the marker means "no default is defined" everywhere a default value is read, so a ConfigDefault carrying
+            // it is indistinguishable from not writing the annotation. The runtime rejects it as well, since a config
+            // data record may be compiled without this processor
+            if (Objects.equals(ConfigProperty.UNDEFINED_DEFAULT_VALUE, configDefault.defaultValue())) {
+                throw new IllegalArgumentException("The " + ConfigDefault.class.getSimpleName() + " for '" + addressed
+                        + "' uses " + ConfigProperty.class.getSimpleName()
+                        + ".UNDEFINED_DEFAULT_VALUE as its default value, which means that no default is defined."
+                        + " Remove the annotation to leave the default of the property alone, or use "
+                        + ConfigProperty.class.getSimpleName()
+                        + ".NULL_DEFAULT_VALUE to default the property to null.");
             }
 
             // two annotations addressing the same property simply drop one of the two values, so there is no reading

@@ -120,28 +120,7 @@ class ConfigDataFactory {
         final String name = createPropertyName(namePrefix, component);
         final Class<?> valueType = component.getType();
 
-        final boolean isNestedRecord = isNestedRecord(valueType);
-        if (valueType.isRecord() && !isNestedRecord && converterService.getConverterForType(valueType) == null) {
-            throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
-                    + "' is neither annotated with " + NestedConfig.class.getSimpleName()
-                    + ", which would make it a nested config data object, nor has a converter registered, which would"
-                    + " make it a single property that is converted from one value");
-        }
-        if (isNestedRecord && converterService.getConverterForType(valueType) != null) {
-            throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
-                    + "' is annotated with " + NestedConfig.class.getSimpleName() + " and also has a converter"
-                    + " registered. A nested config data object is read property by property, so the converter would"
-                    + " never be used. Remove one of the two");
-        }
-        if (isNestedRecord) {
-            validateIsNotAConfigDataType(name, valueType);
-        }
-        if (component.getAnnotationsByType(ConfigDefault.class).length > 0 && !isNestedRecord) {
-            throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
-                    + " for the property '" + name + "' since '" + valueType
-                    + "' is not a nested config data object. Use " + ConfigProperty.class.getSimpleName()
-                    + " to define a default value for it");
-        }
+        final boolean isNestedRecord = validateComponentSchema(name, component);
 
         // a value that is defined by an enclosing ConfigDefault annotation takes precedence over the default value
         // that the property defines itself
@@ -199,11 +178,9 @@ class ConfigDataFactory {
             @NonNull final Set<Class<?>> circularRefStack,
             @NonNull final DefaultValueOverrides defaultValueOverrides,
             @Nullable final String rawDefaultValue) {
-        if (rawDefaultValue != null && !Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
-            throw new IllegalArgumentException("Can not use a default value for the property '" + name + "' since '"
-                    + component.getType() + "' is a nested config data object. Use "
-                    + ConfigDefault.class.getSimpleName() + " to define the default values of its properties");
-        }
+        // the declared default was already checked by validateComponentSchema, this also rejects an override that a
+        // ConfigDefault of an enclosing record supplied
+        validateNestedRecordDefaultValue(name, component, rawDefaultValue);
 
         // the prefix of a nested config data object is always the name of the property that holds it, so a prefix that
         // the record defines for its own use as a registered config data type is not used here
@@ -233,6 +210,71 @@ class ConfigDataFactory {
     }
 
     /**
+     * Checks everything about the given record component that follows from its declaration alone, so that the same
+     * mistake is reported whether or not the config asks for the value below it. This is what lets an optional group
+     * that is absent be checked exactly like one that is created.
+     *
+     * @param name      the full name of the property
+     * @param component the record component
+     * @return true if the component holds a nested config data object
+     */
+    private boolean validateComponentSchema(@NonNull final String name, @NonNull final RecordComponent component) {
+        final Class<?> valueType = component.getType();
+
+        final boolean isNestedRecord = isNestedRecord(valueType);
+        if (valueType.isRecord() && !isNestedRecord && converterService.getConverterForType(valueType) == null) {
+            throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
+                    + "' is neither annotated with " + NestedConfig.class.getSimpleName()
+                    + ", which would make it a nested config data object, nor has a converter registered, which would"
+                    + " make it a single property that is converted from one value");
+        }
+        if (isNestedRecord && converterService.getConverterForType(valueType) != null) {
+            throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
+                    + "' is annotated with " + NestedConfig.class.getSimpleName() + " and also has a converter"
+                    + " registered. A nested config data object is read property by property, so the converter would"
+                    + " never be used. Remove one of the two");
+        }
+        if (isNestedRecord) {
+            validateIsNotAConfigDataType(name, valueType);
+        }
+        if (component.getAnnotationsByType(ConfigDefault.class).length > 0 && !isNestedRecord) {
+            throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                    + " for the property '" + name + "' since '" + valueType
+                    + "' is not a nested config data object. Use " + ConfigProperty.class.getSimpleName()
+                    + " to define a default value for it");
+        }
+        if (isNestedRecord) {
+            // The default that the component declares is checked here rather than only where it is used, since a group
+            // that the config never asks for would otherwise keep an invalid declaration. A ConfigDefault of an
+            // enclosing record can not reach a group, resolveConfigDefaults rejects that, so the declared default is
+            // the only one there is to check.
+            validateNestedRecordDefaultValue(
+                    name, component, getRawDefaultValue(component).orElse(null));
+        }
+        return isNestedRecord;
+    }
+
+    /**
+     * Checks that the given default value of a component that holds a nested config data object is one the component
+     * can have. A nested config data object has no value of its own, so the only default it accepts is
+     * {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes the whole group optional.
+     *
+     * @param name            the full name of the property
+     * @param component       the nested record component
+     * @param rawDefaultValue the raw default value of the component, or null if none is defined
+     */
+    private static void validateNestedRecordDefaultValue(
+            @NonNull final String name,
+            @NonNull final RecordComponent component,
+            @Nullable final String rawDefaultValue) {
+        if (rawDefaultValue != null && !Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
+            throw new IllegalArgumentException("Can not use a default value for the property '" + name + "' since '"
+                    + component.getType() + "' is a nested config data object. Use "
+                    + ConfigDefault.class.getSimpleName() + " to define the default values of its properties");
+        }
+    }
+
+    /**
      * Checks the whole nested config data object below the given component without creating it, which is what an
      * optional group that the config does not ask for needs: every mistake that instantiating the group would have
      * reported has to be reported while it is absent as well.
@@ -255,13 +297,13 @@ class ConfigDataFactory {
             throw new IllegalStateException("Circular reference detected for record type '" + recordType + "'");
         }
         try {
+            // Every component is checked and not only the ones that are nested records themselves, since the mistakes
+            // that a component can carry do not depend on the config asking for its value.
             for (final RecordComponent nested : recordType.getRecordComponents()) {
-                if (isNestedRecord(nested.getType())) {
+                final String nestedName = createPropertyName(name, nested);
+                if (validateComponentSchema(nestedName, nested)) {
                     validateNestedSchema(
-                            createPropertyName(name, nested),
-                            nested,
-                            nested.getType().asSubclass(Record.class),
-                            circularRefStack);
+                            nestedName, nested, nested.getType().asSubclass(Record.class), circularRefStack);
                 }
             }
         } finally {
@@ -334,6 +376,19 @@ class ConfigDataFactory {
                                         + " its properties: "
                                         + getPropertyNames(
                                                 addressed, matches.getFirst().getType()));
+            }
+
+            // The marker means "no default is defined" wherever a default value is read, and a ConfigDefault that
+            // defines no default is indistinguishable from not writing the annotation at all. Storing the marker as an
+            // ordinary default would assign its text as the value of the property and, since a ConfigDefault wins over
+            // the default the property declares, silently drop that one.
+            if (Objects.equals(ConfigProperty.UNDEFINED_DEFAULT_VALUE, configDefault.defaultValue())) {
+                throw new IllegalArgumentException("The " + ConfigDefault.class.getSimpleName() + " for '" + addressed
+                        + "' uses " + ConfigProperty.class.getSimpleName()
+                        + ".UNDEFINED_DEFAULT_VALUE as its default value, which means that no default is defined."
+                        + " Remove the annotation to leave the default of the property alone, or use "
+                        + ConfigProperty.class.getSimpleName()
+                        + ".NULL_DEFAULT_VALUE to default the property to null.");
             }
 
             // Two annotations may address the same property, and there is no reading of that which is not a mistake:

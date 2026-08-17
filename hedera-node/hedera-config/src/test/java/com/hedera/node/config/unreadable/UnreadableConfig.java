@@ -3,7 +3,10 @@ package com.hedera.node.config.unreadable;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.NestedConfig;
+import com.swirlds.config.api.validation.ConfigViolation;
+import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Min;
 
 /**
@@ -38,5 +41,27 @@ public record UnreadableConfig(UnreadableLeaf leaf) {
         @NestedConfig
         public record ConstrainedLeaf(
                 @ConfigProperty(defaultValue = "1") @Min(0) long constrained) {}
+    }
+
+    /**
+     * The same shape with a constraint method instead of a value constraint. A constraint method is invoked on the
+     * record instance that declares the property, which is the very thing that can not be reached here, so it has to
+     * fail for the same reason and with the same message as a constraint that reads a value.
+     */
+    @ConfigData("constrainedByMethod")
+    public record ConstrainedByMethodConfig(ConstrainedByMethodLeaf leaf) {
+
+        /**
+         * @param constrained a property whose constraint is checked by a method of the record declaring it
+         */
+        @NestedConfig
+        public record ConstrainedByMethodLeaf(
+                @ConfigProperty(defaultValue = "1") @ConstraintMethod("checkConstrained")
+                long constrained) {
+
+            public ConfigViolation checkConstrained(final Configuration configuration) {
+                return null;
+            }
+        }
     }
 }

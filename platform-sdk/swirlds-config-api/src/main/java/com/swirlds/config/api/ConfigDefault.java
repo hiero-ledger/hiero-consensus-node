@@ -83,6 +83,10 @@ public @interface ConfigDefault {
      * The default value of the property. The value is used exactly like a {@link ConfigProperty#defaultValue()}, so it
      * is converted to the type of the property by the registered converters and
      * {@link ConfigProperty#NULL_DEFAULT_VALUE} can be used to default the property to {@code null}.
+     * <p>
+     * {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE} is the one value that is not accepted here and fails the creation
+     * of the config data object. It is the marker for "no default is defined", which an annotation whose only purpose
+     * is to define one can not express: leaving the annotation out is how the default of the property is kept.
      *
      * @return the default value
      */

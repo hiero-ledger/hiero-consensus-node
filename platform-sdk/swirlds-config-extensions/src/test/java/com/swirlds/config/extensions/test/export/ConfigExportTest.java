@@ -10,7 +10,6 @@ import com.ext.swirlds.config.extensions.test.ConfigExportTestConstants.Prefixed
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,10 +26,10 @@ class ConfigExportTest {
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(ConfigExportTestRecord.class)
                 .withConfigDataType(PrefixedConfigExportTestRecord.class)
-                .withSource(new SimpleConfigSource("property", "value"))
-                .withSource(new SimpleConfigSource("prefix.property", "anotherValue"))
-                .withSource(new SimpleConfigSource("prefix.unmappedProperty", "notPresentValue"))
-                .withSource(new SimpleConfigSource("unmappedProperty", "anotherNotPresentValue"))
+                .withValue("property", "value")
+                .withValue("prefix.property", "anotherValue")
+                .withValue("prefix.unmappedProperty", "notPresentValue")
+                .withValue("unmappedProperty", "anotherNotPresentValue")
                 .build();
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
@@ -79,7 +78,7 @@ class ConfigExportTest {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(NestedConfigExportTestRecord.class)
-                .withSource(new SimpleConfigSource("nested.leaf.count", "7"))
+                .withValue("nested.leaf.count", "7")
                 .build();
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 

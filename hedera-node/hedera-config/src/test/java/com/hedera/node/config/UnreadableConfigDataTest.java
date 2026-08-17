@@ -6,12 +6,19 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.node.config.unreadable.UnreadableConfig;
+import com.hedera.node.config.unreadable.UnreadableConfig.ConstrainedByMethodConfig;
 import com.hedera.node.config.unreadable.UnreadableConfig.ConstrainedConfig;
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils.ConfigDataProperty;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.reflect.RecordComponent;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -113,6 +120,66 @@ final class UnreadableConfigDataTest {
                 .hasMessageContaining("constrained.leaf.constrained")
                 .hasMessageContaining("does not export");
     }
+
+    /**
+     * A constraint method is invoked on the record instance that declares the property, which is the very thing that
+     * can not be reached here. Without the check it dereferences the absent instance and the module export, which is
+     * the reason, is lost behind an unrelated failure.
+     */
+    @Test
+    @DisplayName("a constraint method below an unreadable record fails for the same reason")
+    void constraintMethodBelowAnUnreadableRecordFails() {
+        assertThatThrownBy(() -> new TestConfigBuilder(false)
+                        .withConfigDataType(ConstrainedByMethodConfig.class)
+                        .getOrCreateConfig())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("constrainedByMethod.leaf.constrained")
+                .hasMessageContaining("does not export");
+    }
+
+    /**
+     * Exporting the configuration is a diagnostic, and it is written while the node starts up. Failing to produce it
+     * because of a property that can not be read would keep the node from starting for the sake of a file that only
+     * describes it, so the property is named with a marker instead of its value.
+     * <p>
+     * This test lives here rather than next to {@link ConfigExport} because the test code of
+     * {@code com.swirlds.config.extensions} belongs to that same module: a config data object declared there is always
+     * accessible to the reflection, so the case can not be built in that module at all.
+     */
+    @Test
+    @DisplayName("exporting names an unreadable property and still exports the readable ones")
+    void exportNamesUnreadablePropertiesAndKeepsReadableValues() throws IOException {
+        final Configuration configuration = new TestConfigBuilder(false)
+                .withConfigDataType(UnreadableConfig.class)
+                .withConfigDataType(ReadableConfig.class)
+                // a value being defined changes nothing about the record being unreadable, and is what would
+                // otherwise make the property look like one that no record declares
+                .withValue("unreadable.leaf.plain", "fromSource")
+                .getOrCreateConfig();
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        ConfigExport.printConfig(configuration, out);
+        final List<String> lines = out.toString(StandardCharsets.UTF_8).lines().toList();
+
+        assertThat(lines)
+                // Accessibility is decided for the record and not for one property of it, so every property below it
+                // loses its value rather than just the first one.
+                .anySatisfy(line -> assertThat(line).startsWith("unreadable.leaf.plain, [VALUE NOT READABLE]"))
+                .anySatisfy(line -> assertThat(line).startsWith("unreadable.leaf.count, [VALUE NOT READABLE]"))
+                // a property that can be read still carries its value, which is what makes the export worth writing
+                .anySatisfy(line -> assertThat(line).matches("^readable\\.value, exported$"))
+                // and an unreadable property is declared by a record, so it must not also be reported as unused
+                .noneSatisfy(line -> assertThat(line).contains("unreadable.leaf.plain", "NOT USED IN RECORD"));
+    }
+
+    /**
+     * A config data object that the reflection can read, for the half of the export that has to keep working. This
+     * package is exported, unlike the one holding {@link UnreadableConfig}, which is the whole difference between the
+     * two.
+     */
+    @ConfigData("readable")
+    public record ReadableConfig(
+            @ConfigProperty(defaultValue = "exported") String value) {}
 
     /**
      * Only a property that really carries a constraint is unresolvable. An unreadable record without one has nothing

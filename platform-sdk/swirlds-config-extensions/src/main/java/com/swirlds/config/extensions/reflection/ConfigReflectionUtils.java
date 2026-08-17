@@ -403,13 +403,26 @@ public final class ConfigReflectionUtils {
          *                                  this one
          */
         public Object propertyValue() {
+            return getPropertyValue(component, requireOwner());
+        }
+
+        /**
+         * Returns the record instance that declares the property, failing when there is none. A caller that needs the
+         * declaring instance for anything other than reading the value uses this, so that the reason it can not be
+         * reached is reported the same way rather than as a failure of whatever was attempted with it.
+         *
+         * @return the record instance that declares the property
+         * @throws IllegalArgumentException if the config data object that declares the property lives in a package its
+         *                                  module does not export to this one
+         */
+        public Record requireOwner() {
             if (owner == null) {
                 throw new IllegalArgumentException("Can not read the value of the property '" + propertyName
                         + "', since the config data object that declares it lives in a package that its module does"
                         + " not export to '"
                         + ConfigReflectionUtils.class.getModule().getName() + "'");
             }
-            return getPropertyValue(component, owner);
+            return owner;
         }
 
         /**

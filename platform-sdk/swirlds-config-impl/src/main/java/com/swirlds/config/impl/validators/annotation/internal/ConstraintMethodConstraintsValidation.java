@@ -29,13 +29,17 @@ public class ConstraintMethodConstraintsValidation implements ConfigValidator {
 
     private static ConfigViolation execute(
             final Configuration configuration, final ConfigReflectionUtils.ConfigDataProperty annotatedProperty) {
+        // The owner is the record instance that declares the property. For a property of a nested config data object
+        // this is the nested instance, which can not be resolved via Configuration#getConfigData. It is absent when the
+        // config data object lives in a package its module does not export to the reflection, and that is reported
+        // outside the catch below so the reason survives: the other constraint validations read the value of the
+        // property and fail with this same error, so a constraint method must not turn it into an unrelated one.
+        final Record recordInstance = annotatedProperty.requireOwner();
+        final Class<?> recordType = recordInstance.getClass();
+
         try {
             final String methodName =
                     annotatedProperty.annotation(ConstraintMethod.class).value();
-            // The owner is the record instance that declares the property. For a property of a nested config data
-            // object this is the nested instance, which can not be resolved via Configuration#getConfigData.
-            final Record recordInstance = annotatedProperty.owner();
-            final Class<?> recordType = recordInstance.getClass();
             final Method method = recordType.getMethod(methodName, Configuration.class);
             final Object violation = method.invoke(recordInstance, configuration);
             if (violation == null) {

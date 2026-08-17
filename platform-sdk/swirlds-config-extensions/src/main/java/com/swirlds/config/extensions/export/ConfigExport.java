@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 /**
@@ -31,6 +32,10 @@ public final class ConfigExport {
      * <p>
      * <code>name, value</code>
      * </p>
+     * A property whose value can not be read is reported with the {@code [VALUE NOT READABLE]} marker instead of its
+     * value rather than failing the export. This is a diagnostic of the configuration, so leaving the property out or
+     * throwing would both be worse than naming it without a value: the caller most in need of the export is the one
+     * whose configuration has a problem.
      *
      * @param configuration the configuration
      * @param lineConsumer  the line consumer
@@ -42,14 +47,15 @@ public final class ConfigExport {
 
         // Properties defined in record configs, including values overridden by configured sources. The map is already
         // sorted by property name, which is the order the record defined values are written in below.
-        final SortedMap<String, Object> recordProperties =
-                ConfigReflectionUtils.getAllPropertiesAsMap(configuration, _ -> true);
+        final SortedMap<String, String> unreadableProperties = new TreeMap<>();
+        final SortedMap<String, Object> recordProperties = ConfigReflectionUtils.getAllPropertiesAsMap(
+                configuration, _ -> true, (name, failure) -> unreadableProperties.put(name, failure.getMessage()));
 
         // Properties defined in property file but do not exist in record configs
         final Map<String, Object> nonRecordProperties = new HashMap<>();
         configuration
                 .getPropertyNames()
-                .filter(name -> !recordProperties.containsKey(name))
+                .filter(name -> !recordProperties.containsKey(name) && !unreadableProperties.containsKey(name))
                 .forEach(name -> nonRecordProperties.put(name, configuration.getValue(name)));
 
         // Write all record defined values first, in alphabetical order
@@ -61,6 +67,10 @@ public final class ConfigExport {
             final String line = buildLine(name, value, "  [NOT USED IN RECORD]");
             lineConsumer.accept(line);
         });
+
+        // And finally the properties that are defined by a record but whose value could not be read
+        unreadableProperties.forEach(
+                (name, failure) -> lineConsumer.accept(name + ", [VALUE NOT READABLE] " + failure));
     }
 
     /**
