@@ -140,6 +140,7 @@ public class ConsensusTestArgs {
 
     public static Stream<ConsensusTestParams> restartWithEventsParams() {
         return Stream.of(
+                new ConsensusTestParams(4, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC),
                 new ConsensusTestParams(5, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
                 new ConsensusTestParams(10, RANDOM, RANDOM_WEIGHT_DESC),
                 new ConsensusTestParams(20, RANDOM, RANDOM_WEIGHT_DESC));
