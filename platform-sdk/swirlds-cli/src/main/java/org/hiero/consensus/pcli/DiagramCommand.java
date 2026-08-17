@@ -27,7 +27,6 @@ import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import com.swirlds.state.NoOpStateLifecycleManager;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -185,7 +184,7 @@ public final class DiagramCommand extends AbstractCommand {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+                new NoOpStateLifecycleManager<>();
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);

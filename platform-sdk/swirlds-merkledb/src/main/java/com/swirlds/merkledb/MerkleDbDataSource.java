@@ -471,6 +471,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (Files.exists(dbPaths.metadataFile)) {
             Files.delete(dbPaths.metadataFile);
         }
+        // Write metadata to disk to have consistent set of files on disk at any given moment. This
+        // will create a new file, not reuse the hard-linked file shared with a snapshot dir
+        saveMetadata(dbPaths);
 
         COUNT_OF_OPEN_DATABASES.increment();
         logger.info(

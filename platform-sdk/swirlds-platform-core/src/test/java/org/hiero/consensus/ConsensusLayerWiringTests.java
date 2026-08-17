@@ -26,9 +26,9 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
+import com.swirlds.state.NoOpStateLifecycleManager;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
@@ -131,7 +131,7 @@ class ConsensusLayerWiringTests {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+                new NoOpStateLifecycleManager<>();
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
