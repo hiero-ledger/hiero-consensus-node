@@ -258,6 +258,8 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
             // next file will have index zero
             nextFileIndex.set(0);
         }
+
+        saveMetadata(storeDir);
     }
 
     @NonNull
@@ -419,6 +421,8 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
                 dataReader.getIndex(),
                 dataWriter.getMetadata().getItemsCount(),
                 formatSizeBytes(dataReader.getSize()));
+
+        saveMetadata(storeDir);
 
         return dataReader;
     }
@@ -754,11 +758,9 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
     }
 
     private boolean loadMetadata() throws IOException {
-        boolean loadedLegacyMetadata = false;
         Path metadataFile = storeDir.resolve(storeName + METADATA_FILENAME_SUFFIX);
         if (!Files.exists(metadataFile)) {
             metadataFile = storeDir.resolve(legacyStoreName + METADATA_FILENAME_SUFFIX);
-            loadedLegacyMetadata = true;
         }
         if (!Files.exists(metadataFile)) {
             return false;
@@ -779,9 +781,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
             }
             validKeyRange = new KeyRange(minValidKey, maxValidKey);
         }
-        if (loadedLegacyMetadata) {
-            Files.delete(metadataFile);
-        }
+        Files.delete(metadataFile);
         return true;
     }
 
