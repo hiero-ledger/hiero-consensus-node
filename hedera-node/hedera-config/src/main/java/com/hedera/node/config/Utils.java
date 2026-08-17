@@ -37,7 +37,12 @@ public final class Utils {
     }
 
     /**
-     * Returns a map of all properties in the given configuration, including nested records and those with null values.
+     * Returns a map of all properties in the given configuration, including the properties of nested records and those
+     * whose value is null.
+     * <p>
+     * A nested config data object that defaults to null holds no property that has a value, so nothing below it is
+     * reported. Unlike a single property that defaults to null, which is reported with a null value, it is the group
+     * that does not exist rather than the value of one of its properties.
      *
      * @param configuration the configuration to get properties from
      * @return a map of all properties in the given configuration

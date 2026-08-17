@@ -24,6 +24,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
@@ -86,6 +87,7 @@ public final class NestedRecordExpander {
             if (nestedRecord == null) {
                 if (component != null) {
                     validateHasNoConfigDefault(component);
+                    validateIsNotACollectionOfNestedRecords(component);
                 }
                 expanded.add(property);
             } else {
@@ -148,12 +150,18 @@ public final class NestedRecordExpander {
                     properties.addAll(expandNested(nestedRecord, propertyName, fieldName, merged, visitedTypes));
                 } else {
                     validateHasNoConfigDefault(component);
+                    validateIsNotACollectionOfNestedRecords(component);
                     properties.add(new ConfigDataPropertyDefinition(
                             fieldName,
                             propertyName,
                             getReportedTypeName(component),
                             defaultOverrides.getOrDefault(propertyName, getDefaultValue(component)),
-                            descriptions.getOrDefault(component.getSimpleName().toString(), "")));
+                            descriptions.getOrDefault(component.getSimpleName().toString(), ""),
+                            // the property is declared by the nested record, not by the config data record that uses
+                            // it, so that is what the generated constant refers to
+                            new ConfigDataPropertyDefinition.DeclaringComponent(
+                                    recordElement.getQualifiedName().toString(),
+                                    component.getSimpleName().toString())));
                 }
             }
             return properties;
@@ -240,6 +248,42 @@ public final class NestedRecordExpander {
                     + " for the property '" + component.getSimpleName()
                     + "' since it is not a nested config data object. Use " + ConfigProperty.class.getSimpleName()
                     + " to define a default value for it");
+        }
+    }
+
+    /**
+     * Checks that the given record component is not a {@link List} or {@link Set} of nested config data objects.
+     * <p>
+     * A nested config data object is a group of properties rather than a value, and the name of a group comes from the
+     * single component that holds it. A collection has no such name for each of its elements, so there is no property
+     * name a config source could use. Without this it would be documented as a single settable property and a constant
+     * would be generated for it, while the configuration can never populate it. The runtime rejects it as well, since a
+     * config data record may be compiled without this processor.
+     *
+     * @param component the record component
+     */
+    private void validateIsNotACollectionOfNestedRecords(@NonNull final RecordComponentElement component) {
+        if (!(component.asType() instanceof final DeclaredType declaredType)) {
+            return;
+        }
+        final String rawTypeName = types.erasure(declaredType).toString();
+        if (!List.class.getName().equals(rawTypeName) && !Set.class.getName().equals(rawTypeName)) {
+            return;
+        }
+        final List<? extends TypeMirror> typeArguments = declaredType.getTypeArguments();
+        if (typeArguments.size() != 1) {
+            return;
+        }
+
+        if (types.asElement(types.erasure(typeArguments.getFirst())) instanceof final TypeElement elementType
+                && elementType.getKind() == ElementKind.RECORD
+                && elementType.getAnnotation(NestedConfig.class) != null) {
+            throw new IllegalArgumentException("Can not handle the property '" + component.getSimpleName()
+                    + "' since '" + rawTypeName + "' holds '" + elementType.getQualifiedName()
+                    + "', which is annotated with " + NestedConfig.class.getSimpleName()
+                    + ". A nested config data object is a group of properties that takes its name from the single"
+                    + " component holding it, so there is no property name for an element of a collection. Use a"
+                    + " component of that type per group, or a type with a registered converter as the element type");
         }
     }
 

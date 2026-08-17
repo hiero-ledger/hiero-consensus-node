@@ -13,6 +13,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -193,9 +194,9 @@ class ConfigDataFactory {
             // group has to be asked about rather than the name of the component.
             //
             // Absent is the normal state of an optional group, so the group is still checked for the mistakes that
-            // instantiating it would have reported. A group that is only declared wrongly would otherwise build
+            // follow from its declaration alone. A group that is only declared wrongly would otherwise build
             // everywhere until a config defines one property below it.
-            validateNestedSchema(name, component, recordType, circularRefStack);
+            validateNestedSchema(name, component, recordType, circularRefStack, defaultValueOverrides);
             return null;
         }
 
@@ -221,6 +222,7 @@ class ConfigDataFactory {
     private boolean validateComponentSchema(@NonNull final String name, @NonNull final RecordComponent component) {
         final Class<?> valueType = component.getType();
 
+        validateIsNotACollectionOfNestedRecords(name, component);
         final boolean isNestedRecord = isNestedRecord(valueType);
         if (valueType.isRecord() && !isNestedRecord && converterService.getConverterForType(valueType) == null) {
             throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
@@ -255,6 +257,44 @@ class ConfigDataFactory {
     }
 
     /**
+     * Checks that the given record component is not a {@link List} or {@link Set} of nested config data objects.
+     * <p>
+     * A nested config data object is a group of properties rather than a value, and the name of a group comes from the
+     * single component that holds it. A collection has no such name for each of its elements, so there is no property
+     * name a config source could use, and the collection would be read as a single property whose elements a converter
+     * creates. That converter can not exist, since a nested config data object must not have one, and the failure would
+     * name the missing converter instead of the mistake.
+     *
+     * @param name      the full name of the property
+     * @param component the record component
+     */
+    private static void validateIsNotACollectionOfNestedRecords(
+            @NonNull final String name, @NonNull final RecordComponent component) {
+        final Class<?> valueType = component.getType();
+        if (!Objects.equals(List.class, valueType) && !Objects.equals(Set.class, valueType)) {
+            return;
+        }
+
+        // The element type is read without the helpers that create the value, so that a declaration those reject, like
+        // a raw or wildcard collection, keeps being reported where the value is read rather than here.
+        if (!(component.getGenericType() instanceof final ParameterizedType parameterizedType)) {
+            return;
+        }
+        final Type[] typeArguments = parameterizedType.getActualTypeArguments();
+        if (typeArguments.length != 1 || !(typeArguments[0] instanceof final Class<?> elementType)) {
+            return;
+        }
+
+        if (isNestedRecord(elementType)) {
+            throw new IllegalArgumentException("Can not handle the property '" + name + "' since '" + valueType
+                    + "' holds '" + elementType + "', which is annotated with " + NestedConfig.class.getSimpleName()
+                    + ". A nested config data object is a group of properties that takes its name from the single"
+                    + " component holding it, so there is no property name for an element of a collection. Use a"
+                    + " component of that type per group, or a type with a registered converter as the element type");
+        }
+    }
+
+    /**
      * Checks that the given default value of a component that holds a nested config data object is one the component
      * can have. A nested config data object has no value of its own, so the only default it accepts is
      * {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes the whole group optional.
@@ -276,22 +316,31 @@ class ConfigDataFactory {
 
     /**
      * Checks the whole nested config data object below the given component without creating it, which is what an
-     * optional group that the config does not ask for needs: every mistake that instantiating the group would have
-     * reported has to be reported while it is absent as well.
+     * optional group that the config does not ask for needs: every mistake that follows from the declaration of the
+     * group alone has to be reported while it is absent as well.
+     * <p>
+     * What is not checked here is whether a property below the group can resolve to a value at all. A leaf that
+     * declares no default is a property that the config has to define, and requiring a default while the group is
+     * absent would make an optional group of mandatory properties impossible.
      *
-     * @param name             the full name of the nested record component
-     * @param component        the nested record component
-     * @param recordType       the type of the nested record component
-     * @param circularRefStack the record types that are currently being instantiated
+     * @param name                  the full name of the nested record component
+     * @param component             the nested record component
+     * @param recordType            the type of the nested record component
+     * @param circularRefStack      the record types that are currently being instantiated
+     * @param defaultValueOverrides the collected {@link ConfigDefault} values
      */
     private void validateNestedSchema(
             @NonNull final String name,
             @NonNull final RecordComponent component,
             @NonNull final Class<? extends Record> recordType,
-            @NonNull final Set<Class<?>> circularRefStack) {
+            @NonNull final Set<Class<?>> circularRefStack,
+            @NonNull final DefaultValueOverrides defaultValueOverrides) {
         validateIsRecord(recordType);
         validateIsNotAConfigDataType(name, recordType);
-        resolveConfigDefaults(name, component, recordType);
+        // The overrides are collected exactly as they are collected while the group is created, so that a default a
+        // leaf inherits from an enclosing config data record is the one that is checked below. Nothing reads them
+        // afterwards: they are keyed by the full name of a property below a group that stays null.
+        defaultValueOverrides.add(resolveConfigDefaults(name, component, recordType));
 
         if (!circularRefStack.add(recordType)) {
             throw new IllegalStateException("Circular reference detected for record type '" + recordType + "'");
@@ -303,11 +352,55 @@ class ConfigDataFactory {
                 final String nestedName = createPropertyName(name, nested);
                 if (validateComponentSchema(nestedName, nested)) {
                     validateNestedSchema(
-                            nestedName, nested, nested.getType().asSubclass(Record.class), circularRefStack);
+                            nestedName,
+                            nested,
+                            nested.getType().asSubclass(Record.class),
+                            circularRefStack,
+                            defaultValueOverrides);
+                } else {
+                    validateDefaultValue(nestedName, nested, defaultValueOverrides);
                 }
             }
         } finally {
             circularRefStack.remove(recordType);
+        }
+    }
+
+    /**
+     * Converts the default value that the given leaf of an absent group resolves to, so that a default which can not be
+     * converted to the type of the property is reported while the group is absent as well.
+     * <p>
+     * This is what the group being created does too, and it does it whether or not the config defines a value: the
+     * default of a property is converted where it is passed to {@link Configuration#getValue(String, Class, Object)},
+     * before the config is asked. A default that can not be converted is therefore a mistake in the declaration rather
+     * than something the configuration decides, and checking it here reports the same mistake at the same place for a
+     * group that stays null.
+     *
+     * @param name                  the full name of the property
+     * @param component             the record component of the property
+     * @param defaultValueOverrides the collected {@link ConfigDefault} values
+     */
+    private void validateDefaultValue(
+            @NonNull final String name,
+            @NonNull final RecordComponent component,
+            @NonNull final DefaultValueOverrides defaultValueOverrides) {
+        // a value that is defined by an enclosing ConfigDefault annotation takes precedence over the default value
+        // that the property defines itself, exactly as in getValueForRecordComponent
+        final String overriddenDefaultValue = defaultValueOverrides.get(name);
+        final String rawDefaultValue = overriddenDefaultValue != null
+                ? overriddenDefaultValue
+                : getRawDefaultValue(component).orElse(null);
+        if (rawDefaultValue == null) {
+            return;
+        }
+
+        // only the conversion matters here, the converted value belongs to a group that is not created
+        if (Objects.equals(List.class, component.getType())) {
+            getDefaultValues(component, rawDefaultValue);
+        } else if (Objects.equals(Set.class, component.getType())) {
+            getDefaultValueSet(component, rawDefaultValue);
+        } else {
+            getDefaultValue(component, rawDefaultValue);
         }
     }
 

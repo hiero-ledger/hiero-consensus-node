@@ -344,6 +344,9 @@ ever used as a component. Each of the following fails instead of being silently 
 - a `@NestedConfig` record that also has a registered `ConfigConverter`, which would never be used
 - a record valued component whose type has neither `@NestedConfig` nor a registered converter, so a forgotten
   annotation is reported instead of silently producing a property that cannot be set
+- a `List` or `Set` whose element type is a `@NestedConfig` record, since a group takes its name from the single
+  component that holds it and an element of a collection has no such name. A collection of a type that a registered
+  converter creates stays a single property that is read as a list of values, as it always was.
 
 Because a nested record component groups properties rather than holding a value, it cannot have a `defaultValue`. The
 one exception is `ConfigProperty.NULL_DEFAULT_VALUE`, which makes the whole group optional:
@@ -359,6 +362,20 @@ or `wiring.optional.capacity` here — because it is only those properties that 
 `wiring.optional` itself. Defining one of them is what asks for the group, so the group is then created and every other
 property of it has to resolve to a value as usual. A group that is nested inside an optional group is optional in its own
 right and is decided the same way.
+
+A `@ConfigDefault` does not ask for the group: only what a config source defines does. A group whose every property has a
+default therefore still stays `null`, which is what keeps it optional.
+
+While the group is absent it is still checked for every mistake that follows from its declaration alone, so that a group
+which is only declared wrongly does not build everywhere until a config happens to define one property below it. That
+includes a default that cannot be converted to the type of the property it belongs to, since a group that is created
+converts the default of every property of it before the config is even asked. What is *not* checked is whether a property
+can resolve to a value at all: a property of the group that declares no default is one the config has to define, and
+requiring a default would make an optional group of mandatory properties impossible.
+
+An absent group also contributes nothing to the exported configuration or to any other walk over the properties, neither
+the component holding it nor any property below it. Unlike a single property that defaults to `null`, which is exported
+with a `null` value, it is the group that does not exist rather than the value of one of its properties.
 
 **Note:** a record type without `@NestedConfig` stays a single property whose raw string value is converted by a
 registered `ConfigConverter`, which keeps config data records that use record based value types working unchanged. The

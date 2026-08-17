@@ -40,9 +40,17 @@ import java.lang.annotation.Target;
  *     <li>a record type annotated with this annotation that also has a registered
  *     {@link com.swirlds.config.api.converter.ConfigConverter}</li>
  *     <li>a record valued component whose type has neither this annotation nor a converter</li>
+` *     <li>a {@link java.util.List} or {@link java.util.Set} whose element type is annotated with this annotation, since
+ *     a group takes its name from the single component holding it and an element of a collection has none</li>
  * </ul>
  * A record type without this annotation therefore stays a single property whose raw value is converted by a registered
  * converter.
+ * <p>
+ * A component holding a nested config data object accepts no default value, except
+ * {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes the whole group optional: it is null unless a config source
+ * defines at least one of the properties below it. While the group is absent it is still checked for every mistake that
+ * follows from its declaration alone, and it contributes nothing to the exported configuration, neither the component
+ * holding it nor any property below it.
  * <p>
  * The defaults of a nested record are normally defined by the {@link ConfigProperty} annotations of that record, which
  * makes them the same everywhere it is used. Use {@link ConfigDefault} to define them at the place where the nested

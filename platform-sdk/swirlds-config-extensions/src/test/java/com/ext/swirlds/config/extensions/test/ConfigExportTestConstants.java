@@ -33,4 +33,20 @@ public class ConfigExportTestConstants {
     public record NullableConfigExportTestRecord(
             @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
             String value) {}
+
+    @ConfigData("optional")
+    public record OptionalNestedConfigExportTestRecord(
+            @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+            NestedOuter outer) {}
+
+    @NestedConfig
+    public record NestedOuter(
+            @ConfigProperty(defaultValue = "outerDefault") String value,
+
+            @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+            NestedInner inner) {}
+
+    @NestedConfig
+    public record NestedInner(
+            @ConfigProperty(defaultValue = "innerDefault") String value) {}
 }

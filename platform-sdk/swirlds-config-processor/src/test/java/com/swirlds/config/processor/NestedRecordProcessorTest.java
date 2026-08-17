@@ -180,6 +180,118 @@ class NestedRecordProcessorTest {
         assertTrue(messages.contains("Error processing record: RootConfig"), messages);
     }
 
+    /**
+     * A property of a nested config data object is declared by that nested record. Referring to the config data record
+     * that is being processed would name the component holding the group instead, which is not a property at all, and
+     * every property of one group would be documented as that very same member.
+     */
+    @Test
+    void nestedConstantRefersToTheComponentOfTheNestedRecord() throws IOException {
+        final String generated = compileAndReadConstants(ROOT, LEAF);
+
+        assertTrue(generated.contains("{@link test.cfg.LeafConfig#type}"), generated);
+        assertTrue(generated.contains("{@link test.cfg.LeafConfig#capacity}"), generated);
+        assertTrue(generated.contains("@see test.cfg.LeafConfig#capacity"), generated);
+
+        // the component holding the group is not a property, so no constant may be documented as it
+        assertFalse(generated.contains("#prehandler}"), generated);
+        assertFalse(generated.contains("#handler}"), generated);
+    }
+
+    /**
+     * A property that the config data record declares itself is still referred to on that record, so the reference is
+     * built the same way whether or not a nested record is involved.
+     */
+    @Test
+    void constantOfAPlainPropertyStillRefersToTheConfigDataRecord() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(@ConfigProperty(defaultValue = "0") long value) {}
+                """;
+
+        final String generated = compileAndReadConstants(root);
+
+        assertTrue(generated.contains("{@link test.cfg.RootConfig#value}"), generated);
+        assertTrue(generated.contains("@see test.cfg.RootConfig#value"), generated);
+    }
+
+    /**
+     * A nested config data object takes its name from the single component holding it, so an element of a collection has
+     * no property name a config source could use. Documenting it as a settable property and generating a constant for it
+     * would advertise a property the configuration can never populate.
+     */
+    @Test
+    void listOfNestedRecordsIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import java.util.List;
+
+                @ConfigData("root")
+                public record RootConfig(List<LeafConfig> leaves) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("java.util.List"), messages);
+        assertTrue(messages.contains("test.cfg.LeafConfig"), messages);
+        assertTrue(messages.contains("element of a collection"), messages);
+    }
+
+    @Test
+    void setOfNestedRecordsInsideANestedRecordIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+
+                @ConfigData("root")
+                public record RootConfig(GroupConfig group) {}
+                """;
+        final String group = """
+                package test.cfg;
+
+                import com.swirlds.config.api.NestedConfig;
+                import java.util.Set;
+
+                @NestedConfig
+                public record GroupConfig(Set<LeafConfig> leaves) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, group, LEAF);
+
+        assertTrue(messages.contains("java.util.Set"), messages);
+        assertTrue(messages.contains("element of a collection"), messages);
+    }
+
+    /**
+     * Only a collection of a nested config data object is rejected. A collection of a type that a converter creates is a
+     * single property that is read as a list of values.
+     */
+    @Test
+    void collectionOfAConvertedTypeIsStillExpanded() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+                import java.util.List;
+
+                @ConfigData("root")
+                public record RootConfig(@ConfigProperty(defaultValue = "a,b") List<String> values) {}
+                """;
+
+        final String generated = compileAndReadConstants(root);
+
+        assertTrue(generated.contains("VALUES = \"root.values\""), generated);
+    }
+
     @Test
     void documentedDefaultComesFromConfigDefaultOfTheUsageSite() throws IOException {
         compileAndReadConstants(ROOT, LEAF);

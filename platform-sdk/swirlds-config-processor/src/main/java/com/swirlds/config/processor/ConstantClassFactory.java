@@ -79,15 +79,26 @@ public final class ConstantClassFactory {
 
             try {
 
+                // A property of a nested config data object is declared by that nested record, so referring to the
+                // config data record that is being processed would name the component holding the group instead of the
+                // property, and every property of one group would be documented as the very same member.
+                final ConfigDataPropertyDefinition.DeclaringComponent declaringComponent =
+                        propertyDefinition.declaringComponent();
+                final String declaringClassName =
+                        declaringComponent != null ? declaringComponent.recordClassName() : originalRecordClassName;
+                final String declaringComponentName = declaringComponent != null
+                        ? declaringComponent.componentName()
+                        : propertyDefinition.fieldName();
+
                 FieldSpec fieldSpec = FieldSpec.builder(
                                 String.class, name, Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
                         .initializer("$S", propertyDefinition.name())
                         .addJavadoc(
                                 "Name of the {@link $L#$L} property\n@see $L#$L\n",
-                                originalRecordClassName,
-                                propertyDefinition.fieldName(),
-                                originalRecordClassName,
-                                propertyDefinition.fieldName())
+                                declaringClassName,
+                                declaringComponentName,
+                                declaringClassName,
+                                declaringComponentName)
                         .build();
                 constantsClassBuilder.addField(fieldSpec);
             } catch (Exception e) {

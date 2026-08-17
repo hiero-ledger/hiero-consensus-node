@@ -1334,6 +1334,37 @@ class ConfigApiRecordsTests {
             assertEquals("defined", outer.inner().value());
         }
 
+        /**
+         * A group that the config asks for is created exactly like a group that is not optional, so a default that is
+         * defined where the group is used populates a property of it that the config leaves alone.
+         */
+        @Test
+        void testActivatedGroupUsesTheDefaultsDefinedWhereItIsUsed() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.count", "7")
+                    .withConfigDataType(UsageSiteDefaultRoot.class)
+                    .build();
+
+            UsageSiteLeaf leaf =
+                    configuration.getConfigData(UsageSiteDefaultRoot.class).leaf();
+            assertNotNull(leaf);
+            assertEquals(7, leaf.count());
+            assertEquals("fromUsageSite", leaf.value());
+        }
+
+        /**
+         * Whether the group is created is decided by what a config source defines, and a default is not a definition. A
+         * group whose every property has a default therefore still stays null, which is what keeps it optional.
+         */
+        @Test
+        void testDefaultsDefinedWhereTheGroupIsUsedDoNotActivateIt() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(UsageSiteDefaultRoot.class)
+                    .build();
+
+            assertNull(configuration.getConfigData(UsageSiteDefaultRoot.class).leaf());
+        }
+
         @ConfigData("root")
         public record Root(
                 @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
@@ -1364,12 +1395,26 @@ class ConfigApiRecordsTests {
 
                 @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
                 Leaf inner) {}
+
+        @ConfigData("root")
+        public record UsageSiteDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                @ConfigDefault(property = "value", defaultValue = "fromUsageSite")
+                @ConfigDefault(property = "count", defaultValue = "1")
+                UsageSiteLeaf leaf) {}
+
+        @NestedConfig
+        public record UsageSiteLeaf(String value, int count) {}
     }
 
     /**
      * Absent is the normal state of an optional group, so a group that is only declared wrongly would build on every
-     * node until a config defines one property below it. The mistakes are therefore reported while the group is absent
-     * as well, which is what every test here relies on: none of them defines a property below the group.
+     * node until a config defines one property below it. Every mistake that follows from the declaration alone is
+     * therefore reported while the group is absent as well, which is what every test here relies on: none of them
+     * defines a property below the group.
+     * <p>
+     * What does not follow from the declaration alone is whether a property can resolve to a value, since that is what
+     * the config decides. A leaf without a default is accepted here and only fails once the group is asked for.
      */
     @Nested
     class AbsentOptionalNestedRecordIsStillValidated {
@@ -1444,6 +1489,63 @@ class ConfigApiRecordsTests {
             ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NonNullDefaultRoot.class);
 
             verifyBuildFails(builder, "root.group.leaf", "is a nested config data object");
+        }
+
+        /**
+         * A group that is created converts the default of every property of it before the config is even asked, so a
+         * default that can not be converted is a mistake in the declaration rather than something the configuration
+         * decides. It is therefore reported while the group is absent as well.
+         */
+        @Test
+        void testLeafDefaultThatCanNotBeConverted() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UnconvertibleLeafDefaultRoot.class);
+
+            verifyBuildFails(builder, "Can not convert to", "int");
+        }
+
+        @Test
+        void testUsageSiteDefaultThatCanNotBeConverted() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UnconvertibleConfigDefaultRoot.class);
+
+            verifyBuildFails(builder, "Can not convert to", "int");
+        }
+
+        @Test
+        void testLeafDefaultOfAGroupThatIsItselfNestedInTheAbsentGroup() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UnconvertibleDeepDefaultRoot.class);
+
+            verifyBuildFails(builder, "Can not convert to", "int");
+        }
+
+        /**
+         * An enclosing config data record wins over a default that is declared closer to the property, so it is the
+         * value that arrives at the property which has to be checked, not both of them.
+         */
+        @Test
+        void testUsageSiteDefaultThatRepairsAnUnconvertibleLeafDefault() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(RepairedLeafDefaultRoot.class)
+                    .build();
+
+            assertNull(
+                    configuration.getConfigData(RepairedLeafDefaultRoot.class).leaf());
+        }
+
+        /**
+         * A leaf that declares no default is a property the config has to define. Requiring a default while the group is
+         * absent would make an optional group of mandatory properties impossible, so it stays a mistake that is only
+         * reported once the group is asked for.
+         */
+        @Test
+        void testLeafWithoutADefaultIsAccepted() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(MandatoryLeafRoot.class)
+                    .build();
+
+            assertNull(configuration.getConfigData(MandatoryLeafRoot.class).leaf());
         }
 
         /**
@@ -1539,6 +1641,43 @@ class ConfigApiRecordsTests {
         public record NonNullDefaultGroup(
                 @ConfigProperty(defaultValue = "whatever") Leaf leaf) {}
 
+        @ConfigData("root")
+        public record UnconvertibleLeafDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                UnconvertibleLeaf leaf) {}
+
+        @NestedConfig
+        public record UnconvertibleLeaf(
+                @ConfigProperty(defaultValue = "notANumber") int count) {}
+
+        @ConfigData("root")
+        public record UnconvertibleConfigDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                @ConfigDefault(property = "count", defaultValue = "notANumber")
+                MandatoryLeaf leaf) {}
+
+        @ConfigData("root")
+        public record UnconvertibleDeepDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                UnconvertibleOuter outer) {}
+
+        @NestedConfig
+        public record UnconvertibleOuter(UnconvertibleLeaf inner) {}
+
+        @ConfigData("root")
+        public record RepairedLeafDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                @ConfigDefault(property = "count", defaultValue = "7")
+                UnconvertibleLeaf leaf) {}
+
+        @ConfigData("root")
+        public record MandatoryLeafRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                MandatoryLeaf leaf) {}
+
+        @NestedConfig
+        public record MandatoryLeaf(int count) {}
+
         @NestedConfig
         public record Leaf(
                 @ConfigProperty(defaultValue = "fromRecord") String value) {}
@@ -1546,6 +1685,77 @@ class ConfigApiRecordsTests {
         @NestedConfig
         public record RenamedLeaf(
                 @ConfigProperty(value = "renamed") String value) {}
+    }
+
+    /**
+     * A nested config data object takes its name from the single component that holds it, so an element of a collection
+     * has no property name a config source could use. Without this being rejected the collection is read as a single
+     * property whose elements a converter creates, and the failure names the missing converter, which a nested config
+     * data object must not have in the first place.
+     */
+    @Nested
+    class CollectionOfNestedRecords {
+
+        @Test
+        void testListOfNestedRecordsIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(ListRoot.class);
+
+            verifyBuildFails(builder, "root.leaves", NestedConfig.class.getSimpleName(), "element of a collection");
+        }
+
+        @Test
+        void testSetOfNestedRecordsIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(SetRoot.class);
+
+            verifyBuildFails(builder, "root.leaves", NestedConfig.class.getSimpleName(), "element of a collection");
+        }
+
+        /**
+         * The mistake is in the declaration, so it is reported for a group that the config never asks for as well.
+         */
+        @Test
+        void testCollectionInAnAbsentOptionalGroupIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(OptionalListRoot.class);
+
+            verifyBuildFails(builder, "root.group.leaves", NestedConfig.class.getSimpleName());
+        }
+
+        /**
+         * Only a collection of a nested config data object is rejected. A collection of a type that a converter creates
+         * stays a single property that is read as a list of values.
+         */
+        @Test
+        void testCollectionOfAConvertedTypeStillWorks() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.values", "a,b")
+                    .withConfigDataType(ConvertedListRoot.class)
+                    .build();
+
+            assertEquals(
+                    List.of("a", "b"),
+                    configuration.getConfigData(ConvertedListRoot.class).values());
+        }
+
+        @ConfigData("root")
+        public record ListRoot(List<Leaf> leaves) {}
+
+        @ConfigData("root")
+        public record SetRoot(Set<Leaf> leaves) {}
+
+        @ConfigData("root")
+        public record OptionalListRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Group group) {}
+
+        @NestedConfig
+        public record Group(List<Leaf> leaves) {}
+
+        @ConfigData("root")
+        public record ConvertedListRoot(List<String> values) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
     }
 
     @Nested
