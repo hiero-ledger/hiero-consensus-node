@@ -50,7 +50,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
-    private final SimulatedNetworkConnectivity network;
+    private final SimulatedNetworkConnectivity networkConnectivity;
     private final NodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
@@ -64,7 +64,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
      * @param timeManager the time manager
      * @param selfId the ID of this node
      * @param keysAndCerts the keys and certificates of this node
-     * @param network the simulated network
+     * @param networkConnectivity the simulated network connectivity
      * @param networkConfiguration the network configuration
      * @param consensusRoundPool the consensus round pool that collects and deduplicates consensus rounds
      */
@@ -73,14 +73,14 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkConnectivity network,
+            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
-        this.network = requireNonNull(network);
-        this.network.addNode(selfId, this::onEventReceived);
+        this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.networkConnectivity.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
@@ -125,7 +125,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
         wiring.sentGossipEventsOutputWire()
-                .solderTo("EventSubmitter_" + selfId, "event", event -> network.submitEvent(selfId, event));
+                .solderTo("EventSubmitter_" + selfId, "event", event -> networkConnectivity.submitEvent(selfId, event));
         wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
