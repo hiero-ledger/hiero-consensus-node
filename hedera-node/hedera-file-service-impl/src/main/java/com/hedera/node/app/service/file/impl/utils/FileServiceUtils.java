@@ -202,7 +202,6 @@ public class FileServiceUtils {
         return !filesConfig.softwareUpdateRange().containsInclusive(fileNum)
                 && fileNum != filesConfig.addressBook()
                 && fileNum != filesConfig.nodeDetails()
-                && fileNum != filesConfig.feeSchedules()
                 && fileNum != filesConfig.simpleFeesSchedules()
                 && fileNum != filesConfig.exchangeRates()
                 && fileNum != filesConfig.networkProperties()
