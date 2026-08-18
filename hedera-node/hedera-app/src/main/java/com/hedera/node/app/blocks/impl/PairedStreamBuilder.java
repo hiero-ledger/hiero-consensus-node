@@ -71,6 +71,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -736,6 +737,11 @@ public class PairedStreamBuilder
     @Override
     public AccountID getDeletedAccountBeneficiaryFor(@NonNull AccountID deletedAccountID) {
         return recordStreamBuilder.getDeletedAccountBeneficiaryFor(deletedAccountID);
+    }
+
+    @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        recordStreamBuilder.forEachDeletedAccountBeneficiary(action);
     }
 
     @Override

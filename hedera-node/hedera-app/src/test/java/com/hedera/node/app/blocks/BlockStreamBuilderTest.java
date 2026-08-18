@@ -42,7 +42,9 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -281,5 +283,24 @@ public class BlockStreamBuilderTest {
         return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
                 .signedTx(signedTx)
                 .serializedSignedTx(signedTxBytes);
+    }
+
+    @Test
+    void tracksAndEnumeratesDeletedAccountBeneficiaries() {
+        final var deletedA = AccountID.newBuilder().accountNum(1001).build();
+        final var beneficiaryA = AccountID.newBuilder().accountNum(1002).build();
+        final var deletedB = AccountID.newBuilder().accountNum(1003).build();
+        final var beneficiaryB = AccountID.newBuilder().accountNum(1004).build();
+
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
+        builder.addBeneficiaryForDeletedAccount(deletedA, beneficiaryA);
+        builder.addBeneficiaryForDeletedAccount(deletedB, beneficiaryB);
+
+        assertThat(builder.getNumberOfDeletedAccounts()).isEqualTo(2);
+        assertThat(builder.getDeletedAccountBeneficiaryFor(deletedB)).isEqualTo(beneficiaryB);
+
+        final Map<AccountID, AccountID> visited = new HashMap<>();
+        builder.forEachDeletedAccountBeneficiary(visited::put);
+        assertThat(visited).hasSize(2).containsEntry(deletedA, beneficiaryA).containsEntry(deletedB, beneficiaryB);
     }
 }
