@@ -78,16 +78,29 @@ public record EthTxData(
     public static EthTxData populateEthTxData(final byte[] data) {
         try {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
-            final var rlpItem = decoder.next();
-            if (rlpItem.isList()) {
-                return populateLegacyEthTxData(rlpItem, data);
+            final var firstItem = decoder.next();
+
+            // A legacy transaction is a bare RLP list, so it is its own envelope.
+            if (firstItem.isList()) {
+                return consumesAllOf(firstItem, data) ? populateLegacyEthTxData(firstItem, data) : null;
             }
 
-            return switch (asByte(rlpItem)) {
-                case 1 -> populateEip2390EthTxData(decoder.next(), data);
-                case 2 -> populateEip1559EthTxData(decoder.next(), data);
+            // A typed transaction (EIP-2718) is a one-byte type tag followed by its payload list, so there the
+            // envelope is the second item. Unsupported types fall through to `null` below; decoding their
+            // payload first is wasted work on an already-rejected input, but it keeps the check in one place,
+            // and a malformed payload only raises `IllegalArgumentException`, which this method already maps
+            // to `null`.
+            final var type = asByte(firstItem);
+            final var envelope = decoder.next();
+            if (!consumesAllOf(envelope, data)) {
+                return null;
+            }
+
+            return switch (type) {
+                case 1 -> populateEip2390EthTxData(envelope, data);
+                case 2 -> populateEip1559EthTxData(envelope, data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
-                case 4 -> populateEip7702EthTxData(decoder.next(), data);
+                case 4 -> populateEip7702EthTxData(envelope, data);
                 default -> null;
             };
 
@@ -599,6 +612,34 @@ public record EthTxData(
         } else {
             return List.of();
         }
+    }
+
+    /**
+     * Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
+     * encoding consumed the whole input as EIP-2718 requires and as {@code ethereum_data} is specified ("the
+     * complete transaction data").
+     *
+     * <p>{@code RLPDecoder.sequenceIterator} is a <em>sequence</em> reader, so anything past the envelope is
+     * simply left unread rather than reported: {@code tx || extra} would otherwise parse as {@code tx}, yielding
+     * identical fields but a different {@code keccak256(rawTx)} — the value externalized as a record's
+     * {@code ethereum_hash}. Requiring full consumption keeps that hash a function of the transaction rather
+     * than of how its bytes were framed.
+     *
+     * <p>This governs only bytes <em>outside</em> the envelope. It is unrelated to trailing bytes <em>inside</em>
+     * ABI-encoded {@code callData}, which are part of the signed payload and which HIP-1342 deliberately
+     * permits; neither rule generalizes to the other layer.
+     *
+     * <p>A positional comparison is preferred over {@code decoder.hasNext()}, which reaches the same two
+     * outcomes only by way of exception control flow: it returns {@code true} for a well-formed trailing item
+     * but throws headlong's {@code ShortInputException} for a malformed one, relying on that being an
+     * {@code IllegalArgumentException} for {@link #populateEthTxData} to map it to {@code null}.
+     *
+     * @param envelope the RLP item parsed from the start of {@code data}
+     * @param data the complete candidate transaction bytes
+     * @return whether the envelope ends exactly at the end of {@code data}
+     */
+    private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
+        return envelope.endIndex == data.length;
     }
 
     /**
