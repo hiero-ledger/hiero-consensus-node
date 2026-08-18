@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Isolated reproducer for the 0.78 -> 0.79 (BLOCKS-only upgrade) that deploys directly at the
+# Isolated reproducer for the 0.78 -> 0.79 BLOCKS cutover that deploys directly at the
 # published 0.78 release tag, verifies the 0.78 baseline, then upgrades the CN to the local 0.79
 # build and simultaneously upgrades the Block Node from v0.39.1 to v0.41.0-alpha1.
 #
-#   1. Deploy a CN network directly at the published v0.78.0-rc.2 release tag. The 0.78 baseline
-#      uses BLOCKS-only streaming (streamMode=BLOCKS, writerMode=GRPC) and real TSS signatures.
+#   1. Deploy a CN network directly at the published v0.78.0-rc.2 release tag. The 0.78 genesis
+#      baseline uses dual-write streaming (streamMode=BOTH, writerMode=FILE_AND_GRPC) + mock TSS
+#      signatures, so genesis + staking complete without a block node (deployed mid-chain, step 3).
 #      The WRAPS env is injected before the JVMs start so all nodes initialize WRAPS in lockstep.
 #   2. Deploy a mirror node + explorer UI on the 0.78 network (importer reads blocks from the BN).
 #   3. Deploy a Block Node (v0.39.1) mid-chain; it verifies the real-TSS blocks streamed by the CN.
@@ -38,7 +39,8 @@ SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
 # We deploy the network directly at the published 0.78 release tag (genesis at 0.78 with TSS +
-# WRAPS, real signatures, BLOCKS-only), then upgrade to the local 0.79 build.
+# WRAPS, dual-write + mock signatures — the pre-cutover baseline, no block node required), then
+# cut over to BLOCKS/GRPC/real-TSS at the local 0.79 upgrade.
 DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.78.0-rc.2}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
@@ -1380,11 +1382,11 @@ setup_cluster_prereqs() {
     --quiet-mode
 }
 
-# Deploy the network directly at the 0.78 release tag (genesis: TSS + WRAPS enabled, real
-# signatures, BLOCKS-only). The published 0.78 tag provides the prerequisite state the 0.79
+# Deploy the network directly at the 0.78 release tag (genesis: TSS + WRAPS enabled, mock
+# signatures, dual-write — the pre-cutover baseline). The published 0.78 tag provides the prerequisite state the 0.79
 # upgrade builds on.
 deploy_078() {
-  log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, real TSS signatures, BLOCKS-only)"
+  log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock signatures, dual-write -- pre-cutover baseline)"
 
   solo keys consensus generate \
     --gossip-keys \
@@ -1422,13 +1424,13 @@ deploy_078() {
   verify_release_version_on_consensus_nodes "0.78"
   verify_runtime_config_on_consensus_nodes "0.78 baseline" \
     "nodes.nodeRewardsEnabled=false" \
-    "blockStream.streamMode=BLOCKS" \
-    "blockStream.writerMode=GRPC" \
-    "blockStream.enableCutover=true" \
+    "blockStream.streamMode=BOTH" \
+    "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.enableCutover=false" \
     "tss.hintsEnabled=true" \
     "tss.historyEnabled=true" \
     "tss.wrapsEnabled=true" \
-    "tss.forceMockSignatures=false" \
+    "tss.forceMockSignatures=true" \
     "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
 }
 
@@ -1731,6 +1733,6 @@ update_mirror_node_for_block_cutover || log "WARN: mirror block-cutover reconfig
 log "--- 0.79 BN check: confirm Block Node verifies + persists the real-TSS post-upgrade blocks ---"
 verify_block_node_persists_post_cutover 300
 
-log "PASS: 0.78 (BLOCKS-only, real TSS) -> 0.79 upgrade completed and replayed cleanly"
+log "PASS: 0.78 (dual-write, mock) -> 0.79 (BLOCKS-only, real TSS) cutover completed and replayed cleanly"
 log "PASS: Block Node (${BLOCK_NODE_UPGRADE_VERSION}) verified the real-TSS-signed post-upgrade blocks after TSS ledger-id seeding"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
