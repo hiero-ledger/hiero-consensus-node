@@ -70,8 +70,12 @@ Two principles drive the split:
 
 - **Depth vs. safety.** Deeper checks catch more drift but are easier to get wrong, so each is
   constrained to what the source states unambiguously. Line numbers, for instance, are *never*
-  asserted on: a named symbol that resolves but whose cited line moved yields an *auto-fix
-  suggestion*, not a finding, because a shifted line is a navigation nit, not drift. Overloads,
+  asserted on: a `File.java:NN` reference whose line is a declaration is auto-migrated — code span or
+  markdown link alike — to the durable `File.java#symbol` form, so the volatile line becomes a named
+  method/field/enum/type that the symbol check tracks (a rename or removal then asserts). A line that is
+  *not* a declaration — inside a method body, or past the file's end — cannot become one symbol, so it
+  yields a non-asserting *suggestion* naming the enclosing declaration to cite instead, never a drift
+  finding, because a shifted line is a navigation nit, not drift. Overloads,
   inheritance, and generics-as-written are compared at Tier 2 only where the source is unambiguous;
   anything looser is left to Tier 3.
 - **Escalation.** Each tier assumes the ones beneath it hold — there is no point comparing a method
@@ -236,7 +240,8 @@ the engine can parse. **This is not drift** — it is the audit trail proving th
 over a guess. Skim it to confirm nothing that *should* be checkable is silently landing here.
 
 **`auto-fix.md` — ready corrections.** Three shapes: a *named* symbol that still resolves but whose
-cited line number moved (a navigation nit, never a drift finding), a **MOVED** source that
+cited `:NN` line either moved (corrected in place) or lands on a declaration (migrated to the durable
+`File.java#symbol` form) — a navigation nit, never a drift finding — a **MOVED** source that
 resolves at exactly one new path (a drift finding in `report.md`, repeated here as a ready
 before/after path rewrite in whatever citation style the KB line uses, plus a stale on-line
 `Module:` label), and a **MOVED** prose fully-qualified type rewritten to its new FQN. When the move
@@ -256,9 +261,12 @@ unambiguous it is made **actionable**: a topics-slug tag with a single strong ma
 `rename topics: slug X → Y`, a body doc link resolving at exactly one other KB doc gets a ready
 relative-link rewrite, a gone config key another `@ConfigData` record now declares is reported as a
 **key migration**, and a source an ADR cites as removed gets a nudge to mark it `historical:`. A
-closing **Prose naming moved packages** section lists doc lines still naming the *old package* of a
-moved citation — text the ready rewrites cannot touch. **Hints, not facts** (it never asserts, and
-`--fix` never applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
+closing pair of sections lists **Prose naming moved packages** (doc lines still naming the *old
+package* of a moved citation — text the ready rewrites cannot touch) and **Line references to anchor
+to a symbol** (a `File.java:NN` line `--fix` cannot migrate because NN is not a declaration — inside a
+method body, or past the file's end — each naming the enclosing declaration to cite instead). **Hints,
+not facts** (it never asserts, and `--fix` never applies them), and kept out of `findings.json` so the
+machine artifact stays reproducible.
 
 **`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in five
 sections: (1) code the docs don't mention (a method present on a documented interface but absent

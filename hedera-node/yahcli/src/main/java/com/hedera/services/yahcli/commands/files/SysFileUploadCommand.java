@@ -58,9 +58,9 @@ public class SysFileUploadCommand implements Callable<Integer> {
             arity = "1",
             paramLabel = "<sysfile>",
             description = "one of "
-                    + "{ address-book, node-details, fees, rates, props, "
+                    + "{ address-book, node-details, simpleFees, rates, props, "
                     + "permissions, throttles, software-zip, telemetry-zip } (or "
-                    + "{ 101, 102, 111, 112, 121, 122, 123, 150, 159 })")
+                    + "{ 101, 102, 112, 113, 121, 122, 123, 150, 159 })")
     private String sysFile;
 
     @Override

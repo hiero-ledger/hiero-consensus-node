@@ -23,6 +23,7 @@ May depend on:
 - Supporting modules: `consensus-model`, `consensus-metrics`, `consensus-platformstate`,
 `consensus-utility`
 - Functional-api module: `consensus-hashgraph`
+- Self-contained functional module: `consensus-status-monitor`
 - Structural-transitional module: `consensus-state`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
 `consensus-wiring-framework`

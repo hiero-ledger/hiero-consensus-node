@@ -93,7 +93,7 @@ path is described in [`../architecture/topics/reconnect.md`](../architecture/top
   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java:62-67`).
 - In `RECONNECT_COMPLETE` the platform **gossips but does not create events**. The event-creation gate permits creation
   only in `ACTIVE`, `CHECKING`, or `FREEZING` (the last only to emit the freeze-state signature)
-  (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
+  (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`).
 - The node leaves `RECONNECT_COMPLETE` only when a `StateWrittenToDiskAction` reports that the **reconnect state (or a
   later state) has been written to disk**. A disk write for a round *prior* to the reconnect state is treated as stale
   and the node keeps waiting. Once the reconnect state is persisted, the node transitions to `CHECKING` — or to
@@ -187,7 +187,7 @@ See **Decision** above.
   — the reconnect path transitions to `RECONNECT_COMPLETE` and then marks the learned state for disk save.
 - `platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java:62-67`
   — `reconnectStateReceived(...)` marks the learned state to be written to disk with reason `RECONNECT`.
-- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
+- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`
   — the event-creation gate; creation is withheld in `RECONNECT_COMPLETE`.
 - `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java:156-187`
   — exit from `RECONNECT_COMPLETE` on `StateWrittenToDiskAction`: wait while the persisted round is below the reconnect
