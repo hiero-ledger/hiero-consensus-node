@@ -20,12 +20,12 @@ module org.hiero.base.crypto {
             org.hiero.otter.test,
             com.fasterxml.jackson.databind;
 
+    requires transitive com.hedera.cryptography.libsodium;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
-    requires transitive com.goterl.lazysodium;
     requires com.hedera.cryptography.libsecp256k1;
     requires com.swirlds.base;
     requires org.apache.logging.log4j;
