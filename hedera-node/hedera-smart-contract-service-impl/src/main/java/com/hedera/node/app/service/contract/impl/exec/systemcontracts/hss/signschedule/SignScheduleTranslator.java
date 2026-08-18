@@ -102,25 +102,56 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
     @Override
     public Call callFrom(@NonNull HssCallAttempt attempt) {
         final var body = bodyFor(scheduleIdFor(attempt));
+        final var signatureMap = signatureMapFor(attempt);
         return new DispatchForResponseCodeHssCall(
-                attempt, body, SignScheduleTranslator::gasRequirement, keySetFor(attempt));
+                attempt,
+                body,
+                (txBody, gasCalculator, enhancement, payerId) ->
+                        gasRequirement(txBody, gasCalculator, enhancement, payerId, signatureMap),
+                keySetFor(attempt));
     }
 
     /**
-     * Calculates the gas requirement for a {@code signSchedule()} call.
+     * Calculates the gas requirement for a {@code signSchedule()} call. When {@code signatureMap} is
+     * non-null (i.e. for {@code signSchedule(address,bytes)}), its size is used to price the extra
+     * signatures the caller supplied.
      *
      * @param body                        the transaction body
      * @param systemContractGasCalculator the gas calculator
      * @param enhancement                 the enhancement
      * @param payerId                     the payer ID
+     * @param signatureMap                the caller-supplied signature map, or null if none
      * @return the gas requirement
      */
     public static long gasRequirement(
             @NonNull final TransactionBody body,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final AccountID payerId) {
-        return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_SIGN, payerId);
+            @NonNull final AccountID payerId,
+            @Nullable final SignatureMap signatureMap) {
+        return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_SIGN, payerId, signatureMap);
+    }
+
+    /**
+     * Parses the caller-supplied signature map for a {@code signSchedule(address, bytes)} call, or
+     * returns null for the other selectors, which carry no such parameter.
+     *
+     * @param attempt the call attempt
+     * @return the parsed signature map, or null
+     */
+    @Nullable
+    private static SignatureMap signatureMapFor(@NonNull final HssCallAttempt attempt) {
+        if (!attempt.isSelector(SIGN_SCHEDULE)) {
+            return null;
+        }
+        final var call = SIGN_SCHEDULE.decodeCall(attempt.inputBytes());
+        final var signatureBlob = (byte[]) call.get(SIGNATURE_MAP_INDEX);
+        validateSignatureMapMaxLength(attempt, signatureBlob.length);
+        try {
+            return SignatureMap.PROTOBUF.parseStrict(wrap(signatureBlob));
+        } catch (@NonNull final ParseException ex) {
+            throw new HandleException(INVALID_TRANSACTION_BODY);
+        }
     }
 
     /**
