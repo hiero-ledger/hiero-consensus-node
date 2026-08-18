@@ -12,16 +12,16 @@ import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 
 /**
  * An abstract base class for a simulated network environment. This class provides the core functionality for managing time, transactions, and network connections in a simulated environment.
  */
-public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTickReceiver {
+public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTickReceiver {
 
     protected final SimulatorTimeManager timeManager;
     protected final TransactionGenerator transactionGenerator;
-    protected final SimulatedNetwork simulatedNetwork;
+    protected final SimulatedNetworkConnectivity simulatedNetworkConnectivity;
     protected final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     /**
@@ -32,7 +32,7 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
      * @param transactionGenerator the transaction generator
      * @param useRandomNodeIds whether to use random node IDs
      */
-    protected SimulatorNetwork(
+    protected SimulatedNetwork(
             @NonNull final Random random,
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final TransactionGenerator transactionGenerator,
@@ -40,7 +40,7 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
         super(random, useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
-        this.simulatedNetwork = new SimulatedNetwork(this.random);
+        this.simulatedNetworkConnectivity = new SimulatedNetworkConnectivity(this.random);
     }
 
     /**
@@ -71,7 +71,7 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
         if (limited) {
             throw new UnsupportedOperationException("Bandwidth limits are not supported in this environment.");
         }
-        simulatedNetwork.setConnections(connections);
+        simulatedNetworkConnectivity.setConnections(connections);
     }
 
     /**
@@ -79,7 +79,7 @@ public abstract class SimulatorNetwork extends AbstractNetwork implements TimeTi
      */
     @Override
     protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
-        simulatedNetwork.setConnections(connections);
+        simulatedNetworkConnectivity.setConnections(connections);
     }
 
     /**
