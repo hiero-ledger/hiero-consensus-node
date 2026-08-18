@@ -53,14 +53,14 @@ class ConfigDataFactory {
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
         validateIsRecord(type);
 
-        if (!type.isAnnotationPresent(ConfigData.class)) {
-            throw new IllegalArgumentException("Can not create config instance for '" + type + "' since "
-                    + ConfigData.class.getName() + "' " + "annotation is missing");
-        }
         if (isNestedConfig(type)) {
             throw new IllegalArgumentException("Can not create config instance for '" + type + "' since it is annotated"
                     + " with " + NestedConfig.class.getSimpleName() + ", which means it is a group of properties that"
                     + " is only used as a record component of a config data object and never registered on its own");
+        }
+        if (!type.isAnnotationPresent(ConfigData.class)) {
+            throw new IllegalArgumentException("Can not create config instance for '" + type + "' since "
+                    + ConfigData.class.getName() + "' " + "annotation is missing");
         }
 
         final String namePrefix = getNamePrefix(type);

@@ -972,7 +972,7 @@ class ConfigApiRecordsTests {
         void testRegisteringANestedConfigIsRejected() {
             ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NestedOnly.class);
 
-            verifyBuildFails(builder, ConfigData.class.getSimpleName(), "annotation is missing");
+            verifyBuildFails(builder, NestedConfig.class.getSimpleName(), "never registered on its own");
         }
 
         @Test
