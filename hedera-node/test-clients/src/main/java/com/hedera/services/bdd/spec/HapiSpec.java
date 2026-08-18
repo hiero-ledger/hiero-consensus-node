@@ -299,11 +299,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private String throttleResource;
-    /**
-     * If non-null, a resource to load override fees from for this spec, restoring the previous
-     * contents of the 0.0.111 system file after the spec completes.
-     */
-    @Nullable
+
     boolean quietMode;
 
     /**

@@ -11,6 +11,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
@@ -28,7 +29,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      * @param timeManager the time provider
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
-     * @param gossip the simulated gossip
+     * @param gossip the simulated gossip instance
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
@@ -36,7 +37,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      */
     public InstrumentedTurtleNode(
             @NonNull final Random random,
-            @NonNull final TurtleTimeManager timeManager,
+            @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedGossip gossip,
