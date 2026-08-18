@@ -61,6 +61,17 @@ class ProtobufUtilsTest {
     }
 
     @Test
+    void rejectsTruncatedSkippedFieldAsParseException() {
+        // Field 17 is not a query field, so it gets skipped. Its wire type is 1, meaning a fixed 64-bit value,
+        // but there are only two bytes left to skip over
+        final var serializedQuery = Bytes.fromHex("8901" + "0000");
+
+        assertThatThrownBy(() -> ProtobufUtils.extractPaymentBytes(serializedQuery))
+                .isInstanceOf(ParseException.class)
+                .hasCauseInstanceOf(BufferUnderflowException.class);
+    }
+
+    @Test
     void rejectsTruncatedLengthVarintAsParseException() {
         // transactionGetReceipt(14) with a length varint that is cut off mid-way
         final var serializedQuery = Bytes.fromHex("72" + "80");

@@ -120,7 +120,7 @@ public class ProtobufUtils {
             throws IOException, ParseException {
         try {
             ProtoParserTools.skipField(input, wireType, input.remaining());
-        } catch (final BufferUnderflowException | IllegalArgumentException e) {
+        } catch (final BufferUnderflowException e) {
             throw new ParseException(e);
         }
     }
