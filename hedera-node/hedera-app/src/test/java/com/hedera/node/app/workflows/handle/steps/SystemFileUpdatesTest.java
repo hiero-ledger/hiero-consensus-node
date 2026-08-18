@@ -268,8 +268,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
         // then
         assertThat(status).isEqualTo(CONFIG_FILE_PART_UPLOADED);
-        // The config must still be rebuilt, or a restarted node would derive a different configuration
-        // from the same state than a node that stayed up; see FacilityInitModule.initFacilities()
+        // Must still rebuild config, else a restarted node diverges; see FacilityInitModule
         verify(configProvider).update(eq(UNPARSEABLE_BYTES), eq(CONFIG_LIST_BYTES));
     }
 
@@ -351,7 +350,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
     @Test
     void truncatedNetworkPropertiesContentsIsNotSuccess() {
-        // given the state left behind by every part but the last of a multi-part upload
+        // given a partial upload's intermediate state
         final var truncated = CONFIG_LIST_BYTES.slice(0, CONFIG_LIST_BYTES.length() - 1);
         final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
         final var fileID = idFactory.newFileId(config.networkProperties());
@@ -369,7 +368,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
     @Test
     void emptyNetworkPropertiesContentsIsSuccess() {
-        // given clearing the override file leaves it empty, which is a valid empty ServicesConfigurationList
+        // given empty contents, as when clearing the override file
         final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
         final var fileID = idFactory.newFileId(config.networkProperties());
         files.put(fileID, File.newBuilder().contents(Bytes.EMPTY).build());
@@ -386,7 +385,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
     @Test
     void onlyTheTargetedFileDeterminesTheStatus() {
-        // given a pre-existing unparseable permissions file, an unrelated valid properties update still succeeds
+        // given a pre-existing unparseable permissions file
         final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
         final var fileID = idFactory.newFileId(config.networkProperties());
         files.put(fileID, File.newBuilder().contents(CONFIG_LIST_BYTES).build());
