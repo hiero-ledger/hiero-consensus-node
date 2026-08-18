@@ -35,7 +35,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_AC
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
-import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Single;
@@ -43,6 +42,7 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -263,8 +263,7 @@ public class Hip1195StorageTest {
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> storageSettingWorks() {
         final var passcode = "open-sesame";
-        final var passcodeHash = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
-                .toArray());
+        final var passcodeHash = Bytes.wrap(MiscCryptoUtils.keccak256DigestOf(passcode.getBytes(UTF_8)));
         final var tupleType = TupleType.parse("(string)");
         final var correctPassword = ByteString.copyFrom(tupleType.encode(Single.of(passcode)));
         final var wrongPassword = ByteString.copyFrom(tupleType.encode(Single.of("open-sunflower")));
@@ -319,8 +318,7 @@ public class Hip1195StorageTest {
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> contractStorageSettingWorks() {
         final var passcode = "open-sesame";
-        final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
-                .toArray());
+        final var passHash32 = Bytes.wrap(MiscCryptoUtils.keccak256DigestOf(passcode.getBytes(UTF_8)));
         final var tupleType = TupleType.parse("(string)");
         final var correctPassword = ByteString.copyFrom(tupleType.encode(Single.of(passcode)));
         final var wrongPassword = ByteString.copyFrom(tupleType.encode(Single.of("open-sunflower")));
