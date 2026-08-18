@@ -124,17 +124,26 @@ public record EthTxData(
     }
 
     /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
-    /// if present. Adopted from org.bouncycastle.util.BigIntegers.asUnsignedByteArray().
+    /// if present, and aligning remaining bytes to the right.
     public static byte[] asUnsignedByteArray(final BigInteger value) {
         final byte[] bytes = value.toByteArray();
 
-        if (bytes[0] == 0 && bytes.length != 1) {
-            final byte[] tmp = new byte[bytes.length - 1];
-            System.arraycopy(bytes, 1, tmp, 0, tmp.length);
-            return tmp;
+        if (bytes.length == 32) {
+            return bytes;
+        } else {
+            final byte[] tmp = new byte[32];
+
+            if (bytes.length == 33 && bytes[0] == 0) {
+                System.arraycopy(bytes, 1, tmp, 0, 32);
+                return tmp;
+            } else if (bytes.length < 32) {
+                System.arraycopy(bytes, 0, tmp, 32 - bytes.length, bytes.length);
+                return tmp;
+            }
         }
 
-        return bytes;
+        // The byte array is longer than 33 bytes. It's an invalid secp256k1 key.
+        throw new IllegalArgumentException("Invalid BigInteger that is too long. It cannot be a valid private key.");
     }
 
     public EthTxData replaceCallData(final byte[] newCallData) {

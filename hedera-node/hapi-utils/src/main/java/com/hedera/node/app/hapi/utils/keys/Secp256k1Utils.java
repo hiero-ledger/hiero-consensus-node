@@ -52,9 +52,8 @@ public class Secp256k1Utils {
     public static byte[] extractEcdsaPublicKey(final ECPrivateKey key) {
         final Cache cache = CACHE.get();
 
-        if (LIBSECP256K1.secp256k1EcPubkeyCreate(
-                        cache.pubkeySeg, MemorySegment.ofArray(EthTxData.asUnsignedByteArray(key.getS())))
-                != 1) {
+        final byte[] privateKeyBytes = EthTxData.asUnsignedByteArray(key.getS());
+        if (LIBSECP256K1.secp256k1EcPubkeyCreate(cache.pubkeySeg, MemorySegment.ofArray(privateKeyBytes)) != 1) {
             throw new IllegalArgumentException("secp256k1EcPubkeyCreate failed. The private key is probably invalid.");
         }
 
