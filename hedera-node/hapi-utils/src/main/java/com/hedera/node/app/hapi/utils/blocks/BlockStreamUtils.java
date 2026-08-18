@@ -22,7 +22,7 @@ public final class BlockStreamUtils {
     private BlockStreamUtils() {}
 
     /**
-     * Returns the state name of the upgrade data queue for the given upgrade file number.
+     * Returns the state name of the upgrade data queue for the given upgrade file number
      *
      * @param fileNum the upgrade file number
      * @return the state name naming that file's upgrade data queue
