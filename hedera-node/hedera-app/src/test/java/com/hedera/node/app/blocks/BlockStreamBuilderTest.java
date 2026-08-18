@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -249,6 +250,28 @@ public class BlockStreamBuilderTest {
         final var txnBlockItem = blockItems.getFirst();
         assertTrue(txnBlockItem.hasSignedTransaction());
         assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
+    }
+
+    @Test
+    void nullOutSideEffectFieldsClearsEvmLogsAndCreatedContractIds() {
+        final var contractId = ContractID.newBuilder().contractNum(1L).build();
+        final var log = EvmTransactionLog.DEFAULT;
+        final BlockStreamBuilder builder = createEmptyBuilder()
+                .functionality(CONTRACT_CALL)
+                .evmCallTransactionResult(EvmTransactionResult.DEFAULT)
+                .status(ResponseCodeEnum.SUCCESS)
+                .consensusTimestamp(CONSENSUS_TIME)
+                .transactionID(TransactionID.DEFAULT);
+        builder.addLogs(List.of(log));
+        builder.createdContractIds(List.of(contractId));
+
+        builder.nullOutSideEffectFields();
+
+        final var record = builder.build(false, null).toRecord(BLOCK_ITEMS_TRANSLATOR);
+
+        assertThat(record.contractCallResult().logInfo()).isEmpty();
+        assertThat(record.contractCallResult().bloom()).isEqualTo(Bytes.EMPTY);
+        assertThat(record.contractCallResult().createdContractIDs()).isEmpty();
     }
 
     private BlockStreamBuilder createBaseBuilder() {
