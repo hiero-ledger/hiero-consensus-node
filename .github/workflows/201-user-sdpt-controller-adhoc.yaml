@@ -47,7 +47,7 @@ on:
         type: string
       duration-minutes:
         required: false
-        default: "120"
+        default: "1440"
         description: "Expected duration of all tests in minutes"
         type: string
       disable-notifications:
