@@ -29,6 +29,20 @@ import java.lang.annotation.Target;
  * {@code "network.secondary.port"} and {@code "network.secondary.server"}. The annotation has no member, since the
  * prefix of a nested config data object always comes from the component that holds it.
  * <p>
+ * Grouping is all this does. A nested config data object behaves exactly as if its properties had been declared on the
+ * enclosing record with dotted names and components of their own, so the example above is indistinguishable from:
+ * <pre>
+ * &#64;ConfigData("network")
+ * public record NetworkConfig(&#64;ConfigProperty(value = "primary.port") int primaryPort,
+ *                             &#64;ConfigProperty(value = "primary.server") String primaryServer,
+ *                             &#64;ConfigProperty(value = "secondary.port") int secondaryPort,
+ *                             &#64;ConfigProperty(value = "secondary.server") String secondaryServer) {
+ * }
+ * </pre>
+ * The same property names, the same order in which a value is looked for, the same failure when a property that is
+ * needed has no value, the same exported configuration and the same constraint violations. No new semantics are
+ * introduced, only a way to write the same set of properties once and use it in several places.
+ * <p>
  * Nesting can go any number of levels deep, and a cycle in the record types fails the creation of the config data
  * object. A nested record needs to be public and to have exactly one constructor, like any config data object.
  * <p>
@@ -42,19 +56,13 @@ import java.lang.annotation.Target;
  *     <li>a record valued component whose type has neither this annotation nor a converter</li>
  *     <li>a {@link java.util.List} or {@link java.util.Set} whose element type is annotated with this annotation, since
  *     a group takes its name from the single component holding it and an element of a collection has none</li>
+ *     <li>a component that holds a nested config data object but does not name its record type, like a type variable or
+ *     a generic type, since the properties of a group follow from its type</li>
+ *     <li>a component that holds a nested config data object and declares a default value, since a group has no value
+ *     of its own that a default could describe. Define the defaults of its properties instead.</li>
  * </ul>
  * A record type without this annotation therefore stays a single property whose raw value is converted by a registered
  * converter.
- * <p>
- * A component holding a nested config data object accepts no default value, except
- * {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes the whole group optional: it is null unless a config source
- * defines at least one of the properties below it. While the group is absent it is still checked for every mistake that
- * follows from its declaration alone, and it contributes nothing to the exported configuration, neither the component
- * holding it nor any property below it.
- * <p>
- * The defaults of a nested record are normally defined by the {@link ConfigProperty} annotations of that record, which
- * makes them the same everywhere it is used. Use {@link ConfigDefault} to define them at the place where the nested
- * record is used instead.
  * <p>
  * Since a nested config data object is never a config data type of its own, the annotation processor generates neither
  * property name constants nor documentation for it. Both are generated for the config data objects that use it, under
@@ -62,7 +70,6 @@ import java.lang.annotation.Target;
  *
  * @see ConfigData
  * @see ConfigProperty
- * @see ConfigDefault
  */
 @Retention(RUNTIME)
 @Target(TYPE)

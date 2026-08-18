@@ -37,13 +37,9 @@ class NestedRecordProcessorTest {
             package test.cfg;
 
             import com.swirlds.config.api.ConfigData;
-            import com.swirlds.config.api.ConfigDefault;
 
             @ConfigData("root")
-            public record RootConfig(
-                    @ConfigDefault(property = "capacity", defaultValue = "500")
-                    LeafConfig prehandler,
-                    LeafConfig handler) {}
+            public record RootConfig(LeafConfig prehandler, LeafConfig handler) {}
             """;
 
     private static final String LEAF = """
@@ -138,6 +134,7 @@ class NestedRecordProcessorTest {
 
         // and it occurs a third time as the start of another component, which is not a segment of its own at all
         assertTrue(generated.contains("ROOTISH_TYPE = \"root.rootish.type\""), generated);
+        assertTrue(generated.contains("ROOTISH_CAPACITY = \"root.rootish.capacity\""), generated);
     }
 
     @Test
@@ -293,22 +290,6 @@ class NestedRecordProcessorTest {
     }
 
     @Test
-    void documentedDefaultComesFromConfigDefaultOfTheUsageSite() throws IOException {
-        compileAndReadConstants(ROOT, LEAF);
-
-        final String generated = Files.readString(documentationFile(), StandardCharsets.UTF_8);
-
-        // the same nested record is used twice, and each usage site documents its own default
-        assertTrue(generated.contains("## root.prehandler.capacity"), generated);
-        assertTrue(
-                generated.split("## root\\.prehandler\\.capacity")[1].contains("`500`"),
-                "the ConfigDefault of the usage site has to win: " + generated);
-        assertTrue(
-                generated.split("## root\\.handler\\.capacity")[1].contains("`100`"),
-                "the default of the nested record has to be used where the usage site defines none: " + generated);
-    }
-
-    @Test
     void nestedOnlyRecordGetsNeitherConstantsNorDocumentation() throws IOException {
         compileAndReadConstants(ROOT, LEAF);
 
@@ -340,12 +321,12 @@ class NestedRecordProcessorTest {
     }
 
     /**
-     * The runtime decides whether a component holds a group of properties from
-     * {@code RecordComponent#getType()}, which is the erasure, so the processor has to erase as well. A type variable
-     * would otherwise be taken for a single property here while the runtime reads the properties of its bound.
+     * The properties of a group follow from its type, and this processor reads the declared type while the runtime
+     * reads the erasure. Requiring the record type to be named is what keeps the two from disagreeing, so a component
+     * that hides the type behind a type variable is rejected rather than silently expanded.
      */
     @Test
-    void componentWhoseTypeIsATypeVariableIsExpanded() throws IOException {
+    void componentWhoseTypeIsATypeVariableIsRejected() throws IOException {
         final String root = """
                 package test.cfg;
 
@@ -355,48 +336,59 @@ class NestedRecordProcessorTest {
                 public record RootConfig<T extends LeafConfig>(T leaf) {}
                 """;
 
-        final String generated = compileAndReadConstants(root, LEAF);
+        final String messages = compileExpectingFailure(root, LEAF);
 
-        // the erasure of T is LeafConfig, which is what the runtime expands
-        assertTrue(generated.contains("\"root.leaf.type\""), generated);
-        assertTrue(generated.contains("\"root.leaf.capacity\""), generated);
-
-        // and the component itself is not a settable property, so a constant naming it would name one nothing reads
-        assertFalse(generated.contains("\"root.leaf\";"), generated);
+        assertTrue(messages.contains("instead of naming the record type"), messages);
+        assertTrue(messages.contains("leaf"), messages);
     }
 
-    /**
-     * The components of a nested config data object are read from its declaration, so a generic one would document a
-     * bare type variable. The erasure is what the runtime converts the value to and is therefore documented instead.
-     */
     @Test
-    void typeVariableOfAGenericNestedRecordIsDocumentedAsItsErasure() throws IOException {
+    void genericNestedRecordComponentIsRejected() throws IOException {
         final String root = """
                 package test.cfg;
 
                 import com.swirlds.config.api.ConfigData;
+                import java.time.Duration;
 
                 @ConfigData("root")
-                public record RootConfig(WrapperConfig timeout) {}
+                public record RootConfig(WrapperConfig<Duration> timeout) {}
                 """;
         final String wrapper = """
                 package test.cfg;
 
                 import com.swirlds.config.api.ConfigProperty;
                 import com.swirlds.config.api.NestedConfig;
-                import java.time.Duration;
 
                 @NestedConfig
-                public record WrapperConfig<T extends Duration>(
-                        @ConfigProperty(defaultValue = "1s") T value) {}
+                public record WrapperConfig<T>(@ConfigProperty(defaultValue = "1s") T value) {}
                 """;
 
-        compileAndReadConstants(root, wrapper);
+        final String messages = compileExpectingFailure(root, wrapper);
 
-        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
-        assertTrue(
-                documentation.split("## root\\.timeout\\.value")[1].contains("java.time.Duration"),
-                "the erasure of the type variable has to be documented: " + documentation);
+        assertTrue(messages.contains("instead of naming the record type"), messages);
+    }
+
+    /**
+     * A group has no value of its own that a config source could define, so a default value on the component holding it
+     * means nothing. Without this the value would silently be dropped here while the runtime rejects the same
+     * declaration.
+     */
+    @Test
+    void defaultValueOnAComponentHoldingANestedRecordIsRejected() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(@ConfigProperty(defaultValue = "nonsense") LeafConfig leaf) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("group of properties rather than a value"), messages);
+        assertTrue(messages.contains("leaf"), messages);
     }
 
     /**
@@ -435,137 +427,23 @@ class NestedRecordProcessorTest {
     }
 
     /**
-     * A dot both separates the segments of the path to a more deeply nested property and can be part of a single name
-     * that {@code @ConfigProperty} defines. The processor documents these defaults, so it has to resolve the path the
-     * same way the runtime does.
+     * A dot may be part of a single property name that {@code @ConfigProperty} defines, exactly as it may on a config
+     * data record. Grouping does not change how a name is spelled, it only prefixes it.
      */
     @Test
-    void defaultIsAppliedToTheLeafWhoseNameContainsADot() throws IOException {
+    void aPropertyNameContainingADotIsFlattenedAsItIsSpelled() throws IOException {
         final String root = """
                 package test.cfg;
 
                 import com.swirlds.config.api.ConfigData;
-                import com.swirlds.config.api.ConfigDefault;
 
                 @ConfigData("root")
-                public record RootConfig(
-                        @ConfigDefault(property = "foo.bar", defaultValue = "fromSite")
-                        DottedLeafConfig leaf) {}
+                public record RootConfig(DottedLeafConfig leaf) {}
                 """;
 
-        compileAndReadConstants(root, DOTTED_LEAF);
+        final String generated = compileAndReadConstants(root, DOTTED_LEAF);
 
-        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
-        assertTrue(
-                documentation.split("## root\\.leaf\\.foo\\.bar")[1].contains("`fromSite`"),
-                "the ConfigDefault has to be resolved against the name containing the dot: " + documentation);
-    }
-
-    @Test
-    void ambiguousDefaultPathIsRejected() throws IOException {
-        final String root = """
-                package test.cfg;
-
-                import com.swirlds.config.api.ConfigData;
-                import com.swirlds.config.api.ConfigDefault;
-
-                @ConfigData("root")
-                public record RootConfig(
-                        @ConfigDefault(property = "foo.bar", defaultValue = "fromSite")
-                        AmbiguousConfig ambiguous) {}
-                """;
-
-        final String ambiguous = """
-                package test.cfg;
-
-                import com.swirlds.config.api.ConfigProperty;
-                import com.swirlds.config.api.NestedConfig;
-
-                @NestedConfig
-                public record AmbiguousConfig(
-                        @ConfigProperty(value = "foo.bar") String flat,
-                        @ConfigProperty(value = "foo") DottedInnerConfig nested) {}
-                """;
-
-        final String inner = """
-                package test.cfg;
-
-                import com.swirlds.config.api.ConfigProperty;
-                import com.swirlds.config.api.NestedConfig;
-
-                @NestedConfig
-                public record DottedInnerConfig(@ConfigProperty(value = "bar") String bar) {}
-                """;
-
-        final String messages = compileExpectingFailure(root, ambiguous, inner);
-
-        assertTrue(messages.contains("matches more than one property"), messages);
-    }
-
-    @Test
-    void duplicateDefaultForOnePropertyIsRejected() throws IOException {
-        final String root = """
-                package test.cfg;
-
-                import com.swirlds.config.api.ConfigData;
-                import com.swirlds.config.api.ConfigDefault;
-
-                @ConfigData("root")
-                public record RootConfig(
-                        @ConfigDefault(property = "capacity", defaultValue = "1")
-                        @ConfigDefault(property = "capacity", defaultValue = "2")
-                        LeafConfig leaf) {}
-                """;
-
-        // one of the two values is simply dropped, and which one it is must not be something the runtime and the
-        // generated documentation can disagree about
-        final String messages = compileExpectingFailure(root, LEAF);
-
-        assertTrue(messages.contains("more than one ConfigDefault for the property 'root.leaf.capacity'"), messages);
-    }
-
-    @Test
-    void undefinedDefaultValueMarkerIsRejected() throws IOException {
-        final String root = """
-                package test.cfg;
-
-                import com.swirlds.config.api.ConfigData;
-                import com.swirlds.config.api.ConfigDefault;
-                import com.swirlds.config.api.ConfigProperty;
-
-                @ConfigData("root")
-                public record RootConfig(
-                        @ConfigDefault(property = "capacity", defaultValue = ConfigProperty.UNDEFINED_DEFAULT_VALUE)
-                        LeafConfig leaf) {}
-                """;
-
-        // the marker means "no default is defined", so documenting it as the default of the property would be wrong and
-        // the runtime rejects it as well
-        final String messages = compileExpectingFailure(root, LEAF);
-
-        assertTrue(messages.contains("root.leaf.capacity"), messages);
-        assertTrue(messages.contains("UNDEFINED_DEFAULT_VALUE"), messages);
-    }
-
-    @Test
-    void defaultOnAComponentThatIsNotANestedRecordIsRejected() throws IOException {
-        final String root = """
-                package test.cfg;
-
-                import com.swirlds.config.api.ConfigData;
-                import com.swirlds.config.api.ConfigDefault;
-                import com.swirlds.config.api.ConfigProperty;
-
-                @ConfigData("root")
-                public record RootConfig(
-                        @ConfigDefault(property = "value", defaultValue = "1")
-                        @ConfigProperty(defaultValue = "x")
-                        String value) {}
-                """;
-
-        final String messages = compileExpectingFailure(root);
-
-        assertTrue(messages.contains("is not a nested config data object"), messages);
+        assertTrue(generated.contains("\"root.leaf.foo.bar\""), generated);
     }
 
     @Test

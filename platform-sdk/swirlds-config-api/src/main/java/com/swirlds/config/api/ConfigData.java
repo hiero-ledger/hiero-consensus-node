@@ -32,7 +32,6 @@ import java.lang.annotation.Target;
  *
  * @see NestedConfig
  * @see ConfigProperty
- * @see ConfigDefault
  */
 @Retention(RUNTIME)
 @Target(TYPE)

@@ -2,7 +2,6 @@
 package com.ext.swirlds.config.extensions.test;
 
 import com.swirlds.config.api.ConfigData;
-import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.NestedConfig;
 
@@ -21,32 +20,14 @@ public class ConfigExportTestConstants {
     public record PrefixedConfigExportTestRecord(String property) {}
 
     @ConfigData("nested")
-    public record NestedConfigExportTestRecord(
-            @ConfigDefault(property = "value", defaultValue = "defaultValue")
-            @ConfigDefault(property = "count", defaultValue = "1")
-            NestedLeaf leaf) {}
+    public record NestedConfigExportTestRecord(NestedLeaf leaf) {}
 
     @NestedConfig
-    public record NestedLeaf(String value, int count) {}
+    public record NestedLeaf(
+            @ConfigProperty(defaultValue = "defaultValue") String value, int count) {}
 
     @ConfigData("nullable")
     public record NullableConfigExportTestRecord(
             @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
             String value) {}
-
-    @ConfigData("optional")
-    public record OptionalNestedConfigExportTestRecord(
-            @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
-            NestedOuter outer) {}
-
-    @NestedConfig
-    public record NestedOuter(
-            @ConfigProperty(defaultValue = "outerDefault") String value,
-
-            @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
-            NestedInner inner) {}
-
-    @NestedConfig
-    public record NestedInner(
-            @ConfigProperty(defaultValue = "innerDefault") String value) {}
 }

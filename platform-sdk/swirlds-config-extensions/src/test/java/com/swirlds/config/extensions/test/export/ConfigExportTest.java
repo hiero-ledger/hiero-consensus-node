@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.ext.swirlds.config.extensions.test.ConfigExportTestConstants.ConfigExportTestRecord;
 import com.ext.swirlds.config.extensions.test.ConfigExportTestConstants.NestedConfigExportTestRecord;
 import com.ext.swirlds.config.extensions.test.ConfigExportTestConstants.NullableConfigExportTestRecord;
-import com.ext.swirlds.config.extensions.test.ConfigExportTestConstants.OptionalNestedConfigExportTestRecord;
 import com.ext.swirlds.config.extensions.test.ConfigExportTestConstants.PrefixedConfigExportTestRecord;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -97,55 +96,5 @@ class ConfigExportTest {
                 // the component holding the nested record has no value of its own and can not be set, so exporting it
                 // would print the toString of the record for a property that does not exist
                 .noneSatisfy(value -> assertThat(value).startsWith("nested.leaf,"));
-    }
-
-    /**
-     * A group that stays null holds no property that has a value, so there is nothing to export below it. Unlike a
-     * single property that defaults to null, which is exported as null, the properties of an absent group are left out
-     * entirely: the group is what does not exist, not the value of one of its properties.
-     */
-    @Test
-    void testPrintAbsentOptionalNestedConfigDataObject() throws IOException {
-        // given an optional group that the config does not ask for
-        final Configuration configuration = ConfigurationBuilder.create()
-                .withConfigDataType(OptionalNestedConfigExportTestRecord.class)
-                .build();
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        // when
-        ConfigExport.printConfig(configuration, outputStream);
-        final List<String> lines =
-                outputStream.toString(StandardCharsets.UTF_8).lines().collect(Collectors.toList());
-
-        // then neither the component holding the group nor any property below it is exported
-        assertThat(lines).as("All values of the exported configuration").noneSatisfy(value -> assertThat(value)
-                .startsWith("optional.outer"));
-    }
-
-    /**
-     * A group that is nested inside a group the config asks for is optional in its own right, so the walk stops at it
-     * while the properties of the group above it are exported as usual.
-     */
-    @Test
-    void testPrintActivatedGroupWithAnAbsentGroupBelowIt() throws IOException {
-        // given a config that asks for the outer group but not for the inner one
-        final Configuration configuration = ConfigurationBuilder.create()
-                .withConfigDataType(OptionalNestedConfigExportTestRecord.class)
-                .withValue("optional.outer.value", "defined")
-                .build();
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        // when
-        ConfigExport.printConfig(configuration, outputStream);
-        final List<String> lines =
-                outputStream.toString(StandardCharsets.UTF_8).lines().collect(Collectors.toList());
-
-        // then the properties of the created group are exported and are not reported as unused, while the absent group
-        // below it contributes nothing
-        assertThat(lines)
-                .as("All values of the exported configuration")
-                .anySatisfy(value -> assertThat(value).matches("^optional.outer.value, defined$"))
-                .noneSatisfy(value -> assertThat(value).contains("optional.outer.value", "NOT USED IN RECORD"))
-                .noneSatisfy(value -> assertThat(value).startsWith("optional.outer.inner"));
     }
 }

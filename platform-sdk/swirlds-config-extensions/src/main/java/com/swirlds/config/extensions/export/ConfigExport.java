@@ -32,14 +32,8 @@ public final class ConfigExport {
      * <p>
      * <code>name, value</code>
      * </p>
-     * A property whose value can not be read is reported with the {@code [VALUE NOT READABLE]} marker instead of its
-     * value rather than failing the export. This is a diagnostic of the configuration, so leaving the property out or
-     * throwing would both be worse than naming it without a value: the caller most in need of the export is the one
-     * whose configuration has a problem.
-     * <p>
-     * A property name that several config data objects define is written once. The value that could be read wins over
-     * the marker, since two lines for one property would contradict each other and a value says more than the report
-     * that another definition of the same name could not be read.
+     * The properties of a nested config data object are written under their full names, exactly as the same
+     * declaration written flat would be. A property name that several config data objects define is written once.
      *
      * @param configuration the configuration
      * @param lineConsumer  the line consumer
@@ -49,17 +43,15 @@ public final class ConfigExport {
         Objects.requireNonNull(configuration, ERROR_CONFIGURATION_IS_NULL);
         Objects.requireNonNull(lineConsumer, ERROR_LINE_CONSUMER_IS_NULL);
 
-        // Properties defined in record configs, including values overridden by configured sources. The map is already
-        // sorted by property name, which is the order the record defined values are written in below.
-        final Map<String, String> failures = new TreeMap<>();
-        final SortedMap<String, Object> readableProperties = ConfigReflectionUtils.getAllPropertiesAsMap(
-                configuration, _ -> true, (name, failure) -> failures.put(name, failure.getMessage()));
-
-        // Two config data objects may define the same property name, so a name can arrive as a readable value from one
-        // of them and as a failure from the other. A value that could be read says more than the report that another
-        // definition of the same name could not, so it wins and every property is written on exactly one line.
-        final SortedMap<String, Object> recordProperties = new TreeMap<>(readableProperties);
-        failures.forEach((name, failure) -> recordProperties.putIfAbsent(name, "[VALUE NOT READABLE] " + failure));
+        // Properties defined in record configs, including values overridden by configured sources. The map is sorted
+        // by property name, which is the order the record defined values are written in below.
+        //
+        // Collectors.toMap can not be used to build this: it is implemented with Map#merge, which rejects a null
+        // value, while the value of a config property is allowed to be null (see ConfigProperty.NULL_DEFAULT_VALUE).
+        // Two config data objects can also define the same property name, in which case the last one wins.
+        final SortedMap<String, Object> recordProperties = new TreeMap<>();
+        ConfigReflectionUtils.getAllProperties(configuration)
+                .forEach(property -> recordProperties.put(property.propertyName(), property.propertyValue()));
 
         // Properties defined in property file but do not exist in record configs
         final Map<String, Object> nonRecordProperties = new HashMap<>();

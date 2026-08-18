@@ -60,28 +60,17 @@ final class UtilsTest {
     }
 
     @Test
-    @DisplayName("allProperties() reports nothing below a nested config data object that defaults to null")
-    void allPropertiesOfAbsentOptionalNestedRecord() {
-        final var config = new TestConfigBuilder(false)
-                .withConfigDataType(OptionalNestingConfig.class)
+    @DisplayName("allProperties() reports a nested config data object exactly as the same properties written flat")
+    void allPropertiesOfANestedRecordMatchTheFlattenedDeclaration() {
+        final var nested = new TestConfigBuilder(false)
+                .withConfigDataType(NestingConfig.class)
+                .getOrCreateConfig();
+        final var flat = new TestConfigBuilder(false)
+                .withConfigDataType(FlatConfig.class)
                 .getOrCreateConfig();
 
-        // the group is what does not exist, not the value of one of its properties, so unlike a single property that
-        // defaults to null there is nothing below it to report
-        assertThat(Utils.allProperties(config))
-                .doesNotContainKey("optionalNesting.leaf")
-                .doesNotContainKey("optionalNesting.leaf.networkProperty")
-                .doesNotContainKey("optionalNesting.leaf.plainProperty");
-    }
-
-    @Test
-    @DisplayName("networkProperties() reports nothing below a nested config data object that defaults to null")
-    void networkPropertiesOfAbsentOptionalNestedRecord() {
-        final var config = new TestConfigBuilder(false)
-                .withConfigDataType(OptionalNestingConfig.class)
-                .getOrCreateConfig();
-
-        assertThat(Utils.networkProperties(config)).isEmpty();
+        assertThat(Utils.allProperties(nested)).isEqualTo(Utils.allProperties(flat));
+        assertThat(Utils.networkProperties(nested)).isEqualTo(Utils.networkProperties(flat));
     }
 
     @ConfigData("nullable")
@@ -94,10 +83,13 @@ final class UtilsTest {
             // annotating the group has no effect, the annotation belongs on the property itself
             @NetworkProperty NestedLeafConfig leaf) {}
 
-    @ConfigData("optionalNesting")
-    public record OptionalNestingConfig(
-            @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
-            NestedLeafConfig leaf) {}
+    @ConfigData("nesting")
+    public record FlatConfig(
+            @NetworkProperty @ConfigProperty(value = "leaf.networkProperty", defaultValue = "a")
+            String leafNetworkProperty,
+
+            @ConfigProperty(value = "leaf.plainProperty", defaultValue = "b")
+            String leafPlainProperty) {}
 
     @NestedConfig
     public record NestedLeafConfig(

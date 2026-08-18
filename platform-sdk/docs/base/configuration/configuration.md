@@ -304,40 +304,70 @@ System.out.println("Starting " + appConfig.name() + " version " + appConfig.vers
 
 ### Nested config data records
 
-A component of a config data record can be a record itself. Such a nested record does not have a value of its own that
-a config source could provide. Instead each of its components becomes a property, prefixed by the name of the component
-that holds the nested record. This allows related properties to be grouped and a group to be reused in several places:
+A component of a config data record can be a record itself. Annotating that record with
+`com.swirlds.config.api.NestedConfig` turns it into a group of properties rather than a single value: the component has
+no value of its own, and each component of the nested record becomes a property, prefixed by the name of the component
+that holds it. This allows related properties to be grouped and a group to be reused in several places:
 
 ```
-@ConfigData("wiring")
-public record WiringConfig(
-    SchedulerConfig prehandler,
-    SchedulerConfig handler) {}
+@ConfigData("network")
+public record NetworkConfig(
+    EndpointConfig primary,
+    EndpointConfig secondary) {}
 
 @NestedConfig
-public record SchedulerConfig(
-    @ConfigProperty(defaultValue = "SEQUENTIAL") SchedulerType type,
-    @ConfigProperty(defaultValue = "500") long capacity) {}
+public record EndpointConfig(
+    @ConfigProperty(defaultValue = "8080") int port,
+    @ConfigProperty(defaultValue = "localhost") String server) {}
 ```
 
 The record above defines 4 properties:
 
-- `wiring.prehandler.type`
-- `wiring.prehandler.capacity`
-- `wiring.handler.type`
-- `wiring.handler.capacity`
+- `network.primary.port`
+- `network.primary.server`
+- `network.secondary.port`
+- `network.secondary.server`
 
-A record type is only treated as a nested config data record if it is annotated with
-`com.swirlds.config.api.NestedConfig`. The annotation is what distinguishes a group of properties from a value that is
-converted from a single property, and it is the only signal that is visible both at runtime and to the annotation
-processor. It has no member, since the prefix of a nested record always comes from the component that holds it. Like any
-config data record the type must be public and must have exactly one constructor. Nesting can go any number of levels
-deep, and a cycle in the record types, where a record contains itself directly or through other records, is detected and
-fails the creation of the configuration.
+#### Grouping is all it does
 
-`@NestedConfig` and `@ConfigData` describe the two different roles a config record can have and are mutually exclusive:
-a `@ConfigData` record is registered and provides the prefix of its properties, while a `@NestedConfig` record is only
-ever used as a component. Each of the following fails instead of being silently misinterpreted:
+A nested config data record behaves exactly as if its properties had been declared on the enclosing record with dotted
+names and components of their own. The example above is indistinguishable from:
+
+```
+@ConfigData("network")
+public record NetworkConfig(
+    @ConfigProperty(value = "primary.port", defaultValue = "8080") int primaryPort,
+    @ConfigProperty(value = "primary.server", defaultValue = "localhost") String primaryServer,
+    @ConfigProperty(value = "secondary.port", defaultValue = "8080") int secondaryPort,
+    @ConfigProperty(value = "secondary.server", defaultValue = "localhost") String secondaryServer) {}
+```
+
+The same property names, the same order in which a value is looked for, the same failure when a property that is needed
+has no value, the same exported configuration, the same generated constants and the same constraint violations under
+the same property names. **No new semantics are introduced**, only a way to write a set of properties once and use it in
+several places. That equivalence is the rule to fall back on whenever the behavior of a nested record is in question.
+
+Two consequences worth stating, because both follow from the equivalence rather than from a decision:
+
+- A group is always created. A flat set of properties has no state in which it is collectively absent, so neither does a
+  group, and a component that holds one accepts no default value at all. A property that has to be able to be absent is
+  declared as a nullable property of the group, with `ConfigProperty.NULL_DEFAULT_VALUE`, exactly as it would be
+  declared flat.
+- The component that holds a group is not a property. A config source defines `network.primary.port` and never
+  `network.primary`, so the component itself is never exported, never counted as a known property name, and setting a
+  value under its name does nothing.
+
+Nesting can go any number of levels deep, and a cycle in the record types, where a record contains itself directly or
+through other records, is detected and fails the creation of the configuration. Like any config data record a nested
+record must be public and must have exactly one constructor.
+
+#### What is rejected
+
+`@NestedConfig` is what distinguishes a group of properties from a value that a converter creates from a single
+property, and it is the only signal that is visible both at runtime and to the annotation processor. `@NestedConfig` and
+`@ConfigData` describe the two different roles a config record can have and are mutually exclusive: a `@ConfigData`
+record is registered and provides the prefix of its properties, while a `@NestedConfig` record is only ever used as a
+component. Each of the following fails instead of being silently misinterpreted:
 
 - a record type annotated with both annotations
 - a `@NestedConfig` record registered as a config data type of its own
@@ -347,91 +377,17 @@ ever used as a component. Each of the following fails instead of being silently 
 - a `List` or `Set` whose element type is a `@NestedConfig` record, since a group takes its name from the single
   component that holds it and an element of a collection has no such name. A collection of a type that a registered
   converter creates stays a single property that is read as a list of values, as it always was.
-
-Because a nested record component groups properties rather than holding a value, it cannot have a `defaultValue`. The
-one exception is `ConfigProperty.NULL_DEFAULT_VALUE`, which makes the whole group optional:
-
-```
-@ConfigData("wiring")
-public record WiringConfig(
-    @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE) SchedulerConfig optional) {}
-```
-
-Such a component is `null` unless a config source defines at least one of the properties below it — `wiring.optional.type`
-or `wiring.optional.capacity` here — because it is only those properties that a config source can define, never
-`wiring.optional` itself. Defining one of them is what asks for the group, so the group is then created and every other
-property of it has to resolve to a value as usual. A group that is nested inside an optional group is optional in its own
-right and is decided the same way.
-
-A `@ConfigDefault` does not ask for the group: only what a config source defines does. A group whose every property has a
-default therefore still stays `null`, which is what keeps it optional.
-
-While the group is absent it is still checked for every mistake that follows from its declaration alone, so that a group
-which is only declared wrongly does not build everywhere until a config happens to define one property below it. That
-includes a default that cannot be converted to the type of the property it belongs to, since a group that is created
-converts the default of every property of it before the config is even asked. What is *not* checked is whether a property
-can resolve to a value at all: a property of the group that declares no default is one the config has to define, and
-requiring a default would make an optional group of mandatory properties impossible.
-
-An absent group also contributes nothing to the exported configuration or to any other walk over the properties, neither
-the component holding it nor any property below it. Unlike a single property that defaults to `null`, which is exported
-with a `null` value, it is the group that does not exist rather than the value of one of its properties.
+- a component that holds a `@NestedConfig` record without naming its record type, such as a type variable or a generic
+  type. The properties of a group follow from its type, and the annotation processor resolves that type from the source
+  while the runtime resolves it by reflection; requiring the type to be written out is what makes the two provably
+  arrive at the same set of properties.
+- a component that holds a `@NestedConfig` record and declares a `defaultValue`, since a group has no value of its own
+  that a default could describe. The defaults belong on the properties of the nested record.
 
 **Note:** a record type without `@NestedConfig` stays a single property whose raw string value is converted by a
-registered `ConfigConverter`, which keeps config data records that use record based value types working unchanged. The
-constraint annotations described below are still checked for the components of such a record, since a converter decides
-how a value is populated while a constraint is about the resolved value.
-
-#### Defining defaults at the place a nested record is used
-
-The defaults of a nested record are normally defined by the `@ConfigProperty` annotations of that record, which makes
-them the same everywhere the record is used. The `com.swirlds.config.api.ConfigDefault` annotation defines a default at
-the place where the nested record is used instead, so that the same record type can be used with different defaults:
-
-```
-@ConfigData("wiring")
-public record WiringConfig(
-    @ConfigDefault(property = "type", defaultValue = "CONCURRENT")
-    @ConfigDefault(property = "capacity", defaultValue = "500")
-    SchedulerConfig prehandler,
-
-    @ConfigDefault(property = "type", defaultValue = "SEQUENTIAL")
-    SchedulerConfig handler) {}
-
-@NestedConfig
-public record SchedulerConfig(SchedulerType type, long capacity) {}
-```
-
-`wiring.prehandler.type` now defaults to `CONCURRENT` while `wiring.handler.type` defaults to `SEQUENTIAL`, and each
-property can still be set individually by a config source without restating the others. The annotation is repeatable, so
-it is simply written several times. `@ConfigDefault.List({...})` groups several of them explicitly where that reads
-better, but is never required.
-
-The value of a property is resolved in the following order, from most to least specific:
-
-1. the value that a config source defines for the full property name
-2. the `@ConfigDefault` for that property, where an annotation that is declared by an enclosing config data record wins
-   over one that is declared closer to the property
-3. the `defaultValue` of the `@ConfigProperty` of the property
-
-If none of them defines a value the configuration fails on init, as for any other property.
-
-The `property` of a `@ConfigDefault` is relative to the annotated component and uses the property names, so a renaming
-by `@ConfigProperty(value = ...)` has to be taken into account. It may contain dots to reach a property of a record that
-is nested more deeply, like `@ConfigDefault(property = "inner.capacity", defaultValue = "10")`, but it always has to
-address a single property rather than a nested group. A `property` that matches nothing, or that addresses a group,
-fails the build, and the error lists the properties that do exist, so a typo or a missed renaming is reported instead of
-being silently ignored. The annotation processor reports the same mistake at compile time.
-
-A dot can just as well be part of a single property name, since `@ConfigProperty(value = "foo.bar")` is a common way of
-grouping properties without a nested record. Both readings of a `property` are therefore tried, so such a name is
-addressable as it is spelled. Where both readings resolve, the `@ConfigDefault` matches two properties and the build
-fails rather than one of them being picked silently.
-
-Two `@ConfigDefault` annotations of one component must not address the same property, since one of the two values would
-simply be dropped. That is rejected rather than given a precedence, so that the value the application uses and the
-value the annotation processor documents can not drift apart. An annotation of an *enclosing* config data record
-addressing the same property is not a duplicate — that is the override described above and keeps working.
+registered `ConfigConverter`, which keeps config data records that use record based value types working unchanged. Such
+a record is a value and is not walked into, so a constraint annotation on one of its components is not a constraint on a
+property of the configuration and is not checked.
 
 ### Validating values of a config data record
 
@@ -497,13 +453,29 @@ the javadoc of the record.
 
 A record component that holds a nested config data record is expanded into the properties that record really defines.
 The component itself is not a property that can be set, so it gets neither a constant nor an entry in the
-documentation. Where a property of a nested record has a default that is defined by a `@ConfigDefault` of the usage
-site, that default is the one that is documented.
+documentation.
 
 A `@NestedConfig` record is never registered on its own, so the processor does not run over it: it gets no constants
 class of its own, and no documentation entries under the bare names of its components. Both are generated for the
 `@ConfigData` records that use it, under the full property names. The description of such a property is taken from the
 `@param` tag of the nested record, since a record component carries no javadoc of its own.
+
+#### What the processor checks, and what only the runtime checks
+
+The runtime is the authority on whether a config data record is legal. A registered `ConfigConverter` and a registered
+config data type are runtime registrations that no annotation processor can see, so the rules that depend on them —
+a record valued component that is neither `@NestedConfig` nor converter-backed, a `@NestedConfig` record that also has a
+converter, a `@NestedConfig` record registered on its own, and whether a default value can be converted to the type of
+its property — are checked only when the configuration is created.
+
+The processor checks the rules that follow from the source alone: the two annotations being mutually exclusive, a cycle
+in the record types, a collection of a `@NestedConfig` record, a component that does not name its record type, and a
+default value on a component holding a group. Those are checked exactly as the runtime checks them, so the generated
+constants and documentation never describe a record the runtime refuses to build. The processor additionally rejects a
+property name that cannot be turned into a unique, valid Java constant name, which has no meaning at runtime.
+
+Because the processor is applied per module, a rule it enforces on its own does not exist for a module that does not
+apply it. That is why nothing that decides whether a configuration can be built is left to the processor alone.
 
 ## Customizing the configuration
 

@@ -53,11 +53,8 @@ public @interface ConfigProperty {
      * for this value.
      * <p>
      * A component that holds a nested config data object (see {@link NestedConfig}) groups properties instead of
-     * holding a value, so the only default value it accepts is {@link ConfigProperty#NULL_DEFAULT_VALUE}, which makes
-     * the whole group optional: the component is {@code null} unless at least one of the properties below it is
-     * defined by the config, in which case the group is created and every other property of it has to resolve to a
-     * value as usual. A group that is nested inside such a group decides the same way and on its own. Use
-     * {@link ConfigDefault} to define the defaults of the properties of a nested config data object.
+     * holding a value, so it accepts no default value at all. Define the default values of the properties of the
+     * nested config data object instead.
      *
      * @return the default value or {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE}
      */
