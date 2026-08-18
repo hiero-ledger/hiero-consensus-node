@@ -20,14 +20,14 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 
 /**
- * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetwork}.
+ * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkConnectivity}.
  */
 public class SimulatedGossip implements Gossip, EventReceiver {
 
-    private final SimulatedNetwork network;
+    private final SimulatedNetworkConnectivity networkConnectivity;
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
@@ -48,11 +48,12 @@ public class SimulatedGossip implements Gossip, EventReceiver {
     /**
      * Constructor.
      *
-     * @param network the network on which this gossip system will run
+     * @param networkConnectivity the network connections on which this gossip system will run
      * @param selfId the ID of the node running this gossip system
      */
-    public SimulatedGossip(@NonNull final SimulatedNetwork network, @NonNull final NodeId selfId) {
-        this.network = requireNonNull(network);
+    public SimulatedGossip(
+            @NonNull final SimulatedNetworkConnectivity networkConnectivity, @NonNull final NodeId selfId) {
+        this.networkConnectivity = requireNonNull(networkConnectivity);
         this.selfId = requireNonNull(selfId);
     }
 
@@ -85,7 +86,7 @@ public class SimulatedGossip implements Gossip, EventReceiver {
 
         this.eventOutput = requireNonNull(eventOutput);
         this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);
-        eventInput.bindConsumer(event -> network.submitEvent(selfId, event));
+        eventInput.bindConsumer(event -> networkConnectivity.submitEvent(selfId, event));
 
         eventWindowInput.bindConsumer(eventWindow -> eventBuffer.removeIf(eventWindow::isAncient));
         startInput.bindConsumer(ignored -> {});
