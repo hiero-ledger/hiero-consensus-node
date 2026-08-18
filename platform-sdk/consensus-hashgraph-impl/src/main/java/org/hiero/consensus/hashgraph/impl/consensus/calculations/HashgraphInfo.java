@@ -328,7 +328,7 @@ public final class HashgraphInfo {
         private boolean isPrevJudge; // true if this is a judge in previous round (updated when round reaches consensus)
         private long maxJudgeRound;
         private int eventCandIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
-        private Object payload; // passed to the constructor and never used in consensus
+        private final Object payload; // passed to the constructor and never used in consensus
         // the following are used for graph searches in the hashgraph
         private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
         private int searchCount; // number of judges that are descendents of this event
@@ -1126,7 +1126,9 @@ public final class HashgraphInfo {
                 int medianPos;
                 for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                     int creatorIndex = judgesArray[h.sortInd[medianPos]].creatorIndex;
-                    stake += creatorIndex < 0 ? 0 : r.stake[creatorIndex];
+                    if (creatorIndex > 0) {
+                        stake += r.stake[creatorIndex];
+                    }
                     if (2 * stake >= totalJudgeStake) {
                         break;
                     }
