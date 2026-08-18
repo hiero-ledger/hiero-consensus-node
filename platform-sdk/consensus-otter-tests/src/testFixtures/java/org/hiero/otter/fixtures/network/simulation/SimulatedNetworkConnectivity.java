@@ -5,19 +5,22 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
+import org.hiero.otter.fixtures.util.CursoredLog;
+import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.
@@ -32,14 +35,36 @@ public class SimulatedNetworkConnectivity {
      */
     private final Random random;
 
-    /**
-     * Events that have been submitted within the most recent tick. It is safe for multiple nodes to add to their list
-     * of submitted events in parallel.
-     */
-    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new LinkedHashMap<>();
+    private final CursoredLog<PlatformEvent> eventLog;
+
+    private final Map<NodeId, Cursor<PlatformEvent>> nodeCursors = new HashMap<>();
 
     /**
-     * Events that are currently in transit between nodes in the network.
+     * The most recent {@link EventWindow} reported by each node. A node's window determines which events are worth
+     * transmitting to it, and the oldest window across all nodes determines what can be pruned from {@link #eventLog}.
+     */
+    private final Map<NodeId, EventWindow> nodeEventWindows = new ConcurrentHashMap<>();
+
+    /**
+     * Recognizes events that have already been submitted, so that each one is added to {@link #eventLog} exactly once.
+     */
+    private final EventDeduplicator deduplicator = new EventDeduplicator();
+
+    /**
+     * The highest birth round that has been pruned from {@link #eventLog}. Birth rounds must be pruned in strictly
+     * increasing order, so this records how far the pruning has already progressed.
+     */
+    private long lastPrunedBirthRound = ConsensusConstants.ROUND_FIRST - 1;
+
+    /**
+     * Set when a node reports a new event window. Pruning is deferred to the next tick so that the windows reported by
+     * all of the nodes for a given round are accounted for by a single pass over {@link #nodeEventWindows}.
+     */
+    private volatile boolean eventWindowsChanged = false;
+
+    /**
+     * Events that are currently in transit between nodes in the network, keyed by the node that will receive the
+     * event.
      */
     private final Map<NodeId, PriorityQueue<EventInTransit>> eventsInTransit = new HashMap<>();
 
@@ -59,6 +84,9 @@ public class SimulatedNetworkConnectivity {
      */
     public SimulatedNetworkConnectivity(@NonNull final Random random) {
         this.random = requireNonNull(random);
+        // TODO create static constants, or derive them from default configurations like roundExpired
+        eventLog = new CursoredLog<>(
+                ConsensusConstants.ROUND_FIRST, 1000, (int) Math.pow(2, 8), PlatformEvent::getBirthRound);
     }
 
     /**
@@ -66,13 +94,14 @@ public class SimulatedNetworkConnectivity {
      *
      * <p>Nodes have to be added in a deterministic order to ensure that the simulation is deterministic.
      *
-     * @param nodeId the id of the node
+     * @param nodeId        the id of the node
      * @param eventReceiver the event receiver for the node
      */
     public void addNode(@NonNull final NodeId nodeId, @NonNull final EventReceiver eventReceiver) {
-        newlySubmittedEvents.put(nodeId, new ArrayList<>());
         eventsInTransit.put(nodeId, new PriorityQueue<>());
         eventReceivers.put(nodeId, eventReceiver);
+        nodeCursors.put(nodeId, eventLog.newCursor());
+        nodeEventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
     }
 
     /**
@@ -88,11 +117,58 @@ public class SimulatedNetworkConnectivity {
     /**
      * Submit an event to be gossiped around the network. Safe to be called by multiple nodes in parallel.
      *
-     * @param submitterId the id of the node submitting the event
      * @param event the event to gossip
      */
-    public void submitEvent(@NonNull final NodeId submitterId, @NonNull final PlatformEvent event) {
-        newlySubmittedEvents.get(submitterId).add(event);
+    public void submitEvent(@NonNull final PlatformEvent event) {
+        // Some simulated nodes could re-offer an event to gossip once it has been through intake, so the same
+        // event arrives here once from its creator and again from each node that received it. Only the first submission
+        // is logged.
+        if (deduplicator.isDuplicate(event)) {
+            return;
+        }
+        eventLog.add(event);
+    }
+
+    /**
+     * Report the latest {@link EventWindow} of a node. Safe to be called by multiple nodes in parallel.
+     *
+     * @param nodeId      the id of the node the event window belongs to
+     * @param eventWindow the node's latest event window
+     */
+    public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
+        nodeEventWindows.put(nodeId, eventWindow);
+        eventWindowsChanged = true;
+    }
+
+    /**
+     * Finds the event window of the node that is furthest behind and applies it to the deduplicator and the event log.
+     * Everything expired for that node is expired for the whole network, and so is of no further use to anyone.
+     */
+    private void applyOldestEventWindow() {
+        if (!eventWindowsChanged) {
+            return;
+        }
+        eventWindowsChanged = false;
+
+        EventWindow oldestEventWindow = null;
+        for (final EventWindow eventWindow : nodeEventWindows.values()) {
+            if (oldestEventWindow == null || eventWindow.expiredThreshold() < oldestEventWindow.expiredThreshold()) {
+                oldestEventWindow = eventWindow;
+            }
+        }
+        if (oldestEventWindow == null) {
+            return; // no nodes have been added yet
+        }
+
+        deduplicator.setOldestEventWindow(oldestEventWindow);
+
+        // An event is expired for a node when its birth round is strictly below that node's expired threshold,
+        // so the highest birth round that is expired for all of them is one below the lowest threshold.
+        final long pruneThroughBirthRound = oldestEventWindow.expiredThreshold() - 1;
+        if (pruneThroughBirthRound > lastPrunedBirthRound) {
+            eventLog.removeSequenceNumber(pruneThroughBirthRound);
+            lastPrunedBirthRound = pruneThroughBirthRound;
+        }
     }
 
     /**
@@ -101,6 +177,7 @@ public class SimulatedNetworkConnectivity {
      * @param now the new time
      */
     public void tick(@NonNull final Instant now) {
+        applyOldestEventWindow();
         deliverEvents(now);
         transmitEvents(now);
     }
@@ -131,8 +208,12 @@ public class SimulatedNetworkConnectivity {
                     break;
                 }
 
-                iterator.remove();
-                eventReceivers.get(nodeId).receiveEvent(event.event());
+                // only remove the event from the buffer if it was successfully delivered
+                if (eventReceivers.get(nodeId).receiveEvent(event.event())) {
+                    iterator.remove();
+                } else {
+                    break;
+                }
             }
         }
     }
@@ -147,36 +228,35 @@ public class SimulatedNetworkConnectivity {
             return; // No connections have been set, so we cannot transmit events.
         }
 
-        // Transmission order of the loops in this method must be deterministic, else nodes may receive events
-        // in nondeterministic orders with nondeterministic timing.
+        for (final Entry<NodeId, Cursor<PlatformEvent>> entry : nodeCursors.entrySet()) {
+            final NodeId receiver = entry.getKey();
+            final Cursor<PlatformEvent> cursor = entry.getValue();
+            final EventWindow receiverEventWindow = nodeEventWindows.get(receiver);
 
-        for (final Map.Entry<NodeId, List<PlatformEvent>> entry : newlySubmittedEvents.entrySet()) {
-            final NodeId sender = entry.getKey();
-            final List<PlatformEvent> events = entry.getValue();
-            for (final PlatformEvent event : events) {
-                for (final NodeId receiver : newlySubmittedEvents.keySet()) {
-                    if (sender.equals(receiver)) {
-                        // Don't gossip to ourselves
-                        continue;
-                    }
+            while (cursor.hasNext()) {
+                final PlatformEvent event = cursor.next();
+                final NodeId sender = event.getSenderId();
+                assert sender != null;
 
-                    final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
-                    final ConnectionState connectionState = connections.get(connectionKey);
+                // Don't send a node's own events back to it
+                if (receiver.equals(sender)) {
+                    continue;
+                }
 
-                    Instant deliveryTime;
-                    if (connectionState == null) {
-                        // No connection between sender and receiver. We must still enqueue the event in case the
-                        // nodes become connected later.
-                        deliveryTime = lastDeliveryTimestamps
-                                .getOrDefault(connectionKey, Instant.MIN)
-                                .plusNanos(1);
-                    } else {
-                        // Simulate network latency and jitter using truncated Gaussian distribution
-                        final double sigma =
-                                connectionState.latency().toNanos() * connectionState.jitter().value / 100.0;
-                        final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
-                        deliveryTime = now.plus(connectionState.latency()).plusNanos((long) jitter);
-                    }
+                // The receiver would discard this event on arrival, so there is no point in transmitting it
+                if (receiverEventWindow.isAncient(event)) {
+                    continue;
+                }
+
+                final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
+                final ConnectionState connectionState = connections.get(connectionKey);
+                if (connectionState != null) {
+                    // There is an active connection between sender and receiver. Enqueue the event for delivery.
+
+                    // Simulate network latency and jitter using truncated Gaussian distribution
+                    final double sigma = connectionState.latency().toNanos() * connectionState.jitter().value / 100.0;
+                    final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
+                    Instant deliveryTime = now.plus(connectionState.latency()).plusNanos((long) jitter);
 
                     // Ensure delivery time is always incremental
                     final Instant lastDeliveryTime = lastDeliveryTimestamps.getOrDefault(connectionKey, Instant.MIN);
@@ -193,7 +273,6 @@ public class SimulatedNetworkConnectivity {
                     eventsInTransit.get(receiver).add(eventInTransit);
                 }
             }
-            events.clear();
         }
     }
 }

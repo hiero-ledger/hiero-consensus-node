@@ -87,10 +87,12 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
     }
 
-    private void onEventReceived(@NonNull final PlatformEvent event) {
+    private boolean onEventReceived(@NonNull final PlatformEvent event) {
         if (wiring != null) {
             wiring.receivedGossipEventsInputWire().put(event);
+            return true;
         }
+        return false;
     }
 
     /**
@@ -124,8 +126,16 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.sentGossipEventsOutputWire()
-                .solderTo("EventSubmitter_" + selfId, "event", event -> networkConnectivity.submitEvent(selfId, event));
+        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
+            // Self-created events have no sender until now; the network identifies the source by this field
+            event.setSenderId(selfId);
+            networkConnectivity.submitEvent(event);
+        });
+        wiring.eventWindowOutputWire()
+                .solderTo(
+                        "EventWindowSubmitter_" + selfId,
+                        "event window",
+                        eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
         wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)

@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.Gossip;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -35,15 +33,6 @@ public class SimulatedGossip implements Gossip, EventReceiver {
 
     /** The wiring model used for this node. Used to determine if the node is running or halted. */
     private DeterministicWiringModel deterministicWiringModel;
-
-    /**
-     * A buffer of all events this gossip instance has received. This is used to re-deliver events that were received
-     * while the node was halted.
-     */
-    private final List<PlatformEvent> eventBuffer = new ArrayList<>();
-
-    /** Keeps track of the status of the node the last time we checked if it was running */
-    private boolean wasPreviouslyHalted = false;
 
     /**
      * Constructor.
@@ -86,9 +75,13 @@ public class SimulatedGossip implements Gossip, EventReceiver {
 
         this.eventOutput = requireNonNull(eventOutput);
         this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);
-        eventInput.bindConsumer(event -> networkConnectivity.submitEvent(selfId, event));
+        eventInput.bindConsumer(event -> {
+            // Self-created events have no sender until now; the network identifies the source by this field
+            event.setSenderId(selfId);
+            networkConnectivity.submitEvent(event);
+        });
+        eventWindowInput.bindConsumer(eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
 
-        eventWindowInput.bindConsumer(eventWindow -> eventBuffer.removeIf(eventWindow::isAncient));
         startInput.bindConsumer(ignored -> {});
         stopInput.bindConsumer(ignored -> {});
         clearInput.bindConsumer(ignored -> {});
@@ -103,17 +96,12 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      *
      * @param event the event that was received
      */
-    public void receiveEvent(@NonNull final PlatformEvent event) {
+    public boolean receiveEvent(@NonNull final PlatformEvent event) {
         if (deterministicWiringModel.isRunning()) {
-            if (wasPreviouslyHalted) {
-                eventBuffer.forEach(this::forwardEvent);
-                wasPreviouslyHalted = false;
-            }
             forwardEvent(event);
-        } else {
-            wasPreviouslyHalted = true;
+            return true;
         }
-        eventBuffer.add(event);
+        return false;
     }
 
     private void forwardEvent(@NonNull final PlatformEvent event) {
