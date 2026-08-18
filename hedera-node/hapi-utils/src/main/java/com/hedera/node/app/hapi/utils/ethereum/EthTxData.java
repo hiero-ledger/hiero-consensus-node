@@ -614,23 +614,30 @@ public record EthTxData(
         }
     }
 
-    /// Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
-    /// encoding consumed the whole input as EIP-2718 requires and as `ethereum_data` is specified ("the
-    /// complete transaction data").
-    ///
-    /// `RLPDecoder.sequenceIterator` is a *sequence* reader, so anything past the envelope is simply left
-    /// unread rather than reported: `tx || extra` would otherwise parse as `tx`, yielding identical fields but
-    /// a different `keccak256(rawTx)` — the value externalized as a record's `ethereum_hash`. Requiring full
-    /// consumption keeps that hash a function of the transaction rather than of how its bytes were framed.
-    ///
-    /// This governs only bytes *outside* the envelope. It is unrelated to trailing bytes *inside* ABI-encoded
-    /// `callData`, which are part of the signed payload and which HIP-1342 deliberately permits; neither rule
-    /// generalizes to the other layer.
-    ///
-    /// A positional comparison is preferred over `decoder.hasNext()`, which reaches the same two outcomes only
-    /// by way of exception control flow: it returns `true` for a well-formed trailing item but throws
-    /// headlong's `ShortInputException` for a malformed one, relying on that being an
-    /// `IllegalArgumentException` for {@link #populateEthTxData} to map it to `null`.
+    /**
+     * Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
+     * encoding consumed the whole input as EIP-2718 requires and as {@code ethereum_data} is specified ("the
+     * complete transaction data").
+     *
+     * <p>{@code RLPDecoder.sequenceIterator} is a <em>sequence</em> reader, so anything past the envelope is
+     * simply left unread rather than reported: {@code tx || extra} would otherwise parse as {@code tx}, yielding
+     * identical fields but a different {@code keccak256(rawTx)} — the value externalized as a record's
+     * {@code ethereum_hash}. Requiring full consumption keeps that hash a function of the transaction rather
+     * than of how its bytes were framed.
+     *
+     * <p>This governs only bytes <em>outside</em> the envelope. It is unrelated to trailing bytes <em>inside</em>
+     * ABI-encoded {@code callData}, which are part of the signed payload and which HIP-1342 deliberately
+     * permits; neither rule generalizes to the other layer.
+     *
+     * <p>A positional comparison is preferred over {@code decoder.hasNext()}, which reaches the same two
+     * outcomes only by way of exception control flow: it returns {@code true} for a well-formed trailing item
+     * but throws headlong's {@code ShortInputException} for a malformed one, relying on that being an
+     * {@code IllegalArgumentException} for {@link #populateEthTxData} to map it to {@code null}.
+     *
+     * @param envelope the RLP item parsed from the start of {@code data}
+     * @param data the complete candidate transaction bytes
+     * @return whether the envelope ends exactly at the end of {@code data}
+     */
     private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
         return envelope.endIndex == data.length;
     }

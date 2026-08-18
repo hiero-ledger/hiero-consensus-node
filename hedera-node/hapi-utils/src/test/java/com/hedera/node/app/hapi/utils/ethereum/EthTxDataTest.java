@@ -393,16 +393,20 @@ class EthTxDataTest {
         return suffixed;
     }
 
-    /// Bytes past the end of the RLP envelope must be rejected outright, never left unread.
-    ///
-    /// EIP-2718 requires the envelope to consume its whole input, and `ethereum_data` is specified as the
-    /// complete transaction data. Since a record's `ethereum_hash` is `keccak256` of exactly those bytes,
-    /// tolerating a longer framing would make the recorded hash depend on the framing rather than on the
-    /// transaction: the fields, the signer and the operation would all be unchanged.
-    ///
-    /// `00`, `01`, `80` and `c0` are each well-formed RLP items on their own, so those are the trailers that
-    /// parse cleanly and would slip past a weaker check. `ff` and `deadbeef` are malformed, covering the case
-    /// where the trailer itself provokes a decoder error.
+    /**
+     * Bytes past the end of the RLP envelope must be rejected outright, never left unread.
+     *
+     * <p>EIP-2718 requires the envelope to consume its whole input, and {@code ethereum_data} is specified as
+     * the complete transaction data. Since a record's {@code ethereum_hash} is {@code keccak256} of exactly
+     * those bytes, tolerating a longer framing would make the recorded hash depend on the framing rather than
+     * on the transaction: the fields, the signer and the operation would all be unchanged.
+     *
+     * <p>{@code 00}, {@code 01}, {@code 80} and {@code c0} are each well-formed RLP items on their own, so
+     * those are the trailers that parse cleanly and would slip past a weaker check. {@code ff} and
+     * {@code deadbeef} are malformed, covering the case where the trailer itself provokes a decoder error.
+     *
+     * @param suffixHex the hex-encoded trailer appended to each canonical transaction
+     */
     @ParameterizedTest(name = "suffix=0x{0}")
     @ValueSource(strings = {"00", "01", "80", "c0", "ff", "deadbeef", "ffffffffffffffffffffffff"})
     void rejectsTrailingBytesAfterEnvelope(final String suffixHex) {
