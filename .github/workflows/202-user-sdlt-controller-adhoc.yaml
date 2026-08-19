@@ -62,6 +62,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      ghp_perf:
+        required: true
+        default: ""
+        type: strings
+        description: "ghp_perf"
 
 defaults:
   run:
@@ -133,7 +138,7 @@ jobs:
     name: Extract Chewie Properties
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -212,7 +217,7 @@ jobs:
       nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+      github-token: ${{ secrets.ghp_perf }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
