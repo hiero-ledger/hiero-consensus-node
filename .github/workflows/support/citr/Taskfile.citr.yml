@@ -111,6 +111,7 @@ tasks:
       - echo "MIRROR_NODE_DEPLOY_EXTRA_FLAGS=${MIRROR_NODE_DEPLOY_EXTRA_FLAGS}"
       - echo "EXPLORER_DEPLOY_EXTRA_FLAGS=${EXPLORER_DEPLOY_EXTRA_FLAGS}"
       - echo "NODE_SETUP_EXTRA_FLAGS=${NODE_SETUP_EXTRA_FLAGS}"
+      - echo "BLOCK_NODE_MESSAGE_SIZE=${BLOCK_NODE_MESSAGE_SIZE}
       - touch {{ .var_check_file }}
 
   readme:
@@ -254,9 +255,9 @@ tasks:
           export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
         fi
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${APPLICATION_ENVIRONMENT_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${APPLICATION_ENVIRONMENT_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} ${BLOCK_NODE_MESSAGE_SIZE} -q --dev
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${APPLICATION_ENVIRONMENT_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${APPLICATION_ENVIRONMENT_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} ${BLOCK_NODE_MESSAGE_SIZE} -q --dev
         fi
 
   solo:node:setup:
@@ -633,7 +634,7 @@ tasks:
     desc: solo block node add
     cmds:
       - |
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${BLOCK_NODE_ADD_EXTRA_FLAGS} -q --dev
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${BLOCK_NODE_ADD_EXTRA_FLAGS} ${BLOCK_NODE_MESSAGE_SIZE} -q --dev
 
   solo:block:destroy:
     silent: true

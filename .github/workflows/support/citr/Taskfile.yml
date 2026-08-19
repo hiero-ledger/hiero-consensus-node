@@ -9,7 +9,7 @@ vars:
 env:
   SOLO_NETWORK_SIZE: 7
   SOLO_NAMESPACE: %SOLO_NAMESPACE%
-  CONSENSUS_NODE_VERSION: 0.74.0-0
+  CONSENSUS_NODE_VERSION: 0.76.0-0
   VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values7.yaml"
   SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
   SOLO_HOME: "{{.solo_home_override_dir}}"
@@ -35,3 +35,4 @@ env:
   MIRROR_RELEASE_NAME: release_name
   BLOCK_NODE_ADD_EXTRA_FLAGS: --release-tag {{.CONSENSUS_NODE_VERSION}} --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml --priority-mapping {{.BN_MAPPING}}
   SOLO_LOG_LEVEL: debug
+  BLOCK_NODE_MESSAGE_SIZE: "--block-node-message-size-soft-limit-bytes 300000000 --block-node-message-size-hard-limit-bytes 300000000"
