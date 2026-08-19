@@ -54,7 +54,7 @@ on:
         description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       duration-minutes:
         required: false
-        default: "180"
+        default: "1440"
         description: "Expected duration of all tests in minutes"
         type: string
       disable-notifications:

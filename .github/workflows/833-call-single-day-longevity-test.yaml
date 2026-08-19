@@ -102,7 +102,7 @@ jobs:
     uses: ./.github/workflows/861-call-get-test-config.yaml
     with:
       test-type: "sdlt"
-      ref: ${{ inputs.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.github-token }}
 
@@ -111,7 +111,7 @@ jobs:
       - get-chewie-jwt
     uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
-      ref: ${{ inputs.ref }}
+      ref: ${{ github.ref }}
       chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
     secrets:
       chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
