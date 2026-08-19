@@ -256,7 +256,9 @@ public class AtomicBatchHandler implements TransactionHandler {
      */
     public static class RecordedFeeCharging implements FeeCharging {
         /**
-         * Represents a charge that can be replayed on a {@link Context}.
+         * A charge that can be replayed on a {@link Context}. {@code fees} is the amount requested when
+         * charging the payer, less any refunds later netted out of it, so a rollback replay re-applies
+         * that net amount.
          */
         public record Charge(
                 @NonNull AccountID payerId,
@@ -324,6 +326,36 @@ public class AtomicBatchHandler implements TransactionHandler {
         @Override
         public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
             delegate.refund(payerId, ctx, fees);
+            // Net the refund out of the payer's recorded charges so a rollback replay charges the net,
+            // not the gross; otherwise the refund is dropped from the replay and the payer is overcharged.
+            reduceRecordedChargesByRefund(payerId, fees.totalFee());
+        }
+
+        /**
+         * Subtracts a refund from the payer's recorded charges so the replay reflects the net.
+         * A refund can't exceed what was charged to the payer (enforced upstream), so any excess is ignored.
+         *
+         * @param payerId the account being refunded
+         * @param refundAmount the total amount refunded to the payer
+         */
+        private void reduceRecordedChargesByRefund(@NonNull final AccountID payerId, final long refundAmount) {
+            long remaining = refundAmount;
+            for (int i = charges.size() - 1; i >= 0 && remaining > 0; i--) {
+                final var charge = charges.get(i);
+                if (charge.nodeAccountId() == null && charge.payerId().equals(payerId)) {
+                    final long charged = charge.fees().totalFee();
+                    final long netted = Math.min(charged, remaining);
+                    remaining -= netted;
+                    final long keep = charged - netted;
+                    if (keep == 0) {
+                        charges.remove(i);
+                    } else {
+                        // Replay with (nodeAccountId == null) uses only totalFee(), so the remainder's component split
+                        // is irrelevant.
+                        charges.set(i, new Charge(payerId, new Fees(0, keep, 0), null));
+                    }
+                }
+            }
         }
 
         /**
