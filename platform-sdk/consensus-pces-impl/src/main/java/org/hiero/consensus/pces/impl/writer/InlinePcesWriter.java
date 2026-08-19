@@ -54,4 +54,9 @@ public interface InlinePcesWriter {
      */
     @InputWireLabel("minimum identifier to store")
     void setMinimumBirthRoundToStore(@NonNull Long minimumBirthRoundToStore);
+
+    /**
+     * Destroys the instance and closes held resources.
+     */
+    void destroy();
 }

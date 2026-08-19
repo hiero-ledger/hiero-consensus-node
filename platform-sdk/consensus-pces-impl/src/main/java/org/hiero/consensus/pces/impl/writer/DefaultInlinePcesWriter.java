@@ -142,7 +142,7 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
      * when we close PCES file; this instance of PcesWriter is not usable and not possible to recover after using it.
      * This method will be called from a random thread, take care about memory visibility versus rest of the class
      */
-    void destroy() {
+    public void destroy() {
         this.beingDestroyed = true;
         while (this.processingEvent) {
             Thread.yield();

@@ -110,4 +110,8 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         }
         eventOutput.forward(event);
     }
+
+    public void onRestart() {
+        networkConnectivity.resetCursor(selfId);
+    }
 }

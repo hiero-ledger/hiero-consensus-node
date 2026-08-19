@@ -149,4 +149,9 @@ public interface PcesModule {
             @NonNull Path destinationDirectory,
             long lowerBound,
             long round);
+
+    /**
+     * Destroys the PCES module and releases any resources it holds.
+     */
+    void destroy();
 }
