@@ -78,9 +78,14 @@ public class MiscCryptoUtils {
             throw new RuntimeException("keccakHashInitialize returned " + ret);
         }
 
-        ret = LIBXKCP.keccakHashUpdate(hashInstanceSeg, msgSegment, msgSegment.byteSize() * 8L);
-        if (ret != Libxkcp.KECCAK_SUCCESS) {
-            throw new RuntimeException("keccakHashUpdate returned " + ret);
+        // Libxkcp currently requires a non-zero length of data to hash.
+        // We'll support this eventually: https://github.com/hiero-ledger/hiero-cryptography/issues/679
+        // But we cannot upgrade hiero-cryptography now due to a set of incompatible changes there.
+        if (msgSegment.byteSize() > 0) {
+            ret = LIBXKCP.keccakHashUpdate(hashInstanceSeg, msgSegment, msgSegment.byteSize() * 8L);
+            if (ret != Libxkcp.KECCAK_SUCCESS) {
+                throw new RuntimeException("keccakHashUpdate returned " + ret);
+            }
         }
 
         final byte[] hash = new byte[Libxkcp.SHA3_256_HASHVAL_LENGTH_BYTES];
