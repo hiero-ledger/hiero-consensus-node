@@ -23,6 +23,7 @@ import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 import com.swirlds.config.extensions.export.ConfigExport;
+import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.extensions.sources.PropertyFileConfigSource;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.impl.validators.DefaultConfigViolation;
@@ -709,6 +710,13 @@ class ConfigApiRecordsTests {
                             .map(ConfigViolation::getPropertyValue)
                             .sorted()
                             .toList());
+            // The method creates the violation itself and therefore names it, so both occurrences report the name the
+            // method chose and not "root.left.value" and "root.right.value". A reusable nested config data record can
+            // not know which place it is used in; a constraint that has to name the place belongs on the component
+            // that holds the group, as in ConstraintMethodOnComponentHoldingNestedRecord.
+            assertIterableEquals(
+                    List.of("root.check", "root.check"),
+                    violations.stream().map(ConfigViolation::getPropertyName).toList());
         }
 
         @ConfigData("root")
@@ -768,6 +776,111 @@ class ConfigApiRecordsTests {
 
         @NestedConfig
         public record Leaf(int min, int max) {}
+    }
+
+    @Nested
+    class GroupsAreFoundWithoutReadingTheirValue {
+
+        /**
+         * Finding the properties of a config data object must not read its values: a flat config data object is
+         * described by its record components alone, so a nested one must not need more. The accessor of the component
+         * that holds the group is overridden to fail here, which is what a record in a package that the reading module
+         * can not access does at runtime.
+         */
+        @Test
+        void testTheConfigurationCanBeBuilt() {
+            assertDoesNotThrow(
+                    () -> ConfigurationBuilder.create()
+                            .withValue("root.leaf.value", "1")
+                            .withConfigDataType(Root.class)
+                            .build(),
+                    "Building must not read the value of a group");
+        }
+
+        @Test
+        void testThePropertyNamesAreFound() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.value", "1")
+                    .withConfigDataType(Root.class)
+                    .build();
+
+            assertIterableEquals(
+                    List.of("root.leaf.value"),
+                    ConfigReflectionUtils.getAllProperties(configuration)
+                            .map(ConfigReflectionUtils.ConfigDataProperty::propertyName)
+                            .toList());
+        }
+
+        @Test
+        void testReadingTheValueIsWhatNeedsTheAccessor() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.leaf.value", "1")
+                    .withConfigDataType(Root.class)
+                    .build();
+            ConfigReflectionUtils.ConfigDataProperty property = ConfigReflectionUtils.getAllProperties(configuration)
+                    .findFirst()
+                    .orElseThrow();
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, property::propertyValue);
+            assertTrue(exception.getMessage().contains("'leaf'"), exception.getMessage());
+        }
+
+        /**
+         * The accessor of {@code leaf} is overridden, so {@code toString}, {@code equals} and {@code hashCode} of this
+         * record fail as well. A failing test must not print an instance of it.
+         */
+        @ConfigData("root")
+        public record Root(Leaf leaf) {
+
+            @Override
+            public Leaf leaf() {
+                throw new IllegalStateException("the value of a group must not be read to find its properties");
+            }
+        }
+
+        @NestedConfig
+        public record Leaf(int value) {}
+    }
+
+    @Nested
+    class PropertyNameFollowsTheEvaluatedAnnotationValue {
+
+        /**
+         * The value of a {@link ConfigProperty} is the one the compiler evaluated, and a blank value falls back to the
+         * name of the component. That holds for a component that holds a group just as it does for a scalar one. The
+         * annotation processor has to arrive at the same names, which {@code NestedRecordProcessorTest} checks.
+         */
+        @Test
+        void test() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withValue("root.group.value", "1")
+                    .withValue("root.plain.value", "2")
+                    .withValue("root.portNumber", "3")
+                    .withValue("root.retries", "4")
+                    .withConfigDataType(Root.class)
+                    .build();
+
+            Root root = configuration.getConfigData(Root.class);
+            assertEquals(1, root.group().value());
+            assertEquals(2, root.plain().value());
+            assertEquals(3, root.port());
+            assertEquals(4, root.retries());
+        }
+
+        public interface Names {
+            String GROUP = "group";
+            String PORT_NUMBER = "portNumber";
+        }
+
+        @ConfigData("root")
+        public record Root(
+                @ConfigProperty(value = Names.GROUP) Leaf group,
+                @ConfigProperty(value = "") Leaf plain,
+                @ConfigProperty(value = Names.PORT_NUMBER) int port,
+                @ConfigProperty(value = "") int retries) {}
+
+        @NestedConfig
+        public record Leaf(int value) {}
     }
 
     @Nested

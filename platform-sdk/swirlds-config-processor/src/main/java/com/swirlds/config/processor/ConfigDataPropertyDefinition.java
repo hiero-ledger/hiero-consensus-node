@@ -38,4 +38,16 @@ public record ConfigDataPropertyDefinition(
      */
     public record DeclaringComponent(
             @NonNull String recordClassName, @NonNull String componentName) {}
+
+    /**
+     * Returns a copy of this definition under the given property name.
+     *
+     * @param newName the full name of the property
+     * @return a copy of this definition under the given property name
+     */
+    @NonNull
+    public ConfigDataPropertyDefinition withName(@NonNull final String newName) {
+        return new ConfigDataPropertyDefinition(
+                fieldName, newName, type, defaultValue, description, declaringComponent);
+    }
 }

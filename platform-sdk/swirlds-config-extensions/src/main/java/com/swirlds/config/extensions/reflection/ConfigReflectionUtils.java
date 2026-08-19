@@ -102,6 +102,9 @@ public final class ConfigReflectionUtils {
      * <p>
      * Unlike {@link #getAllProperties(Configuration)} this also reports the component that holds a nested config data
      * object, so that a constraint can be defined for a group as a whole.
+     * <p>
+     * Finding the properties reads the record types and their annotations only, so a config data object that defines no
+     * constraint at all costs no access to its values.
      *
      * @param constraintAnnotationType the type of the constraint annotation
      * @param configuration            the configuration that should be used for the search
@@ -129,6 +132,10 @@ public final class ConfigReflectionUtils {
      * <p>
      * A record valued property that a converter populates is a single settable property and is reported as it is,
      * since a converter decides how one value is read rather than grouping several.
+     * <p>
+     * The properties are found from the record types and their annotations alone. The value of a property is read when
+     * {@link ConfigDataProperty#propertyValue()} is called, so the name of a property can be used without reading any
+     * value of a config data object.
      *
      * @param configuration the configuration
      * @return all settable properties of all registered config data objects
@@ -141,6 +148,14 @@ public final class ConfigReflectionUtils {
     /**
      * Returns every record component of every registered config data object, walking into the components that hold a
      * nested config data object.
+     * <p>
+     * The walk reads the record types and their annotations only. The value of a component that holds a nested config
+     * data object is not read here but resolved through {@link ConfigDataProperty#owner()} when it is needed, so that
+     * finding the properties of a configuration never reads the values of its config data objects. Describing a flat
+     * config data object needs no access to its values either, and a nested one must not differ.
+     * <p>
+     * A cycle in the record types would not terminate this walk, and can not occur: a cycle is rejected when a config
+     * data type is registered, so every type that a configuration reports is acyclic.
      *
      * @param configuration the configuration
      * @return every record component of every registered config data object
@@ -148,33 +163,42 @@ public final class ConfigReflectionUtils {
     private static Stream<ConfigDataProperty> collectAllComponents(final Configuration configuration) {
         return configuration.getConfigDataTypes().stream()
                 .flatMap(recordType -> collectComponents(
-                        getNamePrefixForConfigDataRecord(recordType), configuration.getConfigData(recordType)));
+                        getNamePrefixForConfigDataRecord(recordType),
+                        recordType,
+                        configuration.getConfigData(recordType),
+                        null));
     }
 
     /**
-     * Recursively collects all record components of the given record instance.
+     * Recursively collects all record components of the given record type.
      * <p>
-     * The walk is done on the already created object graph instead of on the record types, since a record component of
-     * a nested record does not identify a single config property: the same nested record type can be used several times
-     * below one config data object, each time with its own property name and value.
+     * The walk is done on the record types while the property name follows the components that lead to them, since a
+     * record component of a nested record does not identify a single config property: the same nested record type can
+     * be used several times below one config data object, and the name prefix is what tells the occurrences apart.
      *
-     * @param namePrefix     the property name prefix of the given record instance
-     * @param recordInstance the record instance to collect the components from
-     * @return all record components of the given record instance and of all nested config data objects below it
+     * @param namePrefix the property name prefix of the given record type
+     * @param recordType the record type to collect the components from
+     * @param configData the config data object that is being walked, which declares the components of the registered
+     *                   record type itself
+     * @param holder     the property that holds the given record type, or null for the registered record type
+     * @return all record components of the given record type and of all nested config data objects below it
      */
-    private static Stream<ConfigDataProperty> collectComponents(final String namePrefix, final Record recordInstance) {
-        return Arrays.stream(recordInstance.getClass().getRecordComponents()).flatMap(component -> {
+    private static Stream<ConfigDataProperty> collectComponents(
+            final String namePrefix,
+            final Class<? extends Record> recordType,
+            final Record configData,
+            final ConfigDataProperty holder) {
+        return Arrays.stream(recordType.getRecordComponents()).flatMap(component -> {
             final String propertyName = getPropertyNameForConfigDataProperty(namePrefix, component);
-            final ConfigDataProperty property = new ConfigDataProperty(propertyName, component, recordInstance);
+            final ConfigDataProperty property = new ConfigDataProperty(propertyName, component, configData, holder);
 
             if (!isNestedConfig(component.getType())) {
                 return Stream.of(property);
             }
-            // a group is always created, so the pattern match is a guard rather than a case that is expected to fail
-            if (getPropertyValue(component, recordInstance) instanceof final Record nestedInstance) {
-                return Stream.concat(Stream.of(property), collectComponents(propertyName, nestedInstance));
-            }
-            return Stream.of(property);
+            return Stream.concat(
+                    Stream.of(property),
+                    collectComponents(
+                            propertyName, component.getType().asSubclass(Record.class), configData, property));
         });
     }
 
@@ -214,10 +238,25 @@ public final class ConfigReflectionUtils {
      *
      * @param propertyName the full name of the property, including the prefixes of all enclosing config data objects
      * @param component    the record component that defines the property
-     * @param owner        the record instance that declares the property. For a property of a nested config data
-     *                     object this is the nested record instance and not the root config data object
+     * @param configData   the config data object that the property belongs to
+     * @param holder       the property that holds the nested config data object which declares this property, or null
+     *                     when the config data object declares it itself
      */
-    public record ConfigDataProperty(String propertyName, RecordComponent component, Record owner) {
+    public record ConfigDataProperty(
+            String propertyName, RecordComponent component, Record configData, ConfigDataProperty holder) {
+
+        /**
+         * Returns the record instance that declares the property. For a property of a nested config data object this is
+         * the nested record instance and not the config data object.
+         * <p>
+         * A nested config data object is read from the component that holds it, so this reads the value of every
+         * component on the way down from the config data object.
+         *
+         * @return the record instance that declares the property
+         */
+        public Record owner() {
+            return holder == null ? configData : (Record) holder.propertyValue();
+        }
 
         /**
          * Returns the value of the property.
@@ -225,7 +264,7 @@ public final class ConfigReflectionUtils {
          * @return the value of the property
          */
         public Object propertyValue() {
-            return getPropertyValue(component, owner);
+            return getPropertyValue(component, owner());
         }
 
         /**

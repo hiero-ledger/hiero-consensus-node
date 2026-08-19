@@ -178,6 +178,69 @@ class NestedRecordProcessorTest {
     }
 
     /**
+     * A blank {@code ConfigProperty} value is indistinguishable from an absent one, since the default of the member is
+     * the empty string, so the runtime falls back to the name of the component. The processor has to do the same, for a
+     * component that holds a group as well as for a scalar one, or the generated constants and documentation name
+     * properties the runtime never reads.
+     */
+    @Test
+    void blankAnnotationValueFallsBackToTheComponentName() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigProperty(value = "") LeafConfig plain,
+                        @ConfigProperty(value = "") long retries) {}
+                """;
+
+        final String generated = compileAndReadConstants(root, LEAF);
+
+        // without the fallback the prefix of the group is "root." and the segments run into "root..type"
+        assertTrue(generated.contains("PLAIN_TYPE = \"root.plain.type\""), generated);
+        assertTrue(generated.contains("PLAIN_CAPACITY = \"root.plain.capacity\""), generated);
+        // the scalar case has no constant name at all without the fallback, which fails the whole compilation
+        assertTrue(generated.contains("RETRIES = \"root.retries\""), generated);
+    }
+
+    /**
+     * The value of a {@code ConfigProperty} is what the compiler evaluated, which is what the runtime reads through
+     * reflection. Taking the text of the annotation from the parsed source instead would name the property after the
+     * expression that defines it.
+     */
+    @Test
+    void annotationValueIsTheEvaluatedConstantAndNotItsSource() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigProperty;
+
+                interface Names {
+                    String GROUP = "group";
+                    String PORT_NUMBER = "portNumber";
+                }
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigProperty(value = Names.GROUP) LeafConfig group,
+                        @ConfigProperty(value = Names.PORT_NUMBER) long port) {}
+                """;
+
+        final String generated = compileAndReadConstants(root, LEAF);
+
+        assertTrue(generated.contains("GROUP_TYPE = \"root.group.type\""), generated);
+        assertTrue(generated.contains("GROUP_CAPACITY = \"root.group.capacity\""), generated);
+        assertTrue(generated.contains("PORT_NUMBER = \"root.portNumber\""), generated);
+
+        // the name of the constant that defines the value must not leak into the property name
+        assertFalse(generated.contains("Names"), generated);
+    }
+
+    /**
      * A property of a nested config data object is declared by that nested record. Referring to the config data record
      * that is being processed would name the component holding the group instead, which is not a property at all, and
      * every property of one group would be documented as that very same member.

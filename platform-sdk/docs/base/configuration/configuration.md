@@ -361,6 +361,12 @@ Nesting can go any number of levels deep, and a cycle in the record types, where
 through other records, is detected and fails the creation of the configuration. Like any config data record a nested
 record must be public and must have exactly one constructor.
 
+Reading the *value* of a property reflectively, which the exported configuration and the constraint annotations do,
+requires the package of the record to be accessible to the `com.swirlds.config.extensions` module, exactly as it always
+has for a flat config data record. Finding the *names* of the properties of a group does not: a group is walked by its
+record types, not by reading the value of the component that holds it, so a nested record imposes no access that the
+same declaration written flat would not.
+
 #### What is rejected
 
 `@NestedConfig` is what distinguishes a group of properties from a value that a converter creates from a single
@@ -414,9 +420,29 @@ public record AppConfig(
 The given code defines that the `version` value must always be a positive value (`version > 0`) and the `percentageDone`
 value must be in the range 0 to 100 (`0 <= percentageDone <= 100`).
 
-The annotations can be used on the components of a nested config data record as well. A violation is then reported under
-the full property name, so a constraint on a record that is used in several places is checked once per place and each
-violation names the property it belongs to.
+The annotations can be used on the components of a nested config data record as well, and a constraint on a record that
+is used in several places is checked once per place. `@Min`, `@Max`, `@Positive` and `@Negative` report each violation
+under the full property name, so each violation names the property it belongs to.
+
+`@ConstraintMethod` is different, and is so for a flat config data record too: the named method creates the
+`ConfigViolation` itself and therefore chooses the property name it is reported under, which is why a reusable nested
+config data record can not report the name of the place it is used in. The method is declared by the record that
+declares the annotated component, which is the nested record for one of its properties and the config data record for a
+component that holds a whole group. A constraint that needs to name the occurrence therefore belongs on the component
+that holds the group:
+
+```
+@ConfigData("root")
+public record NetworkConfig(@ConstraintMethod("checkPrimary") EndpointConfig primary) {
+
+    public ConfigViolation checkPrimary(final Configuration configuration) {
+        if (primary.port() > 1024) {
+            return null;
+        }
+        return new DefaultConfigViolation("network.primary.port", primary.port() + "", true, "must not be privileged");
+    }
+}
+```
 
 All the constraint annotations are checked when the `com.swirlds.config.api.Configuration` is created. At
 that moment a complete validation run is executed that contains all constraint annotations for all registered config

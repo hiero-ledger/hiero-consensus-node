@@ -86,15 +86,21 @@ public final class NestedRecordExpander {
         final Set<ConfigDataPropertyDefinition> expanded = new LinkedHashSet<>();
         for (final ConfigDataPropertyDefinition property : definition.propertyDefinitions()) {
             final RecordComponentElement component = componentsByName.get(property.fieldName());
-            final TypeElement nestedRecord = component == null ? null : asNestedConfig(component);
-            if (nestedRecord == null) {
-                if (component != null) {
-                    validateIsNotACollectionOfNestedRecords(component);
-                }
+            if (component == null) {
                 expanded.add(property);
+                continue;
+            }
+            final TypeElement nestedRecord = asNestedConfig(component);
+            // the name of every property is taken from the element model rather than from the parsed source, so that
+            // the value of a ConfigProperty is the one the compiler evaluated and the generated constants and
+            // documentation describe the properties the runtime really reads
+            final String propertyName = propertyName(definition, component);
+            if (nestedRecord == null) {
+                validateIsNotACollectionOfNestedRecords(component);
+                expanded.add(property.withName(propertyName));
             } else {
                 validateNestedComponent(component);
-                expanded.addAll(expandNested(nestedRecord, property.name(), property.fieldName(), new HashSet<>()));
+                expanded.addAll(expandNested(nestedRecord, propertyName, property.fieldName(), new HashSet<>()));
             }
         }
         // the parsed definition holds the properties in an unordered set, so the generated constants and documentation
@@ -317,6 +323,19 @@ public final class NestedRecordExpander {
         docComment.lines().forEach(line -> rawJavadoc.append("\n *").append(line));
         rawJavadoc.append("\n */");
         return AntlrUtils.getJavaDocParams(rawJavadoc.toString());
+    }
+
+    /**
+     * Returns the full name that the given record component of the given config data record has in the config.
+     *
+     * @param definition the definition of the config data record that declares the component
+     * @param component  the record component
+     * @return the full name of the property
+     */
+    @NonNull
+    private static String propertyName(
+            @NonNull final ConfigDataRecordDefinition definition, @NonNull final RecordComponentElement component) {
+        return createPropertyName(definition.configDataName(), getPropertyNameSegment(component));
     }
 
     @NonNull
