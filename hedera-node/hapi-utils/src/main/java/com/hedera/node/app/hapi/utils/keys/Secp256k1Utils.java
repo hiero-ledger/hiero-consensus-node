@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
 import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
