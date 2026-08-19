@@ -718,14 +718,9 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
     }
 
     private boolean tryLoadFromExistingStore(final LoadedDataCallback loadedDataCallback) throws IOException {
-        // read metadata
-        if (!loadMetadata()) {
-            logger.warn(
-                    EXCEPTION.getMarker(),
-                    "Loading existing set of data files but no metadata file was found in [{}]",
-                    storeDir.toAbsolutePath());
-            return false;
-        }
+        // Read metadata
+        final boolean metadataLoaded = loadMetadata();
+        // Check data files
         try (final Stream<Path> storePaths = Files.list(storeDir)) {
             final Path[] fullWrittenFilePaths = storePaths
                     .filter(path ->
@@ -749,12 +744,21 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
                 // rethrow exception now that we have cleaned up
                 throw e;
             }
-            if (dataFileReaders.length > 0) {
+            if ((dataFileReaders.length > 0) && metadataLoaded) {
                 loadFromExistingFiles(dataFileReaders, loadedDataCallback);
                 return true;
-            } else {
+            }
+            if (dataFileReaders.length == 0) {
+                // Empty dir or empty data file collection
                 return false;
             }
+            logger.warn(
+                    EXCEPTION.getMarker(),
+                    "Can't load data file collection {} {}, either metadata or data files are missing in [{}]",
+                    dataFileReaders.length,
+                    metadataLoaded,
+                    storeDir.toAbsolutePath());
+            return false;
         }
     }
 
