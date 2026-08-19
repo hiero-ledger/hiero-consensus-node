@@ -249,12 +249,14 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         this.indexedObjectListConstructor = indexedObjectListConstructor;
 
         // check if exists, if so open existing files
-        if (Files.exists(storeDir)) {
+        if (Files.isDirectory(storeDir)) {
             loadedFromExistingFiles = tryLoadFromExistingStore(loadedDataCallback);
         } else {
             loadedFromExistingFiles = false;
             // create store dir
             Files.createDirectories(storeDir);
+        }
+        if (!loadedFromExistingFiles) {
             // next file will have index zero
             nextFileIndex.set(0);
         }
@@ -716,11 +718,13 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
     }
 
     private boolean tryLoadFromExistingStore(final LoadedDataCallback loadedDataCallback) throws IOException {
-        if (!Files.isDirectory(storeDir)) {
-            throw new IOException("Tried to initialize DataFileCollection with a storage "
-                    + "directory that is not a directory. ["
-                    + storeDir.toAbsolutePath()
-                    + "]");
+        // read metadata
+        if (!loadMetadata()) {
+            logger.warn(
+                    EXCEPTION.getMarker(),
+                    "Loading existing set of data files but no metadata file was found in [{}]",
+                    storeDir.toAbsolutePath());
+            return false;
         }
         try (final Stream<Path> storePaths = Files.list(storeDir)) {
             final Path[] fullWrittenFilePaths = storePaths
@@ -749,9 +753,6 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
                 loadFromExistingFiles(dataFileReaders, loadedDataCallback);
                 return true;
             } else {
-                // next file will have index zero as we did not find any files even though the
-                // directory existed
-                nextFileIndex.set(0);
                 return false;
             }
         }
@@ -792,13 +793,6 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
                 "Loading existing set of [{}] data files for DataFileCollection [{}]",
                 dataFileReaders.length,
                 storeName);
-        // read metadata
-        if (!loadMetadata()) {
-            logger.warn(
-                    EXCEPTION.getMarker(),
-                    "Loading existing set of data files but no metadata file was found in [{}]",
-                    storeDir.toAbsolutePath());
-        }
         // create indexed file list
         dataFiles.set(indexedObjectListConstructor.apply(List.of(dataFileReaders)));
         // work out what the next index would be, the highest current index plus one

@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -14,6 +15,9 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
@@ -172,28 +176,54 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
 
     @Test
     void snapshotMetadataMustNotBeCorrupted() throws Exception {
+        final String LABEL = "state";
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(
                 "snapshotMetadataMustNotBeCorrupted", DEFAULT_CONFIGURATION, fileSystemManager, 100);
 
-        final VirtualDataSource original = builder.build("state", null, false, false);
-        original.saveRecords(42, 84, Stream.of(), Stream.of(), Stream.of(), false);
+        final VirtualDataSource original = builder.build(LABEL, null, false, false);
+        original.saveRecords(42, 84, createHashChunkStream(84, 2), Stream.of(), Stream.of(), false);
         final Path snapshotPath = fileSystemManager.resolveNewTemp("merkledb-snapshotMetadataMustNotBeCorrupted");
         builder.snapshot(snapshotPath, original);
         original.close();
 
-        final VirtualDataSource restored1 = builder.build("state", snapshotPath, false, false);
+        final Map<Path, byte[]> snapshotMetadataFiles = collectMetadataFiles(snapshotPath);
+
+        final VirtualDataSource restored1 = builder.build(LABEL, snapshotPath, false, false);
         final long firstLeafPath = restored1.getFirstLeafPath();
         final long lastLeafPath = restored1.getLastLeafPath();
-        restored1.saveRecords(45, 90, Stream.of(), Stream.of(), Stream.of(), false);
+        restored1.saveRecords(85, 170, createHashChunkStream(170, 2), Stream.of(), Stream.of(), false);
         restored1.close();
 
+        for (final Map.Entry<Path, byte[]> e : snapshotMetadataFiles.entrySet()) {
+            final Path path = e.getKey();
+            final byte[] wasContent = e.getValue();
+            final byte[] nowContent = Files.readAllBytes(path);
+            Assertions.assertArrayEquals(
+                    wasContent, nowContent, "File must not be changed: " + snapshotPath.relativize(path));
+        }
+
         // Restore from the same snapshot path. DB metadata must not be affected by restored1.saveRecords() above
-        final VirtualDataSource restored2 = builder.build("state", snapshotPath, false, false);
+        final VirtualDataSource restored2 = builder.build(LABEL, snapshotPath, false, false);
         try {
             Assertions.assertEquals(firstLeafPath, restored2.getFirstLeafPath());
             Assertions.assertEquals(lastLeafPath, restored2.getLastLeafPath());
         } finally {
             restored2.close();
         }
+    }
+
+    private static Map<Path, byte[]> collectMetadataFiles(final Path dataSourcePath) throws IOException {
+        final Map<Path, byte[]> metadata = new HashMap<>();
+        try (final Stream<Path> files = Files.walk(dataSourcePath)) {
+            final List<Path> filesList = files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().contains("metadata"))
+                    .toList();
+            for (final Path file : filesList) {
+                metadata.put(file, Files.readAllBytes(file));
+            }
+        }
+        // table metadata + 3 DataFileCollection metadata + HDHM metadata
+        assertEquals(5, metadata.size(), "All metadata files must exist");
+        return metadata;
     }
 }
