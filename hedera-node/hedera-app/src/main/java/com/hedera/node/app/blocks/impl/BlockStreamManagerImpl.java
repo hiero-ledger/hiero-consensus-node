@@ -120,6 +120,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
 
+    // Leaf hashing is computed in ParallelTask (concurrently per item, no ordering dependency); each worker thread
+    // gets its own MessageDigest since MessageDigest is not safe for concurrent use.
+    private static final ThreadLocal<MessageDigest> LEAF_HASH_DIGESTS =
+            ThreadLocal.withInitial(CommonUtils::sha384DigestOrThrow);
+
     private final int roundsPerBlock;
     private final Duration blockPeriod;
     private final BlockHashSigner blockHashSigner;
@@ -1221,16 +1226,25 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         @Override
         protected boolean onExecute() {
-            byte[] bytes = null;
+            Bytes serialized = null;
+            byte[] leafHash = null;
             try {
-                bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
+                serialized = BlockItem.PROTOBUF.toBytes(item);
+                // The leaf hash has no data dependency on any other item, so it's computed here (in parallel across
+                // items) rather than in SequentialTask; only the O(1) Merkle fold-up actually needs item order.
+                // BlockFooter/BlockProof are metadata, never part of a hashed tree, so skip hashing them.
+                final var kind = item.item().kind();
+                if (kind != BlockItem.ItemOneOfType.BLOCK_FOOTER && kind != BlockItem.ItemOneOfType.BLOCK_PROOF) {
+                    leafHash = BlockImplUtils.hashLeaf(LEAF_HASH_DIGESTS.get(), serialized)
+                            .toByteArray();
+                }
             } catch (final Exception e) {
                 log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, e);
                 pipelineFailure.compareAndSet(null, e);
             }
-            // Always hand the item downstream (bytes is null on failure) so the sequential task fires and the chain
-            // keeps advancing; it observes the recorded failure and skips its work.
-            out.send(item, bytes);
+            // Always hand the item downstream (fields are null on failure) so the sequential task fires and the
+            // chain keeps advancing; it observes the recorded failure and skips its work.
+            out.send(item, serialized, leafHash);
             return true;
         }
 
@@ -1241,7 +1255,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // hang.
             log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, t);
             pipelineFailure.compareAndSet(null, t);
-            out.send(item, null);
+            out.send(item, null, null);
         }
     }
 
@@ -1250,7 +1264,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final AtomicReference<Throwable> pipelineFailure;
         SequentialTask next;
         BlockItem item;
-        byte[] serialized;
+        Bytes serialized;
+        byte[] leafHash;
 
         SequentialTask(final AtomicReference<Throwable> pipelineFailure) {
             super(executor, 3);
@@ -1265,18 +1280,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 try {
                     final var kind = item.item().kind();
                     switch (kind) {
-                        case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
-                        case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
+                        case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addNodeByHash(leafHash);
+                        case SIGNED_TRANSACTION -> inputTreeHasher.addNodeByHash(leafHash);
                         case TRANSACTION_RESULT -> {
-                            outputTreeHasher.addLeaf(serialized);
+                            outputTreeHasher.addNodeByHash(leafHash);
 
-                            // Also update running hashes
-                            final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
-                            runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
+                            // Also update running hashes, reusing the leaf hash already computed above.
+                            runningHashManager.nextResultHash(ByteBuffer.wrap(leafHash));
                         }
-                        case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
-                        case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
-                        case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
+                        case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addNodeByHash(leafHash);
+                        case STATE_CHANGES -> stateChangesHasher.addNodeByHash(leafHash);
+                        case TRACE_DATA -> traceDataHasher.addNodeByHash(leafHash);
                         case BLOCK_FOOTER, BLOCK_PROOF -> {
                             // BlockFooter and BlockProof are not included in any merkle tree
                             // They are metadata about the block, not part of the hashed content
@@ -1287,7 +1301,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     if (header != null) {
                         writer.openBlock(header.number());
                     }
-                    writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
+                    writer.writePbjItemAndBytes(item, serialized);
                 } catch (final Exception e) {
                     log.error("{} - error hashing/writing block item {}", ALERT_MESSAGE, item, e);
                     pipelineFailure.compareAndSet(null, e);
@@ -1315,9 +1329,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             send();
         }
 
-        void send(BlockItem item, byte[] serialized) {
+        void send(BlockItem item, Bytes serialized, byte[] leafHash) {
             this.item = item;
             this.serialized = serialized;
+            this.leafHash = leafHash;
             send();
         }
     }

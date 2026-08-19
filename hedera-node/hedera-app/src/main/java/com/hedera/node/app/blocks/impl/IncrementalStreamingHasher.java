@@ -10,7 +10,8 @@ import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.LinkedList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -62,8 +63,8 @@ public class IncrementalStreamingHasher {
 
     /** The hashing algorithm used for computing the hashes. */
     private final MessageDigest digest;
-    /** A list to store intermediate hashes as we build the tree. */
-    private final LinkedList<byte[]> hashList = new LinkedList<>();
+    /** A stack (accessed only from the tail) of intermediate hashes as we build the tree. */
+    private final Deque<byte[]> hashList = new ArrayDeque<>();
     /** The count of leaves in the tree. */
     private long leafCount;
 
@@ -100,12 +101,12 @@ public class IncrementalStreamingHasher {
      * @param hash the 48-byte SHA-384 hash of the node to add (must already include the prefixing)
      */
     public void addNodeByHash(byte[] hash) {
-        hashList.add(hash);
+        hashList.addLast(hash);
         // Fold up: combine sibling pairs while the current position is odd
         for (long n = leafCount; (n & 1L) == 1; n >>= 1) {
             final byte[] y = hashList.removeLast();
             final byte[] x = hashList.removeLast();
-            hashList.add(hashInternalNode(x, y));
+            hashList.addLast(hashInternalNode(x, y));
         }
         leafCount++;
     }
@@ -135,9 +136,12 @@ public class IncrementalStreamingHasher {
             return hashList.getFirst();
         }
 
-        byte[] merkleRootHash = hashList.getLast();
-        for (int i = hashList.size() - 2; i >= 0; i--) {
-            merkleRootHash = hashInternalNode(hashList.get(i), merkleRootHash);
+        // Deque has no indexed access; snapshot into an array (bounded by O(log leafCount) entries) to fold
+        // right-to-left.
+        final byte[][] pendingRoots = hashList.toArray(new byte[0][]);
+        byte[] merkleRootHash = pendingRoots[pendingRoots.length - 1];
+        for (int i = pendingRoots.length - 2; i >= 0; i--) {
+            merkleRootHash = hashInternalNode(pendingRoots[i], merkleRootHash);
         }
         return merkleRootHash;
     }
