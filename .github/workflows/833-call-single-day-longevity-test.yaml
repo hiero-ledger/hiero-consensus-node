@@ -93,7 +93,7 @@ jobs:
       test-asset: ${{ inputs.test-asset }}
       test-type: "sdlt"
     secrets:
-      github-token: ${{ secrets.github-token }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   longevity-tests-start:
     name: Start

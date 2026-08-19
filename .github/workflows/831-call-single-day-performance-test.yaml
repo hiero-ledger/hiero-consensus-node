@@ -107,7 +107,7 @@ jobs:
       test-asset: ${{ inputs.test-asset }}
       test-type: "sdpt"
     secrets:
-      github-token: ${{ secrets.github-token }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   performance-tests-start:
     name: Start
