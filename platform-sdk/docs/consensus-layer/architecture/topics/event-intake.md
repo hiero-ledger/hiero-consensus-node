@@ -397,14 +397,12 @@ Valid values, from
 `EVERY_EVENT`, `EVERY_SELF_EVENT`, `DONT_SYNC`.
 
 > **Delta vs. inlinePces.md:** the source doc states the default is
-> `EVERY_SELF_EVENT`. The current default in
-> [PcesConfig.java#inlinePcesSyncOption](../../../../consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java#inlinePcesSyncOption)
-> is `DONT_SYNC`, and that is intentional — the source doc is out of
-> date. `DONT_SYNC` is sufficient because the OS guarantees buffered
-> writes are flushed to disk before JVM shutdown, so PCES's
-> crash-recovery and no-branch-on-restart guarantees still hold
-> without an explicit per-event fsync. See
-> [restart-and-pces.md](./restart-and-pces.md) for the full reasoning.
+> `EVERY_SELF_EVENT`. The current default is `DONT_SYNC` (TUN-129), and
+> that is intentional — the source doc is out of date. Why PCES's
+> crash-recovery and no-branch-on-restart guarantees hold without a
+> per-event `fsync()`, and what the residual window costs on each
+> writer path, is the durability model in
+> [restart-and-pces.md](./restart-and-pces.md#durability-model).
 
 ## Backpressure interaction
 

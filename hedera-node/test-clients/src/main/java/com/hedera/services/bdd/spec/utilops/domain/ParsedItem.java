@@ -22,8 +22,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 public record ParsedItem(TransactionBody itemBody, TransactionRecord itemRecord) {
     private static final FileID PROPERTIES_FILE_ID =
             FileID.newBuilder().setFileNum(121).build();
-    private static final FileID FEE_SCHEDULE_FILE_ID =
-            FileID.newBuilder().setFileNum(111).build();
 
     public ResponseCodeEnum status() {
         return itemRecord.getReceipt().getStatus();
@@ -57,6 +55,6 @@ public record ParsedItem(TransactionBody itemBody, TransactionRecord itemRecord)
         final var status = itemRecord.getReceipt().getStatus();
         return (status == SUCCESS || status == FEE_SCHEDULE_FILE_PART_UPLOADED)
                 && (isFileUpdate || isFileAppend)
-                && (PROPERTIES_FILE_ID.equals(fileID) || FEE_SCHEDULE_FILE_ID.equals(fileID));
+                && PROPERTIES_FILE_ID.equals(fileID);
     }
 }
