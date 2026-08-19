@@ -329,6 +329,7 @@ public final class HashgraphInfo {
         private long maxJudgeRound;
         private int eventCandIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
         private final Object payload; // passed to the constructor and never used in consensus
+        private Instant timeCon;
         // the following are used for graph searches in the hashgraph
         private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
         private int searchCount; // number of judges that are descendents of this event
@@ -429,6 +430,7 @@ public final class HashgraphInfo {
         public int getEventCandIndex() { return eventCandIndex; }
         public boolean isSearchJudgeSelfAncestor() { return searchJudgeSelfAncestor; }
         public Object getPayload() { return payload; }
+        public Instant getTimeCon() { return timeCon; }
         // spotless:on
 
         /**
@@ -1169,6 +1171,7 @@ public final class HashgraphInfo {
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = 1 + i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(1 + i);
+                    consensusEventsArray[i].timeCon = roundTimestamp.plusNanos(consensusEventsArray[i].gen);
                 }
             } else if (consensusEventsArray.length > 0) { // each new consensus event is an ancestor of all judges
                 // put weighted median timestamp for each event into event.consensusTimestamp
@@ -1192,6 +1195,7 @@ public final class HashgraphInfo {
                         }
                     }
                     event.consensusTimestamp = event.receivedTime[h.sortInd[medianPos]];
+                    event.timeCon = event.consensusTimestamp;
                 }
                 Arrays.sort(
                         consensusEventsArray, // sort by weighted median time received

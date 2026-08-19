@@ -45,7 +45,7 @@ public class TestHashgraphInfo {
     private static final String REPOSITORY_DIRECTORY_NAME = "hiero-consensus-node";
 
     /** probability of restarting the hashgraph after each event */
-    private static final float RESTART_PROBABILITY = 0; // 0.01f;
+    private static final float RESTART_PROBABILITY = 0.01f;
 
     /** the directories to descend through, starting at {@link #REPOSITORY_DIRECTORY_NAME} */
     private static final List<String> DESCENT = List.of(
@@ -318,12 +318,13 @@ public class TestHashgraphInfo {
         appendEvents(line, searchOrder);
         appendEvents(line, updateResults.consensusEvents());
 
-        //output Instant[] timecon
+        //output Instant[] timecon /**/
         line.append(",").append(updateResults.consensusEvents().length);
         for (EventInfo event : updateResults.consensusEvents()) {
-            line.append(",").append(event.getTimeCreated().getEpochSecond());
-            line.append(",").append(event.getTimeCreated().getNano());
+            line.append(",").append(event.getTimeCon().getEpochSecond());
+            line.append(",").append(event.getTimeCon().getNano());
         }
+
         //output long[] gen
         line.append(",").append(updateResults.consensusEvents().length);
         for (EventInfo event : updateResults.consensusEvents()) {
@@ -377,7 +378,7 @@ public class TestHashgraphInfo {
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
     static void writeLogFile(String outputFilename) throws IOException {
-        // final int MAX_NODE_ID = 999;
+        final int MAX_NUM_NODES = 199; //0-99 are honest, 100-199 are malicious
         final int NUM_NODES = 7;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
@@ -396,9 +397,10 @@ public class TestHashgraphInfo {
             boolean newRound = true;
             RoundInfo roundInfo = null;
             long minNonAncientRound;
+            ArrayList<HashSet<EventInfo>> tips; // for each nodeID, the set of all tips created by it
 
             // fields for the next roundInfo (default values that match old code on mainnet)
-            long[] roundInfoNodes = new long[] {100, 200, 300, 400, 500, 600, 700};
+            long[] roundInfoNodes = new long[] {0, 10, 20, 30, 40, 110, 120};
             long[] roundInfoStake = new long[] {101, 102, 103, 104, 105, 0, 0};
             int roundInfoCoinInterval;
             int roundInfoSeeNum;
@@ -414,11 +416,17 @@ public class TestHashgraphInfo {
                     lastEvent = new EventInfo[NUM_NODES];
                     hashgraphInfo = new HashgraphInfo();
                     recentEventsToRecalculate = new LinkedList<>();
+                    tips = new ArrayList<>();
+                    for (int i = 0; i < MAX_NUM_NODES; i++) {
+                        tips.add(new HashSet<>());
+                    }
                     writeNewHashgraphRow(
                             out,
                             new NewHashgraphRow(
                                     hashgraphInfo.getHashgraphInfoID(), SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
                     newHashgraph = false;
+                    newRound = true;
+                    roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
                 }
                 while (newRound) { // start new round, update old events, if one of them reaches consensus, loop
                     newRound = false;
