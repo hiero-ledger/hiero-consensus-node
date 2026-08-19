@@ -54,6 +54,7 @@ import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * Loads a saved state, replays a PCES stream on top of it using the consensus node's <b>real</b> replay mechanism, and
@@ -122,7 +123,7 @@ public final class ReplayPcesWorkflow {
         requireNonNull(consensusEventStreamName);
 
         // --- Construct the Hedera execution layer exactly as ServicesMain does ---
-        final Hedera hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, time, selfId);
+        final Hedera hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, MetricRegistry.builder().build(), time, selfId);
         final SemanticVersion version = hedera.getSemanticVersion();
         log.info("Replaying PCES on node {} with software version {}", selfId, version);
 

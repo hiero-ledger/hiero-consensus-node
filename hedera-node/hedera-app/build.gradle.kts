@@ -18,6 +18,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
+    runtimeOnly("org.hiero.metrics.openmetrics.httpserver")
 
     // This is needed to pick up and include the native libraries for the netty epoll transport
 }

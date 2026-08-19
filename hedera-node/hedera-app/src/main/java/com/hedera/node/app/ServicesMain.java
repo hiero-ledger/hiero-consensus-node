@@ -82,6 +82,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * Main entry point.
@@ -168,7 +169,8 @@ public class ServicesMain {
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        hedera = newHedera(platformConfig, fileSystemManager, metrics, time, selfId);
+        final var metricRegistry = createMetricRegistry(platformConfig);
+        hedera = newHedera(platformConfig, fileSystemManager, metrics, metricRegistry, time, selfId);
         final var version = hedera.getSemanticVersion();
         logger.info("Starting node {} with version {}", selfId, version);
 
@@ -271,6 +273,13 @@ public class ServicesMain {
         hedera.run();
     }
 
+    private static MetricRegistry createMetricRegistry(Configuration configuration) {
+        return MetricRegistry.builder()
+                .discoverMetricProviders() // discover all metric providers via SPI
+                .discoverMetricsExporter(configuration) // discover single exporter factory via SPI
+                .build();
+    }
+
     /**
      * Returns the event stream location for the given node id based on the given network metadata.
      * @param network the network metadata
@@ -333,6 +342,7 @@ public class ServicesMain {
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
+            @NonNull final MetricRegistry metricRegistry,
             @NonNull final Time time,
             @NonNull final NodeId selfId) {
         requireNonNull(configuration);
@@ -365,6 +375,7 @@ public class ServicesMain {
                 configuration,
                 fileSystemManager,
                 metrics,
+                metricRegistry,
                 time);
     }
 

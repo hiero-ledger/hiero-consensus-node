@@ -58,6 +58,8 @@ import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.metrics.core.Label;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * Implementation support for {@link EmbeddedHedera}.
@@ -87,6 +89,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final NodeId defaultNodeId;
     protected final AtomicInteger nextNano = new AtomicInteger(0);
     protected final Metrics metrics;
+    protected final MetricRegistry metricRegistry;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     /**
@@ -145,6 +148,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 executorService,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
+        metricRegistry = MetricRegistry.builder()
+                .addGlobalLabel(new Label("node", String.valueOf(defaultNodeId.id())))
+                .discoverMetricProviders() // discover all metric providers via SPI
+                .discoverMetricsExporter(PLATFORM_CONFIG) // discover single exporter factory via SPI
+                .build();
         state = new FakeState();
         rebuildHedera();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
@@ -295,6 +303,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 PLATFORM_CONFIG,
                 FILE_SYSTEM_MANAGER,
                 metrics,
+                metricRegistry,
                 new FakeTime());
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();

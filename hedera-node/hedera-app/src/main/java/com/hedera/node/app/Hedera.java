@@ -191,6 +191,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.metrics.core.MetricRegistry;
 
 /*
  ****************        ****************************************************************************************
@@ -516,6 +517,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
+            @NonNull final MetricRegistry metricRegistry,
             @NonNull final Time time) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
