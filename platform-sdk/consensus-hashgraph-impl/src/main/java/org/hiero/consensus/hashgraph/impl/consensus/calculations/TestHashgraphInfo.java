@@ -318,7 +318,7 @@ public class TestHashgraphInfo {
         appendEvents(line, searchOrder);
         appendEvents(line, updateResults.consensusEvents());
 
-        //output Instant[] timecon /**/
+        //output Instant[] timecon
         line.append(",").append(updateResults.consensusEvents().length);
         for (EventInfo event : updateResults.consensusEvents()) {
             line.append(",").append(event.getTimeCon().getEpochSecond());

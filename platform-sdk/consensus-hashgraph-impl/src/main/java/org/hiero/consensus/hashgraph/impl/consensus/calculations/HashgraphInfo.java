@@ -329,7 +329,8 @@ public final class HashgraphInfo {
         private long maxJudgeRound;
         private int eventCandIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
         private final Object payload; // passed to the constructor and never used in consensus
-        private Instant timeCon;
+        private Instant timeCon; // just for debugging: the non-memoized timeCon function from the paper
+
         // the following are used for graph searches in the hashgraph
         private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
         private int searchCount; // number of judges that are descendents of this event
