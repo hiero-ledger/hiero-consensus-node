@@ -24,6 +24,7 @@ import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.R
  * <p>
  * The output CSV file is in the format described by logFormat.md, which is also in this directory.
  */
+@SuppressWarnings({"ConstantValue", "StringBufferReplaceableByString"})
 public class TestHashgraphInfo {
     /** generate the random hashgraph using this PRNG seed, for repeatability */
     private static final long RANDOM_SEED = 1;
@@ -42,6 +43,9 @@ public class TestHashgraphInfo {
 
     /** the ancestor directory to search upward for */
     private static final String REPOSITORY_DIRECTORY_NAME = "hiero-consensus-node";
+
+    /** probability of restarting the hashgraph after each event */
+    private static final float RESTART_PROBABILITY = 0; // 0.01f;
 
     /** the directories to descend through, starting at {@link #REPOSITORY_DIRECTORY_NAME} */
     private static final List<String> DESCENT = List.of(
@@ -306,12 +310,26 @@ public class TestHashgraphInfo {
     /** return one line of the CSV file describing the given EventInfo with calculated memoized fields */
     private static void writeUpdateResults(PrintWriter out, UpdateResults updateResults) {
         StringBuilder line = new StringBuilder();
-        line.append(UPDATE_RESULTS_TYPE);
-        line.append(",").append(updateResults.nextRoundInfoPrev().pendingRound() - 1);
         EventInfo[] searchOrder = updateResults.consensusEvents().clone();
         Arrays.sort(searchOrder, Comparator.comparingLong(EventInfo::getSearchOrder));
+
+        line.append(UPDATE_RESULTS_TYPE);
+        line.append(",").append(updateResults.nextRoundInfoPrev().pendingRound() - 1);
         appendEvents(line, searchOrder);
         appendEvents(line, updateResults.consensusEvents());
+
+        //output Instant[] timecon
+        line.append(",").append(updateResults.consensusEvents().length);
+        for (EventInfo event : updateResults.consensusEvents()) {
+            line.append(",").append(event.getTimeCreated().getEpochSecond());
+            line.append(",").append(event.getTimeCreated().getNano());
+        }
+        //output long[] gen
+        line.append(",").append(updateResults.consensusEvents().length);
+        for (EventInfo event : updateResults.consensusEvents()) {
+            line.append(",").append(event.getGen());
+        }
+
         line.append(",").append(updateResults.roundTimestamp().getEpochSecond());
         line.append(",").append(updateResults.roundTimestamp().getNano());
         line.append(",").append(updateResults.voteD());
@@ -368,35 +386,34 @@ public class TestHashgraphInfo {
         }
         try (final PrintWriter out = new PrintWriter(Files.newBufferedWriter(outputFile))) {
             final Random random = new Random(RANDOM_SEED);
-            final EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
+            long eventsWritten = 0; // number of times an EventInfo row has been written so far
+            EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEventsToRecalculate = new LinkedList<>();
-            // HashMap<Long, EventInfo> mapEventIdToEventInfo = new HashMap<>();
-            // HashMap<Long, HashMap<Long, Integer>> mapRoundNodeIdToNodeIndex = new HashMap<>();
-            // HashMap<Long, HashMap<Integer, Long>> mapRoundNodeIndexToNodeId = new HashMap<>();
-            // HashMap<Long, Integer> mapCurrNodeIdToNodeIndex; // = new HashMap<Long, Integer>();
-            // HashMap<Integer, Long> mapCurrNodeIndexToNodeId; // = new HashMap<Integer, Long>();
             UpdateResults updateResults;
             long nextEventID = 1;
-            long eventsWritten = 0; // number of times an EventInfo row has been written so far
             boolean newHashgraph = true;
             boolean newRound = true;
             RoundInfo roundInfo = null;
-            long minNonAncientRound = 1;
+            long minNonAncientRound;
 
             // fields for the next roundInfo (default values that match old code on mainnet)
             long[] roundInfoNodes = new long[] {100, 200, 300, 400, 500, 600, 700};
             long[] roundInfoStake = new long[] {101, 102, 103, 104, 105, 0, 0};
-            int roundInfoCoinInterval = 10;
-            int roundInfoSeeNum = 300;
-            int roundInfoSeeDen = 300;
-            boolean roundInfoJudgeCon1 = false;
-            int roundInfoTargetNumRoundsNonAncient = 25;
-            int roundInfoNumRoundsAddressBook = 2;
+            int roundInfoCoinInterval;
+            int roundInfoSeeNum;
+            int roundInfoSeeDen;
+            boolean roundInfoJudgeCon1;
+            int roundInfoTargetNumRoundsNonAncient;
+            int roundInfoNumRoundsAddressBook;
             RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
 
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
+                newHashgraph = newHashgraph || (random.nextFloat() < RESTART_PROBABILITY);
                 if (newHashgraph) {
+                    lastEvent = new EventInfo[NUM_NODES];
+                    hashgraphInfo = new HashgraphInfo();
+                    recentEventsToRecalculate = new LinkedList<>();
                     writeNewHashgraphRow(
                             out,
                             new NewHashgraphRow(

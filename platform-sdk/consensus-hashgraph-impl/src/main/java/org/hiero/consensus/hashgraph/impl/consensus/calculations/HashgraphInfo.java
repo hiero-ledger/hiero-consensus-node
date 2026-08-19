@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev} record, which should be used in further
  * calls to {@link EventInfo#update update} in the next round.
  * <p>
- * This file (1235 lines) has everything needed for consensus. The actual hashgraph consensus algorithm
+ * This file (1243 lines) has everything needed for consensus. The actual hashgraph consensus algorithm
  * ({@link EventInfo#graphSearch graphSearch} and {@link EventInfo#update udpate}) is only 619 lines of code,
  * excluding comments and blank lines.
  */
@@ -613,7 +613,9 @@ public final class HashgraphInfo {
             // Each "x" there becomes "this" here. "f(r,x)" becomes "f". "f(r,x,m)" becomes "f[m]".
             // "r" becomes either "r" or "rp", using the latter for fields with names starting with "prev".
             // "h" is used instead of this in some cases, to reduce computation, memory usage and garbage collection.
+            @SuppressWarnings("UnnecessaryLocalVariable")
             final RoundInfo r = roundInfo;
+            @SuppressWarnings("UnnecessaryLocalVariable")
             final RoundInfoPrev rp = roundInfoPrev;
             final HashgraphInfo h = hashgraph;
             long parentRound;
@@ -891,6 +893,7 @@ public final class HashgraphInfo {
             h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] += System.nanoTime();
             h.benchmarks[HashgraphInfo.BENCHMARK_LOOP5] -= System.nanoTime();
             { // function votingRound /---------------------------------------------------------------------------
+                @SuppressWarnings("UnnecessaryLocalVariable")
                 long p = parentRound;
                 if (r.pendingRound == p + 1) {
                     boolean b = true;
@@ -1126,7 +1129,7 @@ public final class HashgraphInfo {
                 int medianPos;
                 for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                     int creatorIndex = judgesArray[h.sortInd[medianPos]].creatorIndex;
-                    if (creatorIndex > 0) {
+                    if (creatorIndex >= 0) {
                         stake += r.stake[creatorIndex];
                     }
                     if (2 * stake >= totalJudgeStake) {
