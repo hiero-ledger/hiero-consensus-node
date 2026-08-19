@@ -211,7 +211,7 @@ jobs:
       nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      github-token: ${{ secrets.ghp_perf }}
+      github-token: ${{ inputs.ghp_perf }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
