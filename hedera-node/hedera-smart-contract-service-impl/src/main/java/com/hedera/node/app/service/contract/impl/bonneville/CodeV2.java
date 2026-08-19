@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.bonneville;
 
 import com.google.common.base.MoreObjects;
-import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.io.OutputStream;
@@ -11,7 +10,6 @@ import java.util.Base64;
 import java.util.BitSet;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Hash;
 
 // Bonneville Code object.  Immutable bare byte array.  Cached, hashed and
@@ -182,7 +180,7 @@ public class CodeV2 extends OutputStream {
 
     private Hash _kekhash;
     public Hash getCodeHash() {
-        return _kekhash == null ? (_kekhash = Hash.wrap(Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(getBytes().toArrayUnsafe())))) : _kekhash;
+        return _kekhash == null ? (_kekhash = Hash.hash(getBytes())) : _kekhash;
     }
 }
 // spotless:on

@@ -25,7 +25,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookCall;
-import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -69,6 +68,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.base.utility.CommonUtils;
+import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -82,7 +82,7 @@ public class Utils {
     private static final String JSON_EXTENSION = ".json";
 
     public static ByteString eventSignatureOf(String event) {
-        return ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(event.getBytes()));
+        return ByteString.copyFrom(Hash.keccak256(Bytes.wrap(event.getBytes())).toArray());
     }
 
     public static ByteString parsedToByteString(long shard, long realm, long n) {
