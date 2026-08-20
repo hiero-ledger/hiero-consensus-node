@@ -15,8 +15,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.crypto.DefaultEventHasher;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
@@ -56,12 +54,9 @@ public class FalconWiring implements TimeTickReceiver {
     private static final Bytes DEFAULT_SIGNATURE = Bytes.EMPTY;
 
     private final DeterministicWiringModel model;
-    private final ComponentWiring<EventHasher, PlatformEvent> hasherWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
-
-    private final InputWire<PlatformEvent> receivedGossipEventsInputWire;
 
     /**
      * Constructor for {@link FalconWiring}.
@@ -87,11 +82,6 @@ public class FalconWiring implements TimeTickReceiver {
                 .build();
 
         final EventIntakeWiringConfig eventIntakeConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
-
-        final EventHasher eventHasher = new DefaultEventHasher();
-        hasherWiring = new ComponentWiring<>(model, EventHasher.class, eventIntakeConfig.eventHasher());
-        hasherWiring.bind(eventHasher);
-        receivedGossipEventsInputWire = hasherWiring.getInputWire(EventHasher::hashEvent);
 
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
@@ -119,13 +109,12 @@ public class FalconWiring implements TimeTickReceiver {
                 new ComponentWiring<>(model, EventCreationManager.class, eventCreationConfig.eventCreationManager());
         eventCreationManagerWiring.bind(eventCreationManager);
 
-        hasherWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
         final OutputWire<PlatformEvent> orphanBufferOutput = orphanBufferWiring.getSplitOutput();
         orphanBufferOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
         orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
-        final OutputWire<ConsensusEngineOutput> consensusOutput = consensusEngineWiring.getOutputWire();
-        final OutputWire<EventWindow> eventWindowOutputWire = consensusOutput
+        final OutputWire<EventWindow> eventWindowOutputWire = consensusEngineWiring
+                .getOutputWire()
                 .buildTransformer("ConsensusRound", "consensus output", ConsensusEngineOutput::consensusRounds)
                 .<ConsensusRound>buildSplitter("ConsensusRoundSplitter", "consensus rounds")
                 .buildTransformer("EventWindow", "consensus round", ConsensusRound::getEventWindow);
@@ -152,7 +141,7 @@ public class FalconWiring implements TimeTickReceiver {
      */
     @NonNull
     public InputWire<PlatformEvent> receivedGossipEventsInputWire() {
-        return receivedGossipEventsInputWire;
+        return orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent);
     }
 
     /**
