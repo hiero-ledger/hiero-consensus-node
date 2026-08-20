@@ -325,7 +325,13 @@ public abstract class AbstractNode implements Node {
         doTriggerSelfIss(DEFAULT_TIMEOUT);
     }
 
-    private void doTriggerSelfIss(@NonNull final Duration timeout) {
+    /**
+     * The actual implementation of the self ISS logic. Subclasses of environments that do not support ISS override this
+     * method to throw, which covers the asynchronous variant as well.
+     *
+     * @param timeout the maximum duration to wait for the ISS to be triggered
+     */
+    protected void doTriggerSelfIss(@NonNull final Duration timeout) {
         throwIsNotInLifecycle(LifeCycle.RUNNING, "Node must be running to trigger a self ISS.");
 
         log.info("Sending Self ISS triggering transaction...");

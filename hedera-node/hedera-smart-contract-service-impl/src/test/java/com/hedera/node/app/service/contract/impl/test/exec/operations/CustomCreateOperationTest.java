@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.CODE_TOO_LARGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
@@ -70,7 +69,7 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomCreateOperation(gasCalculator, CODE_FACTORY);
+        subject = new CustomCreateOperation(gasCalculator);
     }
 
     @Test

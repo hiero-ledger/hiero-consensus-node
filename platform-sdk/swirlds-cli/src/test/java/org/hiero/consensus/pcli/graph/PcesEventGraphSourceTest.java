@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
