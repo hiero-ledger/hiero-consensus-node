@@ -41,7 +41,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
             "facility-messaging",
             "health",
-            "verification",
+            "block-verification",
             "blocks-file-recent",
             "blocks-file-historic",
             "block-access-service",
@@ -56,7 +56,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                     MAVEN_CENTRAL_BASE_URL
                             + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar"),
             Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
-            // Transitive deps of the verification plugin
+            // Transitive deps of the block-verification plugin
             Map.entry(
                     "hedera-cryptography-wraps-3.8.1.jar",
                     MAVEN_CENTRAL_BASE_URL
