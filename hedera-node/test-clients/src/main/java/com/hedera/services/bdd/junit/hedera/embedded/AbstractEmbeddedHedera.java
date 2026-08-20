@@ -53,12 +53,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.metrics.core.Label;
 import org.hiero.metrics.core.MetricRegistry;
 
 /**
@@ -148,11 +148,9 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 executorService,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
-        metricRegistry = MetricRegistry.builder()
-                .addGlobalLabel(new Label("node", String.valueOf(defaultNodeId.id())))
-                .discoverMetricProviders() // discover all metric providers via SPI
-                .discoverMetricsExporter(PLATFORM_CONFIG) // discover single exporter factory via SPI
-                .build();
+        // No exporter, mirroring the old framework: an embedded node builds DefaultPlatformMetrics directly
+        // rather than going through DefaultMetricsProvider, so it has never exposed a metrics endpoint.
+        metricRegistry = NoOpMetricRegistries.create(defaultNodeId.id());
         state = new FakeState();
         rebuildHedera();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
@@ -196,6 +194,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         fakePlatform().notifyListeners(FREEZE_COMPLETE_NOTIFICATION);
         hedera.newPlatformStatus(FREEZE_COMPLETE_NOTIFICATION.getNewStatus());
         executorService.shutdownNow();
+        try {
+            metricRegistry.close();
+        } catch (final IOException e) {
+            log.warn("Failed to close metric registry of embedded node {}", defaultNodeId, e);
+        }
     }
 
     @Override

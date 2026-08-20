@@ -80,7 +80,6 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
     runtimeOnly("org.junit.platform.launcher")
-    runtimeOnly("org.hiero.metrics.openmetrics.httpserver")
 }
 
 sourceSets { create("rcdiff") }

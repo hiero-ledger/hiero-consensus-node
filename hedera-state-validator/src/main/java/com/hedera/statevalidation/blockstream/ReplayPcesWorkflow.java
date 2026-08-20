@@ -41,6 +41,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -123,7 +124,11 @@ public final class ReplayPcesWorkflow {
         requireNonNull(consensusEventStreamName);
 
         // --- Construct the Hedera execution layer exactly as ServicesMain does ---
-        final Hedera hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, MetricRegistry.builder().build(), time, selfId);
+        // This is an offline tool, so the registry has no exporter: metrics are updated but never published.
+        // It is handed to the platform below, which closes it in destroy().
+        final MetricRegistry metricRegistry = NoOpMetricRegistries.create(selfId.id());
+        final Hedera hedera =
+                ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, metricRegistry, time, selfId);
         final SemanticVersion version = hedera.getSemanticVersion();
         log.info("Replaying PCES on node {} with software version {}", selfId, version);
 
@@ -183,6 +188,7 @@ public final class ReplayPcesWorkflow {
         final TestPlatformBuilder builder = new TestPlatformBuilder(
                 platformConfig,
                 platformContext.getMetrics(),
+                metricRegistry,
                 platformContext.getTime(),
                 rosterHistory,
                 keysAndCerts,

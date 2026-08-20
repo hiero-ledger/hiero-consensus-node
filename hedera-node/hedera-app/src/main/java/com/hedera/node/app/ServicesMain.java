@@ -169,7 +169,13 @@ public class ServicesMain {
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        final var metricRegistry = createMetricRegistry(platformConfig);
+        // Closed by SwirldsPlatform.destroy(). In production main() never returns and nothing destroys the
+        // platform, so the exporter is released by process exit - exactly as the old framework's Prometheus
+        // endpoint is today (DefaultMetricsProvider.stop() has no callers).
+        final var metricRegistry = MetricRegistry.builder()
+                .discoverMetricProviders()
+                .discoverMetricsExporter(platformConfig)
+                .build();
         hedera = newHedera(platformConfig, fileSystemManager, metrics, metricRegistry, time, selfId);
         final var version = hedera.getSemanticVersion();
         logger.info("Starting node {} with version {}", selfId, version);
@@ -252,6 +258,7 @@ public class ServicesMain {
         final var platform = new PlatformBuilder<>(
                         platformConfig,
                         platformContext.getMetrics(),
+                        metricRegistry,
                         platformContext.getTime(),
                         rosterHistory,
                         keysAndCerts,
@@ -271,13 +278,6 @@ public class ServicesMain {
 
         platform.start();
         hedera.run();
-    }
-
-    private static MetricRegistry createMetricRegistry(Configuration configuration) {
-        return MetricRegistry.builder()
-                .discoverMetricProviders() // discover all metric providers via SPI
-                .discoverMetricsExporter(configuration) // discover single exporter factory via SPI
-                .build();
     }
 
     /**
@@ -334,6 +334,7 @@ public class ServicesMain {
      * @param configuration the configuration to use
      * @param fileSystemManager the file system manager to use
      * @param metrics the platform metric instance to use when creating the new instance of state
+     * @param metricRegistry the registry of the new metrics framework
      * @param time the time instance to use when creating the new instance of state
      * @param selfId the node id of this node
      * @return the {@link Hedera} instance
@@ -347,6 +348,7 @@ public class ServicesMain {
             @NonNull final NodeId selfId) {
         requireNonNull(configuration);
         requireNonNull(metrics);
+        requireNonNull(metricRegistry);
         requireNonNull(time);
         requireNonNull(selfId);
         return new Hedera(
