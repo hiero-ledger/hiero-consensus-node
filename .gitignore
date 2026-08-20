@@ -1097,6 +1097,8 @@ snyk/
 ### AI Helpers Code
 /.codex/
 **/ai.local
+/.claude/*
+!/.claude/skills/
 
 ### Embedded HAPI Test Runtime Artifacts
 /hedera-node/test-clients/data/keys/tss/
