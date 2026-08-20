@@ -153,6 +153,7 @@
 /.github/workflows/221-disp-sdpt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/222-disp-sdlt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/223-disp-sdct-controller.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/225-disp-release-chewie-allocation.yaml      @hiero-ledger/github-maintainers
 /.github/workflows/831-call-single-day-performance-test.yaml    @hiero-ledger/github-maintainers
 /.github/workflows/832-call-execute-performance-test.yaml       @hiero-ledger/github-maintainers
 /.github/workflows/833-call-single-day-longevity-test.yaml      @hiero-ledger/github-maintainers
