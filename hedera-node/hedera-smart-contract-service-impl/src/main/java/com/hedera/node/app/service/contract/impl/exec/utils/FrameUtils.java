@@ -360,6 +360,15 @@ public class FrameUtils {
         return stack.isEmpty() ? frame : stack.getLast();
     }
 
+    public static @Nullable MessageFrame parentFrameOf(@NonNull final MessageFrame frame) {
+        final var iterator = frame.getMessageFrameStack().iterator();
+        if (!iterator.hasNext()) {
+            return null;
+        }
+        iterator.next(); // executing frame
+        return iterator.hasNext() ? iterator.next() : null; // parent frame
+    }
+
     private static PropagatedCallFailureRef propagatedCallFailureReference(@NonNull final MessageFrame frame) {
         return initialFrameOf(frame).getContextVariable(PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE);
     }

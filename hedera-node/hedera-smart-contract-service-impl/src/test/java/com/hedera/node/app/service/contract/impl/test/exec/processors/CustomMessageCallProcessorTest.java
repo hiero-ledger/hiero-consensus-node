@@ -82,6 +82,9 @@ class CustomMessageCallProcessorTest {
     private HEVM evm;
 
     @Mock
+    private MessageFrame parentFrame;
+
+    @Mock
     private MessageFrame frame;
 
     @Mock
@@ -182,6 +185,26 @@ class CustomMessageCallProcessorTest {
                 "work already performed by computeFully must be metered even when the call halts");
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+    }
+
+    @Test
+    void callPrngSystemContractInsufficientGasChargesParentFrame() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenPrngCall(GAS_REQUIREMENT);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
+        // emulate child+parent frames
+        Deque<MessageFrame> localStack = new ArrayDeque<>();
+        localStack.push(parentFrame);
+        localStack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(localStack);
+        when(parentFrame.getRemainingGas()).thenReturn(20L);
+        when(parentFrame.getContextVariable(OPS_DURATION_COUNTER)).thenReturn(opsDurationTestCounter);
+
+        subject.start(frame, operationTracer);
+        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(parentFrame).decrementRemainingGas(GAS_REQUIREMENT);
+        verifyHalt(INSUFFICIENT_GAS, false);
     }
 
     @Test

@@ -155,10 +155,11 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
     /**
      * Constructor.
-     * @param evm the evm to use in this call
-     * @param featureFlags current evm module feature flags
-     * @param precompiles the present precompiles
-     * @param addressChecks checks against addresses reserved for Hedera
+     *
+     * @param evm             the evm to use in this call
+     * @param featureFlags    current evm module feature flags
+     * @param precompiles     the present precompiles
+     * @param addressChecks   checks against addresses reserved for Hedera
      * @param systemContracts the Hedera system contracts
      */
     public CustomMessageCallProcessor(
@@ -190,7 +191,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      *     <li>An existing account.</li>
      * </ol>
      *
-     * @param frame the frame to start
+     * @param frame  the frame to start
      * @param tracer the operation tracer
      */
     @Override
@@ -256,7 +257,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * the call to computePrecompile. Thus, the logic for checking for sufficient gas must be done in a different
      * order vs normal precompiles.
      *
-     * @param context the current call context
+     * @param context        the current call context
      * @param systemContract the system contract to execute
      */
     private void doExecuteSystemContract(
@@ -285,6 +286,17 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                         opsDurationCost);
 
         if (frame.getRemainingGas() < gasRequirement) {
+            if (!fullResult.isRefundGas() && frame.getMessageFrameStack().size() > 1) {
+                var gasStillOwed = gasRequirement - frame.getRemainingGas();
+                final var framesIterator = frame.getMessageFrameStack().iterator();
+                framesIterator.next(); // skip the current frame, already accounted for above
+                while (gasStillOwed > 0 && framesIterator.hasNext()) {
+                    final var parentFrame = framesIterator.next();
+                    final var gasChargedToParent = Math.min(parentFrame.getRemainingGas(), gasStillOwed);
+                    parentFrame.decrementRemainingGas(gasChargedToParent);
+                    gasStillOwed -= gasChargedToParent;
+                }
+            }
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             if (!fullResult.isRefundGas()) {
@@ -413,7 +425,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * the allowance hook address
      *
      * @param codeAddress the address of the precompile to check
-     * @param frame the current message frame
+     * @param frame       the current message frame
      * @return true if the frame is executing a hook dispatch and the code address is the allowance hook
      * address, false otherwise
      */

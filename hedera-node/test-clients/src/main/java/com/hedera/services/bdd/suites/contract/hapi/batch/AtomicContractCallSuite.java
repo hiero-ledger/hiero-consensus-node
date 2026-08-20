@@ -2243,7 +2243,7 @@ class AtomicContractCallSuite {
                                         asHeadlongAddress(new byte[20]),
                                         asHeadlongAddress(new byte[20]))
                                 .via(failingCall)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .hasKnownStatus(INSUFFICIENT_GAS)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -2251,7 +2251,7 @@ class AtomicContractCallSuite {
                         .exposingTo(failureRecord -> parentConsTime.set(failureRecord.getConsensusTimestamp())),
                 sourcing(() -> childRecordsCheck(
                         failingCall,
-                        CONTRACT_REVERT_EXECUTED,
+                        INSUFFICIENT_GAS,
                         recordWith().status(INSUFFICIENT_GAS).consensusTimeImpliedByOffset(parentConsTime.get(), 1))));
     }
 
@@ -2314,6 +2314,7 @@ class AtomicContractCallSuite {
                                                         13L)
                                                 .array(),
                                         BigInteger.valueOf(13_000L))
+                                .gas(1_000_000L)
                                 .via("callTxn")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)),

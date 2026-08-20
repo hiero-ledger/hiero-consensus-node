@@ -419,6 +419,20 @@ class FrameUtilsTest {
         }
     }
 
+    @Test
+    void initialFrameOfTest() {
+        givenNonInitialFrame();
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        Assertions.assertEquals(initialFrame, FrameUtils.initialFrameOf(frame));
+    }
+
+    @Test
+    void parentFrameOfTest() {
+        givenNonInitialFrame();
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        Assertions.assertEquals(initialFrame, FrameUtils.parentFrameOf(frame));
+    }
+
     void givenNonInitialFrame() {
         stack.push(initialFrame);
         stack.addFirst(frame);

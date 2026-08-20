@@ -2285,12 +2285,12 @@ public class ContractCallSuite {
                                 asHeadlongAddress(new byte[20]),
                                 asHeadlongAddress(new byte[20]))
                         .via(failingCall)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 getTxnRecord(failingCall)
                         .exposingTo(failureRecord -> parentConsTime.set(failureRecord.getConsensusTimestamp())),
                 sourcing(() -> childRecordsCheck(
                         failingCall,
-                        CONTRACT_REVERT_EXECUTED,
+                        INSUFFICIENT_GAS,
                         recordWith().status(INSUFFICIENT_GAS).consensusTimeImpliedByOffset(parentConsTime.get(), 1))));
     }
 
@@ -2349,6 +2349,7 @@ public class ContractCallSuite {
                                                 tokenAddress.get(), treasuryAddress.get(), receiverAddress.get(), 13L)
                                         .array(),
                                 BigInteger.valueOf(13_000L))
+                        .gas(1_000_000)
                         .via("callTxn")),
                 childRecordsCheck("callTxn", SUCCESS, recordWith().status(INSUFFICIENT_GAS)),
                 // Verify no token balances changed
