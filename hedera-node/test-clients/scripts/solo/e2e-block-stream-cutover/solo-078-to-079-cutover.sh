@@ -3,7 +3,7 @@
 #
 # Isolated reproducer for the 0.78 -> 0.79 BLOCKS cutover that deploys directly at the
 # published 0.78 release tag, verifies the 0.78 baseline, then upgrades the CN to the local 0.79
-# build and simultaneously upgrades the Block Node from v0.39.1 to v0.41.0-alpha1.
+# build and simultaneously upgrades the Block Node from v0.39.1 to v0.41.0-rc1.
 #
 #   1. Deploy a CN network directly at the published v0.78.0-rc.2 release tag. The 0.78 genesis
 #      baseline uses dual-write streaming (streamMode=BOTH, writerMode=FILE_AND_GRPC) + mock TSS
@@ -15,12 +15,12 @@
 #      verify blocks after the upgrade.
 #   5. Upgrade the CN in place to the local 0.79 build with
 #      resources/0.79/application-078-to-079.properties, and simultaneously upgrade the Block Node
-#      to v0.41.0-alpha1. The mirror importer continues reading blocks from the upgraded BN.
+#      to v0.41.0-rc1. The mirror importer continues reading blocks from the upgraded BN.
 #
 # Verifications after the 0.79 upgrade:
 #   - local-build version on all consensus nodes
 #   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node (v0.41.0-alpha1) verifies + persists the post-upgrade blocks (nextExpectedBlock
+#   - Block Node (v0.41.0-rc1) verifies + persists the post-upgrade blocks (nextExpectedBlock
 #     advances)
 #   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. Enable with RESTART_REPLAY_CHECK=true.
 #
@@ -87,14 +87,14 @@ NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
 # --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
 # The reproducer deploys a Block Node (v0.39.1) before the 0.78 step, seeds it with the network's
-# TSS ledger id before the 0.79 upgrade, and asserts the upgraded BN (v0.41.0-alpha1) verifies +
+# TSS ledger id before the 0.79 upgrade, and asserts the upgraded BN (v0.41.0-rc1) verifies +
 # persists the real-TSS-signed post-upgrade blocks.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.39.1}"
-BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0-alpha1}"
+BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0-rc1}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"

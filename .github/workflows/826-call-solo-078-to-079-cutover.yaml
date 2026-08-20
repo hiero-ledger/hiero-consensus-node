@@ -27,7 +27,7 @@ on:
         description: "hiero-block-node ref to checkout. Only used for the serverStatus/proto sources consumed by the grpcurl diagnostics; the deployed Block Node chart version is pinned inside the scenario script. Defaults to the tag matching that chart."
         required: false
         type: string
-        default: "v0.41.0-alpha1"
+        default: "v0.41.0-rc1"
     outputs:
       failure-mode:
         description: "Failure Mode"
