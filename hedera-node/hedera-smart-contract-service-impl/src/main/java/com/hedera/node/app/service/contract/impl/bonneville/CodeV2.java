@@ -6,6 +6,7 @@ import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.io.OutputStream;
+import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.BitSet;
@@ -180,9 +181,13 @@ public class CodeV2 extends OutputStream {
         return _bytes == null ? (_bytes = Bytes.wrap(_codes,_off,_len)) : _bytes;
     }
 
+    public MemorySegment getMemorySegment() {
+        return MemorySegment.ofArray(_codes).asSlice(_off, _len).asReadOnly();
+    }
+
     private Hash _kekhash;
     public Hash getCodeHash() {
-        return _kekhash == null ? (_kekhash = Hash.wrap(Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(getBytes().toArrayUnsafe())))) : _kekhash;
+        return _kekhash == null ? (_kekhash = Hash.wrap(Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(getMemorySegment())))) : _kekhash;
     }
 }
 // spotless:on
