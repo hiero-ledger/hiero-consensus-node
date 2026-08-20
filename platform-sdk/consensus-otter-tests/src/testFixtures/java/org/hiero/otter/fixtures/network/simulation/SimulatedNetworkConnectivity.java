@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -14,7 +15,6 @@ import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -32,6 +32,19 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
  */
 public class SimulatedNetworkConnectivity {
+
+    /**
+     * The initial capacity of the sequence number space for the cursored log of events. This should match the number of
+     * non-expired rounds according to the default configuration of the nodes in the network, but it does not have to be
+     * exact because the log will expand as needed.
+     */
+    private static final int INITIAL_SEQUENCE_NUMBER_CAPACITY = 1000;
+
+    /**
+     * The initial capacity of the event log. This should be large enough to hold all events that are not expired, but
+     * it does not have to be exact because the log will expand as needed. Must be a power of 2.
+     */
+    private static final int INITIAL_EVENT_LOG_CAPACITY = (int) Math.pow(2, 8);
 
     /**
      * The random number generator to use for simulating network delays.
@@ -53,10 +66,23 @@ public class SimulatedNetworkConnectivity {
     /**
      * Events submitted by each node since the previous tick, held until they can be added to {@link #eventLog}. Nodes
      * submit while they are running concurrently, so each node appends only to its own list and no node observes the
-     * submissions of another. Sorted by node id, because the order the lists are drained in decides the order of the
-     * log.
+     * submissions of another. The iteration order of this map is not relied upon; {@link #submissionOrder} decides the
+     * order the lists are drained in.
      */
-    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new ConcurrentSkipListMap<>();
+    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new ConcurrentHashMap<>();
+
+    /**
+     * Every node in the network, in node id order. Maintained as nodes are added rather than being sorted on each tick,
+     * and never reordered, so that it can serve as the canonical starting point for the shuffle in
+     * {@link #addSubmittedEventsToLog()}.
+     */
+    private final List<NodeId> sortedNodeIds = new ArrayList<>();
+
+    /**
+     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of
+     * {@link #sortedNodeIds}, reused across ticks so that producing it does not allocate.
+     */
+    private final List<NodeId> submissionOrder = new ArrayList<>();
 
     /**
      * The most recent {@link EventWindow} reported by each node. A node's window determines which events are worth
@@ -98,6 +124,10 @@ public class SimulatedNetworkConnectivity {
      */
     private final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
 
+    /**
+     * The last time an event was delivered from a sender to a receiver. Used to ensure that events are delivered in
+     * strictly increasing order of time, even when network jitter is applied.
+     */
     private final Map<ConnectionKey, Instant> lastDeliveryTimestamps = new HashMap<>();
 
     /**
@@ -107,9 +137,11 @@ public class SimulatedNetworkConnectivity {
      */
     public SimulatedNetworkConnectivity(@NonNull final Random random) {
         this.random = requireNonNull(random);
-        // TODO create static constants, or derive them from default configurations like roundExpired
         eventLog = new CursoredLog<>(
-                ConsensusConstants.ROUND_FIRST, 1000, (int) Math.pow(2, 8), PlatformEvent::getBirthRound);
+                ConsensusConstants.ROUND_FIRST,
+                INITIAL_SEQUENCE_NUMBER_CAPACITY,
+                INITIAL_EVENT_LOG_CAPACITY,
+                PlatformEvent::getBirthRound);
     }
 
     /**
@@ -126,6 +158,8 @@ public class SimulatedNetworkConnectivity {
         nodeCursors.put(nodeId, eventLog.newCursor());
         nodeEventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
         newlySubmittedEvents.put(nodeId, new ArrayList<>());
+        sortedNodeIds.add(nodeId);
+        Collections.sort(sortedNodeIds);
     }
 
     /**
@@ -142,8 +176,8 @@ public class SimulatedNetworkConnectivity {
      * Submit an event to be gossiped around the network. Safe to be called by multiple nodes in parallel.
      *
      * <p>The event is not added to {@link #eventLog} here. Nodes run concurrently while they submit, so the order
-     * submissions arrive in is decided by the thread scheduler, and the log has to be ordered reproducibly. The event is
-     * held until the next call to {@link #tick(Instant)}, which does the appending on a single thread.
+     * submissions arrive in is decided by the thread scheduler, and the log has to be ordered reproducibly. The event
+     * is held until the next call to {@link #tick(Instant)}, which does the appending on a single thread.
      *
      * @param event the event to gossip, with its sender set to the node submitting it
      */
@@ -153,21 +187,34 @@ public class SimulatedNetworkConnectivity {
     }
 
     /**
-     * Adds the events submitted since the previous tick to {@link #eventLog}, in node id order and then in the order
-     * each node submitted them.
+     * Adds the events submitted since the previous tick to {@link #eventLog}, one node at a time, and within a node in
+     * the order it submitted them.
      *
-     * <p>This is what makes the simulation reproducible. The position an event is given in the log decides the order
-     * every node's cursor hands it out in, and therefore which jitter value it draws from {@link #random} and when it
-     * arrives. Appending as submissions arrived would let the thread scheduler decide all of that.
+     * <p>The position an event is given in the log decides the order every node's cursor hands it out in, and therefore
+     * which jitter value it draws from {@link #random} and when it arrives. Appending as submissions arrived would let
+     * the thread scheduler decide all of that and break determinism, so the submissions are held and appended here instead.
+     *
+     * <p>Which node goes first is drawn from {@link #random} rather than fixed, so that a scenario which always targets
+     * the same node - isolating it, or narrowing its bandwidth - is not always paired with the same position in the log.
+     * A fixed order would let one node's events systematically precede another's for a whole run. The result is still
+     * reproducible: the nodes are shuffled from their sorted order, which never depends on the scheduler, and the
+     * shuffle draws {@code nodeCount - 1} times whatever was submitted, so the draws a given seed makes do not depend on
+     * how the nodes were interleaved.
      */
     private void addSubmittedEventsToLog() {
-        for (final List<PlatformEvent> events : newlySubmittedEvents.values()) {
+        // Shuffling permutes whatever order it is given, so the starting point has to be canonical, or it would carry
+        // through to the log. Copying from the sorted node ids gives that without sorting on every tick.
+        submissionOrder.clear();
+        submissionOrder.addAll(sortedNodeIds);
+        Collections.shuffle(submissionOrder, random);
+
+        for (final NodeId submitter : submissionOrder) {
+            final List<PlatformEvent> events = newlySubmittedEvents.get(submitter);
             for (final PlatformEvent event : events) {
-                // A node re-offers an event to gossip once it has been through intake, so the same event is submitted
-                // by
-                // its creator and again by every node that receives it. Each of those submissions belongs in the log,
-                // because the log records the node an event is transmitted from, but one per submitter is enough.
-                if (!deduplicator.addIfUnique(event)) {
+                // If a node re-offers an event to gossip once it has been through intake, the same event is submitted
+                // by its creator and again by every node that receives it. Each of those submissions belongs in the
+                // log, because the log records the node an event is transmitted from, but one per submitter is enough.
+                if (deduplicator.addIfUnique(event)) {
                     eventLog.add(event);
                 }
             }
@@ -203,7 +250,8 @@ public class SimulatedNetworkConnectivity {
             }
         }
         if (oldestEventWindow == null) {
-            return; // no nodes have been added yet
+            // no nodes have been added yet
+            return;
         }
 
         deduplicator.setOldestEventWindow(oldestEventWindow);
