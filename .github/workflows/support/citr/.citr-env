@@ -6,5 +6,5 @@ citr-mirror-node-version=0.161.0
 tck-version=v0.12.4
 js-sdk-version=v2.87.0
 block-node-version=v0.41.0-rc1
-bn-mirror-node-version=v0.157.0
+bn-mirror-node-version=v0.162.0-rc1
 json-rpc-relay-version=v0.78.0
