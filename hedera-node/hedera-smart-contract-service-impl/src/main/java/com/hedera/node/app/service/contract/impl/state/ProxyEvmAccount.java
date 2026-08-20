@@ -2,13 +2,12 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
 
@@ -58,8 +57,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
         if (account.delegationAddress().length() == 0) {
             return Code.EMPTY_CODE.getCodeHash();
         } else {
-            return Hash.wrap(
-                    Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(getCode().toArrayUnsafe())));
+            return Hash.wrap(keccak256(getCode()));
         }
     }
 }

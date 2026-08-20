@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 import static com.hedera.hapi.streams.CallOperationType.*;
 
 import com.hedera.hapi.streams.CallOperationType;
-import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.processors.PublicMessageProcessor;
@@ -99,7 +98,7 @@ public abstract class CallManager {
 
         // {FF, [sender 20bytes], [salt 32bytes], [code hash, 32bytes] }
         Bytes bytes = Bytes.concatenate(CREATE2_PREFIX, sender.getBytes(), salt, code.getCodeHash().getBytes());
-        Bytes32 hash = Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(bytes.toArrayUnsafe()));
+        Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
         return Address.extract(hash);
     }
 
