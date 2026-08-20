@@ -70,7 +70,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     /// Assumes delegationAddress isn't empty, but shouldn't fail with an empty one.
     /// Up to the caller to decide if an empty delegationAddress should be treated differently.
     private static byte[] getCodeByteArray(final com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
-        final byte[] code = new byte[Math.toIntExact(delegationAddress.length()) + CODE_DELEGATION_PREFIX.size()];
+        final byte[] code = new byte[Math.toIntExact(delegationAddress.length() + CODE_DELEGATION_PREFIX.size())];
         System.arraycopy(CODE_DELEGATION_PREFIX.toArrayUnsafe(), 0, code, 0, CODE_DELEGATION_PREFIX.size());
         // The below call performs an efficient System.arraycopy() as well:
         delegationAddress.writeTo(code, CODE_DELEGATION_PREFIX.size());
