@@ -45,4 +45,4 @@ jobs:
           setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "22"
+          node-version: "24"
