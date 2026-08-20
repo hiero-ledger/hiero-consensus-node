@@ -52,11 +52,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     @Override
     public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
         if ($codePBJ == null) {
-            // NOTE: it would be way more efficient as:
-            // `$codePBJ = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(getCode().toArrayUnsafe())`
-            // However, this getCodePBJ() prepends the prefix unconditionally,
-            // unlike the getCode() above. So we must recompute it the second time:
-            $codePBJ = createDelegationIndicatorPJB(account.delegationAddress());
+            $codePBJ = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(getCode().toArrayUnsafe());
         }
         return $codePBJ;
     }
