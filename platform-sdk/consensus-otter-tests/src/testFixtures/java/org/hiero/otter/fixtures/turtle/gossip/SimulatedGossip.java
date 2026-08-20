@@ -92,10 +92,9 @@ public class SimulatedGossip implements Gossip, EventReceiver {
     }
 
     /**
-     * This method is called every time this node receives an event from the network.
-     *
-     * @param event the event that was received
+     * {@inheritDoc}
      */
+    @Override
     public boolean receiveEvent(@NonNull final PlatformEvent event) {
         if (deterministicWiringModel.isRunning()) {
             forwardEvent(event);
@@ -111,6 +110,9 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         eventOutput.forward(event);
     }
 
+    /**
+     * Resets this node's gossip point so that it will receive all necessary events after a restart.
+     */
     public void onRestart() {
         networkConnectivity.resetCursor(selfId);
     }

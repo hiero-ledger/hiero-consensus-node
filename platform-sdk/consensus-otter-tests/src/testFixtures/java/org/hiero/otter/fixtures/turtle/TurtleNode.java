@@ -311,8 +311,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             platform.start();
 
             // Replay runs synchronously inside start(), so the node's event window is now final. Let it re-read what
-            // the
-            // network still holds, to recover events that were delivered before the restart but never persisted.
+            // the network still holds, to recover events that were delivered before the restart but never persisted.
             gossip.onRestart();
 
             quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
