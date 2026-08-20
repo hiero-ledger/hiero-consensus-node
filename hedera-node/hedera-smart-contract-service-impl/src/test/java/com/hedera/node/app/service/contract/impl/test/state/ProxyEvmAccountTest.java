@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
@@ -9,11 +10,9 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,9 +68,7 @@ class ProxyEvmAccountTest {
         final var delegationAddress = Bytes.fromHex("0000000000000000000000000000000000000001");
         when(ACCOUNT.delegationAddress()).thenReturn(delegationAddress);
         assertEquals(
-                Hash.wrap(Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(
-                        Bytes.fromHex("ef01000000000000000000000000000000000000000001")
-                                .toMemorySegment()))),
+                Hash.wrap(keccak256(pbjToTuweniBytes(Bytes.fromHex("ef01000000000000000000000000000000000000000001")))),
                 subject.getCodeHash());
     }
 

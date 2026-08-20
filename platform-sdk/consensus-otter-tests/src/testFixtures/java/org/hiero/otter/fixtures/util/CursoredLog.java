@@ -64,13 +64,11 @@ public final class CursoredLog<T> {
      * <p>Equality is defined on {@link #position()} alone. Positions are unique and never reused, so this is an exact
      * identity for entries while avoiding any dependence on the equality semantics of {@code T}.
      *
-     * @param position       the absolute position of this entry in the log
-     * @param sequenceNumber the sequence number of this entry
-     * @param item           the item itself
-     * @param <T>            the type of item held in the log
+     * @param position the absolute position of this entry in the log
+     * @param item     the item itself
+     * @param <T>      the type of item held in the log
      */
-    private record Entry<T>(
-            long position, long sequenceNumber, @NonNull T item) {
+    private record Entry<T>(long position, @NonNull T item) {
 
         @Override
         public boolean equals(final Object other) {
@@ -85,19 +83,22 @@ public final class CursoredLog<T> {
         @Override
         @NonNull
         public String toString() {
-            return "Entry[position=" + position + ", sequenceNumber=" + sequenceNumber + ", item=" + item + "]";
+            return "Entry[position=" + position + ", item=" + item + "]";
         }
     }
 
+    @NonNull
     private final ToLongFunction<T> getSequenceNumber;
 
     /**
      * Index from sequence number to the entries carrying it, used for removal. Its window also records which sequence
      * numbers have already been removed, which is what enforces the strictly increasing removal order.
      */
+    @NonNull
     private final SequenceSet<Entry<T>> bySequenceNumber;
 
     /** The ring buffer. Always a power of two in length. Slots may hold {@code null} for tombstoned entries. */
+    @NonNull
     private Object[] buffer;
 
     /** Always {@code buffer.length - 1}. Maps an absolute position onto a slot in {@link #buffer}. */
@@ -115,20 +116,20 @@ public final class CursoredLog<T> {
     /**
      * Creates a new log.
      *
-     * @param firstSequenceNumber     the lowest sequence number permitted in the log at construction time
-     * @param sequenceNumberCapacity  the number of distinct sequence numbers permitted to be in the log at once; the
-     *                                log expands this as needed when items arrive with higher sequence numbers, so this
-     *                                is a starting point rather than a hard limit
-     * @param initialCapacity         the number of items the log can hold before its buffer is grown; rounded up to a
-     *                                power of two, with a minimum of {@value #MIN_CAPACITY}
-     * @param getSequenceNumber        a function that extracts the sequence number from an item
+     * @param firstSequenceNumber    the lowest sequence number permitted in the log at construction time
+     * @param sequenceNumberCapacity the number of distinct sequence numbers permitted to be in the log at once; the log
+     *                               expands this as needed when items arrive with higher sequence numbers, so this is a
+     *                               starting point rather than a hard limit
+     * @param initialCapacity        the number of items the log can hold before its buffer is grown; rounded up to a
+     *                               power of two, with a minimum of {@value #MIN_CAPACITY}
+     * @param getSequenceNumber      a function that extracts the sequence number from an item
      * @throws IllegalArgumentException if {@code sequenceNumberCapacity} or {@code initialCapacity} is not positive
      */
     public CursoredLog(
             final long firstSequenceNumber,
             final int sequenceNumberCapacity,
             final int initialCapacity,
-            final ToLongFunction<T> getSequenceNumber) {
+            @NonNull final ToLongFunction<T> getSequenceNumber) {
         if (sequenceNumberCapacity <= 0) {
             throw new IllegalArgumentException(
                     "sequenceNumberCapacity must be positive, was " + sequenceNumberCapacity);
@@ -141,14 +142,17 @@ public final class CursoredLog<T> {
         this.buffer = new Object[capacity];
         this.mask = capacity - 1;
         this.getSequenceNumber = getSequenceNumber;
-        this.bySequenceNumber =
-                new StandardSequenceSet<>(firstSequenceNumber, sequenceNumberCapacity, true, Entry::sequenceNumber);
+        this.bySequenceNumber = new StandardSequenceSet<>(
+                firstSequenceNumber,
+                sequenceNumberCapacity,
+                true,
+                entry -> getSequenceNumber.applyAsLong(entry.item()));
     }
 
     /**
      * Appends an item to the end of the log.
      *
-     * @param item           the item to append
+     * @param item the item to append
      * @return the position assigned to the item, which remains valid until the item is removed
      * @throws IllegalArgumentException if {@code sequenceNumber} has already been removed from the log
      */
@@ -161,7 +165,7 @@ public final class CursoredLog<T> {
 
         final long position = tail;
         final long sequenceNumber = getSequenceNumber.applyAsLong(item);
-        final Entry<T> entry = new Entry<>(position, sequenceNumber, item);
+        final Entry<T> entry = new Entry<>(position, item);
         // Check if the item already exists in the log.
         if (!bySequenceNumber.add(entry)) {
             throw new IllegalArgumentException("sequence number " + sequenceNumber
@@ -180,8 +184,8 @@ public final class CursoredLog<T> {
      *
      * <p>Sequence numbers must be removed in strictly increasing order. Removing a sequence number also removes any
      * item still present with a <i>lower</i> sequence number, since the strictly increasing order means no later call
-     * could ever remove it. Both this and the argument itself become invalid for future calls to
-     * {@link #add(Object)}, which keeps the backing index from growing without bound as sequence numbers climb.
+     * could ever remove it. Both this and the argument itself become invalid for future calls to {@link #add(Object)},
+     * which keeps the backing index from growing without bound as sequence numbers climb.
      *
      * @param sequenceNumber the sequence number whose items are to be removed
      * @return the number of items removed

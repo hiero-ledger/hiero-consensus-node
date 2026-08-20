@@ -41,6 +41,7 @@ public class EventDeduplicator {
     /**
      * Avoid the creation of lambdas for {@link SequenceMap#computeIfAbsent} by reusing this lambda.
      */
+    @NonNull
     private static final Function<EventDescriptorWrapper, Set<Submission>> NEW_HASH_SET = ignored -> new HashSet<>();
 
     /**
@@ -66,6 +67,7 @@ public class EventDeduplicator {
     /**
      * The event window of the node that is furthest behind, which bounds what the rest of the network still needs.
      */
+    @NonNull
     private volatile EventWindow oldestEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
@@ -86,7 +88,7 @@ public class EventDeduplicator {
      * @param event the event to check, with its sender set to the node submitting it
      * @return {@code true} if the event should not be added to the event log
      */
-    public boolean isDuplicate(@NonNull final PlatformEvent event) {
+    public boolean addIfUnique(@NonNull final PlatformEvent event) {
         if (event.getBirthRound() < oldestEventWindow.expiredThreshold()) {
             return true;
         }
