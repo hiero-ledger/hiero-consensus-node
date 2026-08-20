@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-07-28
+last_reviewed: 2026-08-12
 ---
 
 # Restart and PCES
@@ -81,18 +81,32 @@ despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observi
 `event.preconsensus.inlinePcesSyncOption` config (
 `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java#inlinePcesSyncOption`, enum at
 `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java#EVERY_SELF_EVENT`) defaults to
-`DONT_SYNC`: no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java:77-84`). `EVERY_EVENT` and
-`EVERY_SELF_EVENT` are available as alternatives but are not the production defaults.
+`DONT_SYNC` (TUN-129): no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java:77-84`). `EVERY_EVENT`
+and `EVERY_SELF_EVENT` are available as alternatives but are not the production defaults.
 
-Strong-enough durability is provided by a JVM shutdown hook in `CommonPcesWriter` (
-`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java:136-150`)
-that runs `currentMutableFile.sync()` followed by `close()` when the JVM exits. Under graceful shutdown — `SIGTERM`,
-`System.exit`, normal exit — every event in the OS buffer is flushed to disk before the process terminates.
+Where the bytes sit when `writeEvent` returns depends on which file writer is configured:
 
-The residual failure mode is loss of host power or `SIGKILL`: the shutdown hook does not run, and any events still in
-the OS buffer at the moment of failure are not on disk after restart. This risk is accepted. No event loss in this
-window leads to an unrecoverable network state, including the loss of a keystone event — a network-wide loss of an
-in-flight keystone is recoverable.
+- `PcesFileChannelWriter` (Linux default, TUN-130) issues a `FileChannel.write` per event (
+  `PcesFileChannelWriter.java#flipWriteClear`). The bytes are in the kernel page cache before `writeEvent` returns.
+- `PcesOutputStreamFileWriter` (macOS default, TUN-131) writes into a `BufferedOutputStream` and does not flush (
+  `PcesOutputStreamFileWriter.java#writeEvent`). The most recently written events stay in JVM heap until the buffer
+  fills.
+
+A JVM shutdown hook, registered in the `DefaultInlinePcesWriter` constructor (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java#destroy`),
+runs `sync()` followed by `close()` on the current file (`CommonPcesWriter.java#destroy`) when the JVM exits. Under
+graceful shutdown — `SIGTERM`, `System.exit`, normal exit — this flushes both buffers before the process terminates.
+
+The residual failure modes are therefore not the same on both paths:
+
+- **On the `FILE_CHANNEL` path, process death alone loses nothing.** The shutdown hook does not run under `SIGKILL`,
+  but the page cache belongs to the kernel, not the dying process, so a restarting node reads back every event the
+  writer emitted. Only loss of host power or a kernel panic drops un-`fsync`ed bytes. This risk is accepted: no event
+  loss in this window leads to an unrecoverable network state, including the loss of a keystone event — a network-wide
+  loss of an in-flight keystone is recoverable.
+- **On the `OUTPUT_STREAM` path, `SIGKILL` loses whatever is still in the JVM buffer**, which can include self-events
+  already handed to gossip — the branching hazard that the [persisted-before-observed](#persisted-before-observed-consensus-gossip-parent-selection)
+  ordering exists to prevent. This path is not the production default.
 
 ## Restart sequence
 

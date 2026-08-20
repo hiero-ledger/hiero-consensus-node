@@ -396,9 +396,10 @@ public class TransactionChecker {
      */
     private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
             throws PreCheckException {
+        final var hederaConfig = hederaConfig();
         checkTransactionID(txBody.transactionIDOrThrow());
-        checkMemo(txBody.memo(), hederaConfig().transactionMaxMemoUtf8Bytes());
-        checkMaxCustomFees(txBody.maxCustomFees(), functionality);
+        checkMemo(txBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
+        checkMaxCustomFees(txBody.maxCustomFees(), functionality, hederaConfig.shard(), hederaConfig.realm());
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
         if (txBody.transactionFee() < 0) {
