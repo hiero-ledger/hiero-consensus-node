@@ -399,7 +399,7 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout 04780-pvcs-flag-default-to-true-2
+          git checkout fix/pvc-mount-capacity-verification
 
           task build:compile
           #npm run build
