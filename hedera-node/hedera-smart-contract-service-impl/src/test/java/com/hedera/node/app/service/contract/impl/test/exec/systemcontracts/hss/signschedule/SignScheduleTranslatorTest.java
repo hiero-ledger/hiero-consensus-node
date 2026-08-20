@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
@@ -32,7 +33,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.signschedule.SignScheduleTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -83,6 +86,9 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private ContractMetrics contractMetrics;
+
+    @Mock
+    private ContractCallStreamBuilder recordBuilder;
 
     @Mock
     private Key key;
@@ -283,10 +289,29 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
     @Test
     void testGasRequirement() {
         long expectedGas = 1000L;
-        when(gasCalculator.gasRequirement(transactionBody, DispatchType.SCHEDULE_SIGN, payerId))
+        when(gasCalculator.gasRequirement(transactionBody, DispatchType.SCHEDULE_SIGN, payerId, null))
                 .thenReturn(expectedGas);
 
-        long gas = SignScheduleTranslator.gasRequirement(transactionBody, gasCalculator, mockEnhancement(), payerId);
+        long gas =
+                SignScheduleTranslator.gasRequirement(transactionBody, gasCalculator, mockEnhancement(), payerId, null);
+
+        assertEquals(expectedGas, gas);
+    }
+
+    @Test
+    void testGasRequirementWithSignatureMap() {
+        long expectedGas = 1_000_000L;
+        final var signatureMap = SignatureMap.newBuilder()
+                .sigPair(List.of(SignaturePair.newBuilder()
+                        .pubKeyPrefix(ed25519.ed25519OrThrow())
+                        .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(randomBytes(64)))
+                        .build()))
+                .build();
+        when(gasCalculator.gasRequirement(transactionBody, DispatchType.SCHEDULE_SIGN, payerId, signatureMap))
+                .thenReturn(expectedGas);
+
+        long gas = SignScheduleTranslator.gasRequirement(
+                transactionBody, gasCalculator, mockEnhancement(), payerId, signatureMap);
 
         assertEquals(expectedGas, gas);
     }
@@ -375,6 +400,86 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
         final var keySet = SignScheduleTranslator.getKeyForSignSchedule(attempt);
 
         assertThat(keySet).contains(ecdsaKey).contains(ed25519);
+    }
+
+    @Test
+    void testCallFromSignScheduleThreadsSignatureMapIntoGasRequirement() throws Exception {
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(schedule.scheduleId()).willReturn(scheduleID);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
+        given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
+                .willReturn(verificationStrategy);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.chainId()).willReturn(296);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(CONFIG_WITH_TRANSACTION_MAX_BYTES);
+        given(signatureVerifier.verifySignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
+
+        final var sigMapBytes = getSigMapKnownKeyTypeBytes(296, 1, 1);
+        attempt = createHssCallAttempt(
+                Bytes.wrapByteBuffer(SignScheduleTranslator.SIGN_SCHEDULE.encodeCall(
+                        Tuple.of(APPROVED_HEADLONG_ADDRESS, sigMapBytes.toByteArray()))),
+                false,
+                configuration,
+                List.of(subject));
+
+        final var expectedSignatureMap = SignatureMap.PROTOBUF.parseStrict(sigMapBytes);
+        final var expectedBody = subject.bodyFor(scheduleID);
+        final var expectedGas = 1_450_495L;
+        given(gasCalculator.gasRequirement(expectedBody, DispatchType.SCHEDULE_SIGN, payerId, expectedSignatureMap))
+                .willReturn(expectedGas);
+        given(systemContractOperations.dispatch(
+                        eq(expectedBody),
+                        eq(verificationStrategy),
+                        eq(payerId),
+                        eq(ContractCallStreamBuilder.class),
+                        any(),
+                        eq(DispatchOptions.UsePresetTxnId.NO)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+
+        final var call = subject.callFrom(attempt);
+        final var pricedResult = call.execute(frame);
+
+        assertEquals(expectedGas, pricedResult.fullResult().gasRequirement());
+    }
+
+    @Test
+    void testCallFromSignScheduleProxyPassesNullSignatureMapToGasRequirement() {
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+        given(schedule.scheduleId()).willReturn(scheduleID);
+        given(nativeOperations.getAccount(payerId)).willReturn(SOMEBODY);
+        given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
+        given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
+                .willReturn(verificationStrategy);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+
+        attempt = createHssCallAttempt(
+                bytesForRedirectScheduleTxn(
+                        SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                false,
+                configuration,
+                List.of(subject));
+
+        final var expectedBody = subject.bodyFor(scheduleID);
+        final var expectedGas = 1000L;
+        given(gasCalculator.gasRequirement(expectedBody, DispatchType.SCHEDULE_SIGN, payerId, null))
+                .willReturn(expectedGas);
+        given(systemContractOperations.dispatch(
+                        eq(expectedBody),
+                        eq(verificationStrategy),
+                        eq(payerId),
+                        eq(ContractCallStreamBuilder.class),
+                        any(),
+                        eq(DispatchOptions.UsePresetTxnId.NO)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+
+        final var call = subject.callFrom(attempt);
+        final var pricedResult = call.execute(frame);
+
+        assertEquals(expectedGas, pricedResult.fullResult().gasRequirement());
     }
 
     @Test
