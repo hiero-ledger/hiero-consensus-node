@@ -167,7 +167,7 @@ public class SimulatedNetworkConnectivity {
                 // by
                 // its creator and again by every node that receives it. Each of those submissions belongs in the log,
                 // because the log records the node an event is transmitted from, but one per submitter is enough.
-                if (!deduplicator.isDuplicate(event)) {
+                if (!deduplicator.addIfUnique(event)) {
                     eventLog.add(event);
                 }
             }
