@@ -234,7 +234,7 @@ public class BlockNodeBackPressureSuite {
         return hapiTest(
                 // Let the 4-node network stabilize before shutting down the block node
                 doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
                 // With REAL block nodes (Docker containers), shutdown takes ~15s before the
