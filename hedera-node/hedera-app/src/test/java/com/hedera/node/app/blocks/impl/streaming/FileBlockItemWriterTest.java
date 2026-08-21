@@ -154,7 +154,7 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.openBlock(1);
 
         // Create a Bytes object and write it
-        final var bytes = new byte[] {1, 2, 3, 4, 5};
+        final var bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
         fileBlockItemWriter.writeItem(bytes);
 
@@ -242,7 +242,7 @@ class FileBlockItemWriterTest {
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Create a Bytes object and write it
-        final var bytes = new byte[] {1, 2, 3, 4, 5};
+        final var bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
 
         assertThatThrownBy(() -> fileBlockItemWriter.writeItem(bytes), "Cannot write item before opening a block")
                 .isInstanceOf(IllegalStateException.class);
@@ -333,21 +333,15 @@ class FileBlockItemWriterTest {
         assertTrue(emptyFile.exists(), "Open block should create an empty file");
         assertEquals(0, emptyFile.length(), "Empty file should have zero length");
 
-        subject.writeItem(BlockItem.PROTOBUF
-                .toBytes(BlockItem.newBuilder()
-                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
-                        .build())
-                .toByteArray());
-        subject.writeItem(BlockItem.PROTOBUF
-                .toBytes(BlockItem.newBuilder()
-                        .roundHeader(RoundHeader.newBuilder().roundNumber(2L).build())
-                        .build())
-                .toByteArray());
-        subject.writeItem(BlockItem.PROTOBUF
-                .toBytes(BlockItem.newBuilder()
-                        .roundHeader(RoundHeader.newBuilder().roundNumber(3L).build())
-                        .build())
-                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                .build()));
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(2L).build())
+                .build()));
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(3L).build())
+                .build()));
 
         final var pendingProof = PendingProof.newBuilder()
                 .block(1)
@@ -381,11 +375,9 @@ class FileBlockItemWriterTest {
 
         final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
         subject.openBlock(1);
-        subject.writeItem(BlockItem.PROTOBUF
-                .toBytes(BlockItem.newBuilder()
-                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
-                        .build())
-                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                .build()));
 
         subject.flushIncompleteBlock();
 
@@ -409,11 +401,9 @@ class FileBlockItemWriterTest {
 
         final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
         subject.openBlock(1);
-        subject.writeItem(BlockItem.PROTOBUF
-                .toBytes(BlockItem.newBuilder()
-                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
-                        .build())
-                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                .build()));
 
         // Pre-create the .open.gz target so the rename fails; the flush must swallow it (best-effort, never throws).
         Files.writeString(tempDir.resolve("block-0.0.3").resolve(OPEN_GZ), "blocker");
@@ -434,7 +424,7 @@ class FileBlockItemWriterTest {
                 .build());
         final var blockItem =
                 BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
-        subject.writeItem(BlockItem.PROTOBUF.toBytes(blockItem).toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(blockItem));
 
         final var pendingProof = PendingProof.newBuilder()
                 .block(2)
