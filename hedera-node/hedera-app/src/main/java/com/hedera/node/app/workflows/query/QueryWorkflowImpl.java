@@ -193,8 +193,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
                 final QueryContext context;
-                TransactionBody txBody;
+                TransactionBody txBody = null;
                 AccountID payerID = null;
+                // Payment submission is deferred until the node has validated the query and passed the query
+                // throttle (steps 4 and 5), so a query that is rejected or throttled is never charged.
+                Bytes deferredPayment = null;
+                IngestChecker.Result paidCheckerResult = null;
                 if (shouldCharge && paymentRequired) {
                     final var configuration = configProvider.getConfiguration();
                     final Bytes paymentBytes;
@@ -205,6 +209,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     }
 
                     final var checkerResult = new IngestChecker.Result();
+                    paidCheckerResult = checkerResult;
                     try {
                         // 3.i Ingest checks
                         ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
@@ -268,8 +273,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
+                            // 3.vi Capture the payment; it is submitted below only after the query is validated
+                            // and passes the throttle check, i.e. once the node has committed to answering it.
+                            deferredPayment = txInfo.serializedSignedTxOrThrow();
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
@@ -290,29 +296,48 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             null);
                 }
 
-                // 4. Check validity of query
-                handler.validate(context);
+                // Validate, throttle-check, and generate the response before submitting the payment, so the payer
+                // is charged only once the node has produced the answer it is charging for. If any of these steps
+                // fails, reclaim the throttle capacity the payment consumed at ingest, since no payment transaction
+                // will be submitted.
+                try {
+                    // 4. Check validity of query
+                    handler.validate(context);
 
-                // 5. Check query throttles
-                if (shouldCharge && synchronizedThrottleAccumulator.shouldThrottle(function, query, state, payerID)) {
-                    workflowMetrics.incrementThrottled(function);
-                    throw new PreCheckException(BUSY);
-                }
+                    // 5. Check query throttles
+                    if (shouldCharge
+                            && synchronizedThrottleAccumulator.shouldThrottle(function, query, state, payerID)) {
+                        workflowMetrics.incrementThrottled(function);
+                        throw new PreCheckException(BUSY);
+                    }
 
-                if (handler.needsAnswerOnlyCost(responseType)) {
-                    // 6.i Estimate costs
-                    final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                            .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                    final long queryFees = tinycentsToTinybars(
-                            queryFeeTinyCents.totalTinycents(),
-                            fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                    // 6. Generate the response
+                    if (handler.needsAnswerOnlyCost(responseType)) {
+                        // 6.i Estimate costs
+                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                        final long queryFees = tinycentsToTinybars(
+                                queryFeeTinyCents.totalTinycents(),
+                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
 
-                    final var header = createResponseHeader(responseType, OK, queryFees);
-                    response = handler.createEmptyResponse(header);
-                } else {
-                    // 6.ii Find response
-                    final var header = createResponseHeader(responseType, OK, 0L);
-                    response = handler.findResponse(context, header);
+                        final var header = createResponseHeader(responseType, OK, queryFees);
+                        response = handler.createEmptyResponse(header);
+                    } else {
+                        // 6.ii Find response
+                        final var header = createResponseHeader(responseType, OK, 0L);
+                        response = handler.findResponse(context, header);
+                    }
+
+                    // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs, now
+                    //      that the query has been validated, has passed throttling, and its response is ready.
+                    if (deferredPayment != null) {
+                        submissionManager.submit(txBody, deferredPayment, false);
+                    }
+                } catch (Exception e) {
+                    if (paidCheckerResult != null) {
+                        paidCheckerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
+                    }
+                    throw e;
                 }
             } catch (InsufficientBalanceException e) {
                 response = createErrorResponse(handler, responseType, e.responseCode(), e.getEstimatedFee());
