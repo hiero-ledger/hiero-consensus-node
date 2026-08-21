@@ -101,8 +101,8 @@ public class BlockNodeNetwork {
             boolean ready = false;
             while (System.currentTimeMillis() < deadline) {
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    final long lastBlock = client.getLastAvailableBlock();
-                    if (lastBlock >= 0) {
+                    final long nextExpected = client.getNextExpectedBlock();
+                    if (nextExpected >= 1) {
                         logger.info(
                                 "Block node container {} gRPC ready at {}:{}",
                                 id,
@@ -350,6 +350,17 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
         return blockNodeModeById;
+    }
+
+    /**
+     * Returns whether this network has no usable block nodes, i.e. the mode map is empty or every configured
+     * block node is in {@link BlockNodeMode#NONE} mode.
+     *
+     * @return true if there are no usable block nodes
+     */
+    public boolean isEmpty() {
+        return blockNodeModeById.isEmpty()
+                || blockNodeModeById.values().stream().allMatch(mode -> mode == BlockNodeMode.NONE);
     }
 
     public Set<Long> nodeIds() {
