@@ -4,20 +4,17 @@ package com.hedera.node.app.service.token.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
+import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.math.BigInteger;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.asn1.sec.SECNamedCurves;
-import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECPublicKeyParameters;
 
 /**
  * Encapsulates the logic for reading blocked accounts from file.
@@ -104,28 +101,9 @@ public class BlocklistParser {
             throw new IllegalArgumentException("Failed to decode line " + line, iae);
         }
 
-        final var publicKeyBytes = ecdsaPrivateToPublicKey(privateKeyBytes);
+        final var publicKeyBytes = Secp256k1Utils.extractEcdsaPublicKey(privateKeyBytes);
         final var evmAddressBytes = EthSigsUtils.recoverAddressFromPubKey(publicKeyBytes);
         return new BlockedInfo(Bytes.wrap(evmAddressBytes), parts[1]);
-    }
-
-    /**
-     * Derives the ECDSA public key bytes from the given ECDSA private key bytes.
-     *
-     * @param privateKeyBytes ECDSA private key bytes
-     * @return ECDSA public key bytes
-     */
-    private static byte[] ecdsaPrivateToPublicKey(byte[] privateKeyBytes) {
-        final var ecdsaSecp256K1Curve = SECNamedCurves.getByName("secp256k1");
-        final var ecdsaSecp256K1Domain = new ECDomainParameters(
-                ecdsaSecp256K1Curve.getCurve(),
-                ecdsaSecp256K1Curve.getG(),
-                ecdsaSecp256K1Curve.getN(),
-                ecdsaSecp256K1Curve.getH());
-        final var privateKeyData = new BigInteger(1, privateKeyBytes);
-        var q = ecdsaSecp256K1Domain.getG().multiply(privateKeyData);
-        var publicParams = new ECPublicKeyParameters(q, ecdsaSecp256K1Domain);
-        return publicParams.getQ().getEncoded(true);
     }
 
     /**
