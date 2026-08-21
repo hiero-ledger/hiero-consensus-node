@@ -65,6 +65,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
@@ -199,6 +200,9 @@ class BlockStreamManagerImplTest {
     private Counter indirectProofsCounter;
 
     @Mock
+    private Counter blockSizeCircuitBreakerTripsCounter;
+
+    @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
     @Mock
@@ -219,7 +223,116 @@ class BlockStreamManagerImplTest {
     @BeforeEach
     void setUp() {
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
-        lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenReturn(indirectProofsCounter);
+        lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenAnswer(invocation -> {
+            final Counter.Config counterConfig = invocation.getArgument(0);
+            return "numBlockSizeCircuitBreakerTrips".equals(counterConfig.getName())
+                    ? blockSizeCircuitBreakerTripsCounter
+                    : indirectProofsCounter;
+        });
+    }
+
+    @Test
+    void suppressesOversizedSavepointBatchesAtomicallyInBothMode() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                10_000,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var oversizedItem = BlockItem.newBuilder()
+                .signedTransaction(Bytes.wrap(new byte[20_000]))
+                .build();
+        final var pairedResult = transactionResultItemFrom(CONSENSUS_NOW.plusNanos(1));
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(2);
+        subject.writeSavepointItems(List.of(oversizedItem, pairedResult), lastAssignedTime);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime.plusNanos(1));
+        subject.prngSeed();
+
+        assertTrue(subject.isSavepointOutputSuppressed());
+        assertEquals(lastAssignedTime.plusNanos(1), subject.lastUsedConsensusTime());
+        verify(aWriter, never()).writePbjItemAndBytes(eq(oversizedItem), any());
+        verify(aWriter, never()).writePbjItemAndBytes(eq(pairedResult), any());
+        verify(aWriter, never()).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+    }
+
+    @Test
+    void opensCircuitBreakerWhenARequiredItemCrossesLimit() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        assertTrue(subject.isSavepointOutputSuppressed());
+        verify(blockSizeCircuitBreakerTripsCounter).increment();
+    }
+
+    @Test
+    void configuredLimitIsInactiveInBlocksMode() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        assertFalse(subject.isSavepointOutputSuppressed());
+        assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+    }
+
+    @Test
+    void refreshesCircuitBreakerConfigurationAtTheStartOfEveryBlock() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        // The constructor saw a disabled limit, but the first block sees the latest, enabled value.
+        given(configProvider.getConfiguration()).willReturn(versionedConfigWith(StreamMode.BOTH, 1, 2L));
+        subject.startRound(round, state);
+        assertTrue(subject.isSavepointOutputSuppressed());
+        subject.endRound(state, ROUND_NO);
+
+        // Disabling the limit is picked up when the next block starts.
+        given(configProvider.getConfiguration()).willReturn(versionedConfigWith(StreamMode.BOTH, 0, 3L));
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        subject.startRound(round, state);
+        assertFalse(subject.isSavepointOutputSuppressed());
     }
 
     @Test
@@ -1777,13 +1890,20 @@ class BlockStreamManagerImplTest {
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
             @NonNull final BlockItemWriter... writers) {
+        givenSubjectWith(roundsPerBlock, blockPeriod, StreamMode.BOTH, 0, blockStreamInfo, platformState, writers);
+    }
+
+    private void givenSubjectWith(
+            final int roundsPerBlock,
+            final int blockPeriod,
+            @NonNull final StreamMode streamMode,
+            final long maxBlockSizeBytes,
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final PlatformState platformState,
+            @NonNull final BlockItemWriter... writers) {
         final AtomicInteger nextWriter = new AtomicInteger(0);
-        final var config = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.roundsPerBlock", roundsPerBlock)
-                .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        given(configProvider.getConfiguration())
+                .willReturn(versionedConfigWith(roundsPerBlock, blockPeriod, streamMode, maxBlockSizeBytes, 1L));
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
                 () -> writers[nextWriter.getAndIncrement()],
@@ -1804,6 +1924,27 @@ class BlockStreamManagerImplTest {
         stateRef.set(platformState);
         blockStreamInfoState = new FunctionWritableSingletonState<>(
                 BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, infoRef::get, infoRef::set);
+    }
+
+    private VersionedConfigImpl versionedConfigWith(
+            @NonNull final StreamMode streamMode, final long maxBlockSizeBytes, final long version) {
+        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, version);
+    }
+
+    private VersionedConfigImpl versionedConfigWith(
+            final int roundsPerBlock,
+            final int blockPeriod,
+            @NonNull final StreamMode streamMode,
+            final long maxBlockSizeBytes,
+            final long version) {
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", roundsPerBlock)
+                .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
+                .withValue("blockStream.streamMode", streamMode.name())
+                .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
+                .getOrCreateConfig();
+        return new VersionedConfigImpl(config, version);
     }
 
     private void givenEndOfRoundSetup() {
