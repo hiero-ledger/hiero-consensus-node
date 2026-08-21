@@ -8,9 +8,11 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -45,6 +47,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
@@ -1193,6 +1196,289 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var node0InfoAfter = writableStakingInfoStore.get(node0Id.number());
         assertThat(node0InfoAfter.stakeToReward()).isEqualTo(node0InfoBefore.stakeToReward() - HBARS_TO_TINYBARS);
         assertThat(node0InfoAfter.unclaimedStakeRewardStart()).isZero();
+    }
+
+    @Test
+    void doesNotRewardStakeeDeletedInPriorTransaction() {
+        // Regression for the deleted-stakee freeze. The staker (payer) stakes to an account (owner)
+        // that was deleted in a PRIOR transaction but still carries its stakedNodeId/stakedToMe.
+        // Touching the staker must not rediscover the deleted stakee as a reward receiver; doing so
+        // used to throw IllegalStateException (its reward could not be redirected to a beneficiary,
+        // since that mapping only exists on the deleting transaction's record builder).
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart - 2)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedToMe(0L)
+                .withStakedAccountId(ownerId)
+                .build();
+        // The stakee is already deleted (deleted in an earlier transaction), but its staking fields
+        // were left intact by CryptoDelete, so without the guard it would be rediscovered here.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(0L)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart - 2)
+                .withDeclineReward(false)
+                .withDeleted(true)
+                .withStakedNodeId(node0Id.number())
+                .withStakedToMe(accountBalance)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        mockEntityIdFactory();
+
+        // The staker's balance changes (it sends 1 hbar), which previously triggered rediscovery of
+        // the deleted stakee.
+        writableAccountStore.put(account.copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedAccountId(ownerId)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+
+        // Finalization must not throw (it used to fail with IllegalStateException because the reward
+        // could not be redirected), and the deleted stakee must not be rewarded.
+        final var rewards =
+                assertDoesNotThrow(() -> subject.applyStakingRewards(context, Collections.emptySet(), emptyMap()));
+        assertThat(rewards).doesNotContainKey(ownerId);
+    }
+
+    @Test
+    void doesNotRewardDeletedExplicitRewardReceiver() {
+        // Defense-in-depth companion to the guard above. A stakee deleted in a prior transaction that is
+        // surfaced through the explicit reward-receiver path (StakingRewardsHelper#isCurrentlyStakedToNode,
+        // which the contract service can feed) must also be skipped, so finalization neither throws nor
+        // rewards it.
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart - 2)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedToMe(0L)
+                .withStakedAccountId(ownerId)
+                .build();
+        // The stakee is already deleted (deleted in an earlier transaction) but still staked to a node.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(0L)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart - 2)
+                .withDeclineReward(false)
+                .withDeleted(true)
+                .withStakedNodeId(node0Id.number())
+                .withStakedToMe(accountBalance)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        mockEntityIdFactory();
+
+        writableAccountStore.put(account.copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedAccountId(ownerId)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+
+        // The deleted stakee is passed explicitly (as the contract service would); it must still be
+        // filtered out before reward distribution.
+        final var rewards = assertDoesNotThrow(() -> subject.applyStakingRewards(context, Set.of(ownerId), emptyMap()));
+        assertThat(rewards).doesNotContainKey(ownerId);
+    }
+
+    @Test
+    void doesNotWithdrawNodeStakeForStakeeDeletedInPriorTransaction() {
+        // Regression for the node-stake drift adjacent to the deleted-stakee freeze fix. The staker
+        // (payer) stakes to an account (owner) that was deleted in a PRIOR transaction. The owner's
+        // node stake was already settled when it was deleted, but its stale stakedToMe is still updated
+        // when the staker's balance changes, pulling the deleted owner back into the modification set.
+        // adjustStakeMetadata then withdrew the owner's entire (stale) stakedToMe from the node WITHOUT
+        // re-awarding (the award path is guarded by !modifiedAccount.deleted()), spuriously reducing the
+        // node's stakeToReward on every transaction the orphaned staker makes and masking the rewardable
+        // stake of the node's other stakers. The node's stake must be left untouched.
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart - 2)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedToMe(0L)
+                .withStakedAccountId(ownerId)
+                .build();
+        // The stakee was deleted in an earlier transaction; CryptoDelete left its staking fields intact.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(0L)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart - 2)
+                .withDeclineReward(false)
+                .withDeleted(true)
+                .withStakedNodeId(node0Id.number())
+                .withStakedToMe(accountBalance)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        mockEntityIdFactory();
+
+        final var node0InfoBefore = writableStakingInfoState.get(node0Id);
+
+        // The staker sends 1 hbar, which updates the deleted stakee's stale stakedToMe.
+        writableAccountStore.put(account.copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedAccountId(ownerId)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+
+        subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+
+        // The deleted stakee's node stake was already withdrawn at delete time; the later transaction
+        // must not withdraw it again. Before the fix, node0's stakeToReward dropped by the stale
+        // stakedToMe (accountBalance), i.e. 666 hbar -> 611 hbar.
+        final var node0InfoAfter = writableStakingInfoStore.get(node0Id.number());
+        assertThat(node0InfoAfter.stakeToReward()).isEqualTo(node0InfoBefore.stakeToReward());
+    }
+
+    @Test
+    void redirectsRewardOfStakeeDeletedInInnerBatchTransactionToBeneficiary() {
+        // Atomic-batch case of the deleted-stakee freeze, exercising the child-dispatch beneficiary fold. In an
+        // atomic batch the stakee is deleted by an inner (BATCH_INNER) transaction, which does not pay staking
+        // rewards and records its delete->beneficiary mapping only on its own child record builder. Reward
+        // finalization runs once, on the parent batch, where the stakee's start-of-batch (original) value is
+        // still non-deleted -- so it is (correctly) rediscovered as a reward receiver whose reward must be
+        // redirected to the beneficiary. Without folding the child builder's mapping onto the parent (root)
+        // builder, payRewardsIfPending throws IllegalStateException (parent has no beneficiary,
+        // getNumberOfDeletedAccounts() == 0) and the batch is rolled back to a zero-fee FAIL_INVALID record.
+        // Complements redirectsRewardForAccountDeletedInChildDispatch (a node staker deleted in a PRIOR txn):
+        // here the deleted account is a node stakee with an indirect staker, deleted in the CURRENT txn, so it
+        // also exercises the node-stake settlement path (its stake is withdrawn exactly once).
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        // The indirect staker (payer) stakes to the stakee (owner) and is touched in the batch.
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedToMe(0L)
+                .withStakedAccountId(ownerId)
+                .build();
+        // The rewardable stakee is NOT deleted at the start of the batch; unlike the prior-transaction case, it
+        // is deleted only by an inner transaction within this batch, so its original value is still non-deleted.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(0L)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(node0Id.number())
+                .withStakedToMe(accountBalance)
+                .build();
+        // transferAccount is the beneficiary the inner CryptoDelete redirected the stakee's balance to.
+        addToState(
+                Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore, transferAccountId, transferAccount));
+
+        mockEntityIdFactory();
+
+        final var node0InfoBefore = writableStakingInfoState.get(node0Id);
+
+        // The staker sends 1 hbar, which rediscovers the (still non-deleted at start-of-batch) stakee.
+        writableAccountStore.put(account.copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedAccountId(ownerId)
+                .build());
+        // The inner transaction marked the stakee deleted (its remaining balance moved to the beneficiary).
+        writableAccountStore.put(ownerAccountBefore
+                .copyBuilder()
+                .deleted(true)
+                .tinybarBalance(0L)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+
+        // The parent (root) builder starts WITHOUT any deleted-account beneficiary (the mapping is on the inner
+        // delete's child builder). Back it with a real map so the fold -> redirect chain is exercised for real.
+        final Map<AccountID, AccountID> rootBeneficiaries = new HashMap<>();
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        willAnswer(inv -> {
+                    rootBeneficiaries.put(inv.getArgument(0), inv.getArgument(1));
+                    return null;
+                })
+                .given(recordBuilder)
+                .addBeneficiaryForDeletedAccount(any(AccountID.class), any(AccountID.class));
+        given(recordBuilder.getNumberOfDeletedAccounts()).willAnswer(inv -> rootBeneficiaries.size());
+        given(recordBuilder.getDeletedAccountBeneficiaryFor(any(AccountID.class)))
+                .willAnswer(inv -> rootBeneficiaries.get(inv.<AccountID>getArgument(0)));
+
+        // The inner (child) dispatch builder carries the delete->beneficiary mapping, exposed the same way the
+        // production fold reads it -- via forEachDeletedAccountBeneficiary, as CryptoDelete records it.
+        final var childRecordBuilder = mock(DeleteCapableTransactionStreamBuilder.class);
+        willAnswer(inv -> {
+                    final BiConsumer<AccountID, AccountID> action = inv.getArgument(0);
+                    action.accept(ownerId, transferAccountId);
+                    return null;
+                })
+                .given(childRecordBuilder)
+                .forEachDeletedAccountBeneficiary(any());
+        willAnswer(inv -> {
+                    final Consumer<DeleteCapableTransactionStreamBuilder> consumer = inv.getArgument(1);
+                    consumer.accept(childRecordBuilder);
+                    return null;
+                })
+                .given(context)
+                .forEachChildRecord(eq(DeleteCapableTransactionStreamBuilder.class), any());
+
+        // Finalization must not throw (it used to fail with IllegalStateException), and the reward must be
+        // redirected to the beneficiary exactly once -- never to the deleted stakee.
+        final var rewards =
+                assertDoesNotThrow(() -> subject.applyStakingRewards(context, Collections.emptySet(), emptyMap()));
+        assertThat(rewards).hasSize(1).containsKey(transferAccountId).doesNotContainKey(ownerId);
+        assertThat(rewards.get(transferAccountId)).isPositive();
+
+        // The child dispatch's mapping was folded into the parent (root) builder.
+        assertThat(rootBeneficiaries).containsEntry(ownerId, transferAccountId);
+
+        // A batch has a single finalization, so the delete settles the stakee's node stake exactly once --
+        // withdrawn, and not re-awarded because the account is deleted -- exactly as a standalone CryptoDelete
+        // does; the indirect-staker touch adds no further change. So stakeToReward drops by precisely the
+        // stakee's totalStake: neither left stale (no withdrawal) nor drained twice. That a LATER transaction
+        // touching the orphaned staker must not re-withdraw is covered by
+        // doesNotWithdrawNodeStakeForStakeeDeletedInPriorTransaction.
+        final var node0InfoAfter = writableStakingInfoStore.get(node0Id.number());
+        assertThat(node0InfoAfter.stakeToReward())
+                .isEqualTo(node0InfoBefore.stakeToReward() - roundedToHbar(totalStake(ownerAccountBefore)));
     }
 
     @Test
