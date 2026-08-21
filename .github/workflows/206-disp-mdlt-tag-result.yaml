@@ -21,7 +21,7 @@ on:
         options:
           - success
           - failure
-  BREAK THE WORKFLOW
+
 defaults:
   run:
     shell: bash

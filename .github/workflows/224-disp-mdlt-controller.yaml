@@ -7,7 +7,7 @@ on:
         required: true
         description: "The build tag to run MDLT against (e.g. build-12345)"
         type: string
-BREAK THE WORKFLOW
+
 defaults:
   run:
     shell: bash

@@ -22,7 +22,7 @@ on:
         required: false
         default: false
         type: boolean
-  BREAK THE WORKFLOW
+
 defaults:
   run:
     shell: bash
