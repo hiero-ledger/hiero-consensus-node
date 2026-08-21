@@ -36,7 +36,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "24"
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
