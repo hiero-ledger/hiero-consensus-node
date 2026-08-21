@@ -88,7 +88,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     private final StreamMode streamMode;
 
     private int numPresetIds;
-    private int noncesToSkipPerPresetId;
+    private int noncesPerPresetId;
     private boolean presetIdsAllowed;
 
     /**
@@ -166,7 +166,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
         // The +1 puts preset nonces strictly past the largest offset buildHandleOutput() can assign
-        noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser + 1;
+        noncesPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser + 1;
         setupFirstSavepoint(USER);
         baseBuilder = createRootBaseBuilder(maxSerializedTraceDataBytes);
     }
@@ -445,7 +445,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             presetIdsAllowed = false;
         }
         final var baseId = requireNonNull(baseBuilder.transactionID());
-        final var presetNonce = baseId.nonce() + numPresetIds * noncesToSkipPerPresetId;
+        final var presetNonce = baseId.nonce() + numPresetIds * noncesPerPresetId;
         if (baseId.nonce() < 0 && presetNonce >= 0) {
             throw new HandleException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
         }
