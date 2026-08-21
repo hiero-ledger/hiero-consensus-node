@@ -55,7 +55,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected Node doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        return new FalconNode(
+        final FalconNode node = new FalconNode(
                 random,
                 timeManager,
                 nodeId,
@@ -63,6 +63,8 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 simulatedNetworkTraffic,
                 networkConfiguration,
                 consensusRoundPool);
+        simulatedNetworkTraffic.addNode(nodeId, node);
+        return node;
     }
 
     /**

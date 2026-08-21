@@ -34,6 +34,7 @@ import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -46,7 +47,7 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 /**
  * An implementation of {@link Node} that is based on the Falcon framework.
  */
-public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
+public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, EventReceiver {
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
@@ -80,14 +81,17 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.networkTraffic = requireNonNull(networkTraffic);
-        this.networkTraffic.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
     }
 
-    private boolean onEventReceived(@NonNull final PlatformEvent event) {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean receiveEvent(@NonNull final PlatformEvent event) {
         if (wiring != null) {
             wiring.receivedGossipEventsInputWire().put(event);
             return true;
