@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
@@ -64,6 +65,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -395,6 +397,58 @@ class AtomicBatchHandlerTest {
         // Make sure that when the side effects are replayed they include EthereumTransaction's callback
         handleException.maybeReplay(mock(FeeCharging.Context.class), handleContext);
         assertTrue(rollbackCallbackCalledFlag.get());
+    }
+
+    @Test
+    void priorInnerFeesAreReplayedWhenNextInnerDispatchThrowsEagerly() throws PreCheckException {
+        // inner[0] is an EthereumTransaction that succeeds and registers a rollback side effect;
+        // inner[1]'s dispatch throws MAX_CHILD_RECORDS_EXCEEDED eagerly (as it does when the next
+        // inner's base record slot cannot be allocated against an already-full following sink),
+        // escaping context.dispatch() before inner[1]'s fee replay could be registered.
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .ethereumTransaction(EthereumTransactionBody.newBuilder().build())
+                .build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var storeFactoryMock = mock(StoreFactory.class);
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
+
+        final var rollbackCallbackCalledFlag = new AtomicBoolean(false);
+        final var dispatchCount = new AtomicInteger(0);
+        given(handleContext.dispatch(any())).willAnswer(answer -> {
+            if (dispatchCount.getAndIncrement() == 0) {
+                // inner[0]: register the EthereumTransaction rollback side effect and succeed
+                final var options = (DispatchOptions<StreamBuilder>) answer.getArgument(0);
+                options.dispatchMetadata()
+                        .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
+                        .ifPresent(consumer -> ((Consumer<HandleException.OnRollback>) consumer)
+                                .accept((_, _) -> rollbackCallbackCalledFlag.set(true)));
+                return recordBuilder;
+            }
+            // inner[1]: a HandleException escapes from within dispatch itself
+            throw new HandleException(MAX_CHILD_RECORDS_EXCEEDED);
+        });
+        given(recordBuilder.status()).willReturn(SUCCESS);
+
+        final var handleException = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        // The batch surfaces the original status of the escaping exception, not INNER_TRANSACTION_FAILED
+        assertEquals(MAX_CHILD_RECORDS_EXCEEDED, handleException.getStatus());
+
+        // The rethrown exception carries the rollback queue accumulated so far, so replaying it
+        // re-applies the already-processed inner's side effects: its EthereumTransaction callback and
+        // its fee replay.
+        handleException.maybeReplay(mock(FeeCharging.Context.class), handleContext);
+        assertTrue(rollbackCallbackCalledFlag.get());
+        verify(recordBuilder).setReplayedFees(any());
     }
 
     @Test
