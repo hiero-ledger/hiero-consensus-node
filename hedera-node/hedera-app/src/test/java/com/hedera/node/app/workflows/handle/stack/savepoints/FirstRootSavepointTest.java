@@ -30,7 +30,7 @@ class FirstRootSavepointTest {
     void usesBlockStreamBuilderForBlocksStreamMode() {
         givenSubjectWithCapacities(1, 2);
 
-        final var builder = subject.createBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, BLOCKS, false);
+        final var builder = subject.createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, BLOCKS);
 
         assertThat(builder).isInstanceOf(BlockStreamBuilder.class);
     }
