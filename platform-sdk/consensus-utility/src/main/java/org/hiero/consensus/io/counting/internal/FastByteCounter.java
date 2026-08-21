@@ -7,6 +7,7 @@ package org.hiero.consensus.io.counting.internal;
 public class FastByteCounter implements ModifiableByteCounter {
 
     private long count;
+    private long resetSoFar;
 
     @Override
     public void addToCount(final long value) {
@@ -22,6 +23,12 @@ public class FastByteCounter implements ModifiableByteCounter {
     public long getAndReset() {
         final long result = count;
         count = 0;
+        resetSoFar += result;
         return result;
+    }
+
+    @Override
+    public long getTotalCount() {
+        return count + resetSoFar;
     }
 }
