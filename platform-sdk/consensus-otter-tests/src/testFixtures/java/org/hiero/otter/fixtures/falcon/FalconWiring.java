@@ -57,6 +57,7 @@ public class FalconWiring implements TimeTickReceiver {
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
+    private final OutputWire<EventWindow> eventWindowOutputWire;
 
     /**
      * Constructor for {@link FalconWiring}.
@@ -113,7 +114,7 @@ public class FalconWiring implements TimeTickReceiver {
         orphanBufferOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
         orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
-        final OutputWire<EventWindow> eventWindowOutputWire = consensusEngineWiring
+        eventWindowOutputWire = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer("ConsensusRound", "consensus output", ConsensusEngineOutput::consensusRounds)
                 .<ConsensusRound>buildSplitter("ConsensusRoundSplitter", "consensus rounds")
@@ -152,6 +153,16 @@ public class FalconWiring implements TimeTickReceiver {
     @NonNull
     public OutputWire<PlatformEvent> sentGossipEventsOutputWire() {
         return eventCreationManagerWiring.getOutputWire();
+    }
+
+    /**
+     * Get the output wire that provides the event window of each consensus round.
+     *
+     * @return the output wire for event windows
+     */
+    @NonNull
+    public OutputWire<EventWindow> eventWindowOutputWire() {
+        return eventWindowOutputWire;
     }
 
     /**
