@@ -67,6 +67,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -76,7 +77,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -174,9 +174,6 @@ class BlockStreamManagerImplTest {
     private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
-    private Platform platform;
-
-    @Mock
     private BlockStreamManager.Lifecycle lifecycle;
 
     @Mock
@@ -213,6 +210,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private QuiescenceController quiescenceController;
+
+    @Mock
+    private NodeInfo selfNodeInfo;
 
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
@@ -290,8 +290,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -317,8 +317,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -359,8 +359,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -403,8 +403,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -432,8 +432,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1830,8 +1830,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1866,8 +1866,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1918,8 +1918,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1968,8 +1968,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -2017,8 +2017,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -2098,8 +2098,8 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
+                selfNodeInfo,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
