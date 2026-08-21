@@ -48,6 +48,7 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -2669,6 +2670,112 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final List<VirtualLeafBytes> dirtyLeaves =
                 snapshot.dirtyLeavesForFlush(1, 3).toList();
         assertFalse(dirtyLeaves.isEmpty(), "Snapshot should have dirty leaves for flush");
+    }
+
+    @Test
+    @DisplayName("Basic garbage collection")
+    void garbageCollectTest() {
+
+        final VirtualNodeCache cache0 = cache;
+        cache0.putLeaf(appleLeaf(8));
+        cache0.putLeaf(cherryLeaf(9));
+        cache0.putLeaf(eggplantLeaf(10));
+        cache0.putLeaf(figLeaf(11));
+
+        final VirtualNodeCache cache1 = cache0.copy();
+        cache1.putLeaf(bananaLeaf(12));
+        cache1.putLeaf(cuttlefishLeaf(19));
+        cache1.putLeaf(dateLeaf(13));
+        cache1.putLeaf(emuLeaf(20));
+        cache1.deleteLeaf(figLeaf(11));
+        cache0.prepareForHashing();
+        cache0.seal();
+
+        final VirtualNodeCache cache2 = cache1.copy();
+        cache2.putLeaf(dogLeaf(22));
+        cache2.putLeaf(leaf(30, E_KEY, EXOPLANET));
+        cache1.prepareForHashing();
+        cache1.seal();
+
+        cache2.prepareForHashing();
+        cache2.seal();
+
+        // Check cache0 contains leaves for C, E, and F. This will no longer be true after caches are
+        // merged and compacted
+        assertNotNull(cache0.lookupLeafByKey(C_KEY));
+        assertNotNull(cache0.lookupLeafByKey(E_KEY));
+        assertNotNull(cache0.lookupLeafByKey(F_KEY));
+        // cache1 contains leaf F, but it's deleted in version 1, so the leaf is actually just a marker
+        assertNotNull(cache1.lookupLeafByKey(F_KEY));
+        assertEquals(-1, cache1.lookupLeafByKey(F_KEY).path());
+
+        final long cache0OrigSize = cache0.getEstimatedSize();
+        final long cache1OrigSize = cache1.getEstimatedSize();
+        final long cache2OrigSize = cache2.getEstimatedSize();
+
+        // Merge cache0 into cache1. Garbage collection here is basically a no-op
+        cache0.garbageCollect();
+        cache0.merge();
+        final List<TestValue> expected1 = asList(APPLE, BANANA, CUTTLEFISH, DATE, EMU, null, null);
+        validateCache(cache1, expected1);
+        final long cache1MergedSize = cache1.getEstimatedSize();
+        assertTrue(cache1MergedSize == cache0OrigSize + cache1OrigSize);
+
+        // Merge cache1 into cache2. cache1 contains two mutations for E_KEY: EGGPLANT in version 0
+        // and EMU in version 1. The older one must be removed during garbage collection. The merged
+        // cache2 will then contain two mutations for this key: EMU from merged cache1 and
+        // EXOPLANET from version 2. One entry should be removed for C_KEY, too
+        cache1.garbageCollect();
+        cache1.merge();
+        final List<TestValue> expected2 = asList(APPLE, BANANA, CUTTLEFISH, DOG, EXOPLANET, null, null);
+        validateCache(cache2, expected2);
+        final long cache2MergedSize = cache2.getEstimatedSize();
+        assertTrue(cache2MergedSize < cache0OrigSize + cache1OrigSize + cache2OrigSize);
+        assertTrue(cache2MergedSize < cache1MergedSize + cache2OrigSize);
+        // There is no VirtualNodeCache API to check some mutations are really purged from shared
+        // node cache maps. A workaround is to query cache0. If it can't find a leaf, this must
+        // indicate the old mutation for version 0 is purged
+        assertNull(cache0.lookupLeafByKey(C_KEY));
+        assertNull(cache0.lookupLeafByKey(E_KEY));
+        assertNull(cache0.lookupLeafByKey(F_KEY));
+        // Now mutations for key F should be purged from caches completely. No marker (deleted) leaves
+        assertNull(cache1.lookupLeafByKey(F_KEY));
+        assertNull(cache2.lookupLeafByKey(F_KEY));
+    }
+
+    @Test
+    void garbageCollectRemovesDeletedMutations() {
+        final VirtualNodeCache cache0 = cache;
+        for (int i = 0; i < 10; i++) {
+            cache0.putLeaf(leaf(100 + i, 100 + i, i));
+        }
+
+        final VirtualNodeCache cache1 = cache0.copy();
+        cache0.prepareForHashing();
+        cache0.seal();
+        for (int i = 0; i < 10; i++) {
+            cache1.deleteLeaf(leaf(100 + i, 100 + i, i));
+            cache1.putLeaf(leaf(200 + i, 200 + i, i));
+        }
+
+        cache1.copy();
+        cache1.prepareForHashing();
+        cache1.seal();
+        cache0.merge();
+        final List<VirtualLeafBytes> deleted1Leaves = cache1.deletedLeaves().toList();
+        for (int i = 0; i < 10; i++) {
+            Assertions.assertTrue(deleted1Leaves.contains(leaf(100 + i, 100 + i, i)));
+            // DELETED_LEAF_RECORD indicates the cache contains a mutation, but it's deleted
+            Assertions.assertEquals(DELETED_LEAF_RECORD, cache1.lookupLeafByPath(100 + i));
+            Assertions.assertEquals(DELETED_LEAF_RECORD, cache1.lookupLeafByKey(TestKey.longToKey(100 + i)));
+        }
+
+        cache1.garbageCollect();
+        for (int i = 0; i < 10; i++) {
+            // Check that the deleted mutations have been removed from the cache
+            Assertions.assertNull(cache1.lookupLeafByPath(100 + i));
+            Assertions.assertNull(cache1.lookupLeafByKey(TestKey.longToKey(100 + i)));
+        }
     }
 
     // ----------------------------------------------------------------------

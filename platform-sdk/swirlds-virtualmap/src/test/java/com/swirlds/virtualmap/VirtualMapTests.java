@@ -25,6 +25,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
@@ -1373,6 +1375,96 @@ class VirtualMapTests extends VirtualTestBase {
         map2.release();
         map3.release();
         map4.release();
+    }
+
+    @Test
+    void noFlushesBelowInMemoryThreshold() throws InterruptedException {
+        final int inMemorySizeThreshold = 10;
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("virtualMap.inMemorySizeThreshold", "" + inMemorySizeThreshold)
+                // Any copy should be flushed
+                .withValue("virtualMap.copyFlushCandidateThreshold", "1")
+                .build();
+        final VirtualMap map0 = createMap(config);
+
+        for (int i = 0; i < inMemorySizeThreshold; i++) {
+            map0.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
+        }
+        final VirtualMap map1 = map0.copy();
+        map0.getHash();
+        map0.release();
+
+        Thread.sleep(500);
+        assertFalse(map0.isFlushed());
+        assertFalse(map0.isMerged());
+
+        final VirtualMap map2 = map1.copy();
+        map1.getHash();
+        map1.release();
+
+        Thread.sleep(500);
+        assertFalse(map0.isFlushed());
+
+        // Add one more item to exceed the in-memory threshold
+        map2.put(TestKey.longToKey(11), new TestValue("11"), TestValueCodec.INSTANCE);
+
+        final VirtualMap map3 = map2.copy();
+        map2.getHash();
+        map2.release();
+        assertEventuallyTrue(map0::isMerged, Duration.ofMillis(1000), "Copy 1 should be merged");
+        assertEventuallyTrue(map2::isFlushed, Duration.ofMillis(1000), "Copy 2 should be flushed");
+
+        map3.release();
+    }
+
+    @Test
+    void garbageCollectRemovesDeletedLeaves() throws InterruptedException {
+        final int inMemorySizeThreshold = 10;
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("virtualMap.inMemorySizeThreshold", "" + inMemorySizeThreshold)
+                .withValue("virtualMap.copyFlushCandidateThreshold", "1")
+                .build();
+        final VirtualMap map0 = createMap(config);
+
+        for (int i = 0; i < inMemorySizeThreshold + 1; i++) {
+            map0.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
+        }
+        assertTrue(map0.shouldBeFlushed()); // VM size exceeds in-memory threshold
+
+        final VirtualMap map1 = map0.copy();
+        map0.getHash();
+        map0.release();
+        map0.waitUntilFlushed();
+
+        // This removes one key and also brings VM size to below the in-memory threshold, so
+        // there should be no more flushes
+        final Bytes toDelete = TestKey.longToKey(inMemorySizeThreshold);
+        map1.remove(toDelete);
+        assertFalse(map1.shouldBeFlushed());
+
+        final VirtualMap map2 = map1.copy();
+        map1.getHash();
+        map1.release();
+
+        // Create one more copy, so map2 becomes immutable/destroyed, and map1 can be merged
+        final VirtualMap map3 = map2.copy();
+        map2.getHash();
+        map2.release();
+
+        assertEventuallyTrue(map1::isMerged, Duration.ofMillis(1000), "Copy 1 should be merged");
+
+        // map1 is merged, and in-memory mode is on. The deleted key should be removed both from
+        // the cache and the data source
+        assertFalse(map2.containsKey(toDelete));
+        assertNull(map2.getBytes(toDelete));
+        assertNull(map2.getCache().lookupLeafByKey(toDelete));
+        assertFalse(map3.containsKey(toDelete));
+        assertNull(map3.getBytes(toDelete));
+        assertNull(map3.getCache().lookupLeafByKey(toDelete));
+
+        map3.release();
     }
 
     private void validateDeletedLeaves(
