@@ -69,11 +69,13 @@ persistence path, signed-state saving, and the reconnect gate.
   the current file before emitting it (`DefaultInlinePcesWriter.java:71-75`). So
   every event a node needs to reach consensus is durable on disk before consensus
   acts on it; on an ordinary restart the node rebuilds its hashgraph by replaying
-  its own PCES, with no help from peers. Graceful shutdown flushes the OS buffer
-  to disk through a JVM shutdown hook (`CommonPcesWriter.java:136-150`); the
-  residual loss window on `SIGKILL` or power loss is an accepted risk that does
-  not by itself produce a network-wide unrecoverable state (see
-  [restart-and-pces.md](../architecture/topics/restart-and-pces.md)).
+  its own PCES, with no help from peers. Graceful shutdown additionally syncs and
+  closes the current file through a JVM shutdown hook
+  (`DefaultInlinePcesWriter.java#destroy`). A residual loss window remains, whose
+  size depends on the configured file writer; it is an accepted risk that does not
+  by itself produce a network-wide unrecoverable state. See
+  [restart-and-pces.md](../architecture/topics/restart-and-pces.md#durability-model)
+  for the durability model.
 - **Periodic — a recent on-disk base state.** A signed state is produced at every
   block boundary (and at the freeze round) and marked for saving on a period
   (`DefaultSavedStateController.java:111`), written to disk by

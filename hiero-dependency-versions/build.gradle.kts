@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.16.Final"))
+    api(platform("io.netty:netty-bom:4.2.17.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -28,6 +28,7 @@ val tuweni = "2.7.2"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
+    api("io.netty:netty-codec-http:4.2.17.Final") { because("io.netty.codec.http") }
     api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
     api("io.helidon.webclient:helidon-webclient:$helidon") { because("io.helidon.webclient") }
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
