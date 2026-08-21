@@ -3,6 +3,7 @@ package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.validation.annotation.Min;
@@ -46,6 +47,7 @@ import java.time.Duration;
  * @param opTimeoutMaxMillis the maximum amount of time (in milliseconds) to set for dynamic timeouts when sending requests to a block node
  * @param opTimeoutMaxAttemptsPerWindow the maximum number of times requests are allowed to timeout within a given window before the connection is closed
  * @param opTimeoutWindowDuration the sliding window duration used for checking if too many request timeouts have occurred
+ * @param grpcCompressionType the type of compression to use while communicating to the block node
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -81,6 +83,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(value = "operationTimeout.microsPerKilobyte", defaultValue = "250") @Min(0) @NetworkProperty long opTimeoutMicrosPerKilobyte,
         @ConfigProperty(value = "operationTimeout.maxMillis", defaultValue = "30000") @Min(1) @NetworkProperty long opTimeoutMaxMillis,
         @ConfigProperty(value = "operationTimeout.maxTimeoutsPerWindow", defaultValue = "3") @Min(1) @NetworkProperty int opTimeoutMaxAttemptsPerWindow,
-        @ConfigProperty(value = "operationTimeout.timeoutWindowDuration", defaultValue = "60s") @NetworkProperty Duration opTimeoutWindowDuration) {
+        @ConfigProperty(value = "operationTimeout.timeoutWindowDuration", defaultValue = "60s") @NetworkProperty Duration opTimeoutWindowDuration,
+        @ConfigProperty(defaultValue = "NONE") @NetworkProperty BlockStreamGrpcCompressionType grpcCompressionType) {
 }
 // spotless:on
