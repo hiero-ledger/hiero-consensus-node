@@ -793,14 +793,19 @@ public class FileServiceSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        fileUpdate("1.2.3")
+                        // Use a non-system file number so the update is not a privileged operation:
+                        // it passes ingest and fails at consensus with INVALID_FILE_ID, still charged
+                        // the base fee.
+                        fileUpdate("1.2.3000")
                                 .contents("abc")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .via("fileUpdateInvalidFileIdTxn")
                                 .hasKnownStatus(INVALID_FILE_ID),
                         validateChargedUsdWithinWithTxnSize(
-                                "fileUpdateInvalidFileIdTxn", ignored -> 0.0, ALLOWED_PERCENT_DIFF));
+                                "fileUpdateInvalidFileIdTxn",
+                                FileServiceSimpleFeesTest::expectedFileUpdateBaseOnlyFeeUsd,
+                                ALLOWED_PERCENT_DIFF));
             }
 
             @HapiTest
