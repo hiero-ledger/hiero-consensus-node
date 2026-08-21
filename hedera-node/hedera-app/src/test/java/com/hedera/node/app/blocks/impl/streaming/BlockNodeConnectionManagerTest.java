@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -53,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Future.State;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1916,6 +1918,45 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node).onTerminate(CloseReason.SHUTDOWN);
         verify(bufferService).shutdown();
         verify(blockNodeConfigService).shutdown();
+    }
+
+    @Test
+    void startRollsBackToStoppedStateWhenAnInnerStartStepFails() {
+        // An inner start step fails partway through start(). The manager must roll back to a consistent stopped
+        // state (active=false, no monitor thread) rather than leaving "active but not started".
+        doThrow(new RejectedExecutionException("buffer start failed"))
+                .when(bufferService)
+                .start();
+
+        // start() still surfaces the failure, but the finally-rollback must leave a clean stopped state
+        assertThatThrownBy(() -> connectionManager.start()).isInstanceOf(RejectedExecutionException.class);
+
+        assertThat(isConnectionManagerActive()).isFalse();
+        assertThat(connectionMonitorThreadRef()).hasNullValue();
+        verify(bufferService).shutdown();
+        verify(blockNodeConfigService).shutdown();
+    }
+
+    @Test
+    void shutdownCompletesRemainingTeardownWhenAStepFails() {
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        activeConnectionRef().set(connection);
+        isConnectionManagerActive().set(true);
+        connectionMonitorThreadRef().set(mock(Thread.class));
+        final BlockNode node = mock(BlockNode.class);
+        blockNodes().put(new BlockNodeEndpoint("localhost", 1234), node);
+
+        // an early teardown step fails; the remaining steps must still run (best-effort teardown)
+        doThrow(new RuntimeException("config shutdown failed"))
+                .when(blockNodeConfigService)
+                .shutdown();
+
+        // pre-fix shutdown() throws here and skips the rest; post-fix it completes every step
+        assertThatCode(() -> connectionManager.shutdown()).doesNotThrowAnyException();
+
+        verify(node).onTerminate(CloseReason.SHUTDOWN);
+        assertThat(activeConnectionRef()).hasNullValue();
+        assertThat(connectionMonitorThreadRef()).hasNullValue();
     }
 
     // Utilities

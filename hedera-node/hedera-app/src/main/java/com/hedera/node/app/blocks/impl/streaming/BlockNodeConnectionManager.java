@@ -224,22 +224,7 @@ public class BlockNodeConnectionManager {
         }
         logger.info("Shutting down block node connection manager...");
 
-        final ExecutorService blockingIoExecutor = blockingIoExecutorRef.getAndSet(null);
-        if (blockingIoExecutor != null) {
-            blockingIoExecutor.shutdownNow();
-        }
-
-        blockNodeConfigService.shutdown();
-        blockBufferService.shutdown();
-
-        // clear connection monitor thread reference
-        connectionMonitorThreadRef.set(null);
-
-        for (final BlockNode node : nodes.values()) {
-            node.onTerminate(CloseReason.SHUTDOWN);
-        }
-
-        activeConnectionRef.set(null);
+        teardownQuietly();
 
         logger.info("Block node connection manager shutdown");
     }
@@ -259,30 +244,69 @@ public class BlockNodeConnectionManager {
         }
         logger.info("Starting block node connection manager...");
 
-        if (blockingIoExecutorRef.get() == null) {
-            /*
-            Why the null check? We initialize the blocking I/O executor in the constructor by calling the supplier,
-            but an instance of the connection manager can be shutdown and technically can be restarted. During the
-            shutdown process, the executor is also shutdown (and set to null) so if the manager was started again we
-            need to get another instance from the blocking I/O executor from the supplier.
-             */
-            blockingIoExecutorRef.compareAndSet(null, blockingIoExecutorSupplier.get());
+        boolean started = false;
+        try {
+            if (blockingIoExecutorRef.get() == null) {
+                /*
+                Why the null check? We initialize the blocking I/O executor in the constructor by calling the supplier,
+                but an instance of the connection manager can be shutdown and technically can be restarted. During the
+                shutdown process, the executor is also shutdown (and set to null) so if the manager was started again we
+                need to get another instance from the blocking I/O executor from the supplier.
+                 */
+                blockingIoExecutorRef.compareAndSet(null, blockingIoExecutorSupplier.get());
+            }
+
+            // Start the block buffer service
+            blockBufferService.start();
+
+            // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
+            blockNodeConfigService.start();
+
+            // Start the background monitor thread
+            final Thread connectionMonitorThread = new Thread(new ConnectionMonitorTask(), "bn-conn-monitor");
+            if (connectionMonitorThreadRef.compareAndSet(null, connectionMonitorThread)) {
+                connectionMonitorThread.setDaemon(true);
+                connectionMonitorThread.start();
+            }
+
+            started = true;
+            logger.info("Block node connection manager started");
+        } finally {
+            if (!started) {
+                // Roll back a partial start to a consistent stopped state (never "active but not started").
+                logger.error("Failed to start block node connection manager; rolling back to a stopped state");
+                teardownQuietly();
+                isConnectionManagerActive.set(false);
+            }
         }
+    }
 
-        // Start the block buffer service
-        blockBufferService.start();
-
-        // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
-        blockNodeConfigService.start();
-
-        // Start the background monitor thread
-        final Thread connectionMonitorThread = new Thread(new ConnectionMonitorTask(), "bn-conn-monitor");
-        if (connectionMonitorThreadRef.compareAndSet(null, connectionMonitorThread)) {
-            connectionMonitorThread.setDaemon(true);
-            connectionMonitorThread.start();
+    /**
+     * Best-effort teardown shared by {@link #shutdown()} and the rollback path of {@link #start()}: every step runs
+     * even if an earlier one fails, so a partial start or a failing shutdown still leaves a consistent stopped state.
+     */
+    private void teardownQuietly() {
+        quietly(() -> {
+            final ExecutorService blockingIoExecutor = blockingIoExecutorRef.getAndSet(null);
+            if (blockingIoExecutor != null) {
+                blockingIoExecutor.shutdownNow();
+            }
+        });
+        quietly(blockNodeConfigService::shutdown);
+        quietly(blockBufferService::shutdown);
+        connectionMonitorThreadRef.set(null);
+        for (final BlockNode node : nodes.values()) {
+            quietly(() -> node.onTerminate(CloseReason.SHUTDOWN));
         }
+        activeConnectionRef.set(null);
+    }
 
-        logger.info("Block node connection manager started");
+    private void quietly(final Runnable action) {
+        try {
+            action.run();
+        } catch (final RuntimeException e) {
+            logger.warn("Error during block node connection manager teardown (ignoring)", e);
+        }
     }
 
     /**
