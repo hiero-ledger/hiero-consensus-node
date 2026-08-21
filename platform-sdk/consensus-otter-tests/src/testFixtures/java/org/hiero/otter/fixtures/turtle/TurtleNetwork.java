@@ -115,6 +115,8 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
+        super.preStartHook(roster);
+
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
