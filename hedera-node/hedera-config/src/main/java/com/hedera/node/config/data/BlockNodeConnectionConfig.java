@@ -84,6 +84,6 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(value = "operationTimeout.maxMillis", defaultValue = "30000") @Min(1) @NetworkProperty long opTimeoutMaxMillis,
         @ConfigProperty(value = "operationTimeout.maxTimeoutsPerWindow", defaultValue = "3") @Min(1) @NetworkProperty int opTimeoutMaxAttemptsPerWindow,
         @ConfigProperty(value = "operationTimeout.timeoutWindowDuration", defaultValue = "60s") @NetworkProperty Duration opTimeoutWindowDuration,
-        @ConfigProperty(defaultValue = "NONE") @NetworkProperty BlockStreamGrpcCompressionType grpcCompressionType) {
+        @ConfigProperty(defaultValue = "ZSTD") @NetworkProperty BlockStreamGrpcCompressionType grpcCompressionType) {
 }
 // spotless:on

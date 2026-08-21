@@ -75,17 +75,7 @@ public class BlockNodeClientFactory {
         requireNonNull(compressionType, "compression type is required");
 
         final Tls tls = Tls.builder().enabled(false).build();
-
-        final PbjGrpcClientConfig pbjConfig;
-        if (BlockStreamGrpcCompressionType.NONE == compressionType) {
-            pbjConfig = new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
-        } else if (BlockStreamGrpcCompressionType.ZSTD == compressionType) {
-            pbjConfig = new PbjGrpcClientConfig(
-                    timeout, tls, Optional.of(""), "application/grpc", ZSTD, GrpcCompression.getDecompressorNames());
-        } else {
-            throw new IllegalArgumentException("Unexpected compression type: " + compressionType);
-        }
-
+        final PbjGrpcClientConfig pbjConfig = buildPbjConfig(timeout, tls, compressionType);
         final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
         final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
         final int port =
@@ -103,6 +93,26 @@ public class BlockNodeClientFactory {
                 .build();
 
         return new PbjGrpcClient(webClient, pbjConfig);
+    }
+
+    /**
+     * Build the PBJ gRPC client config.
+     *
+     * @param timeout the timeout for the gRPC client
+     * @param tls TLS configuration for the gRPC client
+     * @param compressionType the type of compression to use for communication over the gRPC client
+     * @return the PBJ gRPC client config
+     */
+    private PbjGrpcClientConfig buildPbjConfig(
+            final Duration timeout, final Tls tls, final BlockStreamGrpcCompressionType compressionType) {
+        if (BlockStreamGrpcCompressionType.NONE == compressionType) {
+            return new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
+        } else if (BlockStreamGrpcCompressionType.ZSTD == compressionType) {
+            return new PbjGrpcClientConfig(
+                    timeout, tls, Optional.of(""), "application/grpc", ZSTD, GrpcCompression.getDecompressorNames());
+        } else {
+            throw new IllegalArgumentException("Unexpected compression type: " + compressionType);
+        }
     }
 
     /**
