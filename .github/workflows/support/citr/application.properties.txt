@@ -12,4 +12,4 @@ blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/da
 
 staking.periodMins=360
 
-tss.forceMockSignatures = false
+tss.forceMockSignatures=false
