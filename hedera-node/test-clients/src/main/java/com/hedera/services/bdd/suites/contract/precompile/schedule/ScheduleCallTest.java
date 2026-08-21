@@ -173,8 +173,6 @@ public class ScheduleCallTest {
      * reaches that boundary; with the production defaults (3 preceding, 50 following) it takes a contract that
      * saturates the whole budget to reach the same nonce 53.
      */
-    // LeakyRepeatableHapiTest: as with the other scheduleCall tests, the synchronous handle workflow keeps
-    // StreamValidationTest from racing the schedule's child records.
     @LeakyRepeatableHapiTest(
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             overrides = {MAX_PRECEDING_RECORDS, MAX_FOLLOWING_RECORDS})
