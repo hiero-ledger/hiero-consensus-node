@@ -147,6 +147,13 @@ public record PreHandleResult(
     public PreHandleResult {
         requireNonNull(status);
         requireNonNull(responseCode);
+        // Defensively wrap the exposed collections so a consumer cannot mutate them after construction.
+        // innerResults is intentionally left mutable: atomic-batch pre-handle appends inner results to it
+        // after construction (see PreHandleWorkflow#preHandleTransaction).
+        requiredKeys = requiredKeys == null ? null : Collections.unmodifiableSet(requiredKeys);
+        optionalKeys = optionalKeys == null ? null : Collections.unmodifiableSet(optionalKeys);
+        hollowAccounts = hollowAccounts == null ? null : Collections.unmodifiableSet(hollowAccounts);
+        verificationResults = verificationResults == null ? null : Collections.unmodifiableMap(verificationResults);
     }
 
     /**
