@@ -21,11 +21,13 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
@@ -119,6 +121,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
+    private final boolean blockSizeCircuitBreakerApplicable;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -161,6 +164,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
+    // The circuit-breaker size configuration snapshot for the current block.
+    private boolean blockSizeCircuitBreakerEnabled;
+    private long maxBlockSizeBytes;
+    // The canonical serialized size of all items accepted into the current block, excluding its asynchronous proof.
+    private long currentBlockSizeBytes;
+    // Once open, no more output from savepoint stacks is accepted until the next block starts.
+    private boolean savepointOutputSuppressed;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -229,6 +239,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Counter indirectProofCounter;
 
+    private final Counter blockSizeCircuitBreakerTripsCounter;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -260,6 +272,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
+        this.blockSizeCircuitBreakerApplicable = blockStreamConfig.streamMode() == BOTH;
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -272,6 +285,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
+        blockSizeCircuitBreakerTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numBlockSizeCircuitBreakerTrips")
+                .withDescription("Number of preview blocks whose savepoint output was suppressed by the size limit"));
         if (!quiescenceEnabled) {
             log.info("Quiescence is disabled");
             quiescedHeartbeat.shutdown();
@@ -439,6 +455,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         // Writer will be null when beginning a new block
         if (writer == null) {
+            final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+            maxBlockSizeBytes = blockStreamConfig.maxBlockSizeBytes();
+            blockSizeCircuitBreakerEnabled = blockSizeCircuitBreakerApplicable && maxBlockSizeBytes > 0;
+            currentBlockSizeBytes = 0;
+            savepointOutputSuppressed = false;
+
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
@@ -478,7 +500,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
-            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
+            writeItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
@@ -643,7 +665,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             quiescenceController.finishHandlingInProgressBlock();
             state.commitSingletons();
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             // This block's starting state hash is the end state hash of the last non-empty round
@@ -698,7 +720,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             ((CommittableWritableStates) writableState).commit();
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -730,7 +752,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Write BlockFooter to block stream (last item before BlockProof)
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
-            worker.addItem(footerItem);
+            writeItem(footerItem);
             worker.sync();
 
             // Create a pending block, waiting to be signed
@@ -873,11 +895,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
-        lastUsedTime = switch (item.item().kind()) {
-            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
-            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
-            default -> lastUsedTime;
-        };
+        requireNonNull(item);
+        accountForWrittenItems(List.of(item));
+        updateLastUsedTimeFrom(item);
         worker.addItem(item);
     }
 
@@ -885,6 +905,87 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public void writeItem(@NonNull final Function<Timestamp, BlockItem> itemSpec) {
         requireNonNull(itemSpec);
         writeItem(itemSpec.apply(lastUsedTime));
+    }
+
+    @Override
+    public void writeSavepointItems(
+            @NonNull final List<BlockItem> items, @NonNull final Instant lastUsedConsensusTime) {
+        requireNonNull(items);
+        requireNonNull(lastUsedConsensusTime);
+
+        if (blockSizeCircuitBreakerEnabled) {
+            if (savepointOutputSuppressed) {
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            final long candidateSize = serializedBlockSize(items);
+            final long projectedSize = saturatedAdd(currentBlockSizeBytes, candidateSize);
+            if (projectedSize > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(projectedSize, candidateSize);
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            currentBlockSizeBytes = projectedSize;
+            items.forEach(item -> {
+                updateLastUsedTimeFrom(item);
+                worker.addItem(item);
+            });
+        } else {
+            items.forEach(this::writeItem);
+        }
+        advanceLastUsedTimeTo(lastUsedConsensusTime);
+    }
+
+    @Override
+    public boolean isSavepointOutputSuppressed() {
+        return savepointOutputSuppressed;
+    }
+
+    private void accountForWrittenItems(@NonNull final List<BlockItem> items) {
+        if (!blockSizeCircuitBreakerEnabled) {
+            return;
+        }
+        final long addedSize = serializedBlockSize(items);
+        currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
+        if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
+            tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
+        }
+    }
+
+    private void tripBlockSizeCircuitBreaker(final long projectedSize, final long addedSize) {
+        savepointOutputSuppressed = true;
+        blockSizeCircuitBreakerTripsCounter.increment();
+        log.error(
+                "Preview block #{} reached a projected serialized size of {} bytes after adding {} bytes, "
+                        + "exceeding the {}-byte limit; suppressing savepoint output for the rest of the block",
+                blockNumber,
+                projectedSize,
+                addedSize,
+                maxBlockSizeBytes);
+    }
+
+    private static long serializedBlockSize(@NonNull final List<BlockItem> items) {
+        // A Block is only a repeated BlockItem field, so measuring a Block containing this batch gives its exact
+        // contribution to the canonical, uncompressed protobuf representation.
+        return Block.PROTOBUF.measureRecord(new Block(items));
+    }
+
+    private static long saturatedAdd(final long a, final long b) {
+        return a > Long.MAX_VALUE - b ? Long.MAX_VALUE : a + b;
+    }
+
+    private void updateLastUsedTimeFrom(@NonNull final BlockItem item) {
+        lastUsedTime = switch (item.item().kind()) {
+            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
+            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
+            default -> lastUsedTime;
+        };
+    }
+
+    private void advanceLastUsedTimeTo(@NonNull final Instant consensusTime) {
+        if (lastUsedTime == null || consensusTime.isAfter(asInstant(lastUsedTime))) {
+            lastUsedTime = asTimestamp(consensusTime);
+        }
     }
 
     @Override
