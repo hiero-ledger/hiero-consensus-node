@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.16.Final"))
+    api(platform("io.netty:netty-bom:4.2.17.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -28,6 +28,7 @@ val tuweni = "2.7.2"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
+    api("io.netty:netty-codec-http:4.2.17.Final") { because("io.netty.codec.http") }
     api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
     api("io.helidon.webclient:helidon-webclient:$helidon") { because("io.helidon.webclient") }
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
@@ -78,7 +79,6 @@ dependencies.constraints {
     }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
-    api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.22.0") { because("org.apache.commons.codec") }
@@ -127,6 +127,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
+    }
+    api("com.hedera.cryptography:libsodium:$hederaCryptography") {
+        because("com.hedera.cryptography.libsodium")
     }
     api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
         because("com.hedera.cryptography.libsecp256k1")
