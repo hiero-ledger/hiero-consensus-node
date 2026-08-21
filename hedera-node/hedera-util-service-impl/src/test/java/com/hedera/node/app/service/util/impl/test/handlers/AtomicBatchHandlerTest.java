@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -38,6 +39,8 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
@@ -70,6 +73,8 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -106,6 +111,8 @@ class AtomicBatchHandlerTest {
     private static final Key SIMPLE_KEY_B = Key.newBuilder()
             .ed25519(Bytes.wrap("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".getBytes()))
             .build();
+    private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(0).build();
     private final AccountID payerId1 = AccountID.newBuilder().accountNum(1001).build();
     private final AccountID payerId2 = AccountID.newBuilder().accountNum(1002).build();
     private final AccountID payerId3 = AccountID.newBuilder().accountNum(1003).build();
@@ -272,6 +279,65 @@ class AtomicBatchHandlerTest {
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(MISSING_BATCH_KEY, msg.responseCode());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = TransactionBody.DataOneOfType.class,
+            names = {"ETHEREUM_TRANSACTION", "CONTRACT_CALL", "CONTRACT_CREATE_INSTANCE"})
+    void failsIfEvmTransactionIsNotLast(final TransactionBody.DataOneOfType evmTxnType) throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var evmTxnBody = evmTxnBody(evmTxnType, payerId2);
+        final var nonEvmTxnBody = newTxnBodyBuilder(payerId3, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID)
+                .build();
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(evmTxnBody);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(nonEvmTxnBody);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_TRANSACTION_BODY, msg.responseCode());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = TransactionBody.DataOneOfType.class,
+            names = {"ETHEREUM_TRANSACTION", "CONTRACT_CALL", "CONTRACT_CREATE_INSTANCE"})
+    void allowsOneEvmTransactionWhenItIsLast(final TransactionBody.DataOneOfType evmTxnType) throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var nonEvmTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID)
+                .build();
+        final var evmTxnBody = evmTxnBody(evmTxnType, payerId3);
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(nonEvmTxnBody);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(evmTxnBody);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    void failsIfBatchContainsMultipleEvmTransactions() throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any()))
+                .willReturn(evmTxnBody(TransactionBody.DataOneOfType.ETHEREUM_TRANSACTION, payerId2));
+        given(transactionParser.parse(eq(bytes.getLast()), any()))
+                .willReturn(evmTxnBody(TransactionBody.DataOneOfType.CONTRACT_CALL, payerId3));
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_TRANSACTION_BODY, msg.responseCode());
     }
 
     @Test
@@ -604,6 +670,21 @@ class AtomicBatchHandlerTest {
         return batchKey.length == 0
                 ? TransactionBody.newBuilder().transactionID(txnId)
                 : TransactionBody.newBuilder().transactionID(txnId).batchKey(batchKey[0]);
+    }
+
+    private TransactionBody evmTxnBody(final TransactionBody.DataOneOfType evmTxnType, final AccountID payerId) {
+        final var builder = newTxnBodyBuilder(payerId, consensusTimestamp, SIMPLE_KEY_A)
+                .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID);
+        return switch (evmTxnType) {
+            case ETHEREUM_TRANSACTION ->
+                builder.ethereumTransaction(EthereumTransactionBody.DEFAULT).build();
+            case CONTRACT_CALL ->
+                builder.contractCall(ContractCallTransactionBody.DEFAULT).build();
+            case CONTRACT_CREATE_INSTANCE ->
+                builder.contractCreateInstance(ContractCreateTransactionBody.DEFAULT)
+                        .build();
+            default -> throw new IllegalArgumentException("Not an EVM transaction type: " + evmTxnType);
+        };
     }
 
     private List<Bytes> transactionsToBytes(Transaction... transactions) {

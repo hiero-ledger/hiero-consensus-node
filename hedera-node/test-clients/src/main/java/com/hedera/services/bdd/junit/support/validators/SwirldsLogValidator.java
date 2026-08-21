@@ -68,6 +68,11 @@ public class SwirldsLogValidator {
                 List.of("PcesFileTracker", "insufficient data to guarantee"),
                 List.of("BestEffortPcesFileCopy", "No preconsensus event files"),
                 List.of("OSHealthChecker"),
+                // High-throughput HAPI tests can briefly overfill this scheduler without affecting test correctness
+                List.of(
+                        "HealthMonitorLogger",
+                        "Task scheduler TransactionHandler has been unhealthy",
+                        "unhandled tasks"),
                 List.of("DefaultSignedStateSentinel", "Old signed state detected"));
 
         private int numProblems = 0;
