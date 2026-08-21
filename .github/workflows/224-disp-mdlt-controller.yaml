@@ -8,6 +8,7 @@ on:
         description: "The build tag to run MDLT against (e.g. build-12345)"
         type: string
 
+
 defaults:
   run:
     shell: bash
@@ -78,7 +79,7 @@ jobs:
     name: Extract Chewie Properties
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -88,6 +89,10 @@ jobs:
       - extract-citr-vars
       - extract-chewie-props
     runs-on: hl-cn-default-lin-sm
+    outputs:
+      request-duration: ${{ steps.check-chewie-outputs.outputs.request-duration }}
+      request-timeout: ${{ steps.check-chewie-outputs.outputs.request-timeout }}
+      mdlt-length: ${{ steps.check-chewie-outputs.outputs.mdlt-length }}
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -108,17 +113,13 @@ jobs:
       - name: Check Chewie Properties
         id: check-chewie-outputs
         run: |
-          DEFAULT_DURATION=""
-          if [[ "${{ inputs.duration-minutes }}" != "" ]]; then
-            DEFAULT_DURATION="${{ inputs.duration-minutes }}"
-          else
-            DEFAULT_DURATION_SECONDS="${{ needs.extract-chewie-props.outputs.request-duration }}"
-            if [[ "${DEFAULT_DURATION_SECONDS}" == "" ]]; then
-              echo "::error::Chewie default duration is missing. Failing the job."
-              exit 1
-            fi
-            DEFAULT_DURATION=$((DEFAULT_DURATION_SECONDS / 60))
+          # The automated controller has no duration-minutes input; always use default_duration.
+          DEFAULT_DURATION_SECONDS="${{ needs.extract-chewie-props.outputs.request-duration }}"
+          if [[ "${DEFAULT_DURATION_SECONDS}" == "" ]]; then
+            echo "::error::Chewie default duration is missing. Failing the job."
+            exit 1
           fi
+          DEFAULT_DURATION=$((DEFAULT_DURATION_SECONDS / 60))
 
           DEFAULT_TIMEOUT="${{ needs.extract-chewie-props.outputs.request-timeout }}"
           if [[ "${DEFAULT_TIMEOUT}" == "" ]]; then
@@ -126,9 +127,18 @@ jobs:
             exit 1
           fi
 
-          # Note: Duration is in minutes, Timeout is in seconds
+          # MDLT production run length comes from default_mdlt_length; the automated controller does
+          # not expose an override.
+          MDLT_LENGTH="${{ needs.extract-chewie-props.outputs.mdlt-length }}"
+          if [[ "${MDLT_LENGTH}" == "" ]]; then
+            echo "::error::Chewie default MDLT length is missing. Failing the job."
+            exit 1
+          fi
+
+          # Note: Duration and MDLT length are in minutes, Timeout is in seconds
           echo "request-duration=${DEFAULT_DURATION}" >> "${GITHUB_OUTPUT}"
           echo "request-timeout=${DEFAULT_TIMEOUT}" >> "${GITHUB_OUTPUT}"
+          echo "mdlt-length=${MDLT_LENGTH}" >> "${GITHUB_OUTPUT}"
 
   verify-prerequisite-tags:
     name: Verify SDPT/SDLT Pass Tags
@@ -186,6 +196,7 @@ jobs:
       add-settings: ""
       reconnect-uptime: "600"
       request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
+      mdlt-length: ${{ fromJSON(needs.verify-citr-vars.outputs.mdlt-length) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

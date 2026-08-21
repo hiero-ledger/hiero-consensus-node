@@ -49,6 +49,11 @@ on:
         default: 3600
         description: "Time to wait for Chewie Allocation"
         type: number
+      mdlt-length:
+        required: false
+        default: 7200
+        description: "Length of the MDLT production run in minutes, launched after the smoke run (5 days by default)"
+        type: number
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -592,8 +597,8 @@ jobs:
       - name: Start Longevity test
         # MDLT smoke: launch a short validation run (nlg-time defaults to 3m) so the GitHub runner is
         # released well within the 6h cap. After it completes, the longevity-launch-production job
-        # re-connects and re-runs this same NLG command with -tt 7200m (backgrounded) for the full
-        # 5-day run, then the workflow exits. Chewie owns namespace teardown and reclaims it when the
+        # re-connects and re-runs this same NLG command with -tt <mdlt-length>m (backgrounded) for the
+        # full run, then the workflow exits. Chewie owns namespace teardown and reclaims it when the
         # allocation expires; this workflow never deletes the namespace.
         run: |
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
@@ -767,11 +772,11 @@ jobs:
           echo "Finished, exit code=${ec}"
           exit ${ec}
 
-  # Re-connect to the cluster after the smoke run and launch the full 5-day (7200m) production run,
+  # Re-connect to the cluster after the smoke run and launch the full production run (mdlt-length),
   # backgrounded, then exit while it is still running. We do NOT wait for it and we do NOT clean up
   # (Chewie owns namespace teardown). Status is checked out-of-band via 204-disp-mdlt-monitor.
   longevity-launch-production:
-    name: Launch 5-day production run
+    name: Launch MDLT production run
     runs-on: hl-cn-mdlt-lin-lg
     if: ${{ !cancelled() && needs.longevity-tests-wait.result == 'success' }}
     needs:
@@ -813,12 +818,12 @@ jobs:
           kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
           certificate-ttl: 24h
 
-      - name: Launch 5-day (7200m) production run
+      - name: Launch MDLT production run
         id: launch
         env:
           NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
           NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
-          PRODUCTION_MINUTES: "7200" # 5-day MDLT production run
+          PRODUCTION_MINUTES: ${{ inputs.mdlt-length }} # MDLT production run length (5 days by default)
         run: |
           set +x
           set +e
@@ -830,7 +835,7 @@ jobs:
           test=LongevityLoadTest
           NLGargs="-K ECDSA -L -R -c ${NLG_c} -a ${NLG_ACCOUNTS}  -n ${n} -T 1000 -S hot -p 50"
 
-          # Same NLG command as the smoke, but with the 5-day (7200m) run time. Backgrounded with nohup
+          # Same NLG command as the smoke, but with the full production run time. Backgrounded with nohup
           # so it keeps running on the cluster after this workflow exits.
           echo kubectl -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -842,10 +847,10 @@ jobs:
 
           sleep 30
 
-          # Confirm the production load generator is running, then exit (do NOT wait for the 5-day run).
+          # Confirm the production load generator is running, then exit (do NOT wait for it to finish).
           ${kubectlt} -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           if [[ ${?} -ne 0 ]]; then
-            echo "::error title=Production run not started::The 7200m NLG process is not running in ${NAMESPACE}."
+            echo "::error title=Production run not started::The ${PRODUCTION_MINUTES}m NLG process is not running in ${NAMESPACE}."
             echo "launched=false" >> "${GITHUB_OUTPUT}"
             exit 1
           fi
@@ -857,11 +862,12 @@ jobs:
           NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
           FQDN: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           ALLOCATION_ID: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
+          PRODUCTION_MINUTES: ${{ inputs.mdlt-length }}
         run: |
           {
-            echo "## MDLT 5-day (7200m) run started"
-            echo "The production run is now executing on the cluster. This workflow will exit; the run continues for ~5 days."
-            echo "Chewie reclaims the namespace automatically when the allocation expires (~6 days). To free it early, run"
+            echo "## MDLT production run started (${PRODUCTION_MINUTES}m)"
+            echo "The production run is now executing on the cluster. This workflow will exit; the run continues on the cluster."
+            echo "Chewie reclaims the namespace automatically when the allocation expires. To free it early, run"
             echo "**225: [DISP] Release Chewie Allocation** with the Allocation ID below."
             echo ""
             echo "### Monitor & release values"

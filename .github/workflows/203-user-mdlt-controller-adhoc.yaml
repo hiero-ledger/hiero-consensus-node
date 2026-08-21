@@ -57,6 +57,11 @@ on:
         default: "8640"
         description: "Chewie allocation lifetime in minutes (6 days); covers the 5-day (7200m) run plus log-review time"
         type: string
+      mdlt-length:
+        required: false
+        default: ""
+        description: "MDLT production run length in minutes, launched after the smoke run. Blank uses default_mdlt_length from .github/chewie.yaml (7200m / 5 days)"
+        type: string
 
 defaults:
   run:
@@ -128,7 +133,7 @@ jobs:
     name: Extract Chewie Properties
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -138,6 +143,10 @@ jobs:
       - extract-citr-vars
       - extract-chewie-props
     runs-on: hl-cn-default-lin-sm
+    outputs:
+      request-duration: ${{ steps.check-chewie-outputs.outputs.request-duration }}
+      request-timeout: ${{ steps.check-chewie-outputs.outputs.request-timeout }}
+      mdlt-length: ${{ steps.check-chewie-outputs.outputs.mdlt-length }}
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -176,9 +185,20 @@ jobs:
             exit 1
           fi
 
-          # Note: Duration is in minutes, Timeout is in seconds
+          # MDLT production run length: an explicit input wins, otherwise use default_mdlt_length.
+          MDLT_LENGTH="${{ inputs.mdlt-length }}"
+          if [[ "${MDLT_LENGTH}" == "" ]]; then
+            MDLT_LENGTH="${{ needs.extract-chewie-props.outputs.mdlt-length }}"
+            if [[ "${MDLT_LENGTH}" == "" ]]; then
+              echo "::error::Chewie default MDLT length is missing. Failing the job."
+              exit 1
+            fi
+          fi
+
+          # Note: Duration and MDLT length are in minutes, Timeout is in seconds
           echo "request-duration=${DEFAULT_DURATION}" >> "${GITHUB_OUTPUT}"
           echo "request-timeout=${DEFAULT_TIMEOUT}" >> "${GITHUB_OUTPUT}"
+          echo "mdlt-length=${MDLT_LENGTH}" >> "${GITHUB_OUTPUT}"
 
   verify-prerequisite-tags:
     name: Verify SDPT/SDLT Pass Tags
@@ -235,6 +255,7 @@ jobs:
       duration-minutes: ${{ fromJSON(inputs.duration-minutes) }}
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
       request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
+      mdlt-length: ${{ fromJSON(needs.verify-citr-vars.outputs.mdlt-length) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
