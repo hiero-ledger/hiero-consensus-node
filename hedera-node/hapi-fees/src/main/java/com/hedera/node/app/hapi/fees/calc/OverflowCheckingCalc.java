@@ -62,21 +62,32 @@ public final class OverflowCheckingCalc {
         final long unscaledNodeFee = tinycentsToTinybars(nodeFeeTinycents, rate);
         final long unscaledServiceFee = tinycentsToTinybars(serviceFeeTinycents, rate);
 
+        // Saturate each component instead of throwing: a degenerate rate makes an unscaled fee
+        // Long.MAX_VALUE, and an extreme congestion multiplier can overflow the product; either way the fee
+        // must clamp to the maximum (an unpayable fee) rather than halt fee calculation network-wide.
         final long maxUnscaled = Long.MAX_VALUE / multiplier;
-        if (unscaledNetworkFee > maxUnscaled || unscaledNodeFee > maxUnscaled || unscaledServiceFee > maxUnscaled) {
-            throw new IllegalArgumentException(OVERFLOW_ERROR);
-        }
+        final long scaledNodeFee = unscaledNodeFee > maxUnscaled ? Long.MAX_VALUE : unscaledNodeFee * multiplier;
+        final long scaledNetworkFee =
+                unscaledNetworkFee > maxUnscaled ? Long.MAX_VALUE : unscaledNetworkFee * multiplier;
+        final long scaledServiceFee =
+                unscaledServiceFee > maxUnscaled ? Long.MAX_VALUE : unscaledServiceFee * multiplier;
 
-        return new FeeObject(
-                unscaledNodeFee * multiplier, unscaledNetworkFee * multiplier, unscaledServiceFee * multiplier);
+        return new FeeObject(scaledNodeFee, scaledNetworkFee, scaledServiceFee);
     }
 
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
+        final var centEquiv = rate.getCentEquiv();
+        // A non-positive centEquiv would divide by zero, and a non-positive hbarEquiv would make the fee
+        // free or negative; saturate to Long.MAX_VALUE so a degenerate rate yields an unpayable fee instead
+        // of throwing or under-charging identically on every node.
+        if (centEquiv <= 0 || hbarEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
         if (productWouldOverflow(amount, hbarEquiv)) {
             return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
         }
-        return amount * hbarEquiv / rate.getCentEquiv();
+        return amount * hbarEquiv / centEquiv;
     }
 
     private long networkFeeInTinycents(final UsageAccumulator usage, final FeeComponents networkPrices) {
