@@ -96,6 +96,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.hiero.base.crypto.DigestType;
 
@@ -340,24 +341,7 @@ public class RecordStreamBuilder
 
         final List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
         if (!traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
-            if (contractStateChanges != null) {
-                if (status == REVERTED_SUCCESS) {
-                    contractStateChanges = contractStateChanges.stream()
-                            .map(entry -> {
-                                final var changes =
-                                        new ContractStateChanges(entry.getKey().contractStateChanges().stream()
-                                                .map(change -> change.copyBuilder()
-                                                        .storageChanges(change.storageChanges().stream()
-                                                                .map(sc -> sc.copyBuilder()
-                                                                        .valueWritten(null)
-                                                                        .build())
-                                                                .toList())
-                                                        .build())
-                                                .toList());
-                                return new AbstractMap.SimpleEntry<>(changes, entry.getValue());
-                            })
-                            .toList();
-                }
+            if (contractStateChanges != null && status != REVERTED_SUCCESS) {
                 contractStateChanges.stream()
                         .map(pair -> new TransactionSidecarRecord(
                                 transactionRecord.consensusTimestamp(),
@@ -404,8 +388,11 @@ public class RecordStreamBuilder
         transactionFee = 0L;
 
         if (contractFunctionResult != null) {
-            final var clearLogs =
-                    contractFunctionResult.copyBuilder().logInfo(emptyList()).bloom(Bytes.EMPTY);
+            final var clearLogs = contractFunctionResult
+                    .copyBuilder()
+                    .logInfo(emptyList())
+                    .bloom(Bytes.EMPTY)
+                    .createdContractIDs(emptyList());
             if (isContractCreate) {
                 transactionRecordBuilder.contractCreateResult(clearLogs);
             } else {
@@ -1401,6 +1388,12 @@ public class RecordStreamBuilder
     @Nullable
     public AccountID getDeletedAccountBeneficiaryFor(@NonNull final AccountID deletedAccountID) {
         return deletedAccountBeneficiaries.get(deletedAccountID);
+    }
+
+    @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        requireNonNull(action);
+        deletedAccountBeneficiaries.forEach(action);
     }
 
     /**

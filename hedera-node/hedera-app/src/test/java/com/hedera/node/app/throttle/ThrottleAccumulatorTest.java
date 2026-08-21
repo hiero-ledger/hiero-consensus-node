@@ -242,7 +242,7 @@ public class ThrottleAccumulatorTest {
         assertFalse(subject.checkAndEnforceThrottle(
                 TRANSACTION_GET_RECEIPT, TIME_INSTANT, query, state, AccountID.DEFAULT));
         assertFalse(subject.shouldThrottleNOfUnscaled(1, CRYPTO_TRANSFER, TIME_INSTANT));
-        assertDoesNotThrow(() -> subject.leakCapacityForNOfUnscaled(1, CRYPTO_TRANSFER));
+        assertDoesNotThrow(() -> subject.leakCapacityForNOfUnscaled(1, CRYPTO_TRANSFER, false));
         assertDoesNotThrow(() -> subject.leakUnusedGasPreviouslyReserved(transactionInfo, 1L));
     }
 
@@ -1812,7 +1812,7 @@ public class ThrottleAccumulatorTest {
         subject.shouldThrottleNOfUnscaled(1, TOKEN_MINT, TIME_INSTANT);
         final var oneUsed = subject.activeThrottlesFor(TOKEN_MINT).get(0).used();
         subject.shouldThrottleNOfUnscaled(43, TOKEN_MINT, TIME_INSTANT);
-        subject.leakCapacityForNOfUnscaled(2, TOKEN_MINT);
+        subject.leakCapacityForNOfUnscaled(2, TOKEN_MINT, false);
         final var fortyTwoUsed = subject.activeThrottlesFor(TOKEN_MINT).get(0).used();
         assertEquals(42 * oneUsed, fortyTwoUsed);
     }
@@ -2391,6 +2391,92 @@ public class ThrottleAccumulatorTest {
         assertTrue(
                 subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
                 "Fixture should include a high-volume throttle for CRYPTO_TRANSFER");
+    }
+
+    @Test
+    void usesHighVolumeBucketForImplicitCreationsMirrorsClaimRouting() {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+
+        // High-volume CRYPTO_TRANSFER carrying implicit creations routes to the high-volume bucket
+        assertTrue(subject.usesHighVolumeBucketForImplicitCreations(CRYPTO_TRANSFER, true, 1));
+        // Not flagged high-volume -> normal bucket
+        assertFalse(subject.usesHighVolumeBucketForImplicitCreations(CRYPTO_TRANSFER, false, 1));
+        // High-volume but no implicit creations -> normal bucket (matches shouldUseHighVolumeBucket)
+        assertFalse(subject.usesHighVolumeBucketForImplicitCreations(CRYPTO_TRANSFER, true, 0));
+        // ETHEREUM_TRANSACTION is not a high-volume function -> normal bucket even when flagged
+        assertFalse(subject.usesHighVolumeBucketForImplicitCreations(ETHEREUM_TRANSACTION, true, 1));
+    }
+
+    @Test
+    void leakCapacityForNOfUnscaledReturnsCapacityToHighVolumeBucket() throws IOException, ParseException {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Claim high-volume CRYPTO_CREATE capacity (routed to the high-volume bucket)
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
+        final var highVolumeTxBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoCreateAccount(cryptoCreateBody)
+                .highVolume(true)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(highVolumeTxBody))
+                .build();
+        final var highVolumeTxnInfo = new TransactionInfo(
+                signedTx,
+                highVolumeTxBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_CREATE,
+                null);
+        for (int i = 0; i < 200; i++) {
+            subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT, state, null, false);
+        }
+        final int bpsAfterClaim = subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT);
+        assertTrue(bpsAfterClaim > 0, "High-volume bucket should have recorded usage from the claim");
+
+        // Leaking with useHighVolumeBucket=true must return capacity to the high-volume bucket
+        subject.leakCapacityForNOfUnscaled(100, CRYPTO_CREATE, true);
+        final int bpsAfterHvLeak =
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT);
+        assertTrue(
+                bpsAfterHvLeak < bpsAfterClaim, "Leak with useHighVolumeBucket=true must drain the high-volume bucket");
+
+        // Leaking with useHighVolumeBucket=false hits the normal bucket and must NOT touch the high-volume bucket
+        subject.leakCapacityForNOfUnscaled(100, CRYPTO_CREATE, false);
+        final int bpsAfterNormalLeak =
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT);
+        assertEquals(
+                bpsAfterHvLeak,
+                bpsAfterNormalLeak,
+                "Leak with useHighVolumeBucket=false must not change high-volume utilization");
     }
 
     @NonNull
