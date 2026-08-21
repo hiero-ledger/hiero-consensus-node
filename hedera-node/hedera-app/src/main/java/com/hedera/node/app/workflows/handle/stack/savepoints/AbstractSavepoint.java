@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack.savepoints;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
@@ -34,8 +35,12 @@ import java.util.List;
  * that determine how each type of savepoint constructs state change block items.
  */
 public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savepoint {
-    public static final EnumSet<ResponseCodeEnum> SUCCESSES =
-            EnumSet.of(OK, SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
+    public static final EnumSet<ResponseCodeEnum> SUCCESSES = EnumSet.of(
+            OK,
+            SUCCESS,
+            FEE_SCHEDULE_FILE_PART_UPLOADED,
+            CONFIG_FILE_PART_UPLOADED,
+            SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
 
     protected final BuilderSink parent;
     protected final WrappedState state;

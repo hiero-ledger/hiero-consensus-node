@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
 import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,7 +52,7 @@ public class Secp256k1Utils {
         final Cache cache = CACHE.get();
 
         if (LIBSECP256K1.secp256k1EcPubkeyCreate(
-                        cache.pubkeySeg, MemorySegment.ofArray(EthTxData.asUnsignedByteArray(key.getS())))
+                        cache.pubkeySeg, MemorySegment.ofArray(asPrivateKeyByteArray32(key.getS())))
                 != 1) {
             throw new IllegalArgumentException("secp256k1EcPubkeyCreate failed. The private key is probably invalid.");
         }
@@ -72,6 +71,29 @@ public class Secp256k1Utils {
         }
 
         return serializedPubkey;
+    }
+
+    /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
+    /// if present, aligning remaining bytes to the right, and padding with zeros to 32 bytes.
+    public static byte[] asPrivateKeyByteArray32(final BigInteger value) {
+        final byte[] bytes = value.toByteArray();
+
+        if (bytes.length == 32) {
+            return bytes;
+        } else {
+            final byte[] tmp = new byte[32];
+
+            if (bytes.length == 33 && bytes[0] == 0) {
+                System.arraycopy(bytes, 1, tmp, 0, 32);
+                return tmp;
+            } else if (bytes.length < 32) {
+                System.arraycopy(bytes, 0, tmp, 32 - bytes.length, bytes.length);
+                return tmp;
+            }
+        }
+
+        // The byte array is longer than 33 bytes. It's an invalid secp256k1 key.
+        throw new IllegalArgumentException("Invalid BigInteger that is too long. It cannot be a valid private key.");
     }
 
     public static byte[] getEvmAddressFromString(final Key key) {

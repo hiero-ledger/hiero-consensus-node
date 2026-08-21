@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.util.FileUtilities.observePropertiesAndPermissions;
 import static java.util.Objects.requireNonNull;
@@ -25,6 +26,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.BufferUnderflowException;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -36,6 +38,10 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>This is a temporary solution. In the future we want to have specific transactions
  * to update the data that is currently transmitted in these files.
+ *
+ * <p>On unparseable contents, chunk-uploaded files return a status (fee schedules, network properties, HAPI
+ * permissions) while single-transaction files throw (exchange rates, throttles). Only throwing rolls the
+ * committed bytes back.
  */
 @Singleton
 public class SystemFileUpdates {
@@ -105,17 +111,38 @@ public class SystemFileUpdates {
         } else if (fileNum == filesConfig.exchangeRates()) {
             exchangeRateManager.update(FileUtilities.getFileContent(state, fileID), payer);
         } else if (fileNum == filesConfig.networkProperties()) {
+            final var status = configListParseStatus(FileUtilities.getFileContent(state, fileID));
             BlockStreamWriterMode currentWriterMode =
                     configuration.getConfigData(BlockStreamConfig.class).writerMode();
             updateConfig(configuration, ConfigType.NETWORK_PROPERTIES, state);
             checkForBlockNodeStreamingChange(currentWriterMode, configProvider);
             throttleServiceManager.refreshThrottleConfiguration();
+            return status;
         } else if (fileNum == filesConfig.hapiPermissions()) {
+            final var status = configListParseStatus(FileUtilities.getFileContent(state, fileID));
             updateConfig(configuration, ConfigType.API_PERMISSIONS, state);
+            return status;
         } else if (fileNum == filesConfig.throttleDefinitions()) {
             return throttleServiceManager.recreateThrottles(FileUtilities.getFileContent(state, fileID));
         }
         return SUCCESS;
+    }
+
+    /**
+     * Returns whether the given contents parse as a {@link ServicesConfigurationList}; if not, no
+     * configuration change was applied.
+     *
+     * @param contents the assembled contents of the file
+     * @return the status to report
+     */
+    private ResponseCodeEnum configListParseStatus(@NonNull final Bytes contents) {
+        try {
+            ServicesConfigurationList.PROTOBUF.parseStrict(contents.toReadableSequentialData());
+            return SUCCESS;
+        } catch (ParseException | BufferUnderflowException | NullPointerException ignore) {
+            // The failures that make ConfigProviderImpl.addByteSource() drop this source
+            return CONFIG_FILE_PART_UPLOADED;
+        }
     }
 
     private void checkForBlockNodeStreamingChange(
