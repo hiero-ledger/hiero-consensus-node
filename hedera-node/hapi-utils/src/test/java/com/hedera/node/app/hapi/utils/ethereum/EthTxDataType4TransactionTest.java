@@ -307,6 +307,43 @@ class EthTxDataType4TransactionTest {
         assertNull(tx);
     }
 
+    /// EIP-2718 requires the envelope to consume its whole input. Bytes past its end would leave every field
+    /// intact while changing `keccak256(rawTx)` - the value externalized as a record's `ethereum_hash` - so
+    /// they must be rejected rather than left unread. See `EthTxDataTest.rejectsTrailingBytesAfterEnvelope`
+    /// for the legacy, type-1 and type-2 equivalents.
+    @Test
+    void populateEip7702EthTxDataReturnsNullWhenTrailingBytesFollowEnvelope() {
+        final byte[] authorizationList = rlpList(
+                rlpBytes(new byte[] {0x01}),
+                rlpBytes(repeat((byte) 0x11, 20)),
+                rlpUInt(5),
+                rlpUInt(1),
+                rlpBytes(repeat((byte) 0x22, 32)),
+                rlpBytes(repeat((byte) 0x33, 32)));
+        final byte[] canonical = buildType4Raw(
+                fillBytes(2, 0x01),
+                1,
+                fillBytes(3, 0x02),
+                fillBytes(3, 0x03),
+                100,
+                fillBytes(20, 0x04),
+                0L,
+                new byte[] {},
+                new Object[] {},
+                authorizationList,
+                27,
+                fillBytes(32, 0x05),
+                fillBytes(32, 0x06));
+
+        assertNotNull(EthTxData.populateEthTxData(canonical));
+
+        for (final byte[] suffix : new byte[][] {{0x00}, {(byte) 0x80}, {(byte) 0xc0}, {(byte) 0xff}}) {
+            final var suffixed = Arrays.copyOf(canonical, canonical.length + suffix.length);
+            System.arraycopy(suffix, 0, suffixed, canonical.length, suffix.length);
+            assertNull(EthTxData.populateEthTxData(suffixed), "trailing byte must be rejected");
+        }
+    }
+
     private static byte[] rlpBytes(byte[] bytes) {
         if (bytes.length == 1 && (bytes[0] & 0xFF) < 0x80) {
             return new byte[] {bytes[0]};

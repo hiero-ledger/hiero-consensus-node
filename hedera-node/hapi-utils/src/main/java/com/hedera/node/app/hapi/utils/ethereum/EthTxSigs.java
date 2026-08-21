@@ -9,22 +9,26 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
 import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.foreign.MemorySegment;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Optional;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.asn1.sec.SECNamedCurves;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
     private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
 
     private static final Logger logger = LogManager.getLogger(EthTxSigs.class);
-    private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
+
+    // Per https://www.google.com/search?q=secp256k1+curve+n
+    // N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+    // or in decimal:
+    private static final BigInteger N =
+            new BigInteger("115792089237316195423570985008687907852837564279074904382605163141518161494337");
     // Lower-half boundary (N >> 1) by EIP-2 standard.
     private static final BigInteger HALF_N = N.shiftRight(1);
 
@@ -149,7 +153,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         // were used to encode the chain id, the parity is all that matters here)
         recId = Math.floorMod(recId, 2);
 
-        byte[] dataHash = new Keccak.Digest256().digest(message);
+        byte[] dataHash = MiscCryptoUtils.keccak256DigestOf(message);
 
         checkInBounds(r, N);
         checkInBounds(s, HALF_N);
@@ -207,8 +211,8 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     @NonNull
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("publicKey", Hex.encodeHexString(publicKey))
-                .add("address", Hex.encodeHexString(address))
+                .add("publicKey", HexFormat.of().formatHex(publicKey))
+                .add("address", HexFormat.of().formatHex(address))
                 .toString();
     }
 

@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.utility.ByteUtils;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.test.fixtures.Randotron;

@@ -193,11 +193,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         if (Files.exists(storeDir)) {
             // load metadata
             Path metaDataFile = storeDir.resolve(storeName + METADATA_FILENAME_SUFFIX);
-            boolean loadedLegacyMetadata = false;
             if (!Files.exists(metaDataFile)) {
                 metaDataFile = storeDir.resolve(legacyStoreName + METADATA_FILENAME_SUFFIX);
                 indexFile = storeDir.resolve(legacyStoreName + BUCKET_INDEX_FILENAME_SUFFIX);
-                loadedLegacyMetadata = true;
             }
             if (Files.exists(metaDataFile)) {
                 try (DataInputStream metaIn = new DataInputStream(Files.newInputStream(metaDataFile))) {
@@ -212,9 +210,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     metaIn.readInt(); // backwards compatibility, was: minimumBuckets
                     setNumberOfBuckets(metaIn.readInt());
                 }
-                if (loadedLegacyMetadata) {
-                    Files.delete(metaDataFile);
-                }
+                Files.delete(metaDataFile);
             } else {
                 logger.error(
                         EXCEPTION.getMarker(),
@@ -242,6 +238,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     bucketIndexToBucketLocation.put(bucket.getBucketIndex(), dataLocation);
                 };
             }
+            // The bucket index file is no longer needed and should be deleted
+            Files.deleteIfExists(indexFile);
         } else {
             // create store dir
             Files.createDirectories(storeDir);
@@ -255,8 +253,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     : new LongListSegment(bucketIndexCapacity, config);
             // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;
-            // write metadata
-            writeMetadata(storeDir);
             logger.info(
                     MERKLE_DB.getMarker(),
                     "HalfDiskHashMap [{}] created with minimumBuckets={} and numOfBuckets={}",
@@ -270,6 +266,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 // Need: propagate MerkleDb merkleDbConfig from the database
                 config, storeDir, storeName, legacyStoreName, loadedDataCallback);
         fileCollection.updateValidKeyRange(0, numOfBuckets.get() - 1);
+        writeMetadata(storeDir);
     }
 
     private void writeMetadata(final Path dir) throws IOException {
