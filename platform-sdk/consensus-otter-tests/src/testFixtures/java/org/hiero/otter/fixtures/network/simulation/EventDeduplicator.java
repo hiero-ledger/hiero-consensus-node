@@ -86,7 +86,7 @@ public class EventDeduplicator {
      * been seen before.
      *
      * @param event the event to check, with its sender set to the node submitting it
-     * @return {@code true} if the event should not be added to the event log
+     * @return {@code true} if the event is unique and was added
      */
     public boolean addIfUnique(@NonNull final PlatformEvent event) {
         if (event.getBirthRound() < oldestEventWindow.expiredThreshold()) {
@@ -99,7 +99,7 @@ public class EventDeduplicator {
             return true;
         }
 
-        return !submissions.add(new Submission(event.getSenderId(), event.getSignature()));
+        return submissions.add(new Submission(event.getSenderId(), event.getSignature()));
     }
 
     /**

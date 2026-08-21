@@ -12,6 +12,7 @@ public interface EventReceiver {
      * Receive an event from the simulated network.
      *
      * @param event the event to receive
+     * @return true if the event was successfully received, false otherwise
      */
-    void receiveEvent(PlatformEvent event);
+    boolean receiveEvent(PlatformEvent event);
 }
