@@ -94,10 +94,10 @@ public final class EthereumTransactionRollbackHandler implements HandleException
         final var codeDelegationResult = outcome.codeDelegationResult();
         if (codeDelegationResult != null) {
             // TODO: we should adjust the charged gas amount if any additional lazy creation
-            // charges have been applied (see the comment below).
-            // This however only applies to atomic batch transactions, and currently (2026-05-12)
-            // Ethereum fees are mishandled for reverted batch transactions - refunds are ignored,
-            // so we can skip the adjustment here until that's fixed.
+            // charges have been applied (see the comment below). This only applies to atomic
+            // batch transactions: their rollback replay charges the net gas fee of the main
+            // flow (with unused-gas refunds netted out), which does not cover a lazy creation
+            // first performed here in the revert flow.
             long remainingLazyCreationGas = codeDelegationResult.gasInitiallyAvailableForLazyCreations()
                     - codeDelegationResult.totalLazyCreationGasCharged();
             for (final var delegation : codeDelegationResult.validDelegations()) {
