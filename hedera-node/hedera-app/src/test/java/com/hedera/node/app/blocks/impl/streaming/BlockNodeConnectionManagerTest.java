@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -53,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Future.State;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedConstruction;
@@ -76,6 +79,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle globalCoolDownTimestampRefHandle;
     private static final VarHandle bufferStatusRefHandle;
     private static final VarHandle connectionMonitorThreadRefHandle;
+    private static final VarHandle blockingIoExecutorRefHandle;
 
     private static final MethodHandle isActiveConnectionAutoResetHandle;
     private static final MethodHandle isHigherPriorityNodeAvailableHandle;
@@ -104,6 +108,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             bufferStatusRefHandle = lookup.findVarHandle(cls, "bufferStatusRef", AtomicReference.class);
             connectionMonitorThreadRefHandle =
                     lookup.findVarHandle(cls, "connectionMonitorThreadRef", AtomicReference.class);
+            blockingIoExecutorRefHandle = lookup.findVarHandle(cls, "blockingIoExecutorRef", AtomicReference.class);
 
             final Method isActiveConnectionAutoReset = cls.getDeclaredMethod(
                     "isActiveConnectionAutoReset", Instant.class, BlockNodeStreamingConnection.class);
@@ -1918,6 +1923,103 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(blockNodeConfigService).shutdown();
     }
 
+    @Test
+    void startRollsBackToStoppedStateWhenAnInnerStartStepFails() {
+        // An inner start step fails partway through start(). The manager must roll back to a consistent stopped
+        // state (active=false, no monitor thread) rather than leaving "active but not started".
+        doThrow(new RejectedExecutionException("buffer start failed"))
+                .when(bufferService)
+                .start();
+
+        // start() still surfaces the failure, but the finally-rollback must leave a clean stopped state
+        assertThatThrownBy(() -> connectionManager.start()).isInstanceOf(RejectedExecutionException.class);
+
+        assertThat(isConnectionManagerActive()).isFalse();
+        assertThat(connectionMonitorThreadRef()).hasNullValue();
+        verify(bufferService).shutdown();
+        verify(blockNodeConfigService).shutdown();
+    }
+
+    @Test
+    void shutdownCompletesRemainingTeardownWhenAStepFails() {
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        activeConnectionRef().set(connection);
+        isConnectionManagerActive().set(true);
+        connectionMonitorThreadRef().set(mock(Thread.class));
+        final BlockNode node = mock(BlockNode.class);
+        blockNodes().put(new BlockNodeEndpoint("localhost", 1234), node);
+
+        // an early teardown step fails; the remaining steps must still run (best-effort teardown)
+        doThrow(new RuntimeException("config shutdown failed"))
+                .when(blockNodeConfigService)
+                .shutdown();
+
+        // pre-fix shutdown() throws here and skips the rest; post-fix it completes every step
+        assertThatCode(() -> connectionManager.shutdown()).doesNotThrowAnyException();
+
+        verify(node).onTerminate(CloseReason.SHUTDOWN);
+        assertThat(activeConnectionRef()).hasNullValue();
+        assertThat(connectionMonitorThreadRef()).hasNullValue();
+    }
+
+    @Test
+    @Timeout(30)
+    void shutdownWaitsForAnInProgressStartRatherThanRunningConcurrently() throws Exception {
+        final CountDownLatch startInBody = new CountDownLatch(1);
+        final CountDownLatch startMayProceed = new CountDownLatch(1);
+        final CountDownLatch shutdownReachedBody = new CountDownLatch(1);
+
+        // start() parks inside its body (holding the lifecycle lock) until the test lets it proceed
+        doAnswer(inv -> {
+                    startInBody.countDown();
+                    startMayProceed.await();
+                    return null;
+                })
+                .when(bufferService)
+                .start();
+        // shutdown() signals once it reaches its teardown body
+        doAnswer(inv -> {
+                    shutdownReachedBody.countDown();
+                    return null;
+                })
+                .when(blockNodeConfigService)
+                .shutdown();
+
+        final Thread starter = new Thread(() -> connectionManager.start(), "starter");
+        starter.setDaemon(true);
+        starter.start();
+        assertThat(startInBody.await(5, TimeUnit.SECONDS)).isTrue(); // start() is inside its body, holding the lock
+
+        final Thread stopper = new Thread(() -> connectionManager.shutdown(), "stopper");
+        stopper.setDaemon(true);
+        stopper.start();
+
+        // While start() holds the lifecycle lock, shutdown() must NOT enter its body -- it waits, not overlaps
+        assertThat(shutdownReachedBody.await(1, TimeUnit.SECONDS)).isFalse();
+
+        // Let start() finish and release the lock; shutdown() then proceeds
+        startMayProceed.countDown();
+        assertThat(shutdownReachedBody.await(5, TimeUnit.SECONDS)).isTrue();
+
+        starter.join(5_000);
+        stopper.join(5_000);
+    }
+
+    @Test
+    void startReinitializesExecutorAfterRestart() {
+        // First start uses the executor created in the constructor; shutdown() nulls it; the second start is a
+        // restart and must re-initialize the executor from the supplier -- exercising the restart re-init path.
+        connectionManager.start();
+        connectionManager.shutdown(); // teardown nulls blockingIoExecutorRef
+        assertThat(blockingIoExecutorRef()).hasNullValue();
+
+        connectionManager.start(); // blockingIoExecutorRef is null here -> re-init runs
+
+        assertThat(blockingIoExecutorRef()).doesNotHaveNullValue();
+
+        connectionManager.shutdown(); // tidy: stop the monitor thread
+    }
+
     // Utilities
 
     void invoke_updateConnectionIfNeeded() throws Throwable {
@@ -1969,6 +2071,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @SuppressWarnings("unchecked")
     AtomicReference<Thread> connectionMonitorThreadRef() {
         return (AtomicReference<Thread>) connectionMonitorThreadRefHandle.get(connectionManager);
+    }
+
+    AtomicReference<ExecutorService> blockingIoExecutorRef() {
+        return (AtomicReference<ExecutorService>) blockingIoExecutorRefHandle.get(connectionManager);
     }
 
     @SuppressWarnings("unchecked")

@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -28,6 +29,7 @@ import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.List;
@@ -152,6 +154,72 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
             assertThat(watchServiceRef()).hasNullValue();
 
             verify(fileSystem).newWatchService();
+        }
+    }
+
+    // When start() fails at register() -- after newWatchService() created the watch service but before it was
+    // stored in watchServiceRef -- start() must still close the watch service it created, rather than orphan it
+    // (shutdown() can only release what is stored in watchServiceRef). These fail before the fix and pass after.
+    @Test
+    void startClosesWatchServiceWhenRegisterThrowsUnchecked() throws Exception {
+        try (final MockedStatic<FileUtils> mockedFileUtils = mockStatic(FileUtils.class)) {
+            final Path configDirectory = mock(Path.class);
+            final FileSystem fileSystem = mock(FileSystem.class);
+            final WatchService watchService = mock(WatchService.class);
+            when(configDirectory.getFileSystem()).thenReturn(fileSystem);
+            when(fileSystem.newWatchService()).thenReturn(watchService); // the resource IS created
+            when(configDirectory.resolve(anyString())).thenReturn(configDir.resolve("block-nodes.json"));
+            // register() fails after the watch service is created but before watchServiceRef.set(...)
+            doThrow(new UnsupportedOperationException("watch not supported"))
+                    .when(configDirectory)
+                    .register(
+                            any(WatchService.class),
+                            any(WatchEvent.Kind.class),
+                            any(WatchEvent.Kind.class),
+                            any(WatchEvent.Kind.class));
+            mockedFileUtils.when(() -> FileUtils.getAbsolutePath(anyString())).thenReturn(configDirectory);
+
+            configService = new BlockNodeConfigService(configProvider);
+
+            // Before the fix an unchecked register() failure escapes start(); after, it is caught. Either way the
+            // watch service that was created must be closed, not orphaned.
+            try {
+                configService.start();
+            } catch (final RuntimeException ignored) {
+                // tolerated: pre-fix escape
+            }
+            configService.shutdown();
+
+            verify(fileSystem).newWatchService();
+            verify(watchService).close();
+        }
+    }
+
+    @Test
+    void startClosesWatchServiceWhenRegisterThrowsIOException() throws Exception {
+        try (final MockedStatic<FileUtils> mockedFileUtils = mockStatic(FileUtils.class)) {
+            final Path configDirectory = mock(Path.class);
+            final FileSystem fileSystem = mock(FileSystem.class);
+            final WatchService watchService = mock(WatchService.class);
+            when(configDirectory.getFileSystem()).thenReturn(fileSystem);
+            when(fileSystem.newWatchService()).thenReturn(watchService);
+            when(configDirectory.resolve(anyString())).thenReturn(configDir.resolve("block-nodes.json"));
+            doThrow(new IOException("register failed"))
+                    .when(configDirectory)
+                    .register(
+                            any(WatchService.class),
+                            any(WatchEvent.Kind.class),
+                            any(WatchEvent.Kind.class),
+                            any(WatchEvent.Kind.class));
+            mockedFileUtils.when(() -> FileUtils.getAbsolutePath(anyString())).thenReturn(configDirectory);
+
+            configService = new BlockNodeConfigService(configProvider);
+
+            configService.start();
+            configService.shutdown();
+
+            verify(fileSystem).newWatchService();
+            verify(watchService).close();
         }
     }
 

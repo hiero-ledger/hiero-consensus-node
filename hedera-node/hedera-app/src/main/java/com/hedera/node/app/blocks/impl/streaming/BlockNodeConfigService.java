@@ -120,9 +120,10 @@ public class BlockNodeConfigService {
             logger.warn("Failed to load initial block node configuration (ignoring)", e);
         }
 
-        // Start the watcher for config changes
-        final WatchService watchService;
-
+        // Start the watcher for config changes. If registration fails after the watch service was created but
+        // before it is stored in watchServiceRef, close the just-created service here so it is not orphaned
+        // (shutdown() can only release what is stored in watchServiceRef).
+        WatchService watchService = null;
         try {
             watchService = configDirectory.getFileSystem().newWatchService();
             configDirectory.register(
@@ -131,8 +132,9 @@ public class BlockNodeConfigService {
                     StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_DELETE);
             watchServiceRef.set(watchService);
-        } catch (final IOException e) {
+        } catch (final IOException | RuntimeException e) {
             logger.error("Failed to start block node configuration watcher", e);
+            closeQuietly(watchService);
             isActive.set(false);
             return;
         }
@@ -155,7 +157,17 @@ public class BlockNodeConfigService {
         latestConfigRef.set(null);
         configVersionCounter.incrementAndGet();
 
-        final WatchService watchService = watchServiceRef.getAndSet(null);
+        closeQuietly(watchServiceRef.getAndSet(null));
+
+        logger.info("Block node configuration watcher stopped");
+    }
+
+    /**
+     * Closes the given watch service if non-null, swallowing (and logging) any {@link IOException} from the close.
+     *
+     * @param watchService the watch service to close, may be null
+     */
+    private void closeQuietly(final WatchService watchService) {
         if (watchService != null) {
             try {
                 watchService.close();
@@ -163,8 +175,6 @@ public class BlockNodeConfigService {
                 logger.debug("Error while closing watch service (ignoring)", e);
             }
         }
-
-        logger.info("Block node configuration watcher stopped");
     }
 
     /**
