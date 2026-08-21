@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -292,6 +293,42 @@ public class BlockNodeConnectionManager {
      */
     public boolean hasActiveStreamingConnection() {
         return isConnectionManagerActive.get() && activeConnectionRef.get() != null;
+    }
+
+    /**
+     * Immutable snapshot of the active block-node streaming connection, for best-effort ISS triage: it records which
+     * block node an ISS-round block was streamed to and how far that node has acknowledged, so an operator can locate
+     * the block on the block node when it is no longer in the local buffer.
+     *
+     * @param host the active block node's streaming host
+     * @param port the active block node's streaming port
+     * @param priority the configured priority of the active block node
+     * @param lastBlockSent the last block number streamed to the active block node
+     * @param lastBlockAcked the last block number acknowledged (persisted and verified) by the active block node
+     */
+    public record ActiveBlockNodeSnapshot(
+            @NonNull String host, int port, int priority, long lastBlockSent, long lastBlockAcked) {}
+
+    /**
+     * Returns a snapshot of the currently active block-node connection, or {@link Optional#empty()} if none is active.
+     * Best-effort and side-effect free, intended for ISS block-upload triage; must be read before {@link #shutdown()}
+     * clears the active connection.
+     *
+     * @return the active connection snapshot, or empty if no connection is active
+     */
+    public Optional<ActiveBlockNodeSnapshot> activeConnectionSnapshot() {
+        final BlockNodeStreamingConnection connection = activeConnectionRef.get();
+        if (connection == null) {
+            return Optional.empty();
+        }
+        final BlockNodeConfiguration config = connection.configuration();
+        final StreamingConnectionStatistics stats = connection.connectionStatistics();
+        return Optional.of(new ActiveBlockNodeSnapshot(
+                config.streamingEndpoint().host(),
+                config.streamingEndpoint().port(),
+                config.priority(),
+                stats.lastBlockSent(),
+                stats.lastBlockAcked()));
     }
 
     /**
