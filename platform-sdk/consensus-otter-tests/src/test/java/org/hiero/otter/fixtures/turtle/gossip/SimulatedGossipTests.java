@@ -115,7 +115,7 @@ class SimulatedGossipTests {
                     eventInputShim.buildInputWire("eventInputWire");
             eventSubmitters.put(nodeId, eventInputWire::inject);
 
-            final Event gossip = new Event(network, nodeId);
+            final SimulatedGossip gossip = new SimulatedGossip(network, nodeId);
             gossip.bind(
                     model,
                     eventInputWire,

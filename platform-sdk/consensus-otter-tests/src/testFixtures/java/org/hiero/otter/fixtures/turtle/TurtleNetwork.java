@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
-import org.hiero.otter.fixtures.turtle.gossip.Event;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
@@ -73,7 +73,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final Event simulatedGossip = new Event(simulatedNetworkTraffic, nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkTraffic, nodeId);
         simulatedNetworkTraffic.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
@@ -95,7 +95,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final Event simulatedGossip = new Event(simulatedNetworkTraffic, nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkTraffic, nodeId);
         simulatedNetworkTraffic.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(

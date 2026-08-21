@@ -22,12 +22,12 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.turtle.gossip.Event;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.util.CursoredLog;
 import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
 
 /**
- * Connects {@link Event} peers in a simulated network.
+ * Connects {@link SimulatedGossip} peers in a simulated network.
  * <p>
  * This gossip simulation is more simplistic than real gossip, but behaves in similar ways. The goal is not a perfect
  * mimic of real gossip behavior, but a rough approximation while being highly performant.

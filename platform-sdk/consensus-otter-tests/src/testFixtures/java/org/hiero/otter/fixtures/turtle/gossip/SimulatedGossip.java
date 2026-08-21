@@ -23,7 +23,7 @@ import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
 /**
  * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkTraffic}.
  */
-public class Event implements Gossip, EventReceiver {
+public class SimulatedGossip implements Gossip, EventReceiver {
 
     private final SimulatedNetworkTraffic networkTraffic;
     private final NodeId selfId;
@@ -40,7 +40,7 @@ public class Event implements Gossip, EventReceiver {
      * @param networkTraffic the network connections on which this gossip system will run
      * @param selfId the ID of the node running this gossip system
      */
-    public Event(@NonNull final SimulatedNetworkTraffic networkTraffic, @NonNull final NodeId selfId) {
+    public SimulatedGossip(@NonNull final SimulatedNetworkTraffic networkTraffic, @NonNull final NodeId selfId) {
         this.networkTraffic = requireNonNull(networkTraffic);
         this.selfId = requireNonNull(selfId);
     }

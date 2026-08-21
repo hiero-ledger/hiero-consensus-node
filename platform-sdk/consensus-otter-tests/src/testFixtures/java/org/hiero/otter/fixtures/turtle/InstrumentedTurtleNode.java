@@ -12,7 +12,7 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.turtle.gossip.Event;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
@@ -40,7 +40,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Event gossip,
+            @NonNull final SimulatedGossip gossip,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration,
