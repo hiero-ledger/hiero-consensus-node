@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -75,6 +76,11 @@ public class BlockNodeConnectionManager {
      * processing blocks and attempting to send them to a block node.
      */
     private final AtomicBoolean isConnectionManagerActive = new AtomicBoolean(false);
+    /**
+     * Serializes lifecycle transitions so {@link #start()} and {@link #shutdown()} never run concurrently: a
+     * transition issued while another is in progress waits (blocks) for it to finish.
+     */
+    private final ReentrantLock lifecycleLock = new ReentrantLock();
     /**
      * Service used to retrieve block node configurations.
      */
@@ -218,15 +224,20 @@ public class BlockNodeConnectionManager {
      * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
-        if (!isConnectionManagerActive.compareAndSet(true, false)) {
-            logger.info("Attempted to shutdown block node connection manager, but it is already shutdown");
-            return;
+        lifecycleLock.lock();
+        try {
+            if (!isConnectionManagerActive.compareAndSet(true, false)) {
+                logger.info("Attempted to shutdown block node connection manager, but it is already shutdown");
+                return;
+            }
+            logger.info("Shutting down block node connection manager...");
+
+            teardownQuietly();
+
+            logger.info("Block node connection manager shutdown");
+        } finally {
+            lifecycleLock.unlock();
         }
-        logger.info("Shutting down block node connection manager...");
-
-        teardownQuietly();
-
-        logger.info("Block node connection manager shutdown");
     }
 
     /**
@@ -234,50 +245,55 @@ public class BlockNodeConnectionManager {
      * block.
      */
     public void start() {
-        if (!isStreamingEnabled()) {
-            logger.warn("Streaming is not enabled; block node connection manager will not be started");
-            return;
-        }
-        if (!isConnectionManagerActive.compareAndSet(false, true)) {
-            logger.info("Attempted to start block node connection manager, but it is already started");
-            return;
-        }
-        logger.info("Starting block node connection manager...");
-
-        boolean started = false;
+        lifecycleLock.lock();
         try {
-            if (blockingIoExecutorRef.get() == null) {
-                /*
-                Why the null check? We initialize the blocking I/O executor in the constructor by calling the supplier,
-                but an instance of the connection manager can be shutdown and technically can be restarted. During the
-                shutdown process, the executor is also shutdown (and set to null) so if the manager was started again we
-                need to get another instance from the blocking I/O executor from the supplier.
-                 */
-                blockingIoExecutorRef.compareAndSet(null, blockingIoExecutorSupplier.get());
+            if (!isStreamingEnabled()) {
+                logger.warn("Streaming is not enabled; block node connection manager will not be started");
+                return;
             }
-
-            // Start the block buffer service
-            blockBufferService.start();
-
-            // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
-            blockNodeConfigService.start();
-
-            // Start the background monitor thread
-            final Thread connectionMonitorThread = new Thread(new ConnectionMonitorTask(), "bn-conn-monitor");
-            if (connectionMonitorThreadRef.compareAndSet(null, connectionMonitorThread)) {
-                connectionMonitorThread.setDaemon(true);
-                connectionMonitorThread.start();
+            if (!isConnectionManagerActive.compareAndSet(false, true)) {
+                logger.info("Attempted to start block node connection manager, but it is already started");
+                return;
             }
+            logger.info("Starting block node connection manager...");
 
-            started = true;
-            logger.info("Block node connection manager started");
+            boolean started = false;
+            try {
+                if (blockingIoExecutorRef.get() == null) {
+                    /*
+                    Why the null check? We initialize the blocking I/O executor in the constructor by calling the supplier,
+                    but an instance of the connection manager can be shutdown and technically can be restarted. During the
+                    shutdown process, the executor is also shutdown (and set to null) so if the manager was started again we
+                    need to get another instance from the blocking I/O executor from the supplier.
+                     */
+                    blockingIoExecutorRef.compareAndSet(null, blockingIoExecutorSupplier.get());
+                }
+
+                // Start the block buffer service
+                blockBufferService.start();
+
+                // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
+                blockNodeConfigService.start();
+
+                // Start the background monitor thread
+                final Thread connectionMonitorThread = new Thread(new ConnectionMonitorTask(), "bn-conn-monitor");
+                if (connectionMonitorThreadRef.compareAndSet(null, connectionMonitorThread)) {
+                    connectionMonitorThread.setDaemon(true);
+                    connectionMonitorThread.start();
+                }
+
+                started = true;
+                logger.info("Block node connection manager started");
+            } finally {
+                if (!started) {
+                    // Roll back a partial start to a consistent stopped state (never "active but not started").
+                    logger.error("Failed to start block node connection manager; rolling back to a stopped state");
+                    teardownQuietly();
+                    isConnectionManagerActive.set(false);
+                }
+            }
         } finally {
-            if (!started) {
-                // Roll back a partial start to a consistent stopped state (never "active but not started").
-                logger.error("Failed to start block node connection manager; rolling back to a stopped state");
-                teardownQuietly();
-                isConnectionManagerActive.set(false);
-            }
+            lifecycleLock.unlock();
         }
     }
 

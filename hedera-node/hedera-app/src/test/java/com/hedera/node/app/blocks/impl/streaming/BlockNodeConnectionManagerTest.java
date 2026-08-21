@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedConstruction;
@@ -1957,6 +1958,49 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node).onTerminate(CloseReason.SHUTDOWN);
         assertThat(activeConnectionRef()).hasNullValue();
         assertThat(connectionMonitorThreadRef()).hasNullValue();
+    }
+
+    @Test
+    @Timeout(30)
+    void shutdownWaitsForAnInProgressStartRatherThanRunningConcurrently() throws Exception {
+        final CountDownLatch startInBody = new CountDownLatch(1);
+        final CountDownLatch startMayProceed = new CountDownLatch(1);
+        final CountDownLatch shutdownReachedBody = new CountDownLatch(1);
+
+        // start() parks inside its body (holding the lifecycle lock) until the test lets it proceed
+        doAnswer(inv -> {
+                    startInBody.countDown();
+                    startMayProceed.await();
+                    return null;
+                })
+                .when(bufferService)
+                .start();
+        // shutdown() signals once it reaches its teardown body
+        doAnswer(inv -> {
+                    shutdownReachedBody.countDown();
+                    return null;
+                })
+                .when(blockNodeConfigService)
+                .shutdown();
+
+        final Thread starter = new Thread(() -> connectionManager.start(), "starter");
+        starter.setDaemon(true);
+        starter.start();
+        assertThat(startInBody.await(5, TimeUnit.SECONDS)).isTrue(); // start() is inside its body, holding the lock
+
+        final Thread stopper = new Thread(() -> connectionManager.shutdown(), "stopper");
+        stopper.setDaemon(true);
+        stopper.start();
+
+        // While start() holds the lifecycle lock, shutdown() must NOT enter its body -- it waits, not overlaps
+        assertThat(shutdownReachedBody.await(1, TimeUnit.SECONDS)).isFalse();
+
+        // Let start() finish and release the lock; shutdown() then proceeds
+        startMayProceed.countDown();
+        assertThat(shutdownReachedBody.await(5, TimeUnit.SECONDS)).isTrue();
+
+        starter.join(5_000);
+        stopper.join(5_000);
     }
 
     // Utilities
