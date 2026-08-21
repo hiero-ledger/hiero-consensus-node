@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -21,17 +22,22 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
+import org.hiero.otter.fixtures.turtle.gossip.Event;
 import org.hiero.otter.fixtures.util.CursoredLog;
 import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
 
 /**
- * Connects {@link SimulatedGossip} peers in a simulated network.
+ * Connects {@link Event} peers in a simulated network.
  * <p>
- * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
- * meaningful way and makes no attempt to reduce the rate of duplicate events.
+ * This gossip simulation is more simplistic than real gossip, but behaves in similar ways. The goal is not a perfect
+ * mimic of real gossip behavior, but a rough approximation while being highly performant.
+ *
+ * <p>A node that drifts far enough behind its peers is detected as having fallen behind, at which point the network
+ * stops sending it events. This mirrors what happens to a real node, which halts gossip and event creation when it
+ * detects it has fallen behind and waits to reconnect. Nothing here brings such a node back yet, so it stays behind
+ * for the rest of the run. See {@link #hasFallenBehind(NodeId)}.
  */
-public class SimulatedNetworkConnectivity {
+public class SimulatedNetworkTraffic {
 
     /**
      * The initial capacity of the sequence number space for the cursored log of events. This should match the number of
@@ -97,6 +103,13 @@ public class SimulatedNetworkConnectivity {
     private volatile boolean eventWindowsChanged = false;
 
     /**
+     * Decides which nodes have fallen behind the rest of the network. Reads {@link #sortedNodeIds},
+     * {@link #nodeEventWindows} and {@link #connections}; a node it reports is sent no further events, has its
+     * submissions discarded, and stops holding back the pruning of {@link #eventLog}.
+     */
+    private final FallenBehindDetector fallenBehindDetector;
+
+    /**
      * Recognizes events that have already been submitted, so that each one is added to {@link #eventLog} exactly once.
      */
     private final EventDeduplicator deduplicator = new EventDeduplicator();
@@ -135,13 +148,14 @@ public class SimulatedNetworkConnectivity {
      *
      * @param random the random number generator to use for simulating network delays
      */
-    public SimulatedNetworkConnectivity(@NonNull final Random random) {
+    public SimulatedNetworkTraffic(@NonNull final Random random) {
         this.random = requireNonNull(random);
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
                 INITIAL_SEQUENCE_NUMBER_CAPACITY,
                 INITIAL_EVENT_LOG_CAPACITY,
                 PlatformEvent::getBirthRound);
+        fallenBehindDetector = new FallenBehindDetector(sortedNodeIds, nodeEventWindows, connections);
     }
 
     /**
@@ -163,6 +177,18 @@ public class SimulatedNetworkConnectivity {
     }
 
     /**
+     * Provides the data that is not available when this object is constructed, which enables fallen behind detection.
+     * Until this is called, no node is ever considered to have fallen behind.
+     *
+     * @param roster                the roster of the network, used to weigh the reports that a node has fallen behind
+     * @param fallenBehindThreshold the fraction of the peer weight that has to report a node as behind before it is
+     *                              considered to have fallen behind
+     */
+    public void start(@NonNull final Roster roster, final double fallenBehindThreshold) {
+        fallenBehindDetector.start(roster, fallenBehindThreshold);
+    }
+
+    /**
      * Set the connection data for this simulated network.
      *
      * @param newConnections the connection data
@@ -170,6 +196,9 @@ public class SimulatedNetworkConnectivity {
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         this.connections.clear();
         this.connections.putAll(newConnections);
+        // A node only learns a peer's event window by syncing with it, so which peers are reachable decides which of
+        // them can report the node as behind.
+        fallenBehindDetector.markStale();
     }
 
     /**
@@ -210,6 +239,16 @@ public class SimulatedNetworkConnectivity {
 
         for (final NodeId submitter : submissionOrder) {
             final List<PlatformEvent> events = newlySubmittedEvents.get(submitter);
+
+            if (fallenBehindDetector.hasFallenBehind(submitter)) {
+                // A real node halts event creation once it detects it has fallen behind, so nothing it produces from
+                // here on belongs in the log. Discarding it is also what keeps the log from rejecting an add: the
+                // submitter's event window is frozen, so it goes on stamping events with a birth round that pruning
+                // has already moved past.
+                events.clear();
+                continue;
+            }
+
             for (final PlatformEvent event : events) {
                 // If a node re-offers an event to gossip once it has been through intake, the same event is submitted
                 // by its creator and again by every node that receives it. Each of those submissions belongs in the
@@ -231,11 +270,37 @@ public class SimulatedNetworkConnectivity {
     public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
         nodeEventWindows.put(nodeId, eventWindow);
         eventWindowsChanged = true;
+        fallenBehindDetector.markStale();
+    }
+
+    /**
+     * Checks whether a node has fallen behind the rest of the network.
+     *
+     * @param nodeId the id of the node to check
+     * @return {@code true} if the node has fallen behind
+     */
+    public boolean hasFallenBehind(@NonNull final NodeId nodeId) {
+        return fallenBehindDetector.hasFallenBehind(nodeId);
+    }
+
+    /**
+     * Stops the flow of events to the nodes that have just fallen behind.
+     */
+    private void stopSendingToFallenBehindNodes() {
+        for (final NodeId nodeId : fallenBehindDetector.detectNewlyFallenBehind()) {
+            // Nothing further will be sent to this node, so what is still on the wire to it would be the last thing it
+            // ever received. Dropping it holds the queue at its current size for the rest of the run.
+            eventsInTransit.get(nodeId).clear();
+        }
     }
 
     /**
      * Finds the event window of the node that is furthest behind and applies it to the deduplicator and the event log.
      * Everything expired for that node is expired for the whole network, and so is of no further use to anyone.
+     *
+     * <p>Nodes that have fallen behind are left out. Such a node receives nothing further, so its window never
+     * advances again, and letting it decide the threshold would hold every event it is missing in the log for the rest
+     * of the run.
      */
     private void applyOldestEventWindow() {
         if (!eventWindowsChanged) {
@@ -244,13 +309,17 @@ public class SimulatedNetworkConnectivity {
         eventWindowsChanged = false;
 
         EventWindow oldestEventWindow = null;
-        for (final EventWindow eventWindow : nodeEventWindows.values()) {
+        for (final Entry<NodeId, EventWindow> entry : nodeEventWindows.entrySet()) {
+            if (fallenBehindDetector.hasFallenBehind(entry.getKey())) {
+                continue;
+            }
+            final EventWindow eventWindow = entry.getValue();
             if (oldestEventWindow == null || eventWindow.expiredThreshold() < oldestEventWindow.expiredThreshold()) {
                 oldestEventWindow = eventWindow;
             }
         }
         if (oldestEventWindow == null) {
-            // no nodes have been added yet
+            // no nodes have been added yet, or every node has fallen behind
             return;
         }
 
@@ -271,6 +340,9 @@ public class SimulatedNetworkConnectivity {
      * @param now the new time
      */
     public void tick(@NonNull final Instant now) {
+        // Detection runs ahead of pruning, so that a node found to have fallen behind on this tick stops holding the
+        // pruning threshold back on this tick rather than the next one.
+        stopSendingToFallenBehindNodes();
         // The oldest event window is applied first, so that the window the deduplicator discards expired events by
         // matches the range of birth rounds the log still accepts when the submissions below are appended.
         applyOldestEventWindow();
@@ -287,6 +359,10 @@ public class SimulatedNetworkConnectivity {
         // when this method is called, and so the order in which nodes are provided events makes no difference.
         for (final Map.Entry<NodeId, PriorityQueue<EventInTransit>> entry : eventsInTransit.entrySet()) {
             final NodeId nodeId = entry.getKey();
+            if (fallenBehindDetector.hasFallenBehind(nodeId)) {
+                // The node has stopped gossiping, so nothing more reaches it
+                continue;
+            }
             final PriorityQueue<EventInTransit> events = entry.getValue();
 
             final Iterator<EventInTransit> iterator = events.iterator();
@@ -327,6 +403,11 @@ public class SimulatedNetworkConnectivity {
 
         for (final Entry<NodeId, Cursor<PlatformEvent>> entry : nodeCursors.entrySet()) {
             final NodeId receiver = entry.getKey();
+            if (fallenBehindDetector.hasFallenBehind(receiver)) {
+                // Nothing is sent to a node that has fallen behind. Its cursor is deliberately left where it is: the
+                // node is not syncing, so it is not passing over these events, it is simply not being offered them.
+                continue;
+            }
             final Cursor<PlatformEvent> cursor = entry.getValue();
             final EventWindow receiverEventWindow = nodeEventWindows.get(receiver);
 

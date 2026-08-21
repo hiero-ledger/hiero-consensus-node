@@ -37,7 +37,7 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -71,7 +71,7 @@ class SimulatedGossipTests {
                 .sorted()
                 .toList();
 
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
+        final SimulatedNetworkTraffic network = new SimulatedNetworkTraffic(randotron);
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
@@ -115,7 +115,7 @@ class SimulatedGossipTests {
                     eventInputShim.buildInputWire("eventInputWire");
             eventSubmitters.put(nodeId, eventInputWire::inject);
 
-            final SimulatedGossip gossip = new SimulatedGossip(network, nodeId);
+            final Event gossip = new Event(network, nodeId);
             gossip.bind(
                     model,
                     eventInputWire,

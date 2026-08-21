@@ -276,9 +276,9 @@ The simulation of network communication happens in two steps:
 
 #### Submitting an event
 
-1\. When a node wants to submit an event, it is received by its `SimulatedGossip` instance via the appropriate `InputWire`.
+1\. When a node wants to submit an event, it is received by its `Event` instance via the appropriate `InputWire`.
 
-1.1 `SimulatedGossip` calls `SimulatedNetwork.submitEvent(submitterId, event)`.
+1.1 `Event` calls `SimulatedNetwork.submitEvent(submitterId, event)`.
 
 1.2 The `SimulatedNetwork` adds the event to the `newlySubmittedEvents` list, which is a map of submitter IDs to the lists of events.
 
@@ -288,9 +288,9 @@ The simulation of network communication happens in two steps:
 
 2.1 The `SimulatedNetwork` calls `deliverEvents(now)` to process all events that are due for delivery.
 
-2.1.1 For each node, it checks if any events in the `eventsInTransit` queue are due for delivery based on their arrival time. If so, it calls `receiveEvent(event)` on the corresponding `SimulatedGossip` instance.
+2.1.1 For each node, it checks if any events in the `eventsInTransit` queue are due for delivery based on their arrival time. If so, it calls `receiveEvent(event)` on the corresponding `Event` instance.
 
-2.1.2 The `SimulatedGossip` instance then forwards the event to its `OutputWire` from which it is consumed by the platform wiring.
+2.1.2 The `Event` instance then forwards the event to its `OutputWire` from which it is consumed by the platform wiring.
 
 2.2 After delivering events, the `SimulatedNetwork` calls `transmitEvents(now)` to process newly submitted events.
 

@@ -18,14 +18,14 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
 
 /**
- * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkConnectivity}.
+ * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkTraffic}.
  */
-public class SimulatedGossip implements Gossip, EventReceiver {
+public class Event implements Gossip, EventReceiver {
 
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final SimulatedNetworkTraffic networkTraffic;
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
@@ -37,12 +37,11 @@ public class SimulatedGossip implements Gossip, EventReceiver {
     /**
      * Constructor.
      *
-     * @param networkConnectivity the network connections on which this gossip system will run
+     * @param networkTraffic the network connections on which this gossip system will run
      * @param selfId the ID of the node running this gossip system
      */
-    public SimulatedGossip(
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity, @NonNull final NodeId selfId) {
-        this.networkConnectivity = requireNonNull(networkConnectivity);
+    public Event(@NonNull final SimulatedNetworkTraffic networkTraffic, @NonNull final NodeId selfId) {
+        this.networkTraffic = requireNonNull(networkTraffic);
         this.selfId = requireNonNull(selfId);
     }
 
@@ -78,9 +77,9 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         eventInput.bindConsumer(event -> {
             // Self-created events have no sender until now; the network identifies the source by this field
             event.setSenderId(selfId);
-            networkConnectivity.submitEvent(event);
+            networkTraffic.submitEvent(event);
         });
-        eventWindowInput.bindConsumer(eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
+        eventWindowInput.bindConsumer(eventWindow -> networkTraffic.updateEventWindow(selfId, eventWindow));
 
         startInput.bindConsumer(ignored -> {});
         stopInput.bindConsumer(ignored -> {});
@@ -114,6 +113,6 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      * Resets this node's gossip point so that it will receive all necessary events after a restart.
      */
     public void onRestart() {
-        networkConnectivity.resetCursor(selfId);
+        networkTraffic.resetCursor(selfId);
     }
 }

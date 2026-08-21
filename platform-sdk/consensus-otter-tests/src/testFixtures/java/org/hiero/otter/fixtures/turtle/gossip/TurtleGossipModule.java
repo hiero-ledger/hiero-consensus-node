@@ -38,7 +38,7 @@ import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
- * A test implementation of {@link GossipModule} that uses a {@link SimulatedGossip} instance to simulate gossip behavior in tests.
+ * A test implementation of {@link GossipModule} that uses a {@link Event} instance to simulate gossip behavior in tests.
  */
 public class TurtleGossipModule implements GossipModule {
 
@@ -79,7 +79,7 @@ public class TurtleGossipModule implements GossipModule {
         eventWindowExtractor.getOutputWire().solderTo(gossipWiring.getEventWindowInput(), INJECT);
 
         // Create and bind components
-        final SimulatedGossip gossip = (SimulatedGossip) additionalParameters.get("simulatedGossip");
+        final Event gossip = (Event) additionalParameters.get("simulatedGossip");
         gossipWiring.bind(gossip);
         gossip.provideIntakeEventCounter(intakeEventCounter);
     }

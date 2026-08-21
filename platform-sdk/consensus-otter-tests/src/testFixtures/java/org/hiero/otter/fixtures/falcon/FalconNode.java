@@ -34,7 +34,7 @@ import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -50,7 +50,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final SimulatedNetworkTraffic networkTraffic;
     private final NodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
@@ -64,7 +64,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
      * @param timeManager the time manager
      * @param selfId the ID of this node
      * @param keysAndCerts the keys and certificates of this node
-     * @param networkConnectivity the simulated network connectivity
+     * @param networkTraffic the simulated network connectivity
      * @param networkConfiguration the network configuration
      * @param consensusRoundPool the consensus round pool that collects and deduplicates consensus rounds
      */
@@ -73,14 +73,14 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
+            @NonNull final SimulatedNetworkTraffic networkTraffic,
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
-        this.networkConnectivity = requireNonNull(networkConnectivity);
-        this.networkConnectivity.addNode(selfId, this::onEventReceived);
+        this.networkTraffic = requireNonNull(networkTraffic);
+        this.networkTraffic.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
@@ -129,13 +129,13 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
             // Self-created events have no sender until now; the network identifies the source by this field
             event.setSenderId(selfId);
-            networkConnectivity.submitEvent(event);
+            networkTraffic.submitEvent(event);
         });
         wiring.eventWindowOutputWire()
                 .solderTo(
                         "EventWindowSubmitter_" + selfId,
                         "event window",
-                        eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
+                        eventWindow -> networkTraffic.updateEventWindow(selfId, eventWindow));
         wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
