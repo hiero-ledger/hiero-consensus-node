@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
@@ -37,7 +38,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.exceptions.PlatformException;
 
 /**
@@ -453,6 +453,49 @@ public final class VirtualNodeCache {
         }
     }
 
+    public void garbageCollect() {
+        // Cache garbage collection. All redundant mutations are purged. A mutation is redundant,
+        // if the same key / path / chunk ID is updated in multiple versions. This may only happen
+        // if this cache copy is a merged copy
+
+        // Only the oldest copies can be garbage collected, similar to flushes
+        final VirtualNodeCache n = next.get();
+        if (n != null) {
+            throw new IllegalStateException("Cannot garbage collect, the copy is not the oldest");
+        }
+
+        estimatedLeavesSizeInBytes.set(0);
+        estimatedHashesSizeInBytes.set(0);
+
+        // Dirty leaves
+        purgeOnGC(keyToDirtyLeafIndex, dirtyLeaves);
+        //noinspection NonAtomicOperationOnVolatileField
+        dirtyLeaves = new ConcurrentArray<>(dirtyLeaves.stream()
+                // notFiltered also covers all deleted mutations
+                .filter(Mutation::notFiltered)
+                .peek(m -> estimatedLeavesSizeInBytes.addAndGet(m.value.getSizeInBytes())));
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead());
+
+        // Dirty leaf paths
+        purgeOnGC(pathToDirtyKeyIndex, dirtyLeafPaths);
+        //noinspection NonAtomicOperationOnVolatileField
+        dirtyLeafPaths = new ConcurrentArray<>(dirtyLeafPaths.stream()
+                // notFiltered also covers all deleted mutations
+                .filter(Mutation::notFiltered)
+                .peek(m -> estimatedLeavesSizeInBytes.addAndGet(m.value.length())));
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeafPaths.estimatedStorageMemoryOverhead());
+
+        // Dirty hashes
+        purgeOnGC(idToDirtyHashChunkIndex, dirtyHashChunks);
+        //noinspection NonAtomicOperationOnVolatileField
+        dirtyHashChunks = new ConcurrentArray<>(dirtyHashChunks.stream()
+                // notFiltered also covers all deleted mutations
+                .filter(Mutation::notFiltered)
+                .peek(m -> estimatedHashesSizeInBytes.addAndGet(
+                        (long) m.value.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength())));
+        estimatedHashesSizeInBytes.addAndGet(dirtyHashChunks.estimatedStorageMemoryOverhead());
+    }
+
     /**
      * Merges this cache with the previous (newer) one by removing it from the chain of cache
      * copies. All mutations from this cache are appended to the target cache copy. No changes
@@ -816,8 +859,7 @@ public final class VirtualNodeCache {
             if ((mutation == null) || (mutation.version != fastCopyVersion.get())) {
                 mutation = new Mutation<>(mutation, hashChunkId, chunk, fastCopyVersion.get());
                 dirtyHashChunks.add(mutation);
-                estimatedHashesSizeInBytes.addAndGet(
-                        (long) chunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength());
+                estimatedHashesSizeInBytes.addAndGet((long) chunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
             } else {
                 assert mutation.notFiltered();
                 // All hash chunks are of the same size, no need to update estimatedHashesSizeInBytes
@@ -986,12 +1028,21 @@ public final class VirtualNodeCache {
                 // Create a mutation for this version pointing to the next oldest mutation (if any).
                 mutation = new Mutation<>(mutation, path, value, fastCopyVersion.get());
                 mutation.setDeleted(value == null);
+                if (value != null) {
+                    estimatedLeavesSizeInBytes.addAndGet(value.length());
+                }
                 // Hold a reference to this newest mutation in this cache
                 dirtyLeafPaths.add(mutation);
             } else if (mutation.value != value) {
                 assert mutation.notFiltered();
+                if (mutation.value != null) {
+                    estimatedLeavesSizeInBytes.addAndGet(-mutation.value.length());
+                }
                 // This mutation already exists in this version. Simply update its value and deleted status
                 mutation.value = value;
+                if (mutation.value != null) {
+                    estimatedLeavesSizeInBytes.addAndGet(mutation.value.length());
+                }
                 mutation.setDeleted(value == null);
             }
             return mutation;
@@ -1028,12 +1079,12 @@ public final class VirtualNodeCache {
                         }
                         nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                        sizeDelta += (long) hashChunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength();
                     } else if (nextMutation.version != fastCopyVersion.get()) {
                         final VirtualHashChunk hashChunk = nextMutation.value.copy();
                         nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                        sizeDelta += (long) hashChunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength();
                     } else {
                         assert nextMutation.notFiltered();
                     }
@@ -1126,7 +1177,7 @@ public final class VirtualNodeCache {
             // copy. When this newer mutation is purged, it also takes care of the filtered
             // mutation, so there is no need to handle filtered mutations explicitly
             if (element.notFiltered()) {
-                index.compute(element.key, (key, mutation) -> {
+                index.compute(element.key, (_, mutation) -> {
                     if ((mutation == null) || element.equals(mutation)) {
                         // Already removed for a more recent mutation
                         return null;
@@ -1165,6 +1216,66 @@ public final class VirtualNodeCache {
             final Mutation<K, V> nextMutation = mutation.next;
             if (nextMutation != null) {
                 nextMutation.setFiltered();
+            }
+        };
+        try {
+            array.parallelTraverse(cleaningPool, action).getAndRethrow();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * This method is somewhat similar to {@link #filterMutations(ConcurrentArray)} above, but called
+     * during garbage collection rather than flush. It iterates over all mutations in the specified
+     * array and removes all obsolete mutations (sets all "next"s to null). This implies the method
+     * may only be called on the very last (oldest) cache copy, this is checked in {@link #garbageCollect()}}.
+     * All removed mutations are marked as filtered, so they can be filtered out later easily.
+     *
+     * <p>Besides obsolete mutations, this method also marks deleted mutations as filtered. This method
+     * is only called during garbage collection. This means, the current cache copy is the oldest in the
+     * chain, it works in the in-memory mode, so there is no data in the data source. If a mutation is
+     * deleted, no need to store the corresponding key anywhere, that's why deleted mutations are
+     * filtered. If a filtered deleted mutation is the latest, the corresponding entry is removed from
+     * the map completely.
+     */
+    private <K, V> void purgeOnGC(final Map<K, Mutation<K, V>> map, final ConcurrentArray<Mutation<K, V>> array) {
+        // In most cases, this cache copy is merged, i.e. contains mutations from multiple older
+        // copies. Some of these mutations are for the same key, so it makes sense to leave only
+        // the latest one and mark all others as filtered. However, sometimes a single cache copy
+        // is large enough for garbage collection. No older mutations to filter, but there may
+        // still be deleted mutations that can be filtered, too. This is why there is no check
+        // for mergedCopy.get() here
+        final BiConsumer<Integer, Mutation<K, V>> action = (_, mutation) -> {
+            final Mutation<K, V> nextMutation = mutation.next;
+            if (nextMutation != null) {
+                // nextMutation is overridden by mutation, so it can be filtered (even if
+                // mutation is also filtered by even newer mutation). Filtered mutations stay
+                // in the array for now. When a new clean array is created later, all filtered
+                // mutations will be thrown away
+                assert nextMutation.notFiltered() || nextMutation.isDeleted();
+                nextMutation.setFiltered();
+                // Remove nextMutation from the linked list of mutations in the map
+                mutation.next = null;
+            }
+            // If a mutation is deleted, it can be filtered, too, even if there is a newer
+            // mutation for this key. For it to work, the data source must be guaranteed to
+            // not contain the key, otherwise future calls for the key will find the old
+            // value in the data source. This guarantee is provided by VirtualMap.garbageColect(),
+            // which removes all deleted keys from the data source before collecting garbage
+            // from this cache copy
+            if (mutation.isDeleted()) {
+                mutation.setFiltered();
+                // If the mutation is the latest in the chain of mutations, delete the
+                // corresponding map entry (linked list of mutations) completely to keep
+                // the map small
+                map.compute(mutation.key, (_, m) -> {
+                    if (m == mutation) {
+                        return null;
+                    }
+                    return m;
+                });
             }
         };
         try {

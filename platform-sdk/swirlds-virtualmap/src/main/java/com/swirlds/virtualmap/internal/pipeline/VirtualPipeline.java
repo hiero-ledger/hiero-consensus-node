@@ -388,8 +388,7 @@ public class VirtualPipeline {
      * Check if this copy should be flushed.
      */
     private boolean shouldBeFlushed(final VirtualRoot copy) {
-        return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
-                && copy.isDestroyed();
+        return copy.shouldBeFlushed(); // either explicitly marked to flush or based on its size
     }
 
     /**
@@ -433,7 +432,6 @@ public class VirtualPipeline {
         final PipelineListNode<VirtualRoot> mergeTarget = mergeCandidate.getNext();
 
         return !copy.shouldBeFlushed() // shouldn't be flushed
-                && copy.isDestroyed() // copy must be destroyed
                 && mergeTarget != null // target must exist
                 && mergeTarget.getValue().isImmutable(); // target must be immutable
     }
@@ -471,12 +469,18 @@ public class VirtualPipeline {
         PipelineListNode<VirtualRoot> next = copies.getFirst();
         // Iterate from the oldest copy to the newest
         while ((next != null) && !Thread.currentThread().isInterrupted()) {
+            assert next == copies.getFirst();
             final VirtualRoot copy = next.getValue();
             // The newest copy. Nothing can be done to it
             if (!copy.isImmutable()) {
                 break;
             }
-            if ((next == copies.getFirst()) && shouldBeFlushed(copy)) {
+            if (!copy.isDestroyed()) {
+                // All operations below are only applicable to destroyed copies.
+                // Does isDestroy() make isImmutable() check above obsolete?
+                break;
+            }
+            if (shouldBeFlushed(copy)) {
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
                 copies.remove(next);
@@ -485,6 +489,8 @@ public class VirtualPipeline {
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
                 merge(next);
                 copies.remove(next);
+            } else {
+                break;
             }
 
             next = next.getNext();

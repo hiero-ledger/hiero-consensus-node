@@ -130,16 +130,6 @@ class VirtualPipelineTests {
                 // The oldest undestroyed copy has been found, and it's older than this copy
                 if (copy.shouldBeFlushed()) {
                     assertFalse(copy.isFlushed(), "only the oldest copy can be flushed. Copy #" + copy.getCopyIndex());
-                } else {
-                    if (copy.isDestroyed() && copy.isImmutable()) {
-                        final DummyVirtualRoot next = index + 1 < copies.size() ? copies.get(index + 1) : null;
-                        if (next != null && next.isImmutable()) {
-                            interruptOnTimeout(
-                                    2_000,
-                                    copy::waitUntilMerged,
-                                    "copy should quickly become merged. Copy #" + copy.getCopyIndex());
-                        }
-                    }
                 }
             } else {
                 // The oldest undestroyed copy has not yet been encountered
@@ -687,13 +677,9 @@ class VirtualPipelineTests {
             copies.get(i).release();
         }
 
-        copies.get(4).waitUntilMerged();
         for (int i = 0; i < copyCount; i++) {
             DummyVirtualRoot copy = copies.get(i);
             assertFalse(copy.isFlushed(), "Copy should not yet be flushed");
-            if ((i != 0) && (i < 5)) {
-                assertTrue(copy.isMerged(), "Copy should be merged by now " + copy.getCopyIndex());
-            }
         }
 
         copies.get(0).release();

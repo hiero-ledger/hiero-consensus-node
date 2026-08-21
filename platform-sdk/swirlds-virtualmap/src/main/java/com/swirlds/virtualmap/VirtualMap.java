@@ -849,28 +849,38 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     @Override
     public void merge() {
-        final long start = System.currentTimeMillis();
         if (!isDestroyed()) {
-            throw new IllegalStateException("merge is legal only after this node is destroyed");
+            throw new IllegalStateException("Merge is only allowed on destroyed copies");
         }
         if (!isImmutable()) {
-            throw new IllegalStateException("merge is only allowed on immutable copies");
+            throw new IllegalStateException("Merge is only allowed on immutable copies");
         }
         if (!isHashed()) {
-            throw new IllegalStateException("copy must be hashed before it is merged");
+            throw new IllegalStateException("The copy must be hashed before it is merged");
         }
         if (merged.get()) {
-            throw new IllegalStateException("this copy has already been merged");
+            throw new IllegalStateException("The copy has already been merged");
         }
         if (flushed.get()) {
-            throw new IllegalStateException("a flushed copy can not be merged");
+            throw new IllegalStateException("The copy has already been flushed");
         }
+
+        if (estimatedSizeExceedsFlushThreshold()) {
+            // Virtual map copy is requested to merge, but its estimated size exceeds the flush
+            // threshold. This is clear indication of in-memory mode, when the map is too small
+            // (in number of entities, not size in bytes) to be flushed. In this mode, let's
+            // get rid of all garbage in the node cache before merging to the next copy
+            garbageCollect();
+        }
+
+        final long start = System.currentTimeMillis();
+
         cache.merge();
         merged.set(true);
 
         final long end = System.currentTimeMillis();
         statistics.recordMerge(end - start);
-        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merged in {} ms", end - start);
+        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merged v{} in {} ms", getFastCopyVersion(), end - start);
     }
 
     /**
@@ -923,9 +933,19 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         if (shouldBeFlushed.get()) {
             return true;
         }
+        // The map is small enough to avoid flushes and keep all data in memory. Instead of
+        // being flushed to disk, this map copy will be merged+compacted to the newer copy
+        if (size() <= virtualMapConfig.inMemorySizeThreshold()) {
+            return false;
+        }
         // Otherwise check its size and compare against flush threshold
+        return estimatedSizeExceedsFlushThreshold();
+    }
+
+    private boolean estimatedSizeExceedsFlushThreshold() {
         final long threshold = flushCandidateThreshold.get();
-        return (threshold > 0) && (estimatedSize() >= threshold);
+        assert threshold > 0;
+        return estimatedSize() >= threshold;
     }
 
     /**
@@ -957,21 +977,29 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     @Override
     public void flush() {
-        if (!isImmutable()) {
-            throw new IllegalStateException("mutable copies can not be flushed");
+        if (!isDestroyed()) {
+            throw new IllegalStateException("Flush is only allowed on destroyed copies");
         }
-        if (flushed.get()) {
-            throw new IllegalStateException("This map has already been flushed");
+        if (!isImmutable()) {
+            throw new IllegalStateException("Flush is only allowed on immutable copies");
+        }
+        if (!isHashed()) {
+            throw new IllegalStateException("The copy must be hashed before it is flushed");
         }
         if (merged.get()) {
-            throw new IllegalStateException("a merged copy can not be flushed");
+            throw new IllegalStateException("The copy has already been merged");
+        }
+        if (flushed.get()) {
+            throw new IllegalStateException("The copy has already been flushed");
         }
 
         final long start = System.currentTimeMillis();
+
         flush(cache, dataSource);
         cache.release();
-        final long end = System.currentTimeMillis();
         flushed.set(true);
+
+        final long end = System.currentTimeMillis();
 
         try {
             // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
@@ -1004,12 +1032,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         flushLatch.countDown();
         statistics.recordFlush(end - start);
-        logger.debug(
-                VIRTUAL_MERKLE_STATS.getMarker(),
-                "Flushed {} v{} in {} ms",
-                LABEL,
-                cache.getFastCopyVersion(),
-                end - start);
+        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed v{} in {} ms", cache.getFastCopyVersion(), end - start);
     }
 
     private void flush(VirtualNodeCache cacheToFlush, VirtualDataSource ds) {
@@ -1037,6 +1060,34 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             logger.error(EXCEPTION.getMarker(), "Error while flushing VirtualMap", ex);
             throw new UncheckedIOException(ex);
         }
+    }
+
+    private void garbageCollect() {
+        assert isDestroyed();
+        assert isImmutable();
+        assert isHashed();
+        assert !merged.get();
+        assert !flushed.get();
+
+        final long start = System.currentTimeMillis();
+
+        try {
+            final Stream<VirtualLeafBytes> deletedLeaves = cache.deletedLeaves();
+            dataSource.saveRecords(
+                    dataSource.getFirstLeafPath(),
+                    dataSource.getLastLeafPath(),
+                    Stream.empty(),
+                    Stream.empty(),
+                    deletedLeaves,
+                    false);
+        } catch (final IOException z) {
+            logger.error(EXCEPTION.getMarker(), "Error while deleting leaves from data source", z);
+            throw new UncheckedIOException(z);
+        }
+        cache.garbageCollect();
+
+        final long end = System.currentTimeMillis();
+        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "GCed v{} in {} ms", getFastCopyVersion(), end - start);
     }
 
     @Override
