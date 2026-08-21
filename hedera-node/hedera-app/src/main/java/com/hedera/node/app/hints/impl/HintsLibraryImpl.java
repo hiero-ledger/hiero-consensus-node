@@ -43,6 +43,9 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(oldCrs);
         requireNonNull(newCrs);
         requireNonNull(proof);
+        if (!HintsLibrary.isValidCrsUpdateFraming(oldCrs, newCrs, proof)) {
+            return false;
+        }
         return BRIDGE.verifyCRS(oldCrs.toByteArray(), newCrs.toByteArray(), proof.toByteArray());
     }
 
