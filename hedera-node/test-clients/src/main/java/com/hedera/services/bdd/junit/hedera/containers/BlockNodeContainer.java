@@ -11,7 +11,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.DirectoryIteratorException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -242,9 +241,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                     // best-effort per entry
                 }
             }
-        } catch (final IOException | DirectoryIteratorException ignored) {
-            // best-effort: could not list or iterate the directory (DirectoryIteratorException
-            // wraps an IOException thrown while advancing the stream) — never abort setup
+        } catch (final IOException ignored) {
+            // best-effort: could not list the directory
         }
     }
 

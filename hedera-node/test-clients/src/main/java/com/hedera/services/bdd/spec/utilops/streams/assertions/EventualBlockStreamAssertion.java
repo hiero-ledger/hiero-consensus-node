@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.function.Function;
 
@@ -104,7 +102,7 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         requireNonNull(spec);
         assertion = requireNonNull(assertionFactory.apply(spec));
-        unsubscribe = STREAM_FILE_ACCESS.subscribe(blockStreamLocFor(spec), new StreamDataListener() {
+        unsubscribe = BlockSourceFactory.blockSourceFor(spec).subscribe(new StreamDataListener() {
             @Override
             public boolean replayExistingFiles() {
                 return replayExistingFiles;
@@ -133,16 +131,5 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
     @Override
     protected String assertionDescription() {
         return assertion == null ? "<N/A>" : assertion.toString();
-    }
-
-    /**
-     * Returns the block stream location for the first listed node in the network targeted
-     * by the given spec.
-     *
-     * @param spec the spec
-     * @return a record stream location for the first listed node in the network
-     */
-    private static Path blockStreamLocFor(@NonNull final HapiSpec spec) {
-        return spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR);
     }
 }
