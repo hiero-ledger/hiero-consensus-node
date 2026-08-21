@@ -1,0 +1,323 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "206: [DISP] CITR MDLT Tag Result"
+run-name: "MDLT Tag Result for ${{ github.event.inputs.build-tag }} (${{ github.event.inputs.result }})"
+
+# Broken out of 203-user-mdlt-controller-adhoc.yaml. Because an MDLT run is driven by Chewie for ~5 days
+# out-of-band, the pass/fail verdict is not known when the kickoff workflow finishes. Chewie dispatches
+# this workflow when the run completes, supplying the build number and the result. This workflow verifies
+# the build exists, tags it (mdlt-pass-/mdlt-fail-<build>), and reports to Slack/Rootly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build-tag:
+        required: true
+        description: "The build tag to tag the MDLT result on (e.g. build-12345)"
+        type: string
+      result:
+        required: true
+        description: "MDLT result reported by Chewie"
+        type: choice
+        options:
+          - success
+          - failure
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  verify-build:
+    name: Verify Build Exists
+    runs-on: hl-cn-mdlt-lin-sm
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Verify build tag exists
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          BUILD_TAG="${{ inputs.build-tag }}"
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${BUILD_TAG}" >/dev/null 2>&1; then
+            echo "Build tag ${BUILD_TAG} exists."
+            echo "### MDLT Tag Result" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build: ${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Reported result: ${{ inputs.result }}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::error title=Build not found::Build tag ${BUILD_TAG} does not exist. Cannot tag MDLT result."
+            exit 1
+          fi
+
+  tag-mdlt-result:
+    name: Tag MDLT Result
+    runs-on: hl-cn-mdlt-lin-sm
+    needs:
+      - verify-build
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.build-tag }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Tag MDLT Result
+        run: |
+          RESULT="${{ inputs.result }}"
+          BUILD_TAG="${{ inputs.build-tag }}"
+          BUILD_NUM="${BUILD_TAG#build-}"
+
+          # Populate the MDLT tag name and message from the Chewie-reported result
+          if [[ "${RESULT}" == "success" ]]; then
+            TAG_NAME="mdlt-pass-${BUILD_NUM}"
+            MSG="Multi Day Longevity Test passed for build-${BUILD_NUM}"
+          elif [[ "${RESULT}" == "failure" ]]; then
+            TAG_NAME="mdlt-fail-${BUILD_NUM}"
+            MSG="Multi Day Longevity Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Reported result was: ${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
+          git push --set-upstream origin --tags
+
+          echo "### MDLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "MDLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+
+  get-commit-info:
+    name: Get Commit Information
+    runs-on: hl-cn-mdlt-lin-sm
+    needs:
+      - verify-build
+    outputs:
+      commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
+      commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
+      slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          BUILD_TAG: "${{ inputs.build-tag }}"
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+        run: |
+          # Extract the commit and user information from the build tag
+          COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
+          EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+  report-success:
+    name: Report MDLT execution success
+    runs-on: hl-cn-mdlt-lin-sm
+    needs:
+      - verify-build
+      - tag-mdlt-result
+      - get-commit-info
+    if: ${{ (needs.verify-build.result == 'success' &&
+      needs.tag-mdlt-result.result == 'success' &&
+      inputs.result == 'success' &&
+      needs.get-commit-info.result == 'success') &&
+      !cancelled() }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.build-tag }}"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          HEADER_TEXT: ":tada: MDLT - Multi Day Longevity Test (${{ inputs.build-tag }}) Passed"
+          STATUS_TEXT: "*MDLT Job Succeeded. Test panel status below*"
+          VERIFY_TAG_LABEL: "Verify Build for MDLT"
+          VERIFY_TAG_RESULT: ${{ needs.verify-build.result }}
+          RUN_TEST_LABEL: "Run Multi Day Longevity Test"
+          RUN_TEST_RESULT: ${{ inputs.result }}
+          TAG_LABEL: "Tag MDLT Passing"
+          TAG_RESULT: ${{ needs.tag-mdlt-result.result }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.build-tag }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-success.json.tpl -o slack_payload.json
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+  report-failure:
+    name: Report MDLT execution failure
+    runs-on: hl-cn-mdlt-lin-sm
+    needs:
+      - verify-build
+      - tag-mdlt-result
+      - get-commit-info
+      - report-success
+    if: ${{ (needs.verify-build.result != 'success' ||
+      needs.tag-mdlt-result.result != 'success' ||
+      inputs.result != 'success' ||
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
+      !cancelled() && always() }}
+
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.build-tag }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-gomplate: "true"
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Set Create-Alert Flag
+        id: set-alert-flag
+        run: |
+          CREATE_ALERT="false"
+          if [[ "${{ needs.verify-build.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-mdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            CREATE_ALERT="true"
+          fi
+          echo "create=${CREATE_ALERT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          summary="The MDLT Tag Result Job Failed"
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Build: ${{ needs.verify-build.result }}"
+            echo "- Reported Result: ${{ inputs.result }}"
+            echo "- Tag MDLT Result: ${{ needs.tag-mdlt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "false"
+          alert_urgency: "Medium"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          HEADER_TEXT: ":grey_exclamation: MDLT - Multi Day Longevity Test (${{ inputs.build-tag }}) Failed"
+          STATUS_TEXT: "*MDLT Job Resulted in failure. See status below.*"
+          VERIFY_TAG_LABEL: "Verify Build for MDLT"
+          VERIFY_TAG_RESULT: ${{ needs.verify-build.result }}
+          RUN_TEST_LABEL: "Run Multi Day Longevity Test"
+          RUN_TEST_RESULT: ${{ inputs.result }}
+          TAG_LABEL: "Tag MDLT Passing"
+          TAG_RESULT: ${{ needs.tag-mdlt-result.result }}
+          COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.build-tag }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-failure.json.tpl -o slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
