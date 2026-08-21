@@ -42,7 +42,6 @@ import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.CryptoGetInfoResponse.AccountInfo;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -57,8 +56,8 @@ import org.junit.jupiter.api.Tag;
  * which escaped every fee-charging boundary and replaced the whole batch with a zero-fee {@code
  * FAIL_INVALID} record (rolling back all inner work and all fees, for free, repeatably).
  *
- * <p>This is the inverted proof-of-concept: the same fifteen fee-bearing storage-writing contract
- * calls followed by a valid staked delete, asserting the FIXED behavior — the batch succeeds, the
+ * <p>This is the inverted proof-of-concept: fifteen fee-bearing storage-writing transfers followed
+ * by a valid staked delete, asserting the FIXED behavior — the batch succeeds, the
  * deleted account's reward is redirected to its beneficiary, every inner record persists, and fees
  * are charged.
  */
@@ -66,7 +65,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 class AtomicBatchStakedDeleteRewardRedirectionTest {
-    private static final String SLOT_USER = "SlotUser";
     // A contract with a payable constructor, so the staked contract can be created holding an HBAR balance.
     private static final String PAYABLE_CONTRACT = "PayableConstructor";
     private static final String BATCH_KEY = "rewardRedirectBatchKey";
@@ -143,8 +141,6 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         "staking.requireMinStakeToReward", "false")),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
-                uploadInitCode(SLOT_USER),
-                contractCreate(SLOT_USER).gas(CONTRACT_CREATE_GAS),
                 cryptoCreate(WORK_PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(OUTER_PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(STAKED_ATTACKER).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
@@ -175,7 +171,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         STAKING_NETWORK_REWARDS_STATE_ID,
                         (NetworkStakingRewards rewards) -> networkPendingBefore.set(rewards.pendingRewards())),
 
-                // Fifteen fee-bearing storage-writing calls, then the valid staked delete.
+                // Fifteen fee-bearing storage-writing transfers, then the valid staked delete.
                 batch,
 
                 // The batch now SUCCEEDS instead of being replaced by a zero-fee FAIL_INVALID record.
@@ -200,7 +196,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 assertionsHold((spec, log) -> {
                     // Fees are charged for the inner work and the outer batch (the work is not free).
                     Assertions.assertThat(workPayerBefore.get() - workPayerAfter.get())
-                            .as("the fifteen fee-bearing storage calls must charge the work payer")
+                            .as("the fifteen fee-bearing transfers must charge the work payer")
                             .isPositive();
                     Assertions.assertThat(outerPayerBefore.get() - outerPayerAfter.get())
                             .as("the outer batch fee must be charged")
@@ -280,8 +276,6 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
                 newKeyNamed(CONTRACT_ADMIN_KEY),
-                uploadInitCode(SLOT_USER),
-                contractCreate(SLOT_USER).gas(CONTRACT_CREATE_GAS),
                 uploadInitCode(PAYABLE_CONTRACT),
                 contractCreate(STAKED_CONTRACT)
                         .bytecode(PAYABLE_CONTRACT)
@@ -408,8 +402,6 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         "contracts.evm.version", "v0.46")),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
-                uploadInitCode(SLOT_USER),
-                contractCreate(SLOT_USER).gas(CONTRACT_CREATE_GAS),
                 uploadInitCode(SELF_DESTRUCT_CONTRACT),
                 contractCreate(SELF_DESTRUCT_CONTRACT)
                         .stakedNodeId(0)
@@ -473,12 +465,10 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
     private static HapiTxnOp<?>[] workThen(final String payer, final HapiTxnOp<?> terminalOperation) {
         final var operations = new HapiTxnOp<?>[WORK_INNER_COUNT + 1];
         for (int i = 0; i < WORK_INNER_COUNT; i++) {
-            final var value = BigInteger.valueOf(i + 1L);
-            operations[i] = contractCall(SLOT_USER, "consumeA", value, value)
+            operations[i] = cryptoTransfer(tinyBarsFromTo(payer, FUNDING, 1L))
                     .payingWith(payer)
                     .signedBy(payer)
                     .memo("w")
-                    .gas(GAS_LIMIT)
                     .batchKey(BATCH_KEY)
                     .via(workName(i));
         }
