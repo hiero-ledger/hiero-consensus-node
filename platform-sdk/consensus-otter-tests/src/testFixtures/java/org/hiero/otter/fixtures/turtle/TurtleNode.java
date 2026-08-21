@@ -45,6 +45,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -59,6 +60,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -213,6 +215,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                 // ignore, this is just a fallback in case an earlier test didn't clean up properly
             }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+            // Exporter-free: turtle runs every node of the network in this one JVM. Created per start,
+            // like the metrics above, so its lifetime matches the platform it is handed to, which closes it
+            // in SwirldsPlatform.destroy() when doKillImmediately() tears the node down.
+            final MetricRegistry metricRegistry = NoOpMetricRegistries.create(selfId.id());
             final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
             final FileSystemManager fileSystemManager =
                     new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
@@ -268,6 +274,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             final TestPlatformBuilder builder = new TestPlatformBuilder(
                             currentConfiguration,
                             metrics,
+                            metricRegistry,
                             timeManager.time(),
                             rosterHistory,
                             keysAndCerts,

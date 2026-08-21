@@ -87,8 +87,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration LEDGER_ID_RETRY_BACKOFF = Duration.ofMillis(100);
 
-    // 3 gRPC ports, 2 gossip ports, 1 Prometheus
-    private static final int PORTS_PER_NODE = 6;
+    // 3 gRPC ports, 2 gossip ports, 1 Prometheus, 1 OpenMetrics
+    private static final int PORTS_PER_NODE = 7;
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
@@ -103,6 +103,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextInternalGossipPort;
     private static int nextExternalGossipPort;
     private static int nextPrometheusPort;
+    private static int nextOpenMetricsPort;
     private static boolean nextPortsInitialized = false;
 
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
@@ -374,7 +375,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextNodeOperatorPort + nodeId,
                             nextInternalGossipPort + nodeId * 2,
                             nextExternalGossipPort + nodeId * 2,
-                            nextPrometheusPort + nodeId);
+                            nextPrometheusPort + nodeId,
+                            nextOpenMetricsPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
         final var nwk =
@@ -435,6 +437,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         nextInternalGossipPort + (int) nodeId * 2,
                         nextExternalGossipPort + (int) nodeId * 2,
                         nextPrometheusPort + (int) nodeId,
+                        nextOpenMetricsPort + (int) nodeId,
                         shard,
                         realm),
                 GRPC_PINGER,
@@ -513,6 +516,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         nextInternalGossipPort,
                                         nextExternalGossipPort,
                                         nextPrometheusPort,
+                                        nextOpenMetricsPort,
                                         shard,
                                         realm),
                                 GRPC_PINGER,
@@ -623,11 +627,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         //   - gossipPort = 10012, 10014, 10016, 10018
         //   - gossipTlsPort = 10013, 10015, 10017, 10019
         //   - prometheusPort = 10020, 10021, 10022, 10023
+        //   - openMetricsPort = 10024, 10025, 10026, 10027
         nextGrpcPort = firstGrpcPort;
         nextNodeOperatorPort = nextGrpcPort + 2 * size;
         nextInternalGossipPort = nextNodeOperatorPort + size;
         nextExternalGossipPort = nextInternalGossipPort + 1;
         nextPrometheusPort = nextInternalGossipPort + 2 * size;
+        nextOpenMetricsPort = nextPrometheusPort + size;
         nextPortsInitialized = true;
     }
 

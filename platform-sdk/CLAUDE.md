@@ -46,7 +46,11 @@ principles as `consensus-*` modules.
 - `swirlds-logging` — structured logging API.
 - `swirlds-logging-log4j-appender` — log4j appender bridging `swirlds-logging` output to log4j.
 - `swirlds-config-api` — configuration API.
-- `swirlds-metrics-api` — metrics API.
+- `swirlds-metrics-api` — metrics API. Legacy; being superseded by `hiero-metrics`.
+- `hiero-metrics` (module `org.hiero.metrics`, at `hiero-observability/hiero-metrics`) — the metrics API
+  replacing `swirlds-metrics-api`. It lives outside `platform-sdk` and must stay layer-agnostic: it must
+  never depend on `consensus-model` or any other consensus type, so APIs handed to it take primitives
+  (a `long` node id) rather than `NodeId`.
 - `swirlds-metrics-impl` — metrics implementation; depend on `swirlds-metrics-api` instead.
 - `consensus-wiring-framework` — wiring framework for composing components into data pipelines.
 - `swirlds-state-api` — state access and lifecycle API (singleton, queue, key-value).
@@ -58,7 +62,8 @@ principles as `consensus-*` modules.
 
 **Usage rules:**
 
-- **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
+- **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
+  `hiero-metrics`
 - **Allowed in functional-api, functional-impl, self-contained functional, and fake modules only (not supporting modules):** `consensus-wiring-framework`
 - **Allowed in `consensus-platformstate`, `consensus-roster`, and `consensus-iss-detection` only:** `swirlds-state-api`, `swirlds-state-impl`
 - **Allowed in `consensus-state`, `consensus-state-management`, `consensus-transaction-handling`, and `consensus-fakes` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
