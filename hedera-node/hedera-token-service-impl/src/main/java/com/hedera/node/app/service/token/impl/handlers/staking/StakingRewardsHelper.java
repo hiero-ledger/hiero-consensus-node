@@ -97,7 +97,12 @@ public class StakingRewardsHelper {
                     possibleRewardReceivers.add(id);
                 }
             } else {
-                if (isCurrentlyStakedToNode(writableAccountStore.get(id))) {
+                // Skip a stakee deleted in a prior transaction (its reward can no longer be redirected);
+                // one deleted in the current transaction is kept, mirroring the stake-to-me guard in
+                // StakingRewardsHandlerImpl#updateSpecialRewardReceivers.
+                final var originalAcct = writableAccountStore.getOriginalValue(id);
+                if ((originalAcct == null || !originalAcct.deleted())
+                        && isCurrentlyStakedToNode(writableAccountStore.get(id))) {
                     possibleRewardReceivers.add(id);
                 }
             }
