@@ -25,7 +25,7 @@ import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
  */
 public class SimulatedGossip implements Gossip, EventReceiver {
 
-    private final SimulatedNetworkConnectivity networkTraffic;
+    private final SimulatedNetworkConnectivity networkConnectivity;
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
@@ -37,11 +37,12 @@ public class SimulatedGossip implements Gossip, EventReceiver {
     /**
      * Constructor.
      *
-     * @param networkTraffic the network connections on which this gossip system will run
+     * @param networkConnectivity the network connections on which this gossip system will run
      * @param selfId the ID of the node running this gossip system
      */
-    public SimulatedGossip(@NonNull final SimulatedNetworkConnectivity networkTraffic, @NonNull final NodeId selfId) {
-        this.networkTraffic = requireNonNull(networkTraffic);
+    public SimulatedGossip(
+            @NonNull final SimulatedNetworkConnectivity networkConnectivity, @NonNull final NodeId selfId) {
+        this.networkConnectivity = requireNonNull(networkConnectivity);
         this.selfId = requireNonNull(selfId);
     }
 
@@ -77,9 +78,9 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         eventInput.bindConsumer(event -> {
             // Self-created events have no sender until now; the network identifies the source by this field
             event.setSenderId(selfId);
-            networkTraffic.submitEvent(event);
+            networkConnectivity.submitEvent(event);
         });
-        eventWindowInput.bindConsumer(eventWindow -> networkTraffic.updateEventWindow(selfId, eventWindow));
+        eventWindowInput.bindConsumer(eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
 
         startInput.bindConsumer(ignored -> {});
         stopInput.bindConsumer(ignored -> {});
@@ -113,6 +114,6 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      * Resets this node's gossip point so that it will receive all necessary events after a restart.
      */
     public void onRestart() {
-        networkTraffic.resetCursor(selfId);
+        networkConnectivity.resetCursor(selfId);
     }
 }
