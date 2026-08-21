@@ -1,0 +1,54 @@
+{
+  "buckets": [
+    {
+      "name": "ReclaimNormalCreateLimit",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [
+            "CryptoCreate"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ReclaimHighVolumeCreateLimit",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [
+            "CryptoCreate"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ReclaimPassthroughLimit",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 10000,
+          "operations": [
+            "CryptoTransfer"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100000,
+          "operations": [
+            "TransactionGetReceipt",
+            "FileGetContents"
+          ]
+        }
+      ]
+    }
+  ]
+}

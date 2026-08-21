@@ -128,6 +128,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
@@ -1473,6 +1474,12 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        requireNonNull(action);
+        deletedAccountBeneficiaries.forEach(action);
+    }
+
+    @Override
     @NonNull
     public TransactionBody transactionBody() {
         return inProgressBody();
@@ -1551,6 +1558,10 @@ public class BlockStreamBuilder
         runningHashVersion = 0L;
         if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
             clearContractTraceData();
+        }
+        if (evmTransactionResult != null) {
+            logs = null;
+            createdContractIds = null;
         }
     }
 
