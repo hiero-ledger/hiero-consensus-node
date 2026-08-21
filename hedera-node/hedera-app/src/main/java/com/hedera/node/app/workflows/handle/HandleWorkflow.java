@@ -642,7 +642,8 @@ public class HandleWorkflow {
             blockRecordManager.endUserTransaction(records.stream(), state);
         }
         if (streamMode != RECORDS) {
-            handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+            blockStreamManager.writeSavepointItems(
+                    handleOutput.blockRecordSourceOrThrow().blockItems(), handleOutput.lastAssignedConsensusTime());
         } else if (handleOutput.lastAssignedConsensusTime().isAfter(consensusNow)) {
             blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
         }
@@ -778,7 +779,9 @@ public class HandleWorkflow {
                     final var handleOutput = executeScheduled(state, nextTime, creatorInfo, executableTxn);
                     transactionsDispatched = true;
                     if (streamMode != RECORDS) {
-                        handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                        blockStreamManager.writeSavepointItems(
+                                handleOutput.blockRecordSourceOrThrow().blockItems(),
+                                handleOutput.lastAssignedConsensusTime());
                     } else if (handleOutput.lastAssignedConsensusTime().isAfter(consensusNow)) {
                         blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
                     }
@@ -888,7 +891,7 @@ public class HandleWorkflow {
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     parentTxn.preHandleResult().dueDiligenceFailure(),
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
@@ -934,7 +937,7 @@ public class HandleWorkflow {
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
                     DueDiligenceFailure.NO,
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
