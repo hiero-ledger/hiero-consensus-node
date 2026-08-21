@@ -16,7 +16,7 @@ import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 
 /**
  * An abstract base class for a simulated network environment. This class provides the core functionality for managing
@@ -26,7 +26,7 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
 
     protected final SimulatorTimeManager timeManager;
     protected final TransactionGenerator transactionGenerator;
-    protected final SimulatedNetworkTraffic simulatedNetworkTraffic;
+    protected final SimulatedNetworkConnectivity simulatedNetworkConnectivity;
     protected final ConsensusRoundPool consensusRoundPool = new ConsensusRoundPool();
 
     /**
@@ -45,7 +45,7 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
         super(random, useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
-        this.simulatedNetworkTraffic = new SimulatedNetworkTraffic(this.random);
+        this.simulatedNetworkConnectivity = new SimulatedNetworkConnectivity(this.random);
     }
 
     /**
@@ -78,7 +78,7 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
                 createConfiguration(networkConfiguration.overrideProperties().properties());
         final double fallenBehindThreshold =
                 configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
-        simulatedNetworkTraffic.start(roster, fallenBehindThreshold);
+        simulatedNetworkConnectivity.start(roster, fallenBehindThreshold);
     }
 
     /**
@@ -91,7 +91,7 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
         if (limited) {
             throw new UnsupportedOperationException("Bandwidth limits are not supported in this environment.");
         }
-        simulatedNetworkTraffic.setConnections(connections);
+        simulatedNetworkConnectivity.setConnections(connections);
     }
 
     /**
@@ -99,7 +99,7 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
      */
     @Override
     protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
-        simulatedNetworkTraffic.setConnections(connections);
+        simulatedNetworkConnectivity.setConnections(connections);
     }
 
     /**

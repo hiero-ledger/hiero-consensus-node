@@ -35,7 +35,7 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -51,7 +51,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
-    private final SimulatedNetworkTraffic networkTraffic;
+    private final SimulatedNetworkConnectivity networkTraffic;
     private final NodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
@@ -74,7 +74,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkTraffic networkTraffic,
+            @NonNull final SimulatedNetworkConnectivity networkTraffic,
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);

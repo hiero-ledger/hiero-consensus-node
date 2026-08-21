@@ -37,7 +37,7 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -71,7 +71,7 @@ class SimulatedGossipTests {
                 .sorted()
                 .toList();
 
-        final SimulatedNetworkTraffic network = new SimulatedNetworkTraffic(randotron);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));

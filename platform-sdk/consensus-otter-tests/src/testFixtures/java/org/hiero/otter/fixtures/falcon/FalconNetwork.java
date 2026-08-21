@@ -60,10 +60,10 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 timeManager,
                 nodeId,
                 keysAndCerts,
-                simulatedNetworkTraffic,
+                simulatedNetworkConnectivity,
                 networkConfiguration,
                 consensusRoundPool);
-        simulatedNetworkTraffic.addNode(nodeId, node);
+        simulatedNetworkConnectivity.addNode(nodeId, node);
         return node;
     }
 
@@ -171,7 +171,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
             return;
         }
 
-        simulatedNetworkTraffic.tick(now);
+        simulatedNetworkConnectivity.tick(now);
 
         for (final Node node : nodes()) {
             final FalconNode falconNode = (FalconNode) node;

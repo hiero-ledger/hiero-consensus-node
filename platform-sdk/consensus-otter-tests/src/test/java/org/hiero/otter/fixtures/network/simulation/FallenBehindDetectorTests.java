@@ -54,7 +54,7 @@ class FallenBehindDetectorTests {
 
     private static final ConnectionState DISCONNECTED = CONNECTED.withConnected(false);
 
-    /** The state the detector reads, standing in for what {@link SimulatedNetworkTraffic} would own. */
+    /** The state the detector reads, standing in for what {@link SimulatedNetworkConnectivity} would own. */
     private final List<NodeId> nodeIds = new ArrayList<>();
 
     private final Map<NodeId, EventWindow> eventWindows = new HashMap<>();

@@ -28,7 +28,7 @@ import org.hiero.otter.fixtures.network.Topology.ConnectionState;
  * otherwise - see {@link #isReportedBehindByEnoughWeight(NodeId)}.
  *
  * <p>Detection is driven from the outside: this class reads the node ids, event windows and connections owned by
- * {@link SimulatedNetworkTraffic} and reports its findings back, but never acts on them itself.
+ * {@link SimulatedNetworkConnectivity} and reports its findings back, but never acts on them itself.
  *
  * <p>A node is only ever reported once. The network stops sending events to a node that has fallen behind, so its
  * event window can never advance again and nothing would bring it back. Reconnect will be what clears this.
@@ -36,18 +36,18 @@ import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 class FallenBehindDetector {
 
     /**
-     * Every node in the network, in node id order. Owned by {@link SimulatedNetworkTraffic}; read here so that both the
+     * Every node in the network, in node id order. Owned by {@link SimulatedNetworkConnectivity}; read here so that both the
      * nodes being checked and the peers reporting on them are visited in a deterministic order.
      */
     private final List<NodeId> nodeIds;
 
     /**
-     * The most recent {@link EventWindow} reported by each node. Owned by {@link SimulatedNetworkTraffic}.
+     * The most recent {@link EventWindow} reported by each node. Owned by {@link SimulatedNetworkConnectivity}.
      */
     private final Map<NodeId, EventWindow> nodeEventWindows;
 
     /**
-     * The connection state between each pair of nodes. Owned by {@link SimulatedNetworkTraffic}.
+     * The connection state between each pair of nodes. Owned by {@link SimulatedNetworkConnectivity}.
      */
     private final Map<ConnectionKey, ConnectionState> connections;
 
@@ -97,7 +97,7 @@ class FallenBehindDetector {
     /**
      * Constructor.
      *
-     * <p>The three collections are the live ones held by {@link SimulatedNetworkTraffic}, not copies. This class only
+     * <p>The three collections are the live ones held by {@link SimulatedNetworkConnectivity}, not copies. This class only
      * ever reads them.
      *
      * @param nodeIds          every node in the network, in node id order

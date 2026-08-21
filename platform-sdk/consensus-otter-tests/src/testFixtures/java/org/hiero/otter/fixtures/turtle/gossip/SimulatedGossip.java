@@ -18,14 +18,14 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkTraffic;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 
 /**
- * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkTraffic}.
+ * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkConnectivity}.
  */
 public class SimulatedGossip implements Gossip, EventReceiver {
 
-    private final SimulatedNetworkTraffic networkTraffic;
+    private final SimulatedNetworkConnectivity networkTraffic;
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
@@ -40,7 +40,7 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      * @param networkTraffic the network connections on which this gossip system will run
      * @param selfId the ID of the node running this gossip system
      */
-    public SimulatedGossip(@NonNull final SimulatedNetworkTraffic networkTraffic, @NonNull final NodeId selfId) {
+    public SimulatedGossip(@NonNull final SimulatedNetworkConnectivity networkTraffic, @NonNull final NodeId selfId) {
         this.networkTraffic = requireNonNull(networkTraffic);
         this.selfId = requireNonNull(selfId);
     }

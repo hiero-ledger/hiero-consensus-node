@@ -37,7 +37,7 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * detects it has fallen behind and waits to reconnect. Nothing here brings such a node back yet, so it stays behind
  * for the rest of the run. See {@link #hasFallenBehind(NodeId)}.
  */
-public class SimulatedNetworkTraffic {
+public class SimulatedNetworkConnectivity {
 
     /**
      * The initial capacity of the sequence number space for the cursored log of events. This should match the number of
@@ -148,7 +148,7 @@ public class SimulatedNetworkTraffic {
      *
      * @param random the random number generator to use for simulating network delays
      */
-    public SimulatedNetworkTraffic(@NonNull final Random random) {
+    public SimulatedNetworkConnectivity(@NonNull final Random random) {
         this.random = requireNonNull(random);
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
