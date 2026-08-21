@@ -6,14 +6,6 @@ run-name: "MDLT Publish Results for ${{ github.event.inputs.build-tag }} (alloca
 # are resolved from the Chewie allocation, so the only run-specific value needed is the Allocation ID
 # printed by the 835 kickoff. Short-term this is user-triggered; longer-term Chewie dispatches it.
 
-permissions:
-  contents: read
-  id-token: write
-
-env:
-  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
-  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
-
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +26,14 @@ on:
 defaults:
   run:
     shell: bash
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
+  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
 
 jobs:
   get-chewie-jwt:
