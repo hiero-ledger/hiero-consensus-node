@@ -165,7 +165,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.streamMode = requireNonNull(streamMode);
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
-        noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
+        // The +1 puts preset nonces strictly past the largest offset buildHandleOutput() can assign
+        noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser + 1;
         setupFirstSavepoint(USER);
         baseBuilder = createRootBaseBuilder(maxSerializedTraceDataBytes);
     }
