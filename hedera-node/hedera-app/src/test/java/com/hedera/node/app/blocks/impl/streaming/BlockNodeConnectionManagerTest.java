@@ -79,6 +79,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle globalCoolDownTimestampRefHandle;
     private static final VarHandle bufferStatusRefHandle;
     private static final VarHandle connectionMonitorThreadRefHandle;
+    private static final VarHandle blockingIoExecutorRefHandle;
 
     private static final MethodHandle isActiveConnectionAutoResetHandle;
     private static final MethodHandle isHigherPriorityNodeAvailableHandle;
@@ -107,6 +108,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             bufferStatusRefHandle = lookup.findVarHandle(cls, "bufferStatusRef", AtomicReference.class);
             connectionMonitorThreadRefHandle =
                     lookup.findVarHandle(cls, "connectionMonitorThreadRef", AtomicReference.class);
+            blockingIoExecutorRefHandle = lookup.findVarHandle(cls, "blockingIoExecutorRef", AtomicReference.class);
 
             final Method isActiveConnectionAutoReset = cls.getDeclaredMethod(
                     "isActiveConnectionAutoReset", Instant.class, BlockNodeStreamingConnection.class);
@@ -2003,6 +2005,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         stopper.join(5_000);
     }
 
+    @Test
+    void startReinitializesExecutorAfterRestart() {
+        // First start uses the executor created in the constructor; shutdown() nulls it; the second start is a
+        // restart and must re-initialize the executor from the supplier -- exercising the restart re-init path.
+        connectionManager.start();
+        connectionManager.shutdown(); // teardown nulls blockingIoExecutorRef
+        assertThat(blockingIoExecutorRef()).hasNullValue();
+
+        connectionManager.start(); // blockingIoExecutorRef is null here -> re-init runs
+
+        assertThat(blockingIoExecutorRef()).doesNotHaveNullValue();
+
+        connectionManager.shutdown(); // tidy: stop the monitor thread
+    }
+
     // Utilities
 
     void invoke_updateConnectionIfNeeded() throws Throwable {
@@ -2054,6 +2071,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @SuppressWarnings("unchecked")
     AtomicReference<Thread> connectionMonitorThreadRef() {
         return (AtomicReference<Thread>) connectionMonitorThreadRefHandle.get(connectionManager);
+    }
+
+    AtomicReference<ExecutorService> blockingIoExecutorRef() {
+        return (AtomicReference<ExecutorService>) blockingIoExecutorRefHandle.get(connectionManager);
     }
 
     @SuppressWarnings("unchecked")
