@@ -53,9 +53,9 @@ on:
         type: string
         description: "Run Migration Testing Panel"
         default: "true"
-      enable-077-to-078-cutover-panel:
+      enable-078-to-079-cutover-panel:
         type: string
-        description: "Run Solo 0.77 to 0.78 Block Stream Cutover Panel"
+        description: "Run Solo 0.78 to 0.79 Block Stream Cutover Panel"
         default: "false"
       solo-version:
         type: string
@@ -63,7 +63,7 @@ on:
         default: "latest"
       cutover-solo-version:
         type: string
-        description: "The Solo version to use for the 0.77 to 0.78 cutover panel"
+        description: "The Solo version to use for the 0.78 to 0.79 cutover panel"
         required: true
       mirror-node-version:
         type: string
@@ -505,16 +505,16 @@ jobs:
             echo "Coverage resumes automatically once the previous minor is tagged or its release branch is cut."
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  solo-077-to-078-cutover-panel:
-    name: Solo 0.77 to 0.78 Cutover Panel
+  solo-078-to-079-cutover-panel:
+    name: Solo 0.78 to 0.79 Cutover Panel
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-077-to-078-cutover-panel == 'true' }}
-    uses: ./.github/workflows/826-call-solo-077-to-078-cutover.yaml
+    if: ${{ needs.build.result == 'success' && inputs.enable-078-to-079-cutover-panel == 'true' }}
+    uses: ./.github/workflows/826-call-solo-078-to-079-cutover.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
-      custom-job-name: "${{ inputs.custom-job-label }} Solo 0.77 -> 0.78 Cutover"
+      custom-job-name: "${{ inputs.custom-job-label }} Solo 0.78 -> 0.79 Cutover"
       solo-version: "${{ inputs.cutover-solo-version }}"
       java-version: "${{ inputs.java-version }}"
 
@@ -537,7 +537,7 @@ jobs:
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
       - migration-testing-panel
-      - solo-077-to-078-cutover-panel
+      - solo-078-to-079-cutover-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
@@ -562,7 +562,7 @@ jobs:
             ${{ needs.json-rpc-relay-regression-panel.result }}
             ${{ needs.block-node-regression-panel.result }}
             ${{ needs.migration-testing-panel.result }}
-            ${{ needs.solo-077-to-078-cutover-panel.result }}
+            ${{ needs.solo-078-to-079-cutover-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
@@ -576,7 +576,7 @@ jobs:
             ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
-            ${{ needs.solo-077-to-078-cutover-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.solo-078-to-079-cutover-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             build
@@ -590,5 +590,5 @@ jobs:
             json-rpc-relay-regression-panel
             block-node-regression-panel
             migration-testing-panel
-            solo-077-to-078-cutover-panel
+            solo-078-to-079-cutover-panel
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

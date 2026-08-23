@@ -55,8 +55,10 @@ public class BlockNodeBackPressureSuite {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
-                blockNode(0).shutDownImmediately(),
+                // Capture the time before shutting down: the buffer can saturate and log backpressure
+                // during the container's shutdown/drain phase, before shutDownImmediately() returns.
                 doingContextual(spec -> time.set(Instant.now())),
+                blockNode(0).shutDownImmediately(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -144,9 +146,11 @@ public class BlockNodeBackPressureSuite {
         return hapiTest(
                 // Let the 4-node network stabilize before shutting down the block node
                 doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
-                blockNode(0).shutDownImmediately(),
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
+                // Capture the time before shutting down: the buffer can saturate and log backpressure
+                // during the container's shutdown/drain phase, before shutDownImmediately() returns.
                 doingContextual(spec -> time.set(Instant.now())),
+                blockNode(0).shutDownImmediately(),
                 // With REAL block nodes (Docker containers), shutdown takes ~15s before the
                 // connection drops, then the buffer needs ~10s more to fill. Use 2min timeout.
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
