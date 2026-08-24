@@ -1,5 +1,11 @@
 # Representative Linux LongList snapshot benchmark results
 
+> **Status:** Historical evidence from the first, interrupted Linux campaign.
+> The measurements and provenance remain useful, but its execution
+> recommendations are superseded. This file will be rewritten after the
+> corrected baseline campaign. See
+> [`snapshot-optimization-report.md`](../snapshot-optimization-report.md).
+
 ## Conclusion
 
 The representative Linux campaign confirms a real, repeatable isolated-write
@@ -52,11 +58,10 @@ Disk gain without introducing Segment or three-list contention tails.
 - Source fixture: a dense leaf-index body with one non-zero location for every
   leaf
 - Benchmark:
-  [`LongListSnapshotBenchmark`](../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java)
+  [`LongListSnapshotBenchmark`](../../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java)
 - Runner:
-  [`run-long-list-snapshot-benchmark.sh`](../platform-sdk/swirlds-merkledb/src/jmh/scripts/run-long-list-snapshot-benchmark.sh)
-- Raw input: `long-list-snapshot-partial.tar.gz` (retained locally, not intended
-  for source control)
+  [`run-long-list-snapshot-benchmark.sh`](../../platform-sdk/swirlds-merkledb/src/jmh/scripts/run-long-list-snapshot-benchmark.sh)
+- Raw input: `raw/long-list-snapshot-partial.tar.gz`
 - Raw archive SHA-256:
   `4a437f94643b9ee6d04ba82969e869b61048ed95b439f8d9989c76cb26d1a9eb`
 

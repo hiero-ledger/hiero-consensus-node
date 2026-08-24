@@ -390,13 +390,17 @@ Everything lives under `26469-longlist-index-chunks-can-be-written-to-disk-in-pa
 ```text
 26469-longlist-index-chunks-can-be-written-to-disk-in-parallel/
 │
+├── README.md
+│   # Index of every document and experiment, with its current status and
+│   # one-line verdict.
+│
 ├── snapshot-optimization-report.md
 │   # Master hypothesis and execution plan. Updated with cross-experiment
 │   # conclusions as evidence arrives.
 │
 ├── assessment-go-no-go.md
-│   # Final concise recommendation after all approved experiments finish. The
-│   # current contents will be rewritten in place.
+│   # Placeholder for the final concise recommendation after all approved
+│   # experiments finish.
 │
 ├── 00-filechannel-write-reference/
 │   └── filechannel-write-reference.md
@@ -455,11 +459,11 @@ results or creating or editing its Markdown document, agree on a document
 structure tailored to that experiment. Then analyze the data, write the
 document, and verify its calculations and conclusions.
 
-1. **Prepare the branch directory.** Create the agreed semantic directories;
+1. ~~**Prepare the branch directory.** Create the agreed semantic directories;
    move and rename the existing proposal and result documents; move the partial
    Linux archive under `01-parallel-chunk-writes/raw/`; keep this report and
    `assessment-go-no-go.md` at the root; and repair every affected relative
-   link. Do not create documents for conditional experiments yet.
+   link. Do not create documents for conditional experiments yet.~~
 2. **Run the FileChannel write reference on Linux.** Implement and smoke-test
    the control on the MacBook for correctness only, then run the real reference
    on Linux. Agree on `filechannel-write-reference.md` before processing its

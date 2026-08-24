@@ -1,4 +1,9 @@
-# Parallel LongList snapshot benchmark results
+# macOS parallel LongList snapshot benchmark results
+
+> **Status:** Historical development-machine evidence. Retain the measurements
+> and provenance, but do not use this document for production decisions or as
+> the current execution plan. See
+> [`snapshot-optimization-report.md`](../snapshot-optimization-report.md).
 
 ## Conclusion
 

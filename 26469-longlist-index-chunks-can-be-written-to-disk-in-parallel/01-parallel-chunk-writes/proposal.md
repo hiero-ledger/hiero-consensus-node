@@ -1,5 +1,11 @@
 # Parallel LongList index-chunk snapshot writes
 
+> **Status:** Design record for the parallel chunk writer implemented on this
+> branch. Its performance conclusions and execution recommendations are
+> historical. Use
+> [`snapshot-optimization-report.md`](../snapshot-optimization-report.md) for
+> the current investigation plan.
+
 ---
 
 ## Summary
@@ -30,7 +36,7 @@ because it is the smallest setting with strong Disk mean improvements in both
 campaigns, not because the development machine established a Segment win. The
 merged default remains `P=1` until that confirmation; no alternate scheduler
 or buffer experiment is currently justified. See
-[`benchmark-results.md`](benchmark-results.md).
+[`macos-benchmark-results.md`](macos-benchmark-results.md).
 
 |      Metadata      |                                                               Entities                                                                |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
@@ -48,7 +54,7 @@ or buffer experiment is currently justified. See
 ### Current snapshot path
 
 The production snapshot call chain is documented in
-[`state-snapshot-spec.md`](../platform-sdk/swirlds-state-api/docs/state-snapshot-spec.md):
+[`state-snapshot-spec.md`](../../platform-sdk/swirlds-state-api/docs/state-snapshot-spec.md):
 
 ```text
 StateLifecycleManager
@@ -57,14 +63,14 @@ StateLifecycleManager
       -> MerkleDbDataSource.snapshot()
 ```
 
-[`MerkleDbDataSource.snapshot()`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbDataSource.java)
+[`MerkleDbDataSource.snapshot()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbDataSource.java)
 submits six top-level tasks to its cached snapshot executor. Three tasks write a
 `LongList`:
 
 1. `idToDiskLocationHashChunks`;
 2. `pathToDiskLocationLeafNodes`; and
 3. the `HalfDiskHashMap` bucket index, through
-   [`HalfDiskHashMap.snapshot()`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java).
+   [`HalfDiskHashMap.snapshot()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java).
 
 The three lists are therefore already written concurrently, but every list body
 is written sequentially. This matters when defining both the rollback behavior
@@ -74,7 +80,7 @@ index writes, not one.
 The other three top-level snapshot tasks write metadata and snapshot data-file
 collections. Data-file collection snapshots primarily flush metadata and create
 hard links; they do not rewrite all stored data. See
-[`DataFileCollection.snapshot()`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/DataFileCollection.java).
+[`DataFileCollection.snapshot()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/DataFileCollection.java).
 
 The implementation retains the existing top-level snapshot task structure.
 Each LongList caller synchronously joins its own range tasks before its
@@ -93,7 +99,7 @@ concurrent `close()` is outside this proposal.
 
 ### Current LongList file and implementation behavior
 
-[`AbstractLongList.writeToFile()`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java)
+[`AbstractLongList.writeToFile()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java)
 creates a new file, writes the header, delegates body writing to the concrete
 implementation, and calls `FileChannel.force(true)`.
 
@@ -116,11 +122,11 @@ The five implementations have different sources:
 
 |                                                          Implementation                                                           |                       Source representation                       |                                    Current write behavior                                     |                               Production use                                |
 |-----------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
-| [`LongListHeap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java)               | `AtomicLongArray` chunks                                          | Iterates individual indices into a 1 MiB direct buffer                                        | Tests/legacy                                                                |
-| [`LongListOffHeap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java)         | Direct `ByteBuffer` chunks                                        | Writes chunk views sequentially                                                               | Tests/legacy                                                                |
-| [`LongListSegment`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java)         | Shared-arena `MemorySegment` chunks                               | Writes segment views sequentially                                                             | Default production index                                                    |
-| [`LongListDisk`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java)               | Logical chunks mapped to non-contiguous offsets in a backing file | Uses a chunk-sized thread-local buffer to read a full chunk or boundary slice, then writes it | Production when `useDiskIndices=true`                                       |
-| [`LongListDiskSegment`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java) | File-mapped shared-arena segments at fixed offsets                | Writes mapped segment views sequentially                                                      | ZDT-oriented implementation, not currently selected by `MerkleDbDataSource` |
+| [`LongListHeap`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java)               | `AtomicLongArray` chunks                                          | Iterates individual indices into a 1 MiB direct buffer                                        | Tests/legacy                                                                |
+| [`LongListOffHeap`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java)         | Direct `ByteBuffer` chunks                                        | Writes chunk views sequentially                                                               | Tests/legacy                                                                |
+| [`LongListSegment`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java)         | Shared-arena `MemorySegment` chunks                               | Writes segment views sequentially                                                             | Default production index                                                    |
+| [`LongListDisk`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java)               | Logical chunks mapped to non-contiguous offsets in a backing file | Uses a chunk-sized thread-local buffer to read a full chunk or boundary slice, then writes it | Production when `useDiskIndices=true`                                       |
+| [`LongListDiskSegment`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java) | File-mapped shared-arena segments at fixed offsets                | Writes mapped segment views sequentially                                                      | ZDT-oriented implementation, not currently selected by `MerkleDbDataSource` |
 
 The default `longListChunkSize` is 1,048,576 longs, or 8 MiB per
 chunk. The allowed maximum is almost 2 GiB per chunk, and a list can contain up
@@ -132,13 +138,13 @@ their per-worker memory cost is part of the benchmark result.
 ### Snapshot source stability
 
 The production builder path invokes
-[`MerkleDbDataSource.pauseCompactionAndRun()`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbDataSource.java);
-[`MerkleDbCompactionCoordinator`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbCompactionCoordinator.java)
+[`MerkleDbDataSource.pauseCompactionAndRun()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbDataSource.java);
+[`MerkleDbCompactionCoordinator`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbCompactionCoordinator.java)
 owns the pause/resume and resumes from its `finally` block only after the
 synchronous `MerkleDbDataSource.snapshot()` call returns or throws. A direct
 call to the public snapshot method does not itself pause compaction. The
 synchronous
-[`VirtualMap.createSnapshot()`](../platform-sdk/swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/VirtualMap.java)
+[`VirtualMap.createSnapshot()`](../../platform-sdk/swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/VirtualMap.java)
 path snapshots a detached data-source copy, and the asynchronous path writes the
 snapshot after its cache flush has completed. These production paths provide the
 source stability on which the existing production `LongListSegment` and
@@ -258,9 +264,9 @@ worker reads or changes the channel's shared position.
 The Java 25 [`FileChannel` contract](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/nio/channels/FileChannel.html)
 permits operations with explicit positions to proceed concurrently, while
 leaving actual concurrency implementation-specific. This repository pins
-[JDK 25.0.2](../gradle/toolchain-versions.properties), and its production Linux
+[JDK 25.0.2](../../gradle/toolchain-versions.properties), and its production Linux
 image pins
-[Adoptium Temurin HotSpot 25.0.2+10](../hedera-node/infrastructure/docker/containers/production-next/consensus-node/Dockerfile).
+[Adoptium Temurin HotSpot 25.0.2+10](../../hedera-node/infrastructure/docker/containers/production-next/consensus-node/Dockerfile).
 In that exact Unix implementation, `FileChannelImpl.write(ByteBuffer, long)`
 does not take the shared channel-position lock because
 `needsPositionLock()` is false, and `IOUtil.write()` dispatches positioned
@@ -683,7 +689,7 @@ capability check or orchestration branch.
 ### Configuration
 
 Add to
-[`MerkleDbConfig`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java):
+[`MerkleDbConfig`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java):
 
 ```java
 @Min(1)
@@ -713,7 +719,7 @@ compatible, but direct constructor callers must be recompiled; update the two
 such calls currently in `MerkleDbCompactionCoordinatorTest`. This proposal does
 not add a duplicate legacy constructor with the record's full parameter list:
 the current
-[`ConfigDataFactory`](../platform-sdk/swirlds-config-impl/src/main/java/com/swirlds/config/impl/internal/ConfigDataFactory.java)
+[`ConfigDataFactory`](../../platform-sdk/swirlds-config-impl/src/main/java/com/swirlds/config/impl/internal/ConfigDataFactory.java)
 requires exactly one public record constructor, so such a shim would also
 require a configuration-framework change. A separate configuration record
 avoids the constructor ABI change but would broaden constructor and
@@ -803,12 +809,12 @@ risk.
 ### Performance and default-selection plan
 
 Inspection found that adding snapshot parameters and lifecycle to the existing
-[`LongListBenchmark`](../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListBenchmark.java)
+[`LongListBenchmark`](../../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListBenchmark.java)
 would contaminate its legacy get/put parameter matrix and shared state. In
 particular, its current setup does not establish the valid range needed by a
 snapshot, and adding per-list thread-count parameters at class scope would
 multiply unrelated cases. A focused
-[`LongListSnapshotBenchmark`](../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java)
+[`LongListSnapshotBenchmark`](../../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java)
 is therefore selected as the isolated diagnostic. This is a result of codebase
 inspection, not an expansion into a general benchmark framework.
 
@@ -818,7 +824,7 @@ Two focused benchmarks now cover the required layers:
    campaign wrote one billion longs per invocation at
    `P={1,2,3,6,8,16}`. Heap and Disk benefited, while OffHeap, Segment, and
    DiskSegment did not show a credible isolated win.
-2. [`MerkleDbSnapshotBenchmark`](../platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/MerkleDbSnapshotBenchmark.java)
+2. [`MerkleDbSnapshotBenchmark`](../../platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/MerkleDbSnapshotBenchmark.java)
    times the real `MerkleDbDataSourceBuilder.snapshot()` path for Segment and
    Disk. Its completed 50-million-leaf campaign also forced the three
    diagnostic implementations through a temporary setup-only loader, using
@@ -831,7 +837,7 @@ Two focused benchmarks now cover the required layers:
 The earlier synthetic three-index benchmark has been removed because the real
 snapshot benchmark now covers its intended decision surface. Detailed results,
 workload sizes, caveats, and raw-artifact locations are in
-[`benchmark-results.md`](benchmark-results.md).
+[`macos-benchmark-results.md`](macos-benchmark-results.md).
 
 For every timed campaign:
 
@@ -933,17 +939,17 @@ two empirical decisions remain:
 - [Issue #26469](https://github.com/hiero-ledger/hiero-consensus-node/issues/26469)
 - [ZDT epic #25820](https://github.com/hiero-ledger/hiero-consensus-node/issues/25820)
 - [Java 25 `FileChannel`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/nio/channels/FileChannel.html)
-- [Pinned project JDK](../gradle/toolchain-versions.properties)
-- [Production Temurin image](../hedera-node/infrastructure/docker/containers/production-next/consensus-node/Dockerfile)
+- [Pinned project JDK](../../gradle/toolchain-versions.properties)
+- [Production Temurin image](../../hedera-node/infrastructure/docker/containers/production-next/consensus-node/Dockerfile)
 - [Temurin `FileChannelImpl.write(ByteBuffer,long)`](https://github.com/adoptium/jdk25u/blob/9e3c947043a44ccd3f515db8d4f1c7caf1194796/src/java.base/share/classes/sun/nio/ch/FileChannelImpl.java#L1212-L1271)
 - [Temurin Unix position-lock decision](https://github.com/adoptium/jdk25u/blob/9e3c947043a44ccd3f515db8d4f1c7caf1194796/src/java.base/share/classes/sun/nio/ch/NativeDispatcher.java#L44-L50)
 - [Temurin `IOUtil` positioned-write dispatch](https://github.com/adoptium/jdk25u/blob/9e3c947043a44ccd3f515db8d4f1c7caf1194796/src/java.base/share/classes/sun/nio/ch/IOUtil.java#L113-L139)
 - [Temurin Unix `pwrite` bridge](https://github.com/adoptium/jdk25u/blob/9e3c947043a44ccd3f515db8d4f1c7caf1194796/src/java.base/unix/classes/sun/nio/ch/UnixFileDispatcherImpl.java#L64-L72)
 - [Temurin native `pwrite` dispatch](https://github.com/adoptium/jdk25u/blob/9e3c947043a44ccd3f515db8d4f1c7caf1194796/src/java.base/unix/native/libnio/ch/UnixFileDispatcherImpl.c#L94-L102)
-- [`LongList`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongList.java)
-- [`AbstractLongList`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java)
-- [`MerkleDbFileUtils`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/utilities/MerkleDbFileUtils.java)
-- [`MerkleDbDataSource`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbDataSource.java)
-- [`HalfDiskHashMap`](../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java)
-- [State snapshot specification](../platform-sdk/swirlds-state-api/docs/state-snapshot-spec.md)
-- [Platform design proposal process](../platform-sdk/docs/proposals/README.md)
+- [`LongList`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongList.java)
+- [`AbstractLongList`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java)
+- [`MerkleDbFileUtils`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/utilities/MerkleDbFileUtils.java)
+- [`MerkleDbDataSource`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/MerkleDbDataSource.java)
+- [`HalfDiskHashMap`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java)
+- [State snapshot specification](../../platform-sdk/swirlds-state-api/docs/state-snapshot-spec.md)
+- [Platform design proposal process](../../platform-sdk/docs/proposals/README.md)
