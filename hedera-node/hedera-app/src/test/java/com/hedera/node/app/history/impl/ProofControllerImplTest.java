@@ -371,6 +371,21 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void setsAssemblyTimeEvenWhenNodeIsNotActive() {
+        // With every target node's proof key present (none expected here), assembly starts now. The
+        // resulting store write uses the consensus timestamp and must occur regardless of whether this
+        // node is ACTIVE; only the node's own proof-key self-submission is gated by ACTIVE status.
+        given(weights.numTargetNodesInSource()).willReturn(0);
+        given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1)))
+                .willReturn(construction);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
+
+        verify(writableHistoryStore).setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1));
+        verify(submissions, never()).submitProofKeyPublication(any());
+    }
+
+    @Test
     void advanceConstructionDelegatesToProverWhenAssemblyStartedAndInactive() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
