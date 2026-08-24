@@ -125,16 +125,22 @@ LongList: read/prepare its data -> FileChannel/ext4 -> SSD -> force
 Control:  prepared memory       -> FileChannel/ext4 -> SSD -> force
 ```
 
-Add one control method to `LongListSnapshotBenchmark`; do not create a control
-per LongList implementation. It repeatedly writes deterministic, non-zero data
-prepared before timing until it has written the same number of bytes as the
-LongList workload. It uses the same `/home` filesystem and the same create,
-write, `force(true)`, and close boundary. Record body-write time, force time,
-and total time, and delete the output after every invocation.
+Add a dedicated `FileChannelWriteBenchmark`; it does not construct or read a
+LongList. The benchmark prepares deterministic, densely populated
+pseudo-random data before timing, then writes an 8 GB body through one shared
+`FileChannel` using 8 MiB requests and contiguous, non-overlapping worker
+ranges. It uses the same `/home` filesystem and the same create, write,
+`force(true)`, and close boundary as the LongList writer. Record body-write
+time, force time, and total time, and delete the output after every invocation.
 
-This single result is the practical best-case reference for the current
-Java/FileChannel/ext4 protocol on this host. Compare it with the isolated
-results for all five LongList implementations:
+Sweep `writerThreads={1,2,8,16,32}` and use the lowest stable mean as the
+practical best-case reference for the current Java/FileChannel/ext4 protocol
+on this host. Start with six measured writes per setting across three reordered
+blocks. If the fastest settings are too close to distinguish, confirm only
+those settings with the larger sample count.
+
+Compare the resulting reference with the isolated results for all five
+LongList implementations:
 
 - A LongList result close to the control has little demonstrated same-path
   headroom.
@@ -465,9 +471,9 @@ document, and verify its calculations and conclusions.
    `assessment-go-no-go.md` at the root; and repair every affected relative
    link. Do not create documents for conditional experiments yet.~~
 2. **Run the FileChannel write reference on Linux.** Implement and smoke-test
-   the control on the MacBook for correctness only, then run the real reference
-   on Linux. Agree on `filechannel-write-reference.md` before processing its
-   raw results.
+   the dedicated control on the MacBook for correctness only, then run the
+   writer-count sweep on Linux. Agree on `filechannel-write-reference.md`
+   before processing its raw results.
 3. **Re-establish the corrected parallel-chunk baseline.** Apply the 5B heap,
    environment-capture, and sampling changes; compile and run a tiny local
    correctness smoke; then start the real Linux campaign directly. Its early

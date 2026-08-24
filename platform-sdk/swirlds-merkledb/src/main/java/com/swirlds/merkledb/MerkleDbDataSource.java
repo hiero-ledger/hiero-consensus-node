@@ -908,9 +908,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
                         threadsPerLongList * longListCount,
                         new ThreadConfiguration(getStaticThreadManager())
-                                .setComponent(MERKLEDB_COMPONENT)
                                 .setThreadGroup(threadGroup)
-                                .setThreadName("Snapshot index writer")
+                                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(
+                                        MERKLEDB_COMPONENT, "Snapshot index writer"))
                                 .buildFactory())) {
                     final CountDownLatch countDownLatch = new CountDownLatch(6);
                     // write all data stores

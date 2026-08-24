@@ -30,7 +30,7 @@ index or the master plan repeats them.
 
 | Order | Experiment | Result document | Gate and current verdict |
 |---:|---|---|---|
-| 00 | Prepared-memory FileChannel write reference | `00-filechannel-write-reference/filechannel-write-reference.md` | Required next; not run |
+| 00 | Prepared-memory FileChannel write reference | `00-filechannel-write-reference/filechannel-write-reference.md` | Harness locally validated; Linux run pending |
 | 01 | Corrected parallel-chunk baseline | [`linux-benchmark-results.md`](01-parallel-chunk-writes/linux-benchmark-results.md) | Required; existing report will be rewritten |
 | 01 | `LongListDisk` cache diagnostic | `01-parallel-chunk-writes/disk-cache-diagnostic.md` | Required as part of the baseline; not run |
 | 02 | Physical block preallocation | `02-reduce-durable-write-time/physical-block-preallocation.md` | Run only if profiling implicates file growth |
