@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -21,23 +20,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -45,7 +37,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.interpolatePiecewiseLinear;
-import static org.hiero.hapi.fees.HighVolumePricingCalculator.linearInterpolate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -55,17 +46,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
-import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
@@ -85,7 +73,6 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -93,10 +80,10 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class Hip1313EnabledTest {
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final double CRYPTO_CREATE_BASE_FEE = 0.05;
-    private static final int CRYPTO_CREATE_HV_TPS = 800;
-    private static final int LINEAR_CRYPTO_CREATE_MAX_MULTIPLIER = 200_000;
+    static final ObjectMapper MAPPER = new ObjectMapper();
+    static final double CRYPTO_CREATE_BASE_FEE = 0.05;
+    static final int CRYPTO_CREATE_HV_TPS = 800;
+    static final int LINEAR_CRYPTO_CREATE_MAX_MULTIPLIER = 200_000;
     public static final NavigableMap<Integer, Long> CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP = new TreeMap<>(Map.ofEntries(
             Map.entry(2, 4000L),
             Map.entry(3, 8000L),
@@ -123,13 +110,13 @@ public class Hip1313EnabledTest {
             Map.entry(5000, 80000L),
             Map.entry(10000, 100000L)));
 
-    private static final double SCHEDULE_CREATE_BASE_FEE = 0.01;
-    private static final int SCHEDULE_CREATE_HV_TPS = 1300;
-    private static final int TOPIC_CREATE_HV_TPS = 800;
-    private static final double TOPIC_CREATE_BASE_FEE = 0.01;
-    private static final double MULTIPLIER_TOLERANCE = 0.05;
-    private static final long ONE_X_MULTIPLIER = 1000L;
-    private static final long FOUR_X_MULTIPLIER = 4000L;
+    static final double SCHEDULE_CREATE_BASE_FEE = 0.01;
+    static final int SCHEDULE_CREATE_HV_TPS = 1300;
+    static final int TOPIC_CREATE_HV_TPS = 800;
+    static final double TOPIC_CREATE_BASE_FEE = 0.01;
+    static final double MULTIPLIER_TOLERANCE = 0.05;
+    static final long ONE_X_MULTIPLIER = 1000L;
+    static final long FOUR_X_MULTIPLIER = 4000L;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -349,222 +336,6 @@ public class Hip1313EnabledTest {
                         .hasPrecheck(BUSY));
     }
 
-    @GenesisHapiTest
-    final Stream<DynamicTest> highVolumeTxnsWorkAsExpectedForCryptoCreate() {
-        final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
-        return hapiTest(
-                overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
-                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                overriding("networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> submitHighVolumeCryptoCreates(spec, 200)),
-                // ensure one record is closed
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                withOpContext((spec, opLog) -> {
-                    final var entries = filteredHighVolumeEntries(highVolumeTxns, e -> true);
-                    final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
-                    var numCreateTxnsAllowed = 0;
-                    for (final var entry : entries) {
-                        throttle.leakUntil(entry.consensusTime());
-                        final var utilizationBasisPointsBefore = throttle.instantaneousBps();
-                        throttle.allow(1, entry.consensusTime());
-                        numCreateTxnsAllowed++;
-                        final var utilizationBasisPointsAfter = throttle.instantaneousBps();
-                        assertHighVolumeMultiplierSet(entry, "crypto create");
-                        final var fee = entry.txnRecord().getTransactionFee();
-                        final var observedMultiplier = observedMultiplier(spec, fee, CRYPTO_CREATE_BASE_FEE);
-                        final var observedRawMultiplier = entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
-                        assertMultiplierAtLeast(observedMultiplier, "crypto create");
-                        assertMultiplierMatchesExpectation(
-                                CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
-                                observedRawMultiplier,
-                                utilizationBasisPointsBefore,
-                                utilizationBasisPointsAfter,
-                                "crypto create",
-                                numCreateTxnsAllowed);
-                    }
-                    assertEquals(200, entries.size());
-                }));
-    }
-
-    @GenesisHapiTest
-    @Disabled
-    final Stream<DynamicTest> mixedHighVolumeTxnsWorkAsExpectedForTopicCreateAndScheduleCreate() {
-        final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
-        final int numBursts = 200;
-        return hapiTest(
-                overridingThrottles("testSystemFiles/hip1313-multi-op-pricing-throttles.json"),
-                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                overriding("networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> submitMixedHighVolumeTopicAndScheduleCreates(spec, numBursts)),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                withOpContext((spec, opLog) -> {
-                    final var entries = filteredHighVolumeEntries(
-                            highVolumeTxns,
-                            e -> e.body().hasConsensusCreateTopic() || e.body().hasScheduleCreate());
-                    final var topicThrottle = DeterministicThrottle.withTpsAndBurstPeriodMs(TOPIC_CREATE_HV_TPS, 1000);
-                    final var scheduleThrottle =
-                            DeterministicThrottle.withTpsAndBurstPeriodMs(SCHEDULE_CREATE_HV_TPS, 1000);
-                    int topicCreates = 0;
-                    int scheduleCreates = 0;
-                    for (final var entry : entries) {
-                        final var fee = entry.txnRecord().getTransactionFee();
-                        if (entry.body().hasConsensusCreateTopic()) {
-                            topicThrottle.leakUntil(entry.consensusTime());
-                            final var utilizationBasisPointsBefore = topicThrottle.instantaneousBps();
-                            topicThrottle.allow(1, entry.consensusTime());
-                            topicCreates++;
-                            final var utilizationBasisPointsAfter = topicThrottle.instantaneousBps();
-                            assertHighVolumeMultiplierSet(entry, "topic create");
-                            final var observedMultiplier = observedMultiplier(spec, fee, TOPIC_CREATE_BASE_FEE);
-                            final var observedRawMultiplier =
-                                    entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
-                            assertMultiplierAtLeast(observedMultiplier, "topic create");
-                            assertMultiplierMatchesExpectation(
-                                    CRYPTO_TOPIC_CREATE_MULTIPLIER_MAP,
-                                    observedRawMultiplier,
-                                    utilizationBasisPointsBefore,
-                                    utilizationBasisPointsAfter,
-                                    "topic create",
-                                    topicCreates);
-                        } else if (entry.body().hasScheduleCreate()) {
-                            scheduleThrottle.leakUntil(entry.consensusTime());
-                            final var utilizationBasisPointsBefore = scheduleThrottle.instantaneousBps();
-                            scheduleThrottle.allow(1, entry.consensusTime());
-                            scheduleCreates++;
-                            final var utilizationBasisPointsAfter = scheduleThrottle.instantaneousBps();
-                            assertHighVolumeMultiplierSet(entry, "schedule create");
-                            final var observedRawMultiplier =
-                                    entry.txnRecord().getHighVolumePricingMultiplier() / 1000.0;
-                            assertMultiplierMatchesExpectation(
-                                    SCHEDULE_CREATE_MULTIPLIER_MAP,
-                                    observedRawMultiplier,
-                                    utilizationBasisPointsBefore,
-                                    utilizationBasisPointsAfter,
-                                    "schedule create",
-                                    scheduleCreates);
-                        }
-                    }
-                    assertEquals(numBursts * 2, entries.size());
-                    assertEquals(numBursts, topicCreates);
-                    assertEquals(numBursts, scheduleCreates);
-                }));
-    }
-
-    @GenesisHapiTest
-    final Stream<DynamicTest> cryptoCreateUsesLinearInterpolationWhenPricingCurveMissing() {
-        final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
-        final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
-        return hapiTest(
-                overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
-                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                overriding("networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> {
-                    allRunFor(
-                            spec,
-                            getFileContents(SIMPLE_FEE_SCHEDULE)
-                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
-                    allRunFor(
-                            spec,
-                            updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithoutCryptoCreatePricingCurve()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }),
-                withOpContext((spec, opLog) -> submitHighVolumeCryptoCreates(spec, 200)),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                withOpContext((spec, opLog) -> {
-                    try {
-                        final var entries = filteredHighVolumeEntries(
-                                highVolumeTxns, e -> e.body().hasCryptoCreateAccount());
-                        final var throttle = DeterministicThrottle.withTpsAndBurstPeriodMs(CRYPTO_CREATE_HV_TPS, 1000);
-                        for (final var entry : entries) {
-                            throttle.leakUntil(entry.consensusTime());
-                            final var utilizationBasisPointsBefore = throttle.instantaneousBps();
-                            throttle.allow(1, entry.consensusTime());
-                            final long expectedRawMultiplier = linearInterpolate(
-                                    0,
-                                    1000L,
-                                    10_000,
-                                    LINEAR_CRYPTO_CREATE_MAX_MULTIPLIER,
-                                    utilizationBasisPointsBefore);
-                            final long expectedMultiplier = Math.max(1000L, expectedRawMultiplier);
-                            // Proto default is 0 when field is not present; treat this as the default multiplier 1x.
-                            final var actualMultiplier =
-                                    Math.max(1000L, entry.txnRecord().getHighVolumePricingMultiplier());
-                            assertEquals(
-                                    expectedMultiplier,
-                                    actualMultiplier,
-                                    "Given BPS of " + utilizationBasisPointsBefore
-                                            + ", expected linear interpolated multiplier " + expectedMultiplier
-                                            + " but found " + actualMultiplier);
-                        }
-                        assertEquals(200, entries.size());
-                    } finally {
-                        final var snapshot = originalSimpleFeeSchedule.get();
-                        if (snapshot != null) {
-                            allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, snapshot));
-                            assertTrue(
-                                    spec.tryReinitializingFees(),
-                                    "Failed to reinitialize fees after restoring simple fee schedule");
-                        }
-                    }
-                }));
-    }
-
-    @GenesisHapiTest
-    final Stream<DynamicTest> cryptoCreateWithHighVolumeUsesDefaultMultiplierWhenMaxIsOneX() {
-        final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
-        return hapiTest(
-                overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                overriding("networkAdmin.highVolumeThrottlesEnabled", "true"),
-                withOpContext((spec, opLog) -> {
-                    allRunFor(
-                            spec,
-                            getFileContents(SIMPLE_FEE_SCHEDULE)
-                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
-                    allRunFor(
-                            spec,
-                            updateLargeFile(
-                                    GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithOneXCryptoCreateHighVolumeRates()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }),
-                cryptoCreate("defaultMultiplierCreate")
-                        .payingWith(CIVILIAN_PAYER)
-                        .withHighVolume()
-                        .via("defaultMultiplierCreateTxn"),
-                getTxnRecord("defaultMultiplierCreateTxn")
-                        .andAllChildRecords()
-                        .exposingAllTo(records -> {
-                            assertAnyRecordMatches(
-                                    records, record -> record.getHighVolumePricingMultiplier() == ONE_X_MULTIPLIER);
-                            assertNoRecordMatches(
-                                    records, record -> record.getHighVolumePricingMultiplier() > ONE_X_MULTIPLIER);
-                        })
-                        .logged(),
-                withOpContext((spec, opLog) -> {
-                    final var snapshot = originalSimpleFeeSchedule.get();
-                    if (snapshot != null) {
-                        allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, snapshot));
-                        assertTrue(
-                                spec.tryReinitializingFees(),
-                                "Failed to reinitialize fees after restoring simple fee schedule");
-                    }
-                }));
-    }
-
     @HapiTest
     final Stream<DynamicTest> onlyCryptoCreateChildHasHigherFeesWhileTransferStaysBaseFee() {
         return hapiTest(
@@ -745,7 +516,7 @@ public class Hip1313EnabledTest {
         return interpolatePiecewiseLinear(asPiecewiseLinearCurve(map), utilizationBasisPoints);
     }
 
-    private static PiecewiseLinearCurve asPiecewiseLinearCurve(final NavigableMap<Integer, Long> map) {
+    static PiecewiseLinearCurve asPiecewiseLinearCurve(final NavigableMap<Integer, Long> map) {
         final var points = map.entrySet().stream()
                 .map(entry -> PiecewiseLinearPoint.newBuilder()
                         .utilizationBasisPoints(entry.getKey())
@@ -755,7 +526,7 @@ public class Hip1313EnabledTest {
         return PiecewiseLinearCurve.newBuilder().points(points).build();
     }
 
-    private static void submitHighVolumeCryptoCreates(@NonNull final HapiSpec spec, final int numCreates) {
+    static void submitHighVolumeCryptoCreates(@NonNull final HapiSpec spec, final int numCreates) {
         for (int i = 0; i < numCreates; i++) {
             allRunFor(
                     spec,
@@ -766,8 +537,7 @@ public class Hip1313EnabledTest {
         }
     }
 
-    private static void submitMixedHighVolumeTopicAndScheduleCreates(
-            @NonNull final HapiSpec spec, final int numBursts) {
+    static void submitMixedHighVolumeTopicAndScheduleCreates(@NonNull final HapiSpec spec, final int numBursts) {
         for (int i = 0; i < numBursts; i++) {
             allRunFor(
                     spec,
@@ -783,7 +553,7 @@ public class Hip1313EnabledTest {
         }
     }
 
-    private static List<RecordStreamEntry> filteredHighVolumeEntries(
+    static List<RecordStreamEntry> filteredHighVolumeEntries(
             @NonNull final AtomicReference<List<RecordStreamEntry>> highVolumeTxns,
             @NonNull final Predicate<RecordStreamEntry> additionalFilter) {
         return highVolumeTxns.get().stream()
@@ -801,38 +571,36 @@ public class Hip1313EnabledTest {
                 .toList();
     }
 
-    private static double observedMultiplier(
-            @NonNull final HapiSpec spec, final long feeInTinybars, final double baseFeeUsd) {
+    static double observedMultiplier(@NonNull final HapiSpec spec, final long feeInTinybars, final double baseFeeUsd) {
         return spec.ratesProvider().toUsdWithActiveRates(feeInTinybars) / baseFeeUsd;
     }
 
-    private static void assertMultiplierAtLeast(final double observedMultiplier, @NonNull final String operation) {
+    static void assertMultiplierAtLeast(final double observedMultiplier, @NonNull final String operation) {
         assertTrue(
                 observedMultiplier >= 4,
                 "Observed " + operation + " multiplier should be >= 4, but was " + observedMultiplier);
     }
 
-    private static void assertHighVolumeMultiplierSet(
-            @NonNull final RecordStreamEntry entry, @NonNull final String operation) {
+    static void assertHighVolumeMultiplierSet(@NonNull final RecordStreamEntry entry, @NonNull final String operation) {
         final var multiplier = entry.txnRecord().getHighVolumePricingMultiplier();
         assertTrue(
                 multiplier >= FOUR_X_MULTIPLIER,
                 "Expected " + operation + " high-volume multiplier to be set (>4), but was " + multiplier);
     }
 
-    private static void assertAnyRecordMatches(
+    static void assertAnyRecordMatches(
             @NonNull final List<TransactionRecord> records, @NonNull final Predicate<TransactionRecord> predicate) {
         final var conditionMatched = records.stream().anyMatch(predicate);
         assertTrue(conditionMatched);
     }
 
-    private static void assertNoRecordMatches(
+    static void assertNoRecordMatches(
             @NonNull final List<TransactionRecord> records, @NonNull final Predicate<TransactionRecord> predicate) {
         final var conditionMatched = records.stream().anyMatch(predicate);
         assertFalse(conditionMatched);
     }
 
-    private static void assertMultiplierMatchesExpectation(
+    static void assertMultiplierMatchesExpectation(
             @NonNull final NavigableMap<Integer, Long> multiplierMap,
             final double observedMultiplier,
             final int utilizationBasisPointsBefore,
@@ -859,15 +627,14 @@ public class Hip1313EnabledTest {
                         + Arrays.toString(acceptableMultipliers) + " with " + numTxnsAllowed + " txns allowed");
     }
 
-    private static VisibleItemsValidator feeMultiplierValidator(
-            final AtomicReference<List<RecordStreamEntry>> highVolumeTxns) {
+    static VisibleItemsValidator feeMultiplierValidator(final AtomicReference<List<RecordStreamEntry>> highVolumeTxns) {
         return (spec, records) -> {
             final var items = records.get(ALL_TX_IDS);
             highVolumeTxns.set(items.entries());
         };
     }
 
-    private static ByteString simpleFeesWithoutCryptoCreatePricingCurve() {
+    static ByteString simpleFeesWithoutCryptoCreatePricingCurve() {
         try {
             final JsonNode root =
                     MAPPER.readTree(V0490FileSchema.loadResourceInPackage("genesis/simpleFeesSchedules.json"));
@@ -882,7 +649,7 @@ public class Hip1313EnabledTest {
         }
     }
 
-    private static ByteString simpleFeesWithOneXCryptoCreateHighVolumeRates() {
+    static ByteString simpleFeesWithOneXCryptoCreateHighVolumeRates() {
         try {
             final JsonNode root =
                     MAPPER.readTree(V0490FileSchema.loadResourceInPackage("genesis/simpleFeesSchedules.json"));
@@ -897,7 +664,7 @@ public class Hip1313EnabledTest {
         }
     }
 
-    private static ObjectNode findCryptoCreateHighVolumeRates(@NonNull final JsonNode root) {
+    static ObjectNode findCryptoCreateHighVolumeRates(@NonNull final JsonNode root) {
         for (final var service : root.path("services")) {
             for (final var scheduleEntry : service.path("schedule")) {
                 if ("CryptoCreate".equals(scheduleEntry.path("name").asText())) {

@@ -108,7 +108,8 @@ import org.junit.jupiter.api.Order;
  * or submitting {@code FileUpdate} transactions.)
  */
 // Run just before stream validation to avoid state pollution
-@Order(Integer.MAX_VALUE - 1)
+// Genesis tests build their own network, so they must run before any shared network exists
+@Order(Integer.MIN_VALUE)
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
