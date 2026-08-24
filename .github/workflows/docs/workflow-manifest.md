@@ -65,7 +65,7 @@
 | 822-call-verify-docker-determinism.yaml      | 822: [CALL] Verify Docker Build        | zxc-verify-docker-build-determinism.yaml              | ZXC: Verify Docker Build Determinism                              |
 | 823-call-verify-gradle-determinism.yaml      | 823: [CALL] Verify Gradle Build        | zxc-verify-gradle-build-determinism.yaml              | ZXC: Verify Gradle Build Determinism                              |
 | 825-call-migration-testing.yaml              | 825: [CALL] Migration Testing          | zxc-migration-testing-yaml                            | ZXC: Migration Testing                                            |
-| 826-call-solo-077-to-078-cutover.yaml        | 826: [CALL] Solo 077-078 Cutover       | N/A                                                   | N/A                                                               |
+| 826-call-solo-078-to-079-cutover.yaml        | 826: [CALL] Solo 078-079 Cutover       | N/A                                                   | N/A                                                               |
 | 831-call-single-day-performance-test.yaml    | 831: [CALL] CITR Exec SDPT             | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml       | 832: [CALL] CITR Exec Perf Test        | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml      | 833: [CALL] CITR Exec SDLT             | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
