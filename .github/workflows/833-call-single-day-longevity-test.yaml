@@ -588,6 +588,19 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
 
+      - name: Check filesystem mounts
+        run: |
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'network-node' | awk '{print $1}'`
+          do
+            echo "Pod $pod"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec $pod -- bash -c "mount | grep '/dev/md0 on .*/data/saved'"
+            if [ $? -ne 0 ]
+            then
+              echo "Error /dev/md0 is not mounted for CN"
+              exit 13
+            fi
+          done
+
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
