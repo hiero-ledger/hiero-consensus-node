@@ -79,7 +79,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {
         hapiTestMethodOf(extensionContext).ifPresent(method -> {
             if (isAnnotated(method, GenesisHapiTest.class)) {
-                terminateSharedEmbeddedNetwork();
                 final var targetNetwork =
                         new EmbeddedNetwork(method.getName().toUpperCase(), method.getName(), CONCURRENT);
                 final var a = method.getAnnotation(GenesisHapiTest.class);
@@ -88,7 +87,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 targetNetwork.startWith(bootstrapOverrides);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else if (isAnnotated(method, RestartHapiTest.class)) {
-                terminateSharedEmbeddedNetwork();
                 final var targetNetwork =
                         new EmbeddedNetwork(method.getName().toUpperCase(), method.getName(), REPEATABLE);
                 final var a = method.getAnnotation(RestartHapiTest.class);
@@ -281,18 +279,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
         requiredEmbeddedMode(extensionContext)
                 .or(SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener::sessionEmbeddedMode)
                 .ifPresent(SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener::ensureEmbedding);
-    }
-
-    /**
-     * Terminates the shared embedded network, if one is running, so that a test building its own
-     * per-method network is the only live Hedera instance. The shared network is rebuilt lazily by
-     * {@link #ensureEmbeddedNetwork(ExtensionContext)} the next time a test asks for it.
-     */
-    private static void terminateSharedEmbeddedNetwork() {
-        if (SHARED_NETWORK.get() instanceof EmbeddedNetwork embeddedNetwork) {
-            embeddedNetwork.terminate();
-            SHARED_NETWORK.set(null);
-        }
     }
 
     /**
