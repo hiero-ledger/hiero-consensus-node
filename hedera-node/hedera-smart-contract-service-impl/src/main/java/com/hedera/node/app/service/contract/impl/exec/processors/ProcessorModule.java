@@ -18,8 +18,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemC
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import dagger.Module;
 import dagger.Provides;
-import dagger.multibindings.IntoSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
@@ -36,18 +36,22 @@ public interface ProcessorModule {
     boolean REQUIRE_CODE_DEPOSIT_TO_SUCCEED = true;
     int NUM_SYSTEM_ACCOUNTS = 750;
 
+    /**
+     * WARNING: The order of these rules is important and must not change without careful
+     * review. {@code ContractCreationProcessor} reports only the FIRST rule that fails as the
+     * deployment's {@code errorMessage}. If a deploy violates multiple rules, every node must
+     * pick the same one, or their committed records (and state roots) diverge, causing an ISS.
+     * Do not replace this {@link List} with a {@link java.util.Set}, and do not reorder without
+     * confirming all consensus nodes will observe the change simultaneously
+     *
+     * @param evmConfiguration the EVM configuration
+     * @return the ordered list of contract validation rules
+     */
     @Provides
     @Singleton
-    @IntoSet
-    static ContractValidationRule provideMaxCodeSizeRule(@NonNull final EvmConfiguration evmConfiguration) {
-        return MaxCodeSizeRule.from(EvmSpecVersion.defaultVersion(), evmConfiguration);
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    static ContractValidationRule providePrefixCodeRule() {
-        return PrefixCodeRule.of();
+    static List<ContractValidationRule> provideContractValidationRules(
+            @NonNull final EvmConfiguration evmConfiguration) {
+        return List.of(MaxCodeSizeRule.from(EvmSpecVersion.defaultVersion(), evmConfiguration), PrefixCodeRule.of());
     }
 
     /**
