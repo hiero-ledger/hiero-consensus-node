@@ -17,7 +17,14 @@ test suites include:
 | SDLT        | Single Day Longevity Tests    | Production throttled mixed TPS load to test network stability                                       | X         |
 | MDLT        | Multi Day Longevity Tests     | Production throttled mixed TPS load over many days to test long term network stability              | X         |
 | Shortgevity | Short Longevity Tests         | Production throttled mixed TPS load with reconnects on a mainnet-like environment over several days |           |
-| MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues                      | X         |
+
+## Resource Allocation
+
+SDPT, SDLT, and MDLT acquire their Kubernetes environments from [Chewie](https://github.com/swirldslabs/chewie), the
+compute allocation service. Instead of running against a pre-provisioned cluster asset, these suites request the shape
+of environment they need and Chewie provisions a namespace for the duration of the run, then reclaims it.
+
+See [Chewie Resource Allocation](chewie.md) for the configuration files, secrets, and workflow chain involved.
 
 ## MATS
 
@@ -100,7 +107,7 @@ catching regressions without being unnecessarily long-running.
 | SDK TCK Regression Panel                  | [819: [CALL] TCK Regression](/.github/workflows/819-call-tck-regression.yaml)                    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
 | Mirror Node Regression Panel              | [820: [CALL] Mirror Node Regress](/.github/workflows/820-call-mirror-node-regression.yaml)       | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| Solo 0.77 to 0.78 Cutover Panel           | [826: [CALL] Solo 077-078 Cutover](/.github/workflows/826-call-solo-077-to-078-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 
 ## SDCT
 
@@ -166,11 +173,18 @@ potential performance regressions.
 
 ### Hardware
 
-Latitude kubernetes cluster
+The environment is allocated by Chewie. The requested shape is defined in
+[sdpt-config.json](/.github/workflows/support/chewie/sdpt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for CryptoBench
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes, CryptoBench| 9        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+The allocation duration and the time SDPT will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
@@ -214,10 +228,18 @@ environment to quickly identify regressions in overall network stability and rob
 
 ### Hardware
 
-Latitude kubernetes cluster
+The environment is allocated by Chewie. The requested shape is defined in
+[sdlt-config.json](/.github/workflows/support/chewie/sdlt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+The allocation duration and the time SDLT will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
@@ -266,10 +288,19 @@ running version of SDLT to catch potential issues that may not surface within th
 
 ### Hardware
 
-Latitude kubernetes cluster
+MDLT runs through the SDLT workflows, so it uses the same Chewie-allocated environment defined in
+[sdlt-config.json](/.github/workflows/support/chewie/sdlt-config.json).
 
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+Because MDLT holds the environment for multiple days, the allocation duration must be long enough to cover the whole
+run. Set it with the `duration-minutes` input on
+[202: [USER] CITR SDLT Ctrl Adhoc](/.github/workflows/202-user-sdlt-controller-adhoc.yaml); the `default_duration` in
+[`.github/chewie.yaml`](/.github/chewie.yaml) is sized for a single-day run. See
+[Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
@@ -327,61 +358,3 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 | K/V pairs                               | 200M                                           |
 | Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
 | Re-connects                             | At most 2 nodes in re-connect at the same time |
-
-## MQPT Merge Queue Performance Tests
-
-### Environment
-
-- MQPT runs inside self-hosted github runners regularly against Trunk.io Merge Queues
-- MQPT is expected to complete within 3 hours 40 mins of the test suite starting.
-- MQPT has a dry-run equivalent that can be run against any PR, tag, or branch.
-
-### Workflows
-
-- MQPT is triggered by
-  the [220: [DISP] CITR MQPT Controller](/.github/workflows/220-disp-mqpt-controller.yaml)
-  workflow.
-- MQPT AdHoc Run is triggered manually via
-  the [200: [USER] CITR MQPT Ctrl Adhoc](/.github/workflows/200-user-mqpt-controller-adhoc.yaml)
-  workflow.
-
-### Hardware
-
-Latitude kubernetes cluster
-
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
-
-### Included Tests
-
-|        Test Name         |                                         Workflow                                         |  Required Parameters  | Run time |                  Precursor Steps                   |
-|--------------------------|------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
-| ScriptedLoadTest, part 1 | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 2 hours  | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| ReconnectTest            | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) | nlg-accounts,nlg-time |          | ScriptedLoadTest                                   |
-| ScriptedLoadTest, part 2 | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 1 hour   | ScriptedLoadTest                                   |
-| State Validator          | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) |                       | 30 mins  | ReconnectTest                                      |
-
-### ScriptedLoadTest, part 1 consists of the following tests, running sequentially to measure performance benchmarks:
-
-- NftTransferLoadTest
-- HCSLoadTest
-- CryptoTransferLoadTest
-- SmartContractLoadTest
-
-### ScriptedLoadTest, part 2 consists of the following tests, running in parallel with pre-defined throttling:
-
-- NftTransferLoadTest, TPS=3000
-- HCSLoadTest, TPS=2000
-- CryptoTransferLoadTest, TPS=5000
-- SmartContractLoadTest, TPS=50
-
-During this step, Reconnect test restarts Consensus Node java and verifies that Consensus Node reaches ACTIVE state.
-
-### State Validator
-
-This step verifies the correctness of Consensus node State by running Validator tool.
-
-### Runtime durations, practical settings
-
-- 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000, -Dbenchmark.stepDuration=1m -Dbenchmark.coolDown=1m
-- 3 hours 40 mins: nlg-time=60, nlg-accounts=20000000, -Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m

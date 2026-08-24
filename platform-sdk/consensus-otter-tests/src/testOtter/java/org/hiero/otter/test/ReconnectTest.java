@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.consensus.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
+import static org.hiero.otter.fixtures.Capability.*;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
@@ -22,7 +23,6 @@ import java.util.stream.IntStream;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig_;
-import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -50,7 +50,7 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
-    @OtterTest(requires = Capability.RECONNECT)
+    @OtterTest(requires = RECONNECT)
     void testNodeDeathReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -141,7 +141,7 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
-    @OtterTest(requires = Capability.BACK_PRESSURE)
+    @OtterTest(requires = BACK_PRESSURE)
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;
         final Network network = env.network();
@@ -247,7 +247,7 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
-    @OtterTest(requires = Capability.RECONNECT)
+    @OtterTest(requires = {RECONNECT, BANDWIDTH_CONTROL})
     void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -307,7 +307,7 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
-    @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
+    @OtterTest(requires = {RECONNECT, SINGLE_NODE_JVM_SHUTDOWN, BANDWIDTH_CONTROL})
     void testNodeShutsDownAfterMaxFailedReconnects(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -352,7 +352,7 @@ public class ReconnectTest {
                 "Node did not shut down within the expected time frame after exceeding the maximum number of failed reconnects.");
     }
 
-    @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
+    @OtterTest(requires = {RECONNECT, SINGLE_NODE_JVM_SHUTDOWN, BANDWIDTH_CONTROL})
     void testIsolateNodeWhileReconnectingAndRestore(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

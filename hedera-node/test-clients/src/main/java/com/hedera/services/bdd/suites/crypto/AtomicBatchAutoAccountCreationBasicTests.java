@@ -47,11 +47,11 @@ import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -1312,11 +1312,12 @@ class AtomicBatchAutoAccountCreationBasicTests {
         record InvalidKeyCase(String description, byte[] invalidKeyBytes) {}
 
         final List<InvalidKeyCase> invalidKeyCases = List.of(
-                new InvalidKeyCase("Too Short ECDSA", Hex.decode("03abcd")),
+                new InvalidKeyCase("Too Short ECDSA", HexFormat.of().parseHex("03abcd")),
                 new InvalidKeyCase("Too Long ECDSA", new byte[40]),
                 new InvalidKeyCase("ECDSA Invalid Bytes", "not-a-key-123".getBytes()),
-                new InvalidKeyCase("Malformed ED25519 - wrong prefix", Hex.decode("0a2101abcdef")),
-                new InvalidKeyCase("Too Short ED25519", Hex.decode("0a2001")));
+                new InvalidKeyCase(
+                        "Malformed ED25519 - wrong prefix", HexFormat.of().parseHex("0a2101abcdef")),
+                new InvalidKeyCase("Too Short ED25519", HexFormat.of().parseHex("0a2001")));
 
         return invalidKeyCases.stream().flatMap(testCase -> {
             final var invalidKeyBytes = ByteString.copyFrom(testCase.invalidKeyBytes());

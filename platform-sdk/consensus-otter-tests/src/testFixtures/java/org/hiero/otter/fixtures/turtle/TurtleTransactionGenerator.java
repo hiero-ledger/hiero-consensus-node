@@ -8,24 +8,25 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Random;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.internal.simulator.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
- * A transaction generator for the Turtle framework.
+ * A transaction generator for the {@link SimulatedNetwork}.
  *
  * <p>This class implements the {@link TransactionGenerator} interface and generates transactions at a fixed rate
- * to be submitted to the active nodes in the Turtle network.
+ * to be submitted to the active nodes in the Simulator network.
  */
 public class TurtleTransactionGenerator implements TransactionGenerator {
 
     private static final Duration CYCLE_DURATION = Duration.ofSeconds(1).dividedBy(TransactionGenerator.TPS);
 
-    private final Randotron randotron;
+    private final Random random;
 
     @Nullable
     private Instant startTime;
@@ -38,10 +39,10 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
     /**
      * Constructor for the {@link TurtleTransactionGenerator} class.
      *
-     * @param randotron the random number generator
+     * @param random the random number generator
      */
-    public TurtleTransactionGenerator(@NonNull final Randotron randotron) {
-        this.randotron = requireNonNull(randotron);
+    public TurtleTransactionGenerator(@NonNull final Random random) {
+        this.random = requireNonNull(random);
     }
 
     /**
@@ -86,9 +87,8 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
             for (long i = previousCount; i < currentCount; i++) {
                 for (final Node node : activeNodes) {
                     // Generate a random transaction and submit it to the node.
-                    final OtterTransaction transaction =
-                            TransactionFactory.createEmptyTransaction(randotron.nextLong());
-                    ((TurtleNode) node).submitTransaction(transaction);
+                    final OtterTransaction transaction = TransactionFactory.createEmptyTransaction(random.nextLong());
+                    node.submitTransaction(transaction);
                 }
             }
         }

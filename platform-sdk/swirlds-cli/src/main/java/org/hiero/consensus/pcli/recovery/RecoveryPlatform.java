@@ -2,13 +2,13 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;

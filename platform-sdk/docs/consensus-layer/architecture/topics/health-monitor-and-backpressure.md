@@ -25,7 +25,7 @@ The detection mechanism sits on top of the wiring substrate; for the underlying 
 
 ## Detection
 
-Detection lives in `swirlds-component-framework`, in `com.swirlds.component.framework.model.internal.monitor.HealthMonitor`. The model wires a heartbeat to `HealthMonitor.checkSystemHealth(Instant)` at construction time (`StandardWiringModel#StandardWiringModel`, around line 124: `buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire)`). The heartbeat period is `platform.wiring.healthMonitorHeartbeatPeriod` (TUN-008).
+Detection lives in `consensus-wiring-framework`, in `org.hiero.consensus.wiring.framework.model.internal.monitor.HealthMonitor`. The model wires a heartbeat to `HealthMonitor.checkSystemHealth(Instant)` at construction time (`StandardWiringModel#StandardWiringModel`, around line 124: `buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire)`). The heartbeat period is `platform.wiring.healthMonitorHeartbeatPeriod` (TUN-008).
 
 For each watched scheduler the monitor compares `TaskScheduler.getUnprocessedTaskCount()` with `TaskScheduler.getCapacity()` (`HealthMonitor.checkSystemHealth`, line 123). A scheduler is "unhealthy" when its unprocessed-task count exceeds its capacity. Capacity is set per component via `TaskSchedulerBuilder.withUnhandledTaskCapacity(long)`; schedulers built with `UNLIMITED_CAPACITY` are skipped at registration time (`HealthMonitor` constructor, line 93) and are never reported as unhealthy.
 

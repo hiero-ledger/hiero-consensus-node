@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -28,6 +28,7 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -53,9 +54,10 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.IORunnable;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -264,33 +266,30 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
         // create thread pool storing virtual node hashes
         storeHashesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store hashes"))
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store hashes")
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing hashes", tableName, ex))
                 .buildFactory());
         // create thread pool storing virtual leaf nodes
         storeLeavesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store leaves")
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaves"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaves", tableName, ex))
                 .buildFactory());
         // create thread pool storing virtual leaf keys
         storeLeafKeysExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Store leaf keys")
+                .setThreadNameProvider(
+                        CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaf keys"))
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaf keys", tableName, ex))
                 .buildFactory());
         // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(MERKLEDB_COMPONENT)
                 .setThreadGroup(threadGroup)
-                .setThreadName("Snapshot")
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
                 .setExceptionHandler(
                         (t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", ex))
                 .buildFactory());
@@ -318,8 +317,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (this.initialCapacity <= 0) {
             throw new IllegalStateException("Initial capacity must be greater than 0, but was " + this.initialCapacity);
         }
-
-        saveMetadata(dbPaths);
 
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
 
@@ -360,7 +357,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
                 final long path = hashChunk.path();
                 // Old data files may contain entries with paths outside the current virtual node range
-                final long firstHashPath = com.swirlds.virtualmap.internal.Path.getRightChildPath(path);
+                final long firstHashPath = MerklePathUtils.getRightChildPath(path);
                 if (firstHashPath <= validLeafPathRange.getMaxValidKey()) {
                     final long chunkId = VirtualHashChunk.pathToChunkId(firstHashPath, hashChunkHeight);
                     idToDiskLocationHashChunks.put(chunkId, dataLocation);
@@ -460,6 +457,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         pathToKeyValueStoreScanner = new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection());
         objectKeyToPathScanner =
                 new GarbageScanner(keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), true);
+
+        // If this data source is restored from a snapshot, the storage dir may contain index files. They
+        // are no longer needed and can be deleted
+        Files.deleteIfExists(dbPaths.pathToDiskLocationLeafNodesFile);
+        Files.deleteIfExists(dbPaths.idToDiskLocationHashChunksFile);
+        // Also, delete the metadata file to make sure future metadata updates are in a new file, not the
+        // hard-linked file from the snapshot directory
+        Files.deleteIfExists(dbPaths.metadataFile);
+        // Write metadata to disk to have consistent set of files on disk at any given moment. This
+        // will create a new file, not reuse the hard-linked file shared with a snapshot dir
+        saveMetadata(dbPaths);
+
         COUNT_OF_OPEN_DATABASES.increment();
         logger.info(
                 MERKLE_DB.getMarker(),
@@ -775,7 +784,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
 
         final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
-        if (com.swirlds.virtualmap.internal.Path.getLeftChildPath(chunkPath) > getLastLeafPath()) {
+        if (MerklePathUtils.getLeftChildPath(chunkPath) > getLastLeafPath()) {
             return null;
         }
 

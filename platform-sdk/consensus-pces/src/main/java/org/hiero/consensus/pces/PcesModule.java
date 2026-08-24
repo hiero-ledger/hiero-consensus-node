@@ -2,10 +2,6 @@
 package org.hiero.consensus.pces;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +15,10 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
@@ -149,4 +149,9 @@ public interface PcesModule {
             @NonNull Path destinationDirectory,
             long lowerBound,
             long round);
+
+    /**
+     * Destroys the PCES module and releases any resources it holds.
+     */
+    void destroy();
 }

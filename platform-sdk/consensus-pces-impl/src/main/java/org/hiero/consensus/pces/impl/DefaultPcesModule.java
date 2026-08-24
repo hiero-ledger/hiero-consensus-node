@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl;
 
-import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,6 +36,11 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Default implementation of the {@link PcesModule}.
@@ -61,6 +61,9 @@ public class DefaultPcesModule implements PcesModule {
 
     @Nullable
     private PcesCoordinator pcesCoordinator;
+
+    @Nullable
+    private InlinePcesWriter pcesWriter;
 
     /**
      * {@inheritDoc}
@@ -124,8 +127,7 @@ public class DefaultPcesModule implements PcesModule {
             final PcesFileManager fileManager = new PcesFileManager(
                     configuration, metrics, time, initialPcesFiles, databaseDirectory, startingRound);
             commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
-            final InlinePcesWriter pcesWriter =
-                    new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
+            pcesWriter = new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
             pcesWriterWiring.bind(pcesWriter);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -248,5 +250,13 @@ public class DefaultPcesModule implements PcesModule {
         requireNonNull(fileSystemManager, "Not initialized");
         BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure(
                 configuration, selfId, destinationDirectory, fileSystemManager, lowerBound, round);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        requireNonNull(pcesWriter, "Not initialized").destroy();
     }
 }

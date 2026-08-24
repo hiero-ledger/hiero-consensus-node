@@ -40,10 +40,8 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.NON_FUNGIBLE_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.CryptoDeleteSuite.TREASURY;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -122,12 +120,7 @@ public class UnlimitedAutoAssociationSuite {
                     // tinycent from the fee schedule; and then dividing by 1e13 to convert to USD
                     final var approxUsdDiff = (1.0
                                     * gasDiff
-                                    * spec.fees()
-                                            .getCurrentOpFeeData()
-                                            .get(ContractCall)
-                                            .get(DEFAULT)
-                                            .getServicedata()
-                                            .getGas()
+                                    * spec.ratesProvider().gasPriceInThousandthsOfTinycent()
                                     / 1000
                                     / TINY_PARTS_PER_WHOLE)
                             / 100.0;
