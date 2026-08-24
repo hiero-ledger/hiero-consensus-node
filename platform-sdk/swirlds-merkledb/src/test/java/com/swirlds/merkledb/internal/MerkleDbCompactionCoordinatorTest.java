@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
-import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
-import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
+import static com.swirlds.merkledb.internal.MerkleDbDataSource.ID_TO_HASH_CHUNK;
+import static com.swirlds.merkledb.internal.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
@@ -19,13 +19,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
-import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.internal.GarbageScanner.GarbageFileStats;
+import com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;

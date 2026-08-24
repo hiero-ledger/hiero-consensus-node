@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
+import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.shuffle;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.snapshotDataDir;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,10 +19,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
-import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -348,7 +349,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     void createCloseSnapshotCheckDelete(final TestType testType) throws IOException {
         final int count = 10_000;
         final String tableName = "testDB";
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("merkledb-" + testType + "_SNAPSHOT");
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("snapshot-" + testType);
 
         createAndApplyDataSource(tableName, count, dataSource -> {
             // create some leaves
@@ -364,19 +365,24 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // create a snapshot
 
-            dataSource.snapshot(snapshotDir);
+            takeSnapshot(dataSource, snapshotDir);
         });
 
         assertTrue(Files.exists(snapshotDir), "Snapshot dir [" + snapshotDir + "] should exist");
 
-        // reopen data source and check
-        final MerkleDbDataSource dataSource2 = restoreDataSource(snapshotDir, tableName, false);
         try {
-            // check all the leaf data
-            IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource2, i, i));
+            // reopen data source and check
+            final MerkleDbDataSource dataSource2 = restoreDataSource(snapshotDir, tableName, false);
+            try {
+                // check all the leaf data
+                IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource2, i, i));
+            } finally {
+                // close data source
+                dataSource2.close();
+            }
         } finally {
-            // close data source
-            dataSource2.close();
+            // the snapshot dir is owned by this test, the restored data source works off a copy
+            deleteDirectoryAndContents(snapshotDir);
         }
     }
 
@@ -386,8 +392,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         final int count = 1000;
         final String tableName = "vm";
         final int[] deltas = {-10, 0, 10};
-        final Path snapshotDir =
-                fileSystemManager.resolveNewTemp("merkledb-snapshotRestoreIndex-" + testType + "_SNAPSHOT");
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("snapshotRestoreIndex-" + testType);
 
         for (int delta : deltas) {
             createAndApplyDataSource(tableName, count + Math.abs(delta), dataSource -> {
@@ -414,27 +419,33 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 }
                 // create a snapshot
 
-                dataSource.snapshot(snapshotDir);
+                takeSnapshot(dataSource, snapshotDir);
             });
 
-            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDir);
-            // Delete all indices
+            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDataDir(snapshotDir, tableName));
+            // Delete all indices. The restore hard-links the snapshot into a fresh directory, so the
+            // deleted index files are simply never linked and the data source has to rebuild them.
             Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
             Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
             // There is no way to use MerkleDbPaths to get bucket index file path
             Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
 
             final MerkleDbDataSource snapshotDataSource = restoreDataSource(snapshotDir, tableName, false);
-            // Check hashes
-            IntStream.range(1, count * 2 - 1 + 2 * delta).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
-            assertNullHash(snapshotDataSource, count * 2 + 2 * delta);
-            // Check leaves
-            IntStream.range(0, count - 2 + delta).forEach(i -> assertNullLeaf(snapshotDataSource, i));
-            IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
-                    .forEach(i -> assertLeaf(testType, snapshotDataSource, i, i, i + 1, i));
-            assertNullLeaf(snapshotDataSource, count * 2 + 2 * delta);
-            // close data source
-            snapshotDataSource.close();
+            try {
+                // Check hashes
+                IntStream.range(1, count * 2 - 1 + 2 * delta).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
+                assertNullHash(snapshotDataSource, count * 2 + 2 * delta);
+                // Check leaves
+                IntStream.range(0, count - 2 + delta).forEach(i -> assertNullLeaf(snapshotDataSource, i));
+                IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
+                        .forEach(i -> assertLeaf(testType, snapshotDataSource, i, i, i + 1, i));
+                assertNullLeaf(snapshotDataSource, count * 2 + 2 * delta);
+            } finally {
+                // close data source
+                snapshotDataSource.close();
+                // the next iteration snapshots into the same directory, so clear it out
+                deleteDirectoryAndContents(snapshotDir);
+            }
         }
     }
 
@@ -613,8 +624,8 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     void testRebuildHDHMIndex() throws Exception {
         final String label = "testRebuildHDHMIndex";
         final TestType testType = TestType.variable_variable;
-        final Path snapshotDbPath1 = fileSystemManager.resolveNewTemp("merkledb-testRebuildHDHMIndex_SNAPSHOT1");
-        final Path snapshotDbPath2 = fileSystemManager.resolveNewTemp("merkledb-testRebuildHDHMIndex_SNAPSHOT2");
+        final Path snapshotDbPath1 = fileSystemManager.resolveNewTemp("snapshot-testRebuildHDHMIndex-1");
+        final Path snapshotDbPath2 = fileSystemManager.resolveNewTemp("snapshot-testRebuildHDHMIndex-2");
         createAndApplyDataSource(label, 100, dataSource -> {
             // Flush 1: leaf path range is [8,16]
             dataSource.saveRecords(
@@ -635,38 +646,38 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                     Stream.empty(),
                     false);
             // Create snapshots
-            dataSource.snapshot(snapshotDbPath1);
-            dataSource.snapshot(snapshotDbPath2);
+            takeSnapshot(dataSource, snapshotDbPath1);
+            takeSnapshot(dataSource, snapshotDbPath2);
         });
 
         final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
 
         // Load snapshot 1 with empty tablesToRepairHdhm config. It's expected to contain a stale key
-        final MerkleDbConfig config1 = ConfigurationBuilder.create()
+        final Configuration config1 = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue(MerkleDbConfig_.TABLES_TO_REPAIR_HDHM, "")
-                .build()
-                .getConfigData(MerkleDbConfig.class);
+                .build();
         final MerkleDbDataSource snapshotDataSource1 = restoreDataSource(config1, snapshotDbPath1, label, false);
         try {
             IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
             assertEquals(8, snapshotDataSource1.findKey(staleKey));
         } finally {
             snapshotDataSource1.close();
+            deleteDirectoryAndContents(snapshotDbPath1);
         }
 
         // Now load snapshot 2, but with HDHM bucket index rebuilt. There must be no stale keys there
-        final MerkleDbConfig config2 = ConfigurationBuilder.create()
+        final Configuration config2 = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue(MerkleDbConfig_.TABLES_TO_REPAIR_HDHM, label)
-                .build()
-                .getConfigData(MerkleDbConfig.class);
+                .build();
         final MerkleDbDataSource snapshotDataSource2 = restoreDataSource(config2, snapshotDbPath2, label, false);
         try {
             IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));
             assertEquals(-1, snapshotDataSource2.findKey(staleKey));
         } finally {
             snapshotDataSource2.close();
+            deleteDirectoryAndContents(snapshotDbPath2);
         }
     }
 
@@ -699,7 +710,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
             final Path copyPath = fileSystemManager.resolveNewTemp("copyStatisticsTest");
-            dataSource.snapshot(copyPath);
+            takeSnapshot(dataSource, copyPath);
             final MerkleDbDataSource copy = restoreDataSource(copyPath, dataSource.getTableName(), true);
             try {
                 assertEquals(
@@ -713,6 +724,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 assertEquals(2L, copyCounter.get());
             } finally {
                 copy.close();
+                deleteDirectoryAndContents(copyPath);
             }
         });
     }
