@@ -315,7 +315,7 @@ public class BaseTranslator {
     /**
      * Determines if the given number was created in the ongoing transactional unit.
      *
-     * @param num  the number to query
+     * @param num the number to query
      * @return true if the number was created
      */
     public boolean entityCreatedThisUnit(final long num) {
@@ -762,12 +762,15 @@ public class BaseTranslator {
                     now = asTimestamp(asInstant(now).plusNanos(1));
                 }
                 if (!executedInitcode.hasContractId()) {
-                    sidecars.add(TransactionSidecarRecord.newBuilder()
-                            .consensusTimestamp(now)
-                            .bytecode(ContractBytecode.newBuilder()
-                                    .initcode(executedInitcode.explicitInitcodeOrThrow())
-                                    .build())
-                            .build());
+                    // in case of executedInitcode.initcode.kind == UNSET
+                    if (executedInitcode.hasExplicitInitcode()) {
+                        sidecars.add(TransactionSidecarRecord.newBuilder()
+                                .consensusTimestamp(now)
+                                .bytecode(ContractBytecode.newBuilder()
+                                        .initcode(executedInitcode.explicitInitcodeOrThrow())
+                                        .build())
+                                .build());
+                    }
                 } else {
                     final var contractId = executedInitcode.contractIdOrThrow();
                     final var bytecodeBuilder = ContractBytecode.newBuilder().contractId(contractId);
