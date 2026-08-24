@@ -121,7 +121,7 @@ public record ContractsConfig(
         @NetworkProperty
         boolean systemContractAccountServiceIsAuthorizedEnabled,
 
-        @ConfigProperty(value = "systemContract.accountService.stakingEnabled", defaultValue = "false") @NetworkProperty
+        @ConfigProperty(value = "systemContract.accountService.stakingEnabled", defaultValue = "true") @NetworkProperty
         boolean systemContractAccountServiceStakingEnabled,
 
         @ConfigProperty(value = "systemContract.updateCustomFees.enabled", defaultValue = "true") @NetworkProperty
