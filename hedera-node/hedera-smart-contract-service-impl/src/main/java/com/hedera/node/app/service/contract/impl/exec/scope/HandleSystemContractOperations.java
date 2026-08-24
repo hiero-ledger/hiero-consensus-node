@@ -27,6 +27,7 @@ import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStr
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -76,13 +77,15 @@ public class HandleSystemContractOperations implements SystemContractOperations 
             @NonNull final AccountID syntheticPayerId,
             @NonNull final Class<T> streamBuilderType,
             @NonNull final Set<Key> authorizingKeys,
-            @NonNull final UsePresetTxnId usePresetTxnId) {
+            @NonNull final UsePresetTxnId usePresetTxnId,
+            @NonNull final DispatchMetadata extraMetadata) {
         requireNonNull(syntheticBody);
         requireNonNull(strategy);
         requireNonNull(syntheticPayerId);
         requireNonNull(streamBuilderType);
         requireNonNull(authorizingKeys);
         requireNonNull(usePresetTxnId);
+        requireNonNull(extraMetadata);
         return context.dispatch(subDispatch(
                 syntheticPayerId,
                 syntheticBody,
@@ -96,7 +99,8 @@ public class HandleSystemContractOperations implements SystemContractOperations 
                 // FUTURE - make the custom implementation here _directly_ deduct from remaining gas without
                 // the manual precomputation upstream from here
                 DISPATCH_ONLY_NOOP_FEE_CHARGING,
-                PropagateFeeChargingStrategy.YES));
+                PropagateFeeChargingStrategy.YES,
+                extraMetadata));
     }
 
     @Override
