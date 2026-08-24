@@ -2,7 +2,7 @@
 type: decision
 id: ADR-003
 title: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
-topics: [pces]
+topics: [restart-and-pces]
 related:
   invariants: []
   decisions: []
@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-003 — Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
@@ -68,23 +69,25 @@ easiest path — using artifacts from one node sidesteps any cross-node-consiste
 ### Steps
 
 1. **Bring up the platform without gossip.** Perform the same construction-time work as a normal start, then run only
-   the first three lines of `SwirldsPlatform.start()` (`SwirldsPlatform.java:353-355`: recycle bin, metrics, platform
-   coordinator). Do **not** call `platformCoordinator.startGossip()` at line 358.
+   the first three lines of `SwirldsPlatform.start()` (`SwirldsPlatform.java:118-120`: recycle bin, metrics, wiring
+   model). Do **not** start gossip — the `gossipModule().startInputWire().inject(...)` call at line 123.
 2. **Run replay.** Call `PcesModule.replayPcesEvents(pcesReplayLowerBound, startingRound)`
-   (`SwirldsPlatform.java:357`). The replayer drains the PCES iterator into the intake pipeline; consensus is reached
+   (`SwirldsPlatform.java:122`). The replayer drains the PCES iterator into the intake pipeline; consensus is reached
    and transactions handle as during normal startup.
 3. **Capture the resulting state.** Acquire the latest immutable state via the `latestImmutableStateNexus`
    (`SwirldsPlatform.java:114`; interface `SignedStateNexus.getState(reason)` at
-   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/SignedStateNexus.java:24`). The
+   `platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/nexus/SignedStateNexus.java#getState`). The
    result is a `ReservedSignedState`
-   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/signed/ReservedSignedState.java:23`) that
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/signed/ReservedSignedState.java#ReservedSignedState`) that
    must be closed when done.
 4. **Mark and dump.** On the underlying `SignedState`, call `markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE)`
-   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java:38`);
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java#PCES_RECOVERY_COMPLETE`);
    construct a `StateDumpRequest` via `StateDumpRequest.create(...)`
-   (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/StateDumpRequest.java:28`);
-   hand it to `PlatformCoordinator.dumpStateToDisk(request)`
-   (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java:199`); block
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/saved/StateDumpRequest.java#create`);
+   submit it to the state snapshot manager's dump task via the state module's dump input wire
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/StateModule.java:203`), handled by
+   `StateSnapshotManager::dumpStateTask`
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultStateSnapshotManager.java#dumpStateTask`); block
    on `request.waitForFinished()` so the process does not exit before the on-disk write completes.
 5. **Close the last record or block file with the execution team.** Coordinate so that the execution-side block stream aligns
    with the dumped state's last consensus round. This is critical because it must be distributed along with the signed state.

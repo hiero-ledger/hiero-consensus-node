@@ -2,7 +2,6 @@
 package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -24,8 +23,10 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -136,17 +137,21 @@ public class TestingEventBuilder {
      */
     private Long consensusOrder;
 
+    /**
+     * The non-deterministic generation of the event. This value is calculated by the orphan buffer in production.
+     * Defaults to {@link NonDeterministicGeneration#GENERATION_UNDEFINED}
+     */
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
+
     /** The hash to use for the event */
     private Hash hash = null;
 
     /** The origin of this events */
     private EventOrigin origin = EventOrigin.GOSSIP;
 
-    private long sequenceNumberOverride = SEQUENCE_NUMBER_UNDEFINED;
+    private long sequenceNumberOverride = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
-    private boolean assignSequenceNumber = false;
-
-    private static final AtomicLong sequenceNumber = new AtomicLong(SEQUENCE_NUMBER_UNDEFINED + 1);
+    private static final AtomicLong sequenceNumber = new AtomicLong(EventConstants.SEQUENCE_NUMBER_UNDEFINED + 1);
 
     /**
      * Constructor
@@ -172,28 +177,24 @@ public class TestingEventBuilder {
     }
 
     /**
-     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified.
-     * This value overrides any value set with {@link #setEnableSequenceNumberAssignment(boolean)}
+     * Set the non-deterministic generation to use. If not set, default to {@link NonDeterministicGeneration#GENERATION_UNDEFINED}
+     *
+     * @param nGen the ngen
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setNGen(final long nGen) {
+        this.nGen = nGen;
+        return this;
+    }
+
+    /**
+     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified
      *
      * @param sequenceNumberOverride sequence number to use for the next generated event
      * @return this instance
      */
     public @NonNull TestingEventBuilder setSequenceNumberOverride(final long sequenceNumberOverride) {
         this.sequenceNumberOverride = sequenceNumberOverride;
-        this.assignSequenceNumber = true;
-        return this;
-    }
-
-    /**
-     * If set to true, this builder will assign a sequence number to the events it creates. Otherwise, it will not.
-     * Defaults to false.
-     *
-     * @param assignSequenceNumber true if sequence numbers should be assigned, false otherwise
-     * @return this instance
-     */
-    @NonNull
-    public TestingEventBuilder setEnableSequenceNumberAssignment(final boolean assignSequenceNumber) {
-        this.assignSequenceNumber = assignSequenceNumber;
         return this;
     }
 
@@ -410,7 +411,6 @@ public class TestingEventBuilder {
 
     /**
      * Set a custom origin for the event.
-     *
      * @param origin the origin of the event
      * @return this instance
      */
@@ -475,15 +475,12 @@ public class TestingEventBuilder {
             }
             return null;
         }
+        final EventDescriptorWrapper descriptor = parent.getDescriptor();
         if (birthRoundOverride == null) {
-            return parent.getDescriptor();
+            return descriptor;
         }
 
-        return new EventDescriptorWrapper(parent.getDescriptor()
-                .eventDescriptor()
-                .copyBuilder()
-                .birthRound(birthRoundOverride)
-                .build());
+        return new EventDescriptorWrapper(descriptor.hash(), descriptor.creator(), birthRoundOverride);
     }
 
     /**
@@ -549,12 +546,11 @@ public class TestingEventBuilder {
 
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
-        if (assignSequenceNumber) {
-            if (sequenceNumberOverride > SEQUENCE_NUMBER_UNDEFINED) {
-                platformEvent.setSequenceNumber(sequenceNumberOverride);
-            } else {
-                platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
-            }
+        platformEvent.setNGen(nGen);
+        if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {
+            platformEvent.setSequenceNumber(sequenceNumberOverride);
+        } else {
+            platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
         }
 
         if (consensusTimestamp != null || consensusOrder != null) {

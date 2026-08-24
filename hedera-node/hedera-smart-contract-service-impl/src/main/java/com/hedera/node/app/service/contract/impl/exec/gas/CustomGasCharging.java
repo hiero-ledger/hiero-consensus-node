@@ -69,7 +69,10 @@ public class CustomGasCharging {
         requireNonNull(sender);
         requireNonNull(context);
         requireNonNull(worldUpdater);
-        if (context.isNoopGasContext() || unusedGas == 0) {
+        if (!context.shouldChargeGasFees()) {
+            return;
+        }
+        if (context.isStaticCall() || unusedGas == 0) {
             return;
         }
         final var refund = unusedGas * context.gasPrice();
@@ -120,17 +123,27 @@ public class CustomGasCharging {
                 transaction.isCreate(),
                 transaction.accessLists(),
                 transaction.codeDelegations());
-        if (context.isNoopGasContext()) {
-            return gasCharges;
+        if (context.isStaticCall()) {
+            return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
         validateTrue(transaction.gasLimit() >= gasCharges.minimumGasUsed(), INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
+            if (!context.shouldChargeGasFees()) {
+                // Even when gas fees are free, a reverted Ethereum transaction must still
+                // consume the sender's nonce; record a zero-amount charge event so that
+                // EthereumTransactionRollbackHandler replays the nonce increment
+                worldUpdater.collectGasFee(sender.hederaId(), 0L, true);
+                return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
+            }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
             return new GasCharges(gasCharges.intrinsicGas(), gasCharges.minimumGasUsed(), allowanceUsed);
         } else {
-            chargeWithOnlySender(sender, context, worldUpdater, transaction);
-            return gasCharges;
+            if (context.shouldChargeGasFees()) {
+                chargeWithOnlySender(sender, context, worldUpdater, transaction);
+                return gasCharges;
+            }
+            return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
     }
 
@@ -162,6 +175,9 @@ public class CustomGasCharging {
                 transaction.accessLists(),
                 transaction.codeDelegations());
 
+        if (!context.shouldChargeGasFees()) {
+            return;
+        }
         if (transaction.isEthereumTransaction()) {
             final var fee =
                     feeForAborted(transaction.relayerId(), context, worldUpdater, gasRequirements.minimumGasUsed());
@@ -224,8 +240,20 @@ public class CustomGasCharging {
         }
         // Ensure all up-front charges are payable (including any to-be-collected value sent with the initial frame)
         validateTrue(transaction.maxGasAllowance() >= relayerGasCost, INSUFFICIENT_TX_FEE);
-        validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
-        validateTrue(sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
+        if (sender.hederaId().equals(relayer.hederaId())) {
+            // Self-relayed transaction: the sender and relayer resolve to the same account, so both the
+            // relayer and sender legs are debited from a single balance. Validate the combined up-front
+            // cost (gas + value) once - as chargeWithOnlySender does - rather than checking each leg
+            // independently against the same balance, which would double-count it and let the account
+            // pass while unable to cover the sum.
+            validateTrue(
+                    sender.getBalance().toLong() >= transaction.upfrontCostGiven(context.gasPrice()),
+                    INSUFFICIENT_PAYER_BALANCE);
+        } else {
+            validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
+            validateTrue(
+                    sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
+        }
         worldUpdater.collectGasFee(relayer.hederaId(), relayerGasCost, false);
         worldUpdater.collectGasFee(sender.hederaId(), senderGasCost, true);
         return relayerGasCost;

@@ -14,11 +14,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -40,11 +39,6 @@ public class DefaultBranchReporter implements BranchReporter {
 
     private final RateLimitedLogger excessiveBranchingLogger;
 
-    /**
-     * The current roster.
-     */
-    private final Roster currentRoster;
-
     /** A map of RosterEntries. */
     private final Map<Long, RosterEntry> rosterMap;
 
@@ -59,7 +53,7 @@ public class DefaultBranchReporter implements BranchReporter {
     /**
      * The current event window.
      */
-    private EventWindow currentEventWindow;
+    private EventWindow currentEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
      * The most recent non-ancient branching event for each node (not present or null if there are none).
@@ -91,7 +85,6 @@ public class DefaultBranchReporter implements BranchReporter {
     public DefaultBranchReporter(
             @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Roster currentRoster) {
 
-        this.currentRoster = Objects.requireNonNull(currentRoster);
         this.rosterMap = RosterUtils.toMap(currentRoster);
         this.rosterTotalWeight = RosterUtils.computeTotalWeight(currentRoster);
 
@@ -113,10 +106,6 @@ public class DefaultBranchReporter implements BranchReporter {
      */
     @Override
     public void reportBranch(@NonNull final PlatformEvent event) {
-        if (currentEventWindow == null) {
-            throw new IllegalStateException("Event window must be set before reporting branches");
-        }
-
         if (currentEventWindow.isAncient(event)) {
             // Ignore ancient events.
             return;
@@ -190,7 +179,6 @@ public class DefaultBranchReporter implements BranchReporter {
      */
     @Override
     public void clear() {
-        currentEventWindow = null;
         branchingCount = 0;
         branchingWeight = 0;
 

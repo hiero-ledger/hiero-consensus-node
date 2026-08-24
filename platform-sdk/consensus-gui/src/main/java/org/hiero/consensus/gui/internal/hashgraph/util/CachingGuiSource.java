@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
-
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -11,6 +9,7 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 
 /**
  * A {@link HashgraphGuiSource} that wraps another source but caches the results until {@link #refresh()} is called
@@ -20,9 +19,9 @@ public class CachingGuiSource implements HashgraphGuiSource {
     private List<EventImpl> events = null;
     private Roster roster = null;
     private final GuiEventStorage eventStorage;
-    private long maxSequenceNumber = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
-    private long startSequenceNum = 1;
-    private int numEvents = HashgraphGuiConstants.DEFAULT_NUM_EVENTS_TO_DISPLAY;
+    private long maxGeneration = NonDeterministicGeneration.GENERATION_UNDEFINED;
+    private long startGeneration = EventConstants.FIRST_GENERATION;
+    private int numGenerations = HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
 
     public CachingGuiSource(final HashgraphGuiSource source) {
         this.source = source;
@@ -30,15 +29,15 @@ public class CachingGuiSource implements HashgraphGuiSource {
     }
 
     @Override
-    public long getMaxSequenceNumber() {
-        return maxSequenceNumber;
+    public long getMaxGeneration() {
+        return maxGeneration;
     }
 
     @Override
     @NonNull
-    public List<EventImpl> getEvents(final long startSequenceNum, final int numEvents) {
-        this.startSequenceNum = startSequenceNum;
-        this.numEvents = numEvents;
+    public List<EventImpl> getEvents(final long startGeneration, final int numGenerations) {
+        this.startGeneration = startGeneration;
+        this.numGenerations = numGenerations;
         return events;
     }
 
@@ -50,7 +49,7 @@ public class CachingGuiSource implements HashgraphGuiSource {
 
     @Override
     public boolean isReady() {
-        return events != null && roster != null && maxSequenceNumber != SEQUENCE_NUMBER_UNDEFINED;
+        return events != null && roster != null && maxGeneration != NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**
@@ -66,9 +65,9 @@ public class CachingGuiSource implements HashgraphGuiSource {
      */
     public void refresh() {
         if (source.isReady()) {
-            events = source.getEvents(startSequenceNum, numEvents);
+            events = source.getEvents(startGeneration, numGenerations);
             roster = source.getRoster();
-            maxSequenceNumber = source.getMaxSequenceNumber();
+            maxGeneration = source.getMaxGeneration();
         }
     }
 }

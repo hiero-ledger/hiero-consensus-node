@@ -12,15 +12,14 @@ import org.hiero.consensus.pces.PcesModule;
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
-    /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.components.common.output;
-    exports com.swirlds.platform.components.state.output;
     exports com.swirlds.platform.components;
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.config;
+    exports com.swirlds.platform.context;
     exports com.swirlds.platform.crypto;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -29,34 +28,25 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system;
-    exports com.swirlds.platform.util;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.wiring;
     exports com.swirlds.platform;
+    exports org.hiero.consensus;
 
     /* Targeted Exports to External Libraries */
     exports com.swirlds.platform.internal to
             org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
-    exports com.swirlds.platform.uptime to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            com.swirlds.common,
-            com.hedera.node.test.clients;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -75,23 +65,23 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
-    requires transitive org.hiero.consensus.state.management;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
+    requires org.hiero.consensus.reconnect;
     requires java.scripting;
     requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires static transitive com.github.spotbugs.annotations;
 
     uses EventCreatorModule;
     uses EventIntakeModule;

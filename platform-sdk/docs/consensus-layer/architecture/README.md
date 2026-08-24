@@ -26,6 +26,7 @@ One file per topic, in `topics/`; the full set is the table below.
 | `topics/restart-and-pces.md`                | Restart and PCES                | The Preconsensus Event Stream and the replay path that restores consensus position after a crash.                                                      |
 | `topics/freeze-and-upgrade.md`              | Freeze and upgrade              | Coordinated network freeze for software upgrades, including the signature handoff to execution.                                                        |
 | `topics/reconnect.md`                       | Reconnect                       | Recovery path for a node that has fallen far behind and cannot catch up via gossip.                                                                    |
+| `topics/platform-status.md`                 | Platform status                 | The node's lifecycle state machine — statuses, the actions that drive transitions, and the components that gate on the current status.                 |
 | `topics/quiescence.md`                      | Quiescence                      | Opt-in feature affecting stale-events routing to Execution.                                                                                            |   |
 
 ## Interfaces

@@ -16,7 +16,6 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.resolve.AnchorResolver;
 import org.hiero.consensus.kbfreshness.resolve.Resolution;
-import org.hiero.consensus.kbfreshness.util.Hashing;
 
 /**
  * Turns extracted anchors into collapsed findings. Anchors sharing {@code (entry, target, kind)}
@@ -75,10 +74,11 @@ public final class FindingAssembler {
         final Entry entry = doc.entry();
         final List<Anchor> anchors = extractor.extract(doc);
 
-        // Group by (target, kind) within the entry, preserving first-seen order.
+        // Group by (kind, target) within the entry, preserving first-seen order. The space delimiter keeps
+        // the composite key unambiguous: no anchor-kind name contains a space or is a prefix of another.
         final Map<String, List<Anchor>> groups = new LinkedHashMap<>();
         for (final Anchor a : anchors) {
-            groups.computeIfAbsent(a.kind().name() + "" + a.target(), k -> new ArrayList<>())
+            groups.computeIfAbsent(a.kind().name() + " " + a.target(), k -> new ArrayList<>())
                     .add(a);
         }
 
@@ -109,9 +109,11 @@ public final class FindingAssembler {
             return build(entry, rep, existence, occurrencesOf(group));
         }
 
-        // Present-and-clean group: the only remaining finding is an auto-fix for moved line refs.
+        // Present-and-clean group: the only remaining finding is an auto-fix for a cited line — either a
+        // moved line (corrected line) or a declaration line migrating to `#symbol`.
         final List<Occurrence> autoFixOccurrences = new ArrayList<>();
         Integer correctedLine = null;
+        String correctedSymbol = null;
         String evidence = "";
         String question = existence.question();
         for (final Anchor a : group) {
@@ -119,6 +121,7 @@ public final class FindingAssembler {
             if (r.lane() == Lane.AUTO_FIX) {
                 autoFixOccurrences.add(a.toOccurrence());
                 correctedLine = r.autoFixLine();
+                correctedSymbol = r.autoFixSymbol();
                 evidence = r.evidence();
                 question = r.question();
             }
@@ -127,8 +130,8 @@ public final class FindingAssembler {
             return null;
         }
         autoFixOccurrences.sort(Comparator.naturalOrder());
-        final Resolution autoFix =
-                new Resolution(existence.outcome(), Lane.AUTO_FIX, question, evidence, correctedLine);
+        final Resolution autoFix = new Resolution(
+                existence.outcome(), Lane.AUTO_FIX, question, evidence, correctedLine, null, correctedSymbol);
         return build(entry, rep, autoFix, autoFixOccurrences);
     }
 
@@ -143,22 +146,21 @@ public final class FindingAssembler {
      */
     private Finding build(
             final Entry entry, final Anchor rep, final Resolution res, final List<Occurrence> occurrences) {
-        final String id = Hashing.id(entry.key(), rep.target(), rep.kind().name());
-        return new Finding(
-                id,
-                entry.key(),
-                entry.relativePath(),
-                entry.type(),
-                rep.kind(),
-                rep.target(),
-                rep.citedModule(),
-                rep.citedScope(),
-                res.outcome(),
-                res.lane(),
-                res.question(),
-                res.evidence(),
-                occurrences,
-                res.autoFixLine());
+        return Finding.of(
+                        entry,
+                        rep.kind(),
+                        rep.target(),
+                        rep.citedModule(),
+                        rep.citedScope(),
+                        res.outcome(),
+                        res.lane(),
+                        res.question(),
+                        res.evidence(),
+                        occurrences)
+                .withAutoFixLine(res.autoFixLine())
+                .withResolvedPath(res.resolvedPath())
+                .withStatedModule(rep.statedModule())
+                .withAutoFixSymbol(res.autoFixSymbol());
     }
 
     /**
@@ -184,6 +186,14 @@ public final class FindingAssembler {
      */
     private static Anchor withoutLine(final Anchor a) {
         return new Anchor(
-                a.kind(), a.target(), a.citedModule(), a.citedScope(), a.docLine(), Anchor.NO_LINE, a.rawText());
+                a.kind(),
+                a.target(),
+                a.citedModule(),
+                a.citedScope(),
+                a.docLine(),
+                Anchor.NO_LINE,
+                a.rawText(),
+                a.statedModule(),
+                a.historical());
     }
 }

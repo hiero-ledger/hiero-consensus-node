@@ -975,6 +975,40 @@ public class AtomicBatchNegativeTest {
                                     .contractCallResult(resultWith().signerNonce(1L))));
         }
 
+        @LeakyHapiTest(overrides = {"fees.simpleFeesAreFree"})
+        @DisplayName("Nonce gets updated after contract reversion inside batch with free simple fees")
+        final Stream<DynamicTest> nonceUpdatedAfterEvmReversionWithFreeSimpleFees() {
+            // Even with free fees (no gas-charging events), the batch rollback must still
+            // replay the sender nonce increment for the reverted inner Ethereum transaction
+            final var gasLimit = 215_000L;
+            return hapiTest(
+                    overriding("fees.simpleFeesAreFree", "true"),
+                    cryptoCreate(BATCH_OPERATOR),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                    contractCreate(INTERNAL_CALLEE_CONTRACT),
+                    atomicBatch(ethereumCall(INTERNAL_CALLEE_CONTRACT, REVERT_FUNCTION)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(gasLimit)
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                    .via("ethCall")
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(1L)),
+                    getTxnRecord("ethCall")
+                            .hasPriority(recordWith()
+                                    .status(CONTRACT_REVERT_EXECUTED)
+                                    .contractCallResult(resultWith().signerNonce(1L))));
+        }
+
         @HapiTest
         @DisplayName("Nonce gets updated after successful contract call inside batch")
         final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {

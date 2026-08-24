@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.sync;
 
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,19 +24,6 @@ import org.hiero.base.crypto.Hash;
  * Responses from teacher should be handled via {@link #responseReceived(PullVirtualTreeResponse)}.
  */
 public final class LearnerTreeExchanger {
-
-    /**
-     * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
-     * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
-     * tree.
-     */
-    private final VirtualMapMetadata originalState;
-
-    /**
-     * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
-     * For the learner, this is the state of the tree being serialized into.
-     */
-    private final VirtualMapMetadata reconnectState;
 
     /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
@@ -66,6 +52,8 @@ public final class LearnerTreeExchanger {
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
+    private VirtualMap.Metadata teacherMetadata = new VirtualMap.Metadata();
+
     /**
      * Create a new {@link LearnerTreeExchanger}.
      *
@@ -81,8 +69,6 @@ public final class LearnerTreeExchanger {
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final LearnerSyncMetrics stats) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
-        this.originalState = vmapLearner.getOriginalState();
-        this.reconnectState = vmapLearner.getReconnectState();
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
         this.stats = Objects.requireNonNull(stats, "mapStats is null");
     }
@@ -97,8 +83,13 @@ public final class LearnerTreeExchanger {
         // init with teacher key range
         final long firstLeafPath = rootResponse.firstLeafPath();
         final long lastLeafPath = rootResponse.lastLeafPath();
+        teacherMetadata = new VirtualMap.Metadata(firstLeafPath, lastLeafPath);
+
         traversalOrder.start(
-                originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
+                vmapLearner.getOriginalMetadata().getFirstLeafPath(),
+                vmapLearner.getOriginalMetadata().getLastLeafPath(),
+                firstLeafPath,
+                lastLeafPath);
         vmapLearner.init(firstLeafPath, lastLeafPath);
         handleResponse(rootResponse);
     }
@@ -112,25 +103,24 @@ public final class LearnerTreeExchanger {
     }
 
     /**
-     * Determines if a given path refers to a leaf of the tree.
+     * Determines if a given path refers to a leaf of the teacher tree.
      *
      * @param path a path
-     * @return true if leaf, false if internal
+     * @return true if a leaf path, false if internal node
      */
-    public boolean isLeaf(long path) {
-        assert path <= reconnectState.getLastLeafPath();
-        return path >= reconnectState.getFirstLeafPath();
+    public boolean isLeafOnTeacher(long path) {
+        return teacherMetadata.isLeaf(path);
     }
 
     // This method is called concurrently from multiple threads
     public long getNextPathToSend() {
         // If the last leaf path request has been sent, don't send anything else
         if (lastLeafSent.get()) {
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         final long intPath = traversalOrder.getNextInternalPathToSend();
-        if (intPath != Path.INVALID_PATH) {
-            assert (intPath < 0) || !isLeaf(intPath);
+        if (intPath != MerklePathUtils.INVALID_PATH) {
+            assert (intPath < 0) || !isLeafOnTeacher(intPath);
             return intPath;
         }
         synchronized (this) {
@@ -138,10 +128,10 @@ public final class LearnerTreeExchanger {
             // are expected to return INVALID_PATH, so there is no need to check
             // lastLeafPath.get() here again
             final long leafPath = traversalOrder.getNextLeafPathToSend();
-            if (leafPath == Path.INVALID_PATH) {
+            if (leafPath == MerklePathUtils.INVALID_PATH) {
                 lastLeafSent.set(true);
             } else {
-                assert (leafPath < 0) || isLeaf(leafPath);
+                assert (leafPath < 0) || isLeafOnTeacher(leafPath);
                 if (leafPath > 0) {
                     anticipatedLeafPaths.add(leafPath);
                 }
@@ -157,7 +147,7 @@ public final class LearnerTreeExchanger {
     // This method is called concurrently from multiple threads and called for non-root nodes (internal and leaves)
     public void responseReceived(final PullVirtualTreeResponse response) {
         final long responsePath = response.path();
-        if (!isLeaf(responsePath)) {
+        if (!isLeafOnTeacher(responsePath)) {
             handleResponse(response);
         } else {
             responses.put(responsePath, response);
@@ -181,11 +171,11 @@ public final class LearnerTreeExchanger {
         // Root node was exchanged synchronously in exchangeRootNode() before any tasks started,
         // so by the time this is called from parallel tasks the root has already been processed.
         final long path = response.path();
-        if (reconnectState.getLastLeafPath() <= 0) {
+        if (teacherMetadata.getLastLeafPath() <= 0) {
             return;
         }
         final boolean isClean = response.isClean();
-        final boolean isLeaf = isLeaf(path);
+        final boolean isLeaf = isLeafOnTeacher(path);
         traversalOrder.nodeReceived(path, isClean);
         stats.incrementTransfersFromTeacher();
 
@@ -214,7 +204,7 @@ public final class LearnerTreeExchanger {
         // method will be made only for the original state from the original tree.
 
         // Make sure the path is valid for the original state
-        if (originalNodePath > originalState.getLastLeafPath()) {
+        if (originalNodePath > vmapLearner.getOriginalMetadata().getLastLeafPath()) {
             return Cryptography.NULL_HASH;
         }
 

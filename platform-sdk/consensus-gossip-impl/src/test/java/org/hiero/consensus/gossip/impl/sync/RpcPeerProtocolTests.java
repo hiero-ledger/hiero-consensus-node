@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.sync;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,9 +15,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
-import org.hiero.consensus.concurrent.pool.ParallelExecutor;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
+import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.base.concurrent.pool.ParallelExecutor;
+import org.hiero.base.concurrent.throttle.RateLimiter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
@@ -30,11 +31,10 @@ import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +56,7 @@ public class RpcPeerProtocolTests {
         final ParallelExecutor executor = new CachedPoolParallelExecutor(getStaticThreadManager(), "a name");
         executor.start();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(2).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 2);
 
         final NoOpMetrics metrics = new NoOpMetrics();
 
@@ -207,9 +207,11 @@ public class RpcPeerProtocolTests {
             // this time should be few times bigger than sum of all the delays in the methods above, to allow few syncs
             // to happen between disconnections
             Thread.sleep(100);
-            if (lastConnection != null) {
-                lastConnection.disconnect();
-                otherConnection.disconnect();
+            synchronized (this) {
+                if (lastConnection != null) {
+                    lastConnection.disconnect();
+                    otherConnection.disconnect();
+                }
             }
             if (foundException != null) {
                 throw foundException;
@@ -218,8 +220,10 @@ public class RpcPeerProtocolTests {
 
         running.set(false);
         if (lastConnection != null) {
-            lastConnection.disconnect();
-            otherConnection.disconnect();
+            synchronized (this) {
+                lastConnection.disconnect();
+                otherConnection.disconnect();
+            }
         }
         Thread.sleep(100);
         final long noSyncTime = time.currentTimeMillis() - lastSentSync;

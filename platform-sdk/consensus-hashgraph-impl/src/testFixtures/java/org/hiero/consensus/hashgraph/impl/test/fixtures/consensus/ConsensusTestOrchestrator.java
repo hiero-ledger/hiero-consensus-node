@@ -127,8 +127,7 @@ public class ConsensusTestOrchestrator {
     public void restartAllNodes() {
         final long lastRoundDecided = nodes.getFirst().getLatestRound();
         if (lastRoundDecided < EventConstants.MINIMUM_ROUND_CREATED) {
-            System.out.println("Cannot restart, no consensus reached yet");
-            return;
+            throw new RuntimeException("Cannot restart, no consensus reached yet");
         }
         System.out.println("Restarting at round " + lastRoundDecided);
         for (final ConsensusTestNode node : nodes) {

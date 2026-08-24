@@ -114,8 +114,10 @@ class PrivilegesVerifierTest {
         // expect:
         assertTrue(subject.canPerformNonCryptoUpdate(2, 101));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 102));
-        assertTrue(subject.canPerformNonCryptoUpdate(2, 111));
+        assertTrue(subject.canPerformNonCryptoUpdate(2, 113));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 112));
+        // 111 is retired and no longer updatable by anyone
+        assertFalse(subject.canPerformNonCryptoUpdate(2, 111));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 121));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 122));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 123));
@@ -129,8 +131,9 @@ class PrivilegesVerifierTest {
         // expect:
         assertTrue(subject.canPerformNonCryptoUpdate(50, 101));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 102));
-        assertTrue(subject.canPerformNonCryptoUpdate(50, 111));
+        assertTrue(subject.canPerformNonCryptoUpdate(50, 113));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 112));
+        assertFalse(subject.canPerformNonCryptoUpdate(50, 111));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 121));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 122));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 123));
@@ -148,6 +151,7 @@ class PrivilegesVerifierTest {
         assertFalse(subject.canPerformNonCryptoUpdate(54, 122));
         assertFalse(subject.canPerformNonCryptoUpdate(54, 123));
         assertFalse(subject.canPerformNonCryptoUpdate(54, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(54, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(54, 112));
         for (var num = 150; num <= 159; num++) {
             assertTrue(subject.canPerformNonCryptoUpdate(54, num));
@@ -163,6 +167,7 @@ class PrivilegesVerifierTest {
         assertTrue(subject.canPerformNonCryptoUpdate(55, 122));
         assertTrue(subject.canPerformNonCryptoUpdate(55, 123));
         assertFalse(subject.canPerformNonCryptoUpdate(55, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(55, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(55, 112));
         for (var num = 150; num <= 159; num++) {
             assertFalse(subject.canPerformNonCryptoUpdate(55, num));
@@ -172,7 +177,8 @@ class PrivilegesVerifierTest {
     @Test
     void feeSchedulesAdminCanUpdateExpected() {
         // expect:
-        assertTrue(subject.canPerformNonCryptoUpdate(56, 111));
+        assertTrue(subject.canPerformNonCryptoUpdate(56, 113));
+        assertFalse(subject.canPerformNonCryptoUpdate(56, 111));
         assertFalse(subject.canPerformNonCryptoUpdate(56, 101));
         assertFalse(subject.canPerformNonCryptoUpdate(56, 102));
         assertFalse(subject.canPerformNonCryptoUpdate(56, 121));
@@ -192,6 +198,7 @@ class PrivilegesVerifierTest {
         assertTrue(subject.canPerformNonCryptoUpdate(57, 123));
         assertTrue(subject.canPerformNonCryptoUpdate(57, 112));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(57, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 101));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 102));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 150));
@@ -208,6 +215,7 @@ class PrivilegesVerifierTest {
         assertFalse(subject.canPerformNonCryptoUpdate(58, 123));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 112));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(58, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 101));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 102));
         for (var num = 150; num <= 159; num++) {

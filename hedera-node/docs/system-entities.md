@@ -36,7 +36,6 @@ See also [`privileged-transactions.md`](privileged-transactions.md) for the sema
 |:---------------------|:----------------------------|
 | `0.0.101`            | `files.addressBook`         |
 | `0.0.102`            | `files.nodeDetails`         |
-| `0.0.111`            | `files.feeSchedules`        |
 | `0.0.112`            | `files.exchangeRates`       |
 | `0.0.113`            | `files.simpleFeesSchedules` |
 | `0.0.121`            | `files.networkProperties`   |

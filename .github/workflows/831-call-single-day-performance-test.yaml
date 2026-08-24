@@ -4,11 +4,6 @@ name: "831: [CALL] CITR Exec SDPT"
 on:
   workflow_call:
     inputs:
-      test-asset:
-        required: true
-        default: "AdHoc5"
-        description: "Performance test on machine: AdHoc5,6,7,13,14, AdHocSD9, or SDPT1"
-        type: string
       ref:
         required: true
         default: "main"
@@ -49,11 +44,14 @@ on:
         default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
         description: "Test params"
         type: string
-      delete-namespace:
-        required: false
-        default: true
-        type: boolean
-        description: "If true, automatically delete namespace when done"
+      duration-minutes:
+        required: true
+        description: "Expected duration of all tests in minutes"
+        type: number
+      chewie-request-timeout:
+        required: true
+        description: "Chewie request timeout in seconds"
+        type: number
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -65,6 +63,12 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      chewie-host:
+        required: true
+        description: "Chewie Host"
+      chewie-id-key:
+        required: true
+        description: "Chewie Identity Key"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -100,20 +104,79 @@ env:
   ValidatorExitCode: 0
 
 jobs:
-  acquire-kubernetes-resources:
-    # TODO: This will use the chewie-action as chewie develops.
-    name: Acquire Kubernetes Resources
-    uses: ./.github/workflows/834-call-read-chewie-response.yaml
+  get-chewie-jwt:
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.chewie-id-key }}
+      chewie-host: ${{ secrets.chewie-host }}
+
+  get-sdpt-config:
+    uses: ./.github/workflows/861-call-get-test-config.yaml
+    with:
+      test-type: "sdpt"
+      ref: ${{ inputs.ref }}
+    secrets:
+      checkout-token: ${{ secrets.github-token }}
+
+  validate-chewie-jwt:
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
       ref: ${{ inputs.ref }}
-      test-asset: ${{ inputs.test-asset }}
-      test-type: "sdpt"
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.github-token }}
+
+  acquire-kubernetes-resources:
+    needs:
+      - validate-chewie-jwt
+      - get-chewie-jwt
+      - get-sdpt-config
+    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    with:
+      instances-cn-qty: ${{ fromJSON(needs.get-sdpt-config.outputs.cn-qty) }}
+      instances-cn-cpu: ${{ fromJSON(needs.get-sdpt-config.outputs.cn-cpu-request) }}
+      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdpt-config.outputs.cn-mem-request-mb) }}
+      instances-aux-qty: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-qty) }}
+      instances-aux-cpu: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-cpu-request) }}
+      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdpt-config.outputs.aux-mem-request-mb) }}
+      duration-minutes: ${{ inputs.duration-minutes }}
+      request-timeout: ${{ inputs.chewie-request-timeout }}
     secrets:
       github-token: ${{ secrets.github-token }}
+      chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      chewie-host: ${{ secrets.chewie-host }}
+
+  print-allocation-details:
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - acquire-kubernetes-resources
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Output Allocation Details
+        run: |
+          echo "::group::Output Step Summary"
+          echo "## Allocation Details" > "${GITHUB_STEP_SUMMARY}"
+          echo "- **Namespace**: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **FQDN**: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" | tee -a  "${GITHUB_STEP_SUMMARY}"
+          echo "- **CN Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "::endgroup::"
 
   performance-tests-start:
     name: Start
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
     env:
@@ -125,13 +188,13 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Check Test Asset
+      - name: Set Kubernetes Cluster
         id: set-k8s-cluster
         run: |
           K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
@@ -222,40 +285,19 @@ jobs:
 
       - name: Set CN Version
         id: set-hcn-version
+        env:
+          INPUT_REF: ${{ inputs.ref }}
         run: |
           set +x
           set +e
           # trim the input ref
-          echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
-
-      - name: Check for namespace collision
-        run: |
-          set +e
-          set +x
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "chewie-solo-.*t-n${NETWORK_ID}[ \t]"
-          if [[ ${?} -eq 0 ]]
-          then
-            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
-            exit 13
-          fi
-
-      - name: Cancelling in case of namespace collision
-        if: failure()
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
-        with:
-          script: |
-            github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId
-            });
+          echo "run-hcn-version=$(echo "${INPUT_REF}" | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
 
       - name: Print parameters
         run: |
-          echo "inputs.test-asset=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.ref=${{ steps.set-hcn-version.outputs.run-hcn-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -281,11 +323,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22.23.2
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -295,8 +337,10 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
           # verify the installation
           solo --version
@@ -304,6 +348,8 @@ jobs:
       - name: Deploy with Solo
         env:
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          INPUT_ADD_APP_PROPS: ${{ inputs.add-app-props }}
+          INPUT_ADD_SETTINGS: ${{ inputs.add-settings }}
         run: |
           set +x
           set +e
@@ -347,16 +393,16 @@ jobs:
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
-          if [[ "${{ inputs.add-app-props }}" != "" ]]
+          if [[ "${INPUT_ADD_APP_PROPS}" != "" ]]
           then
-            echo -e "${{ inputs.add-app-props }}" >> application.properties
+            echo -e "${INPUT_ADD_APP_PROPS}" >> application.properties
             echo "New application.properties:"
             cat application.properties
           fi
 
-          if [[ "${{ inputs.add-settings }}" != "" ]]
+          if [[ "${INPUT_ADD_SETTINGS}" != "" ]]
           then
-            echo -e "${{ inputs.add-settings }}" >> settings.txt
+            echo -e "${INPUT_ADD_SETTINGS}" >> settings.txt
             echo "New settings.txt:"
             cat settings.txt
           fi
@@ -379,8 +425,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -533,25 +579,30 @@ jobs:
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Start SwirldsMerkleDB test
+        env:
+          INPUT_JAVA_ARGS: ${{ inputs.crypto-bench-merkle-db-java-args }}
+          INPUT_TEST_PARAMS: ${{ inputs.crypto-bench-merkle-db-test-params }}
         run: |
           set +x
           set +e
 
           merklebenchpod="merklebench"
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > swirlds-benchmarks.log 2>&1 &"
+          --jvmArgs '${INPUT_JAVA_ARGS}' CryptoBench.transferPrefetch ${INPUT_TEST_PARAMS} > swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
+        env:
+          INPUT_NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
+          n="$(expr "${INPUT_NLG_ACCOUNTS}" / 1000)"
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${INPUT_NLG_ACCOUNTS}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -678,23 +729,26 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/create_accounts"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/create_accounts"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
       - name: Start test
+        env:
+          INPUT_NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
+          INPUT_NLG_TIME: ${{ inputs.nlg-time }}
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
+          n="$(expr "${INPUT_NLG_ACCOUNTS}" / 1000)"
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${INPUT_NLG_ACCOUNTS}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -706,15 +760,16 @@ jobs:
           echo \
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
+          ${NLGargs} -tt ${INPUT_NLG_TIME}m > client.log 2>&1 &"
 
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
+          ${NLGargs} -tt ${INPUT_NLG_TIME}m > client.log 2>&1 &"
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -736,7 +791,7 @@ jobs:
 
       - name: Print parameters
         run: |
-          echo "namespace=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -892,6 +947,7 @@ jobs:
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
     runs-on: hl-cn-sdpt-lin-lg
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -918,7 +974,7 @@ jobs:
 
       - name: Print parameters
         run: |
-          echo "namespace=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -1097,8 +1153,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
@@ -1150,19 +1206,19 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-HCSLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-NftTransferLoadTest-report
     uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HCSLoadTest"
@@ -1172,15 +1228,16 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      k8s-network-id: "${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
       java-version: "${{ inputs.java-version }}"
 
   performance-CryptoTransferLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-HCSLoadTest
     uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "CryptoTransferLoadTest"
@@ -1190,15 +1247,16 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      k8s-network-id: "${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
       java-version: "${{ inputs.java-version }}"
 
   performance-SmartContractLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "SmartContractLoadTest"
@@ -1208,15 +1266,16 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      k8s-network-id: "${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
       java-version: "${{ inputs.java-version }}"
 
   performance-HeliSwapLoadTest:
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
       - performance-SmartContractLoadTest
     uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HeliSwapLoadTest"
@@ -1226,10 +1285,12 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      k8s-network-id: "${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
       java-version: "${{ inputs.java-version }}"
 
   performance-post-test-validation:
     name: Consensus Node State Validator
+    if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     runs-on: hl-cn-sdpt-lin-lg
     needs:
       - acquire-kubernetes-resources
@@ -1251,7 +1312,7 @@ jobs:
 
       - name: Print parameters
         run: |
-          echo "namespace=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -1337,8 +1398,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/validator"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/validator"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/validator"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/validator"
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:
@@ -1428,54 +1489,6 @@ jobs:
           echo "### Single Day Performance Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-  delete-namespace:
-    name: Delete namespace
-    runs-on: hl-cn-sdpt-lin-lg
-    needs:
-      - acquire-kubernetes-resources
-      - performance-tests-start
-      - single-day-performance-test-result
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.33.0
-
-      - name: Install Teleport Client
-        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
-        with:
-          version: 18.4.0
-
-      - name: Authorize Teleport SSH Access
-        id: auth-ssh
-        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          certificate-ttl: 24h
-
-      - name: Authorize Teleport K8S Access
-        id: auth-k8s
-        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
-          certificate-ttl: 168h
-
-      - name: Delete namespace
-        if: ${{ inputs.delete-namespace == true }}
-        run: |
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-
   performance-report-to-rootly:
     name: Report Failures to Rootly
     runs-on: hl-cn-sdpt-lin-sm
@@ -1498,6 +1511,7 @@ jobs:
       needs.performance-HeliSwapLoadTest.result != 'success' ||
       needs.performance-SmartContractLoadTest.result != 'success' ||
       needs.single-day-performance-test-result.result != 'success' ||
+      needs.acquire-kubernetes-resources.result != 'success' ||
       needs.single-day-performance-test-result.outputs.result == 'failure') &&
       !cancelled() && always() }}
     steps:
@@ -1509,12 +1523,13 @@ jobs:
       - name: Build Rootly Summary
         id: summary
         run: |
-          title="The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Performance Test workflow failed (SDPT ${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
+            echo "- Acquire Kubernetes Resources: ${{ needs.acquire-kubernetes-resources.result }}"
             echo "- Performance Tests Start: ${{ needs.performance-tests-start.result }}"
             echo "- Performance NFT Transfer Load Test (Watch 1): ${{ needs.performance-NftTransferLoadTest-watch1.result }}"
             echo "- Performance NFT Transfer Load Test (Report): ${{ needs.performance-NftTransferLoadTest-report.result }}"
@@ -1549,7 +1564,6 @@ jobs:
       - performance-SmartContractLoadTest
       - performance-post-test-validation
       - single-day-performance-test-result
-
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -1672,7 +1686,7 @@ jobs:
 
       ## Slack notifications
       - name: Report status (slack detailed reports)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-report-webhook }}
           webhook-type: incoming-webhook

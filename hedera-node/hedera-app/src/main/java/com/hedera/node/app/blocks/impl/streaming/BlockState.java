@@ -96,7 +96,7 @@ public class BlockState {
         }
 
         final int index = itemIndex.incrementAndGet();
-        bufferedItems.put(index, new BufferedItem(serializedItem, itemType));
+        bufferedItems.put(index, new BufferedItem(serializedItem, itemType, index));
         if (itemType == BlockItem.ItemOneOfType.BLOCK_HEADER) {
             openedNanos = System.nanoTime();
             openedTimestamp = Instant.now();
@@ -336,9 +336,10 @@ public class BlockState {
      *
      * @param serializedItem the full serialized bytes of a single {@link BlockItem}
      * @param itemType the type of the item
+     * @param index the position of the item within the block (0-based)
      */
     public record BufferedItem(
-            @NonNull Bytes serializedItem, @NonNull BlockItem.ItemOneOfType itemType) {
+            @NonNull Bytes serializedItem, @NonNull BlockItem.ItemOneOfType itemType, int index) {
         public BufferedItem {
             requireNonNull(serializedItem, "serializedItem must not be null");
             requireNonNull(itemType, "itemType must not be null");

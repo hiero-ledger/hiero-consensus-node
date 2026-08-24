@@ -87,7 +87,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -289,6 +289,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(callRecordBuilder);
+        givenNoTraceDataSizeLimitExceededForCall();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -352,6 +353,7 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
+        givenNoTraceDataSizeLimitExceededForCreate();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -875,6 +877,7 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
+        givenNoTraceDataSizeLimitExceededForCreate();
 
         // Mock the dispatch metadata with a callback
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
@@ -909,5 +912,15 @@ class EthereumTransactionHandlerTest {
     void givenSenderAccountWithNonce(final long nonce) {
         given(baseProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(senderAccount.getNonce()).willReturn(nonce);
+    }
+
+    private void givenNoTraceDataSizeLimitExceededForCall() {
+        given(callRecordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(callRecordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
+    }
+
+    private void givenNoTraceDataSizeLimitExceededForCreate() {
+        given(createRecordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(createRecordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
     }
 }

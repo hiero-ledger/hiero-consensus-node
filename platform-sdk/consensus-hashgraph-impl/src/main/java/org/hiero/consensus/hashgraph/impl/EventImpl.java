@@ -458,6 +458,15 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
+     * Get the non-deterministic generation of this event
+     *
+     * @return the non-deterministic generation of this event
+     */
+    public long getNGen() {
+        return getPlatformEvent().getNGen();
+    }
+
+    /**
      * The sequence number of this event, order in which it was released from the orphan buffer
      * @return the sequence number of this event.
      */
@@ -566,11 +575,11 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder();
-        getPlatformEvent().getDescriptor().shortString(sb);
+        final StringBuilder sb =
+                new StringBuilder(getPlatformEvent().getDescriptor().toString());
         final List<EventDescriptorWrapper> allParents = getPlatformEvent().getAllParents();
         for (final EventDescriptorWrapper parent : allParents) {
-            parent.shortString(sb);
+            sb.append(parent.toString());
         }
         return sb.toString();
     }
@@ -581,6 +590,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return a short string
      */
     public String shortString() {
-        return getPlatformEvent().getDescriptor().shortString();
+        return getPlatformEvent().getDescriptor().toString();
     }
 }

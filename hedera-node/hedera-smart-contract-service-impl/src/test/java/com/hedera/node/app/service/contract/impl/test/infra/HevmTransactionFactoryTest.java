@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_VALUE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -101,9 +102,11 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -113,6 +116,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HevmTransactionFactoryTest {
+
+    private static final int MAX_INITCODE_SIZE = 49152;
+
     @Mock
     private NetworkInfo networkInfo;
 
@@ -339,7 +345,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationDoesNotPermitExcessAutoAssociations() {
-        givenInsteadAutoAssociatingSubject();
+        givenInsteadHydratedEthTx(null);
         assertCreateFailsWith(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT, b -> b.gas(
                         CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .maxAutomaticTokenAssociations(DEFAULT_LEDGER_CONFIG.maxAutoAssociations() + 1)
@@ -446,6 +452,34 @@ class HevmTransactionFactoryTest {
     }
 
     @Test
+    void fromHapiCreationValidatesInlineInitcodeSize() {
+        assertCreateFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, b -> b.memo(SOME_MEMO)
+                .adminKey(AN_ED25519_KEY)
+                .initcode(Bytes.wrap(new byte[MAX_INITCODE_SIZE + 2]))
+                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                .proxyAccountID(AccountID.DEFAULT)
+                .autoRenewPeriod(SOME_DURATION));
+    }
+
+    @Test
+    void fromHapiCreationValidatesFileInitcodeSize() {
+        given(fileStore.getFileLeaf(INITCODE_FILE_ID))
+                .willReturn(File.newBuilder()
+                        .contents(
+                                Bytes.wrap("0".repeat(MAX_INITCODE_SIZE * 2 + 2).getBytes()))
+                        .build());
+        assertCreateFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, b -> b.memo(SOME_MEMO)
+                .adminKey(AN_ED25519_KEY)
+                .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
+                .fileID(INITCODE_FILE_ID)
+                .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
+                .proxyAccountID(AccountID.DEFAULT)
+                .autoRenewPeriod(SOME_DURATION));
+    }
+
+    @Test
     void fromHapiCreationTranslatesHexParsingException() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(CALL_DATA).build());
@@ -492,7 +526,7 @@ class HevmTransactionFactoryTest {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(INITCODE).build());
         String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
-        final var expectedPayload = Bytes.wrap(CommonUtils.unhex(hexedPayload));
+        final var expectedPayload = Bytes.wrap(Objects.requireNonNull(CommonUtils.unhex(hexedPayload)));
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
                 .fileID(INITCODE_FILE_ID)
                 .constructorParameters(CONSTRUCTOR_PARAMS)
@@ -523,7 +557,7 @@ class HevmTransactionFactoryTest {
                         .contents(Bytes.wrap("0x" + new String(INITCODE.toByteArray())))
                         .build());
         String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
-        final var expectedPayload = Bytes.wrap(CommonUtils.unhex(hexedPayload));
+        final var expectedPayload = Bytes.wrap(Objects.requireNonNull(CommonUtils.unhex(hexedPayload)));
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
                 .fileID(INITCODE_FILE_ID)
                 .constructorParameters(CONSTRUCTOR_PARAMS)
@@ -554,26 +588,26 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthFailsImmediatelyWithoutHydratedData() {
-        givenInsteadFailedHydrationSubject();
+        givenInsteadHydratedEthTx(HydratedEthTxData.failureFrom(CONTRACT_FILE_EMPTY));
         assertEthTxFailsWith(CONTRACT_FILE_EMPTY, b -> b.callData(INITCODE_FILE_ID));
     }
 
     @Test
     void fromHapiEthFailsImmediatelyWithNegativeAllowance() {
-        givenInsteadHydratedEthTxWithWrongChainId(ETH_DATA_WITH_CALL_DATA);
+        givenInsteadHydratedEthTx(HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false));
         assertEthTxFailsWith(NEGATIVE_ALLOWANCE_AMOUNT, b -> b.maxGasAllowance(-1));
     }
 
     @Test
     void fromHapiEthFailsImmediatelyWithWrongChainId() {
-        givenInsteadHydratedEthTxWithWrongChainId(ETH_DATA_WITH_CALL_DATA);
-        assertEthTxFailsWith(WRONG_CHAIN_ID, b -> {});
+        givenInsteadHydratedEthTx(HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false));
+        assertEthTxFailsWith(WRONG_CHAIN_ID, _ -> {});
     }
 
     @Test
     void fromHapiEthFailsImmediatelyWithoutToAddressButNoCallData() {
         givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]));
-        assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, b -> {});
+        assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, _ -> {});
     }
 
     @Test
@@ -582,10 +616,21 @@ class HevmTransactionFactoryTest {
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var txData = ETH_DATA_WITH_TO_ADDRESS.replaceGasLimit(16_000_000L);
         final var sigs = mock(EthTxSigs.class);
-        when(sigs.address()).thenReturn(Hex.decode("00000000000000000000000000000000cafebabe"));
+        when(sigs.address()).thenReturn(HexFormat.of().parseHex("00000000000000000000000000000000cafebabe"));
         given(ethereumSignatures.computeIfAbsent(txData)).willReturn(sigs);
         givenInsteadHydratedEthTxWithRightChainId(txData);
-        assertEthTxFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> {});
+        assertEthTxFailsWith(MAX_GAS_LIMIT_EXCEEDED, _ -> {});
+    }
+
+    @Test
+    void fromHapiEthCreationValidatesInitcodeSize() {
+        final var dataToUse = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[MAX_INITCODE_SIZE + 2]);
+        givenInsteadHydratedEthTxWithRightChainId(dataToUse);
+        final var sig = EthTxSigs.extractSignatures(dataToUse);
+        given(ethereumSignatures.computeIfAbsent(dataToUse)).willReturn(sig);
+
+        givenInsteadHydratedEthTxWithRightChainId(dataToUse);
+        assertEthTxFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, _ -> {});
     }
 
     @Test
@@ -692,8 +737,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromContractTxExceptionWithEthereumTransactionValidationError() {
-        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
-        givenInsteadHydratedEthTxWithWrongChainId(ethTxData);
+        givenInsteadHydratedEthTx(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
 
         final var transactionBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
@@ -707,8 +751,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromContractTxExceptionWithEthereumTransactionNegativeAllowance() {
-        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
-        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+        givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITH_TO_ADDRESS);
 
         final var transactionBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
@@ -811,16 +854,6 @@ class HevmTransactionFactoryTest {
                 new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
     }
 
-    private HederaEvmTransaction getManufacturedRelayedCallException(
-            @NonNull final Consumer<EthereumTransactionBody.Builder> spec) {
-        return subject.fromContractTxException(
-                TransactionBody.newBuilder()
-                        .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
-                        .ethereumTransaction(ethTxWith(spec))
-                        .build(),
-                new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
-    }
-
     private ContractCreateTransactionBody createWith(final Consumer<ContractCreateTransactionBody.Builder> spec) {
         final var builder = ContractCreateTransactionBody.newBuilder();
         spec.accept(builder);
@@ -839,7 +872,7 @@ class HevmTransactionFactoryTest {
         return builder.build();
     }
 
-    private void givenInsteadAutoAssociatingSubject() {
+    private void givenInsteadHydratedEthTx(@Nullable final HydratedEthTxData hydratedEthTxData) {
         subject = new HevmTransactionFactory(
                 networkInfo,
                 DEFAULT_LEDGER_CONFIG,
@@ -848,49 +881,7 @@ class HevmTransactionFactoryTest {
                 gasCalculator,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
-                null,
-                accountStore,
-                expiryValidator,
-                fileStore,
-                attributeValidator,
-                tokenServiceApi,
-                ethereumSignatures,
-                context,
-                entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
-    }
-
-    private void givenInsteadFailedHydrationSubject() {
-        subject = new HevmTransactionFactory(
-                networkInfo,
-                DEFAULT_LEDGER_CONFIG,
-                DEFAULT_HEDERA_CONFIG,
-                featureFlags,
-                gasCalculator,
-                DEFAULT_CONTRACTS_CONFIG,
-                DEFAULT_ENTITIES_CONFIG,
-                HydratedEthTxData.failureFrom(CONTRACT_FILE_EMPTY),
-                accountStore,
-                expiryValidator,
-                fileStore,
-                attributeValidator,
-                tokenServiceApi,
-                ethereumSignatures,
-                context,
-                entityIdFactory,
-                DEFAULT_HOOKS_CONFIG);
-    }
-
-    private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
-        subject = new HevmTransactionFactory(
-                networkInfo,
-                DEFAULT_LEDGER_CONFIG,
-                DEFAULT_HEDERA_CONFIG,
-                featureFlags,
-                gasCalculator,
-                DEFAULT_CONTRACTS_CONFIG,
-                DEFAULT_ENTITIES_CONFIG,
-                HydratedEthTxData.successFrom(ethTxData, false),
+                hydratedEthTxData,
                 accountStore,
                 expiryValidator,
                 fileStore,

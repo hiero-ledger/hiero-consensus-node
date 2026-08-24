@@ -9,10 +9,10 @@ on:
         required: true
         type: string
       solo-version:
-        description: "[All] Solo version to install."
-        required: true
+        description: "[All] Solo version to install. Blank → the pinned adhoc-solo-version from .citr-env (recommended)."
+        required: false
         type: string
-        default: "0.79.0"
+        default: ""
       scenario:
         description: "Which Solo test scenario to run."
         required: true
@@ -23,6 +23,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
           - "075-to-076-tss"
+          - "078-to-079-cutover"
           - "e2e-backpressure"
       cluster-target:
         description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
@@ -47,6 +48,11 @@ on:
         required: false
         type: string
         default: ""
+      cutover-enable-tck:
+        description: "[Cutover] Run the SDK TCK regression suite before post-cutover validation."
+        required: true
+        type: boolean
+        default: true
       tss-starting-tag:
         description: "[075-to-076-tss] Consensus-node release tag for the initial 0.75 network deploy. Leave blank to default to v0.75.0-rc.6."
         required: false
@@ -54,6 +60,11 @@ on:
         default: ""
       tss-upgrade-tag:
         description: "[075-to-076-tss] Consensus-node release tag to upgrade the 0.75 network to. Blank → v0.76.0-rc.1; 'local' → the local build from the checked-out ref; or any release tag."
+        required: false
+        type: string
+        default: ""
+      cutover-078-to-079-starting-tag:
+        description: "[078-to-079-cutover] Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.2."
         required: false
         type: string
         default: ""
@@ -92,10 +103,23 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    # Runs for every scenario. Non-cutover jobs read adhoc-solo-version from it as the default
+    # Solo version when the solo-version input is left blank; the 078-to-079 cutover job reads
+    # cutover-solo-version. It must stay unconditional: a gated job would be "skipped", and a
+    # skipped need skips its dependents, so gating it would skip every non-cutover scenario.
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'jumpstart' }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
@@ -107,7 +131,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -119,7 +143,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -132,14 +156,19 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -173,7 +202,7 @@ jobs:
       - name: Authorize Teleport K8S Access
         if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -262,6 +291,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload WRB Failure Artifacts
@@ -288,16 +324,19 @@ jobs:
     name: "Solo E2E Block Stream Cutover"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
-    timeout-minutes: 180
+    # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
+    # needs extra headroom, so both the step and job budgets are widened below.
+    timeout-minutes: 210
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -309,7 +348,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
           setup-go: "true"
           go-version: "1.26.4"
 
@@ -324,14 +363,19 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -365,7 +409,7 @@ jobs:
       - name: Authorize Teleport K8S Access
         if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -421,7 +465,7 @@ jobs:
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
-          timeout --signal=SIGINT --kill-after=5m 150m \
+          timeout --signal=SIGINT --kill-after=5m 175m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               UPGRADE_075_VERSION="${UPGRADE_075_VERSION}" \
@@ -429,6 +473,7 @@ jobs:
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
+              ENABLE_TCK_TESTS="${{ inputs.cutover-enable-tck }}" \
             "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
@@ -450,11 +495,30 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
               "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            # Staged-build layout: shows exactly which jars solo left in data/apps + data/lib,
+            # to diagnose local-build staging failures (e.g. NoClassDefFoundError at startup).
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "ls -la /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib" \
+              > "${OUT_DIR}/${pod}-staged-build-listing.txt" 2>&1
+          done
+
+          # Mirror-node logs (importer above all) — needed to trace BN-fed ingestion gaps
+          # such as token-supply updates or the address book not surfacing in mirror REST.
+          for mn_dep in mirror-1-importer mirror-1-rest mirror-1-restjava mirror-1-grpc; do
+            kubectl -n "${SOLO_NAMESPACE}" logs "deployment/${mn_dep}" --all-containers --tail=-1 \
+              > "${OUT_DIR}/${mn_dep}.log" 2>&1
           done
 
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload Cutover Failure Artifacts
@@ -479,6 +543,7 @@ jobs:
     name: "Solo 0.75 -> 0.76 TSS Upgrade"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == '075-to-076-tss' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -487,7 +552,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -514,13 +579,18 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -595,6 +665,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload 075-to-076 TSS Failure Artifacts
@@ -616,19 +693,20 @@ jobs:
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
-  solo-e2e-backpressure:
-    name: "Solo E2E Backpressure (Block Node Outage)"
+  solo-078-to-079-cutover:
+    name: "Solo 0.78 -> 0.79 BLOCKS Cutover"
     needs:
       - extract-jdk-version
-    if: ${{ inputs.scenario == 'e2e-backpressure' }}
-    # Kind-only: the script provisions its own ephemeral Kind cluster on the runner
-    # and scales block-node workloads directly, so cluster-target is ignored.
+      - extract-citr-vars
+    if: ${{ inputs.scenario == '078-to-079-cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
-    timeout-minutes: 150
+    timeout-minutes: 120
+    env:
+      SOLO_CLUSTER_NAME: "cutover-078-to-079"
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -640,15 +718,171 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22"
+          setup-go: "true"
+          go-version: "1.26.4"
+
+      - name: Checkout Block Node (main)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hiero-ledger/hiero-block-node
+          ref: main
+          path: hiero-block-node
+          fetch-depth: 0
+          token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          kubectl version --client=true
+
+      - name: Install grpcurl
+        run: |
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
+          grpcurl --version
+
+      - name: Build Consensus Node Local Artifacts
+        # The 0.79 cutover always upgrades to the local build, so a build is always required.
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
+        run: |
+          set -eo pipefail
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"
+          chmod +x "${SCRIPT_PATH}"
+          timeout --signal=SIGINT --kill-after=5m 100m \
+            env \
+              BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
+              DEPLOY_RELEASE_TAG="${{ inputs.cutover-078-to-079-starting-tag || 'v0.78.0-rc.2' }}" \
+            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
+
+      - name: Collect Diagnostics On Failure
+        if: ${{ !cancelled() && failure() }}
+        run: |
+          set +e
+          OUT_DIR="${RUNNER_TEMP}/078-to-079-cutover-diagnostics"
+          mkdir -p "${OUT_DIR}"
+
+          kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
+          kubectl get svc -A > "${OUT_DIR}/kubectl-services.txt" 2>&1
+          kubectl get events -A --sort-by=.lastTimestamp > "${OUT_DIR}/kubectl-events.txt" 2>&1
+          kubectl -n "${SOLO_NAMESPACE}" logs "pod/block-node-1-0" --all-containers --tail=-1 \
+            > "${OUT_DIR}/block-node-1-0.log" 2>&1
+
+          for node in node1 node2 node3 node4; do
+            pod="network-${node}-0"
+            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" -c root-container --tail=-1 > "${OUT_DIR}/${pod}-root-container.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
+              > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log" \
+              > "${OUT_DIR}/${pod}-block-node-comms.log" 2>&1
+          done
+
+          if [[ -d "${HOME}/.solo/logs" ]]; then
+            mkdir -p "${OUT_DIR}/solo-logs"
+            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
+          fi
+
+      - name: Upload 078-to-079 Cutover Failure Artifacts
+        if: ${{ !cancelled() && failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: 078-to-079-Cutover-Failure-Artifacts
+          path: |
+            ${{ runner.temp }}/078-to-079-cutover-script.log
+            ${{ runner.temp }}/078-to-079-cutover-diagnostics/**
+            hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() && inputs.cluster-target == 'kind' }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+  solo-e2e-backpressure:
+    name: "Solo E2E Backpressure (Block Node Outage)"
+    needs:
+      - extract-jdk-version
+      - extract-citr-vars
+    if: ${{ inputs.scenario == 'e2e-backpressure' }}
+    # Kind-only: the script provisions its own ephemeral Kind cluster on the runner
+    # and scales block-node workloads directly, so cluster-target is ignored.
+    runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 150
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "22.23.2"
+
+      - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
+        run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -714,6 +948,7 @@ jobs:
     name: "Solo WRB Streaming to Block Node"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
@@ -722,7 +957,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -734,20 +969,25 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
           setup-go: "true"
           go-version: "1.26.4"
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -781,7 +1021,7 @@ jobs:
       - name: Authorize Teleport K8S Access
         if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -870,6 +1110,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload WRB Streaming Failure Artifacts

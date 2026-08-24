@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -21,6 +22,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -273,7 +275,7 @@ class ConnectionPriorityTest {
         private final ControllableTopology controllableTopology;
 
         TestableNetwork() {
-            super(new java.util.Random(42), false);
+            super(new Random(42), false);
             this.controllableTopology = new ControllableTopology(super.topology());
         }
 
@@ -317,6 +319,11 @@ class ConnectionPriorityTest {
         @Override
         protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, Topology.ConnectionState> connections) {
             // No action needed for this test
+        }
+
+        @Override
+        protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+            throw new UnsupportedOperationException("Not needed for this test");
         }
 
         @Override

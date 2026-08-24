@@ -36,9 +36,9 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -62,8 +62,8 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
     @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCodeDelegationSetViaEthCall() {
 
-        final var delegatedFunctionSelector = Hex.toHexString(
-                new Function("getValue()").encodeCall(Tuple.EMPTY).array());
+        final var delegatedFunctionSelector = HexFormat.of()
+                .formatHex(new Function("getValue()").encodeCall(Tuple.EMPTY).array());
 
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);

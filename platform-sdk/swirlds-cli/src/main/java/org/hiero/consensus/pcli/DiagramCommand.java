@@ -8,37 +8,69 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgr
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatusMonitorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
+import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
-import com.swirlds.component.framework.model.diagram.ModelGroup;
-import com.swirlds.component.framework.model.diagram.ModelManualLink;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
+import com.swirlds.state.NoOpStateLifecycleManager;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerWiring;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelEdgeSubstitution;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelGroup;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelManualLink;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -113,29 +145,74 @@ public final class DiagramCommand extends AbstractCommand {
      * Entry point.
      */
     @Override
-    public Integer call() throws IOException {
+    public Integer call()
+            throws IOException, KeyGeneratingException, NoSuchAlgorithmException, KeyStoreException,
+                    NoSuchProviderException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-        final PlatformContext platformContext = PlatformContext.create(configuration);
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
-        final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
+        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+                configuration,
+                new NoOpMetrics(),
+                Time.getCurrent(),
+                fakeRosterHistory(),
+                KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
+                NodeId.FIRST_NODE_ID,
+                new NoOpRecycleBin(),
+                fileSystemManager,
+                new NoOpExecutionLayer(),
+                NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
+                ReservedSignedState.createNullReservation(),
+                new NoOpStateLifecycleManager<>(),
+                SemanticVersion.DEFAULT,
+                "testApp",
+                "123",
+                "cesStream",
+                0,
+                // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
+                // appears in the diagram; in production Execution supplies this consumer.
+                _ -> {},
+                model,
+                null,
+                Map.of());
+
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new NoOpStateLifecycleManager<>();
+
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
-        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
+        final GossipModule gossipModule =
+                createNoOpGossipModule(model, configuration, metrics, time, stateLifecycleManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
-        final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule statemanagementModule =
-                createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule = createNoOpTransactionHandlingModule(
+                model, configuration, metrics, time, stateLifecycleManager, statusMonitorModule);
+        final StateModule statemanagementModule = createNoOpStateManagementModule(
+                model, configuration, fileSystemManager, metrics, time, stateLifecycleManager);
 
-        final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext,
+        final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
+        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =
+                new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
+        final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
+                RunningEventHashOverrideWiring.create(model);
+        final WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher =
+                new WireTransformer<>(model, "InitialEventWindowDispatcher", "event window");
+        final ComponentWiring<AppNotifier, Void> notifierWiring =
+                new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+
+        final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
+                configuration,
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,
@@ -143,11 +220,20 @@ public final class DiagramCommand extends AbstractCommand {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                statemanagementModule);
+                statemanagementModule,
+                eventStreamWiring,
+                runningEventHashOverrideWiring,
+                initialEventWindowDispatcher,
+                notifierWiring,
+                statusMonitorModule,
+                NotificationEngine.buildEngine(getStaticThreadManager()),
+                null,
+                null,
+                null,
+                null,
+                null);
 
-        // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
-        // appears in the diagram; in production Execution supplies this consumer.
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, event -> {});
+        ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

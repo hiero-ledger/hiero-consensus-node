@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: ${{ github.ref }}
@@ -69,11 +69,22 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-chewie-props:
+    name: Extract Chewie Properties
+    uses: ./.github/workflows/862-call-get-chewie-properties.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
   verify-citr-vars:
     name: Verify CITR vars
     needs:
       - extract-citr-vars
+      - extract-chewie-props
     runs-on: hl-cn-default-lin-sm
+    outputs:
+      request-timeout: ${{ steps.check-chewie-outputs.outputs.request-timeout }}
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -81,8 +92,8 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check outputs
-        id: check-outputs
+      - name: Check CITR Variables
+        id: check-citr-vars-outputs
         run: |
           if [[ "${{ needs.extract-citr-vars.outputs.citr-solo-version }}" == "" ]]; then
             echo "::error::One or more required CITR variables are missing. Failing the job."
@@ -91,17 +102,29 @@ jobs:
             echo "All required CITR variables are present."
           fi
 
+      - name: Check Chewie Properties
+        id: check-chewie-outputs
+        run: |
+          DEFAULT_TIMEOUT="${{ needs.extract-chewie-props.outputs.request-timeout }}"
+          if [[ "${DEFAULT_TIMEOUT}" == "" ]]; then
+            echo "::error::Chewie default timeout is missing. Failing the job."
+            exit 1
+          fi
+
+          # Note: Timeout is in seconds
+          echo "request-timeout=${DEFAULT_TIMEOUT}" >> "${GITHUB_OUTPUT}"
+
   run-single-day-longevity-test:
     name: Longevity Test
     needs:
       - verify-tag
       - extract-jdk-version
       - extract-citr-vars
+      - extract-chewie-props
       - verify-citr-vars
     uses: ./.github/workflows/833-call-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
-      test-asset: "SDLT2" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "100000000"
@@ -109,11 +132,14 @@ jobs:
       add-app-props: ""
       add-settings: ""
       reconnect-uptime: "600"
-      delete-namespace: true
+      duration-minutes: 1080 # 16 hours + 2 for post-mortem
+      chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
@@ -124,7 +150,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
@@ -176,7 +202,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
@@ -215,10 +241,10 @@ jobs:
       !cancelled() }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-sparse: ".github/workflows/templates"
           checkout-sparse-cone-mode: false
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -242,7 +268,7 @@ jobs:
         run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-success.json.tpl -o slack_payload.json
 
       - name: Report Success (slack)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_PERFORMANCE_TEST_REPORTS }}
           webhook-type: incoming-webhook
@@ -268,7 +294,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
@@ -378,7 +404,7 @@ jobs:
 
       - name: Report failure (slack performance-test-reports)
         if: ${{ steps.set-service.outputs.service != 'CI/CD Workflows' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_PERFORMANCE_TEST_REPORTS }}
           webhook-type: incoming-webhook
@@ -387,7 +413,7 @@ jobs:
 
       - name: Report failure (slack citr-failures)
         if: ${{ steps.set-service.outputs.service == 'CI/CD Workflows' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook

@@ -9,12 +9,18 @@ public final class EventConstants {
 
     /** the smallest round an event can belong to */
     public static final long MINIMUM_ROUND_CREATED = 1;
-    /** represents a birth round number that is undefined */
+    /** the round number to represent that the birth round is undefined */
     public static final long BIRTH_ROUND_UNDEFINED = -1;
-    /** represents an ancient threshold that is undefined */
+    /** represent either a birth round or a generation which is undefined */
     public static final long ANCIENT_THRESHOLD_UNDEFINED = -1;
-    /** the smallest sequence number an event can have */
-    public static final long FIRST_SEQUENCE_NUMBER = 1;
-    /** represents a sequence number that is undefined */
+    /** the minimum generation value an event can have. */
+    public static final long FIRST_GENERATION = 0;
+    /**
+     * Represents an undefined sequence number. This constant is used as a placeholder to
+     * indicate that a specific sequence number has not yet been assigned.
+     * <p>
+     * The value of {@code SEQUENCE_NUMBER_UNDEFINED} is defined as {@code -1}. This value is chosen because sequence
+     * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
+     */
     public static final long SEQUENCE_NUMBER_UNDEFINED = -1;
 }
