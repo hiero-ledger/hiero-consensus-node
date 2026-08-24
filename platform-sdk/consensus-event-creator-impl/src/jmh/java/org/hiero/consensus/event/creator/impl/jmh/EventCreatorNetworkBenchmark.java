@@ -23,14 +23,14 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -85,17 +85,14 @@ public class EventCreatorNetworkBenchmark {
     /** The number of events after which the event window should be updated */
     private long eventWindowUpdateInterval;
 
-    /** Orphan buffer, required to set the sequence number needed by the event creator */
+    /** Orphan buffer, required to set the nGen value needed by the event creator */
     private OrphanBuffer orphanBuffer;
 
     @Setup(Level.Trial)
     public void setupTrial() {
         // Build a roster with real keys
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .withRealKeysEnabled(true);
-        roster = rosterBuilder.build();
+        roster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
+                .getRoster();
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 

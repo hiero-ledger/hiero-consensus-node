@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.event;
 
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -62,6 +63,11 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
+     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
+     */
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
+
+    /**
      * Represents the sequence number assigned to this event. The sequence number is unique and increments with each
      * event released from orphan buffer, providing a way to identify the order of events, which can be used for
      * topological ordering. If the sequence number is not assigned, it will hold the value of
@@ -85,7 +91,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
                         unsignedEvent.getTransactionsBytes(),
-                        unsignedEvent.getParents()),
+                        unsignedEvent.getParents().stream()
+                                .map(EventDescriptorWrapper::toPbj)
+                                .toList()),
                 unsignedEvent.getMetadata(),
                 // for a newly created event, the time received is the same as the time created
                 unsignedEvent.getTimeCreated(),
@@ -190,6 +198,34 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
+     * The non-deterministic generation of this event.
+     *
+     * @return the non-deterministic generation of this event. A value of {@link NonDeterministicGeneration#GENERATION_UNDEFINED} if
+     * none has been set yet.
+     */
+    public long getNGen() {
+        return nGen;
+    }
+
+    /**
+     * Checks if the non-deterministic generation for this event has been set.
+     *
+     * @return {@code true} if the nGen has been set, {@code false} otherwise
+     */
+    public boolean hasNGen() {
+        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
+    }
+
+    /**
+     * Sets the non-deterministic generation of this event.
+     *
+     * @param nGen the non-deterministic generation value to set
+     */
+    public void setNGen(final long nGen) {
+        this.nGen = nGen;
+    }
+
+    /**
      * The sequence number of this event.
      *
      * @return the sequence number of this event.
@@ -204,7 +240,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return {@code true} if the sequence number is assigned, {@code false} otherwise.
      */
     public boolean hasSequenceNumber() {
-        return sequenceNumber != EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+        return sequenceNumber != SEQUENCE_NUMBER_UNDEFINED;
     }
 
     /**

@@ -18,6 +18,7 @@ import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -117,6 +118,13 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     @Override
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
+        // If fees are turned off globally then return empty FeeResult
+        if (simpleFeeContext.feeContext() != null && simpleFeeContext.configuration() != null) {
+            final var config = simpleFeeContext.configuration().getConfigData(FeesConfig.class);
+            if (config != null && config.simpleFeesAreFree()) {
+                return new FeeResult();
+            }
+        }
         // Extract primitive counts (no allocations)
         final long signatures = simpleFeeContext.numTxnSignatures();
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
@@ -134,7 +142,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
             result.setNetworkMultiplier(multiplier);
         }
-
+        // If this service is free then return just what we have so far (node + network)
+        if (serviceFeeDefinition != null && serviceFeeDefinition.free()) {
+            return result;
+        }
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Fail.fail;
 
@@ -114,10 +116,24 @@ public class BlockStreamEventBuilder {
      */
     public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
-            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+            // The default PBJ max message size (2 MiB) rejects node-generated history proof votes,
+            // which carry the ~32 MB uncompressed WRAPS proof; parse with the same raised ceiling
+            // used by BlockStreamAccess to read the blocks these transactions come from
+            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
+                    transactionBytes.toReadableSequentialData(), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            return TransactionBody.PROTOBUF.parse(
+                    signedTransaction.bodyBytes().toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
-            throw new RuntimeException("Unable to parse transaction bytes", e);
+            throw new RuntimeException(
+                    "Unable to parse transaction bytes (" + transactionBytes.length() + " bytes, prefix 0x"
+                            + transactionBytes
+                                    .slice(0, Math.min(48, transactionBytes.length()))
+                                    .toHex() + ")",
+                    e);
         }
     }
 
@@ -306,7 +322,7 @@ public class BlockStreamEventBuilder {
                     final PlatformEvent parent = eventIndexToHash.get(parentIndex);
 
                     if (parent != null) {
-                        resolvedParents.add(parent.getDescriptor().eventDescriptor());
+                        resolvedParents.add(parent.getDescriptor().toPbj());
                     } else {
                         fail("Unable to find a parent event for index %d", parentIndex);
                     }

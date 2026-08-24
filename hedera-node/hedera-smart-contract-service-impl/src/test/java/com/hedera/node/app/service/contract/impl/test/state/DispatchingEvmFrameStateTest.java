@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_IS_TREASURY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.FAILURE_DURING_LAZY_ACCOUNT_CREATION;
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_BALANCE;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_ALIAS_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
@@ -59,6 +60,7 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -496,6 +498,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void cannotLazyCreateOverExpiredAccount() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).expiredAndPendingRemoval(true));
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
@@ -512,6 +515,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void noHaltIfLazyCreationOk() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS.getBytes())))
                 .willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.configuration()).willReturn(configuration);
@@ -522,6 +526,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void translatesMaxAccountsCreated() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS.getBytes())))
                 .willReturn(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(nativeOperations.configuration()).willReturn(configuration);
@@ -541,6 +546,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void throwsOnLazyCreateOfNonExpiredAccount() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
         given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.resolveAlias(
@@ -555,7 +561,7 @@ class DispatchingEvmFrameStateTest {
     @Test
     void transferDelegationUsesExpectedVerifierForNonDelegate() {
         final var captor = ArgumentCaptor.forClass(VerificationStrategy.class);
-        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(1234));
         givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
         given(nativeOperations.transferWithReceiverSigCheck(
                         eq(123L), eq(A_ACCOUNT_ID), eq(B_ACCOUNT_ID), captor.capture()))
@@ -571,7 +577,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void transferDelegationReportsInvalidSignature() {
-        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(1234));
         givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
         given(nativeOperations.transferWithReceiverSigCheck(eq(123L), eq(A_ACCOUNT_ID), eq(B_ACCOUNT_ID), any()))
                 .willReturn(INVALID_SIGNATURE);
@@ -583,7 +589,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void transferDelegationThrowsOnApparentlyImpossibleFailureMode() {
-        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(1234));
         givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
         given(nativeOperations.transferWithReceiverSigCheck(eq(123L), eq(A_ACCOUNT_ID), eq(B_ACCOUNT_ID), any()))
                 .willReturn(INSUFFICIENT_ACCOUNT_BALANCE);
@@ -591,6 +597,16 @@ class DispatchingEvmFrameStateTest {
         assertThrows(
                 IllegalStateException.class,
                 () -> subject.tryTransfer(LONG_ZERO_ADDRESS, BENEFICIARY_ADDRESS, 123L, false));
+    }
+
+    @Test
+    void transferHaltsWhenSenderBalanceBelowAmount() {
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(122L));
+        givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        final var reasonToHalt = subject.tryTransfer(LONG_ZERO_ADDRESS, BENEFICIARY_ADDRESS, 123L, false);
+        assertTrue(reasonToHalt.isPresent());
+        assertEquals(INSUFFICIENT_BALANCE, reasonToHalt.get());
     }
 
     @Test
@@ -688,12 +704,14 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void missingAliasIsNotHollow() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
     }
 
     @Test
     void missingAccountIsNotHollow() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
@@ -705,6 +723,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void extantAccountIsHollowOnlyIfHasAnEmptyKey() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
@@ -714,6 +733,57 @@ class DispatchingEvmFrameStateTest {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID)
                 .key(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
         assertTrue(subject.isHollowAccount(EVM_ADDRESS));
+    }
+
+    @Test
+    void isHollowAccountLooksUpTheConfiguredShardAndRealm() {
+        final var nonZeroShard = 1L;
+        final var nonZeroRealm = 2L;
+        final var nonZeroConfig = HederaTestConfigBuilder.create()
+                .withValue("hedera.shard", nonZeroShard)
+                .withValue("hedera.realm", nonZeroRealm)
+                .getOrCreateConfig();
+        final var shardedIdFactory = new FakeEntityIdFactoryImpl(nonZeroShard, nonZeroRealm);
+        final var shardedAccountId = shardedIdFactory.newAccountId(ACCOUNT_NUM);
+
+        given(nativeOperations.entityIdFactory()).willReturn(shardedIdFactory);
+        given(nativeOperations.configuration()).willReturn(nonZeroConfig);
+        given(nativeOperations.resolveAlias(
+                        nonZeroShard,
+                        nonZeroRealm,
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
+                .willReturn(ACCOUNT_NUM);
+        // The hollow account lives at 1.2.<num>; a lookup that assumed shard/realm 0 would miss it
+        givenWellKnownAccount(
+                shardedAccountId,
+                contractWith(shardedAccountId)
+                        .key(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
+
+        assertTrue(subject.isHollowAccount(EVM_ADDRESS));
+    }
+
+    @Test
+    void lazyCreationDetectsExistingAccountInTheConfiguredShardAndRealm() {
+        final var nonZeroShard = 1L;
+        final var nonZeroRealm = 2L;
+        final var nonZeroConfig = HederaTestConfigBuilder.create()
+                .withValue("hedera.shard", nonZeroShard)
+                .withValue("hedera.realm", nonZeroRealm)
+                .getOrCreateConfig();
+        final var shardedIdFactory = new FakeEntityIdFactoryImpl(nonZeroShard, nonZeroRealm);
+        final var shardedAccountId = shardedIdFactory.newAccountId(ACCOUNT_NUM);
+
+        given(nativeOperations.entityIdFactory()).willReturn(shardedIdFactory);
+        given(nativeOperations.configuration()).willReturn(nonZeroConfig);
+        given(nativeOperations.resolveAlias(
+                        nonZeroShard,
+                        nonZeroRealm,
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
+                .willReturn(ACCOUNT_NUM);
+        // An unexpired account already occupies 1.2.<num>, so lazy creation must be refused
+        givenWellKnownAccount(shardedAccountId, contractWith(shardedAccountId));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS));
     }
 
     @Test

@@ -6,10 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,6 +18,10 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Default implementation of the {@link HashgraphModule}.
@@ -145,7 +145,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
      */
     @NonNull
     @Override
-    public InputWire<ConsensusSnapshot> consensusSnapshotInputWire() {
+    public InputWire<ConsensusSnapshot> consensusSnapshotOverrideInputWire() {
         return requireNonNull(consensusEngineWiring, "Not initialized")
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
     }

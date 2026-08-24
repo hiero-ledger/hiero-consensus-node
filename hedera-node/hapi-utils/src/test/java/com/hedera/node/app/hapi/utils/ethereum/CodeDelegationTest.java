@@ -13,8 +13,8 @@ import static org.mockito.Mockito.mockStatic;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import java.math.BigInteger;
+import java.util.HexFormat;
 import java.util.Optional;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -174,11 +174,11 @@ class CodeDelegationTest {
         final var cd = new CodeDelegation(chainId, address, 99L, 1, r, s);
         final String str = cd.toString();
 
-        assertTrue(str.contains("chainId=" + Hex.encodeHexString(chainId)));
-        assertTrue(str.contains("address=" + Hex.encodeHexString(address)));
+        assertTrue(str.contains("chainId=" + HexFormat.of().formatHex(chainId)));
+        assertTrue(str.contains("address=" + HexFormat.of().formatHex(address)));
         assertTrue(str.contains("nonce=99"));
         assertTrue(str.contains("yParity=1"));
-        assertTrue(str.contains("r=" + Hex.encodeHexString(r)));
-        assertTrue(str.contains("s=" + Hex.encodeHexString(s)));
+        assertTrue(str.contains("r=" + HexFormat.of().formatHex(r)));
+        assertTrue(str.contains("s=" + HexFormat.of().formatHex(s)));
     }
 }

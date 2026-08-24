@@ -86,10 +86,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = blockingIoExecutor.submit(new CreateClientTask());
-            future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            future.get(connectionManagementTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
-            logger.warn("{} Error initializing connection", this, e);
-
             if (future != null) {
                 future.cancel(true);
             }
@@ -149,7 +147,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             logger.debug("{} Silently closing client (clientId: {})", BlockNodeServiceConnection.this, holder.clientId);
             try {
                 final Future<?> future = blockingIoExecutor.submit(new CloseClientTask(holder));
-                future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                future.get(bncConfig().connectionManagementTimeout().toMillis(), TimeUnit.MILLISECONDS);
             } catch (final Exception e) {
                 logger.debug(
                         "{} Attempted to close a client (clientId: {}), but it failed; ignoring failure",
@@ -198,16 +196,17 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         updateConnectionState(ConnectionState.CLOSING);
 
         Future<?> future = null;
+        boolean wasInterrupted = Thread.interrupted(); // drain pre-existing interrupt flag
 
         try {
             future = blockingIoExecutor.submit(new CloseClientTask(clientHolder));
-            future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            future.get(connectionManagementTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             // the connection is being closed... don't propagate the exception
             logger.warn("{} Error occurred while closing connection; it will be suppressed", this, e);
 
             if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
+                wasInterrupted = true;
             }
 
             if (future != null) {
@@ -216,6 +215,9 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         } finally {
             // regardless of outcome, mark this connection as closed
             updateConnectionState(ConnectionState.CLOSED);
+            if (wasInterrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -241,7 +243,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = blockingIoExecutor.submit(new GetBlockNodeStatusTask(clientHolder.client));
-            response = future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            response = future.get(connectionManagementTimeoutMillis(), TimeUnit.MILLISECONDS);
             durationMillis = System.currentTimeMillis() - startMillis;
         } catch (final Exception e) {
             final GrpcException grpcException = findGrpcException(e);
@@ -263,12 +265,12 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         logger.debug(
-                "{} Received the following block node server status => lastAvailableBlock: {}, latency: {}ms",
+                "{} Received the following block node server status => nextExpectedBlock: {}, latency: {}ms",
                 this,
-                response.lastAvailableBlock(),
+                response.nextExpectedBlock(),
                 durationMillis);
 
-        return BlockNodeStatus.reachable(durationMillis, response.lastAvailableBlock());
+        return BlockNodeStatus.reachable(durationMillis, response.nextExpectedBlock());
     }
 
     /**

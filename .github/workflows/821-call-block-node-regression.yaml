@@ -83,7 +83,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -118,15 +118,19 @@ jobs:
 
       - name: Retrieve BN Release Tag
         run: |
-          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          # An explicit version is used directly as the block-node chart/image version: solo pulls the
+          # OCI chart oci://ghcr.io/hiero-ledger/hiero-block-node/block-node-server at that version and
+          # needs no GitHub release, so tag-only alpha/rc builds (e.g. v0.41.0-alpha1) work. Only
+          # "latest"/blank is resolved through the releases API.
           if [[ -n "${{ inputs.bn-release-version }}" && "${{ inputs.bn-release-version }}" != "latest" ]]; then
-            bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/tags/${{ inputs.bn-release-version }}"
+            BN_RELEASE_TAG="${{ inputs.bn-release-version }}"
+          else
+            curl_response=$(curl -s -H "Accept: application/vnd.github+json" "https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest") || exit 1
+            BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
           fi
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
-          BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${BN_RELEASE_TAG}" ]]; then
-            echo "ERROR: Could not parse BN_RELEASE_TAG from response"
+            echo "ERROR: Could not determine BN_RELEASE_TAG"
             exit 1
           fi
 
@@ -160,16 +164,21 @@ jobs:
           fetch-tags: true
 
       - name: Checkout TCK Tag
+        env:
+          TCK_VERSION: ${{ inputs.tck-version }}
         run: |
           cd sdk-tck/regression
           git fetch --tags
-          # if ${{ inputs.tck-version }} is in the tags check it out.
-          if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
-            echo "Checking out specified TCK version: ${{ inputs.tck-version }}"
-            git checkout "tags/${{ inputs.tck-version }}"
+          # Check out by tag first, then fall back to commit SHA.
+          if git rev-parse "refs/tags/${TCK_VERSION}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (tag): ${TCK_VERSION}"
+            git checkout "tags/${TCK_VERSION}"
+          elif git rev-parse --verify "${TCK_VERSION}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version (commit SHA): ${TCK_VERSION}"
+            git checkout "${TCK_VERSION}"
           else
-            echo "Specified TCK version ${{ inputs.tck-version }} not found in tags."
-            exit 1 # fail the workflow if not present.
+            echo "Specified TCK version ${TCK_VERSION} not found as a tag or commit SHA."
+            exit 1
           fi
 
       # Checkout the JS-SDK server
@@ -182,17 +191,22 @@ jobs:
           fetch-tags: true
 
       - name: Checkout JS-SDK Tag
+        env:
+          JS_SDK_VERSION: ${{ inputs.js-sdk-version }}
         run: |
           cd sdk-tck/sdk-server
           git fetch --tags
 
-          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
-          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
-            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
-            git checkout "tags/${{ inputs.js-sdk-version }}"
+          # Check out by tag first, then fall back to commit SHA, then branch.
+          if git rev-parse "refs/tags/${JS_SDK_VERSION}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version (tag): ${JS_SDK_VERSION}"
+            git checkout "tags/${JS_SDK_VERSION}"
+          elif git rev-parse --verify "${JS_SDK_VERSION}^{commit}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version (commit SHA): ${JS_SDK_VERSION}"
+            git checkout "${JS_SDK_VERSION}"
           else
-            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
-            exit 1 # fail the workflow if not present.
+            echo "Checking out specified JS-SDK version (branch): ${JS_SDK_VERSION}"
+            git fetch origin "${JS_SDK_VERSION}" && git checkout FETCH_HEAD
           fi
 
       - name: Setup PNPM
@@ -228,7 +242,7 @@ jobs:
           # (e.g. protobufjs 8.0.1 in lockfile vs 8.2.0 in manifest, caused by
           # pnpm.overrides being silently ignored in pnpm v11+).
           # --ignore-scripts skips unapproved build scripts (ERR_PNPM_IGNORED_BUILDS).
-          pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
+          pnpm add "@hiero-ledger/sdk@${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
           pnpm install --no-frozen-lockfile --ignore-scripts
           nohup pnpm start &
           server_pid=$!
@@ -238,16 +252,18 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          if [[ -z "${{ inputs.solo-version }}" ]]; then
+          if [[ -z "$SOLO_VERSION" ]]; then
             echo "ERROR: solo-version input must be set to a specific version tag (e.g. v0.44.0)"
             exit 1
           fi
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -482,6 +498,16 @@ jobs:
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
+          # Strip the multi-GB WRAPS proving key from solo's per-node log-config
+          # bundles before upload: this panel runs with WRAPS enabled
+          # (TSS_LIB_WRAPS_ARTIFACTS_PATH is set), so solo packs data/keys/wraps*
+          # (the ~4 GB/node proving-key archive) into each *-log-config.zip,
+          # bloating the "cn-logs" artifact to ~10 GB. Drop it; keep the logs.
+          for z in "${LOG_FOLDER}"/*-log-config.zip; do
+            [[ -f "${z}" ]] || continue
+            zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+          done
+
       - name: Upload BN and MN Logs
         if: always()
         id: update_bn_mn_logs
@@ -543,7 +569,7 @@ jobs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -578,7 +604,7 @@ jobs:
           egress-policy: audit
 
       - name: Report Status to Detailed Test Reports Channel
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook

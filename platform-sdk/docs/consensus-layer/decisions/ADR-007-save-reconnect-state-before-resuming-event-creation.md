@@ -2,7 +2,7 @@
 type: decision
 id: ADR-007
 title: Save the Reconnect State to Disk Before Resuming Event Creation
-topics: [reconnect, platform-status, event-creation, pces, signed-state]
+topics: [reconnect, platform-status, event-creator, restart-and-pces, signed-state-management]
 related:
   invariants: []
   decisions: []
@@ -15,6 +15,7 @@ deciders:
   - Cody Littley (@cody-littley)
   - Austin Littley (@litt3)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-007 — Save the Reconnect State to Disk Before Resuming Event Creation
@@ -89,15 +90,15 @@ path is described in [`../architecture/topics/reconnect.md`](../architecture/top
   `RECONNECT_COMPLETE` by the time the save runs
   (`platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java:247-250`).
   The same path immediately marks the learned state to be saved to disk with reason `RECONNECT`
-  (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java:62-67`).
+  (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java:62-67`).
 - In `RECONNECT_COMPLETE` the platform **gossips but does not create events**. The event-creation gate permits creation
   only in `ACTIVE`, `CHECKING`, or `FREEZING` (the last only to emit the freeze-state signature)
-  (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
+  (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`).
 - The node leaves `RECONNECT_COMPLETE` only when a `StateWrittenToDiskAction` reports that the **reconnect state (or a
   later state) has been written to disk**. A disk write for a round *prior* to the reconnect state is treated as stale
   and the node keeps waiting. Once the reconnect state is persisted, the node transitions to `CHECKING` — or to
   `FREEZING` if a freeze boundary was crossed — and event creation resumes
-  (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ReconnectCompleteStatusLogic.java:156-187`).
+  (`platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java:156-187`).
 
 Writing the learned state to disk closes the PCES gap as a recovery concern: the node now has a startable on-disk point
 covering the post-reconnect consensus position. Only then is it allowed to rejoin event creation and again contribute to
@@ -174,8 +175,8 @@ See **Decision** above.
 - [`../architecture/topics/reconnect.md`](../architecture/topics/reconnect.md) — the reconnect topic; its
   *Post-reconnect resumption* section documents the `RECONNECT_COMPLETE` → `CHECKING` transition and the
   state-written-to-disk gate on event creation that this ADR explains the rationale for.
-- [`../../core/platform-status.md`](../../core/platform-status.md) — the platform status explainer; describes
-  `BEHIND`, `RECONNECT_COMPLETE`, `CHECKING`, and when the node creates events.
+- [`../architecture/topics/platform-status.md`](../architecture/topics/platform-status.md) — the platform status topic;
+  describes `BEHIND`, `RECONNECT_COMPLETE`, `CHECKING`, and when the node creates events.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — how a node replays PCES
   from its last on-disk state on startup, which is what a PCES gap invalidates.
 - ADR-004 — the related startup safeguard (`OBSERVING`);
@@ -184,10 +185,10 @@ See **Decision** above.
   and `RECONNECT_COMPLETE` status definitions and their javadoc.
 - `platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java:247-250`
   — the reconnect path transitions to `RECONNECT_COMPLETE` and then marks the learned state for disk save.
-- `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java:62-67`
+- `platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java:62-67`
   — `reconnectStateReceived(...)` marks the learned state to be written to disk with reason `RECONNECT`.
-- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
+- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`
   — the event-creation gate; creation is withheld in `RECONNECT_COMPLETE`.
-- `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ReconnectCompleteStatusLogic.java:156-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java:156-187`
   — exit from `RECONNECT_COMPLETE` on `StateWrittenToDiskAction`: wait while the persisted round is below the reconnect
   round, then transition to `CHECKING` (or `FREEZING`).

@@ -26,6 +26,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +37,7 @@ import java.util.stream.IntStream;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -137,7 +138,7 @@ public class TipsetEventCreatorTestUtils {
      * <li>if it has a null self-parent, is only during genesis scenario</li>
      * <li>if it has a null other-parent, is only during genesis scenario</li>
      * <li> the event is contained in allEvents</li>
-     * <li> The sequence number should be max of parents plus one</li>
+     * <li> NGen should be max of parents plus one</li>
      * <li> Parent's birthround or generation is never higher than event's.</li>
      * <li> There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)</li>
      * <li> Except for genesis scenario, new event must have a positive advancement score.</li>
@@ -229,9 +230,9 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
-     * Calculate and assign the sequence number to the event and distribute to all nodes in the network.
+     * Calculate and assign the nGen value to the event and distribute to all nodes in the network.
      */
-    public static void assignSeqNumAndDistributeEvent(
+    public static void assignNGenAndDistributeEvent(
             @NonNull final Map<NodeId, SimulatedNode> nodeMap,
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> events,
             @NonNull final PlatformEvent event) {
@@ -242,7 +243,7 @@ public class TipsetEventCreatorTestUtils {
 
     /**
      * Register the event in the map of all events, and pass the event through the node's orphan buffer to ensure it
-     * gets assigned a sequence number.
+     * gets assigned an nGen value.
      */
     @NonNull
     public static PlatformEvent registerEvent(
@@ -250,9 +251,8 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent event) {
         node.orphanBuffer().handleEvent(event);
-        assertThat(event.hasSequenceNumber())
-                .withFailMessage(
-                        "Event should have passed through the orphan buffer and been assigned a sequence number")
+        assertThat(event.hasNGen())
+                .withFailMessage("Event should have passed through the orphan buffer and been assigned an nGen value")
                 .isTrue();
         allEvents.put(event.getDescriptor(), event);
         return event;
@@ -302,14 +302,14 @@ public class TipsetEventCreatorTestUtils {
 
     @NonNull
     public static PlatformEvent createTestEventWithParent(
-            @NonNull final Random random, @Nullable final NodeId creator, final long seqNum, final long birthRound) {
+            @NonNull final Random random, @Nullable final NodeId creator, final long nGen, final long birthRound) {
 
         final PlatformEvent selfParent =
                 new TestingEventBuilder(random).setCreatorId(creator).build();
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumberOverride(seqNum)
+                .setNGen(nGen)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .build();
@@ -319,7 +319,7 @@ public class TipsetEventCreatorTestUtils {
     public static PlatformEvent createTestEventWithParent(
             @NonNull final Random random,
             @Nullable final NodeId creator,
-            final long seqNum,
+            final long nGen,
             final long birthRound,
             PlatformEvent otherParent) {
 
@@ -328,11 +328,63 @@ public class TipsetEventCreatorTestUtils {
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumberOverride(seqNum)
+                .setNGen(nGen)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)
                 .build();
+    }
+
+    /**
+     * Create an event that chains off the given self parent. Unlike
+     * {@link #createTestEventWithParent(Random, NodeId, long, long)}, which invents a throw-away self parent, this
+     * builds an event whose self parent is the supplied event, so a caller can assemble a real self-event chain.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the event
+     * @param birthRound the birth round to assign to the event
+     * @param selfParent the self parent of the event, or null for the first event in a chain
+     * @return the new event
+     */
+    @NonNull
+    public static PlatformEvent createTestEventWithSelfParent(
+            @NonNull final Random random,
+            @NonNull final NodeId creator,
+            final long birthRound,
+            @Nullable final PlatformEvent selfParent) {
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .build();
+    }
+
+    /**
+     * Create a chain of self events, each the self parent of the next. The first event in the chain has a throw-away
+     * self parent, so that no event in the returned list is treated as a genesis event.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the events
+     * @param birthRound the birth round to assign to every event in the chain
+     * @param length     the number of events to create. Must be positive.
+     * @return the chain, oldest first
+     */
+    @NonNull
+    public static List<PlatformEvent> createSelfEventChain(
+            @NonNull final Random random, @NonNull final NodeId creator, final long birthRound, final int length) {
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be greater than 0");
+        }
+
+        final List<PlatformEvent> chain = new ArrayList<>(length);
+        PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(creator).build();
+        for (int i = 0; i < length; i++) {
+            selfParent = createTestEventWithSelfParent(random, creator, birthRound, selfParent);
+            chain.add(selfParent);
+        }
+        return chain;
     }
 
     /**

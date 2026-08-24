@@ -19,6 +19,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
@@ -26,12 +27,11 @@ import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuardFactory;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -68,8 +68,11 @@ class RpcPeerHandlerTest {
 
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);
+        // The value used in this test does not matter. The fallen behind manager is only used to determine if
+        // SELF or OTHER is behind based on exchanged event windows.
+        final double fallenBehindThreshold = 1.0;
         this.fallenBehindManager = new FallenBehindMonitor(
-                RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
+                RosterFactory.randomRoster(new Random(), NUM_NODES), new NoOpMetrics(), selfId, fallenBehindThreshold);
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.syncProgressReporter = mock(Consumer.class);

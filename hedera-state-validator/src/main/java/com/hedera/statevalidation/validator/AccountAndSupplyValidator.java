@@ -110,7 +110,7 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
                     invalidAccountBalanceCount.incrementAndGet();
                     log.error("Invalid balance for account {}", account.accountId());
                 }
-                totalBalance.addAndGet(tinybarBalance);
+                totalBalance.accumulateAndGet(tinybarBalance, Math::addExact);
                 accountsCreated.incrementAndGet();
             } catch (final ParseException e) {
                 throw new RuntimeException("Failed to parse a key", e);

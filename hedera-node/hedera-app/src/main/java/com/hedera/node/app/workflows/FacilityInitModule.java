@@ -230,7 +230,6 @@ public interface FacilityInitModule {
                         state,
                         schema.genesisExchangeRatesBytes(bootstrapConfig),
                         schema.genesisMidnightRates(bootstrapConfig));
-                feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
                 final var simpleFeesUpdateStatus =
                         feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
                 if (simpleFeesUpdateStatus != SUCCESS) {
@@ -251,7 +250,7 @@ public interface FacilityInitModule {
         final var fileNum = filesConfig.exchangeRates();
         final var file = requireNonNull(
                 getFileFromStorage(state, configProvider, fileNum),
-                "The initialized state had no exchange rates file 0.0." + fileNum);
+                "The initialized state had no exchange rates file " + fileNum);
         final var midnightRates = requireNonNull(
                 state.getReadableStates(FeeService.NAME)
                         .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
@@ -260,32 +259,20 @@ public interface FacilityInitModule {
         exchangeRateManager.init(state, file.contents(), midnightRates);
     }
 
-    private static void initializeFeeManager(
+    static void initializeFeeManager(
             @NonNull final State state,
             @NonNull final FileServiceImpl fileService,
             @NonNull final ConfigProvider configProvider,
             @NonNull final FeeManager feeManager) {
         log.info("Initializing fee schedules");
         final var filesConfig = configProvider.getConfiguration().getConfigData(FilesConfig.class);
-        final var fileNum = filesConfig.feeSchedules();
-        final var file = requireNonNull(
-                getFileFromStorage(state, configProvider, fileNum),
-                "The initialized state had no fee schedule file 0.0." + fileNum);
-        final var status = feeManager.update(file.contents());
-        if (status != SUCCESS) {
-            // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
-            // is possible with the current design for state to include a partial fee schedules file,
-            // so we cannot fail hard here
-            log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
-        }
-
         final var simpleFeesFileNum = filesConfig.simpleFeesSchedules();
         final var simpleFeesFile = getFileFromStorage(state, configProvider, simpleFeesFileNum);
 
         final Bytes simpleFeesContents;
         if (simpleFeesFile == null) {
             log.warn(
-                    "The initialized state had no simple fee schedule file 0.0.{}, using bootstrap genesis schedules",
+                    "The initialized state had no simple fee schedule file {}, using bootstrap genesis schedules",
                     simpleFeesFileNum);
             simpleFeesContents = fileService.fileSchema().genesisSimpleFeesSchedules(configProvider.getConfiguration());
         } else {
@@ -294,8 +281,8 @@ public interface FacilityInitModule {
 
         final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
         if (simpleStatus != SUCCESS) {
-            log.error(
-                    "State file 0.0.{} did not contain parseable simple fee schedules ({})", simpleFeesFileNum, status);
+            throw new IllegalStateException("State file " + simpleFeesFileNum
+                    + " did not contain parseable simple fee schedules: " + simpleStatus);
         }
     }
 

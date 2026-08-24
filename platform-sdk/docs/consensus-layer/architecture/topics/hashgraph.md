@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-02
+last_reviewed: 2026-07-28
 ---
 
 # Hashgraph
@@ -78,7 +78,7 @@ state at runtime:
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
-  decided-fame status, plus `minSeqNum` and `minBirthRound` for the
+  decided-fame status, plus `minNGen` and `minBirthRound` for the
   judges.
 - The future-event buffer
   [`consensus-utility/.../FutureEventBuffer.java`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/FutureEventBuffer.java)
@@ -99,7 +99,7 @@ is wired against those.
   `ConsensusEngine.updatePlatformStatus`, which sets `pcesMode = true`
   on `Consensus` when the status is `REPLAYING_EVENTS`
   (`DefaultConsensusEngine.java#updatePlatformStatus`).
-- `consensusSnapshotInputWire(): InputWire<ConsensusSnapshot>` —
+- `consensusSnapshotOverrideInputWire(): InputWire<ConsensusSnapshot>` —
   drives `ConsensusEngine.outOfBandSnapshotUpdate`, which clears the
   linker and the future-event buffer and reloads
   `Consensus.loadSnapshot(snapshot)` at restart and reconnect
@@ -172,10 +172,11 @@ buffered future events and emit several decided rounds.
 rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
-`r + 1` if a super-majority is reached. Events older than the latest
-decided ancient threshold are marked `ROUND_NEGATIVE_INFINITY` and
-skipped. The current code drives ancient-ness from birth round, not
-generation; for the conceptual background see
+`r + 1` if a super-majority is reached. As a short-circuit, any event
+whose nGen is below the latest decided round's judges
+(`ConsensusRounds.isOlderThanDecidedRoundGeneration`), and any consensus
+event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and
+strongly-seeing work — see RUL-005. For the conceptual background see
 [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff
@@ -252,7 +253,7 @@ samples the flag both before and after `consensus.addEvent`
 `DefaultConsensusEngine.java:140-144`); the post-add check is the
 transition point out of waiting. When the last init judge arrives,
 `ConsensusImpl.checkInitJudges`
-(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
+(`ConsensusImpl.java#checkInitJudges`) takes the judges' common ancestors that are
 neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
 under the `nonConsensusNonAncient` predicate) and marks each
 `setConsensus(true)` while deliberately leaving `roundReceived` unset:
@@ -281,16 +282,10 @@ into the loaded state — is covered in
 > [`../../concepts/birth-round.md`](../../concepts/birth-round.md) for that
 > substitution. The
 > implementation also carries a few quantities that do not appear in
-> the paper — the orphan-buffer **event sequence number** (a
-> locally-computed, monotonic counter used for picking a topological
-> order and for "higher in the hashgraph" comparisons, e.g.
-> `consensusRelevantSeqNum` / `RoundElections.minSeqNum` and
-> `ConsensusRounds.isOlderThanDecidedRoundSeqNum`) and the `DeGen`/`cGen`
-> family used inside the algorithm. The sequence number replaced `NGen`
-> as the algorithm's ordering key, and `NGen`
-> (`NonDeterministicGeneration`) has since been removed entirely (see
-> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md)).
-> Conceptual
+> the paper — `NGen` (a locally-computed, non-deterministic generation
+> used only for picking a topological order and for
+> "higher in the hashgraph" comparisons; see `NonDeterministicGeneration`)
+> and the `DeGen`/`cGen` family used inside the algorithm. Conceptual
 > background lives in
 > [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
 > and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).
@@ -354,11 +349,16 @@ the layer's invariants are established:
 - INV-012 — the minimum non-ancient round never decreases (the ancient boundary only moves forward).
 - INV-014 — consensus order is a strict total order with unique, gap-free ranks.
 
+**Rules.**
+
+- [RUL-005](../../rules/RUL-005-events-below-decided-round-skip-witness-calc.md) — events below the latest decided round's judges are excluded from witness calculation.
+
 **Decisions.** [TBD: ADR-NNN once
 [`../../decisions/`](../../decisions/) catalog populates.]
 
-**Scenarios.** [TBD: SCN-NNN once
-[`../../scenarios/`](../../scenarios/) catalog populates.]
+**Scenarios.**
+
+- [SCN-001](../../scenarios/SCN-001-same-round-judge-ancestry-stalls-consensus.md) — same-round judge ancestry stalls consensus after a roster change.
 
 **Sibling topics.**
 

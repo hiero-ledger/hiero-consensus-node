@@ -24,13 +24,28 @@ Run the bundled script and capture the output directory:
 bash "${CLAUDE_SKILL_DIR}/scripts/run.sh"
 ```
 
+> **Re-running is destructive — run once, then ask before re-running.** Each run regenerates every
+> artifact in the output directory. If a report already exists there and you (or the user) are
+> mid-remediation, do **not** re-run to "refresh" it — read the existing artifacts in place. Only
+> re-run the engine when the user explicitly asks for a new run. (The runner copies the prior output
+> to `<out>.bak.<timestamp>` as a backstop, but still treat a re-run as overwriting the working
+> report — including the semantic worklist a remediation session is tracking against.)
+
 It prints the output directory (default `<repo>/build/kb-freshness`). Read these artifacts from it:
 
-- `report.md` — the human drift report (deterministic assertions a curator acts on).
+- `report.md` — the human drift report (deterministic assertions a curator acts on). Its **Summary**
+  counts the pending semantic worklist (your Step 2 workload); its **Scan coverage** section states
+  what was scanned and checked; its **Root causes (rollup)** section groups findings that share one
+  underlying change.
 - `findings.json` — the machine-readable finding set (stable ids; reproducible).
 - `quiet-log.md` — unverifiable checks (generated/external symbols) — **not** drift.
-- `auto-fix.md` — proposed line-reference corrections (suggestions only).
-- `coverage.md` — undocumented code (coverage lane) — **not** drift.
+- `auto-fix.md` — proposed line-reference and path corrections (applied only by `--fix`).
+- `suggestions.md` — non-asserting did-you-mean hints for gone targets, including config-key
+  migrations (a gone key another record now declares) and ready link rewrites for misdirected doc
+  links.
+- `coverage.md` — documentation gaps (coverage lane): undocumented code and config keys, config
+  records with no tunables section at all, topics anchoring no source, interface docs not checked at
+  Tier-2, and cited topic slugs with no document — **not** drift.
 - `worklist.json` — the semantic worklist (below).
 
 Do not re-derive or second-guess the deterministic findings; present them as-is.
@@ -40,15 +55,37 @@ Do not re-derive or second-guess the deterministic findings; present them as-is.
 Read `worklist.json`. Process **only** entries whose `status` is `review` or `unknown` (their
 anchored source changed since `last_reviewed`, or freshness is unknown). Skip `fresh` entries.
 
-For each such entry:
+**Fan out for large worklists.** When more than ~4 entries need processing, or a single entry lists
+many changed sources (say, 10+), spawn one subagent per entry instead of reading everything in one
+context: each subagent reads only its document and that entry's changed sources, judges the claims
+by the rules below, and returns its `contradicted`-with-citation items (file + symbol/line per
+claim). Merge the returns into one Advisory section, applying the same only-cited-contradictions
+bar to what comes back — a subagent's uncited judgment is dropped exactly like your own. Small
+worklists are faster inline; do not fan out for one or two entries.
 
-1. Read the topic doc at `entryPath`.
-2. Read the **current** source files listed in `changedPaths` (and any other source the topic
+For each `review` entry:
+
+1. Read the document at `entryPath`.
+2. Read the **current** source files listed in `changedPaths` (and any other source the document
    anchors). Never rely on memory of what the code does — open the files.
-3. For each **load-bearing prose claim** about behavior in the topic, judge it three ways:
+3. For each **load-bearing prose claim** about behavior in the document, judge it three ways:
    - `supported` — the current code backs the claim.
-   - `contradicted` — the current code makes the claim false.
+   - `contradicted` — the current code makes the claim false, **or** names a symbol (method, class,
+     field, path) that no longer exists; a rename or removal counts even if the behavior survives.
    - `can't-determine` — you cannot tell from the source available.
+
+An `unknown` entry has no `changedPaths` to read — its `note` names why (usually
+`no anchored sources`). Handle it by the note:
+
+- `no anchored sources` — the document carries no mechanically-checkable code anchor. Some documents
+  are **expected** to be unanchored — `glossary.md`, `symptoms.md`, and the `README.md` indexes are
+  definitional or navigational, not code-describing: acknowledge them as `unknown` and move on, do not
+  hunt for code. For a document that *does* describe specific code but cites none (e.g. a topic, or an
+  ADR with no source), **locate** the code it describes (search by the class/component names in its
+  prose), judge its claims against it, and recommend anchoring the doc (add source citations) so future
+  runs can track freshness. If you cannot identify the code, say so — do not guess.
+- `git unavailable` / `no commit dates for anchored sources` — freshness could not be dated; treat the
+  entry like `review` and read the sources the document anchors.
 
 ## Step 3 — Report only contradicted-with-citation
 
@@ -59,15 +96,43 @@ For each such entry:
   from* the deterministic report. Never intermix semantic findings with deterministic assertions —
   they are advisory, not facts the engine verified.
 
-Each advisory item cites: the topic + claim, and the current code (path + symbol) that contradicts
+Each advisory item cites: the entry + claim, and the current code (path + symbol) that contradicts
 it. An uncited judgment is dropped, not reported.
 
 ## Step 4 — Present the combined result
 
 Show, in order:
-1. The deterministic **report.md** (new drift, carried drift, resolved), summarized.
+1. The deterministic **report.md** (new drift, carried drift, resolved), summarized — lead with the
+   **Root causes (rollup)** section when present: one underlying code move often explains dozens of
+   findings, and the curator should read cause-level first.
 2. Pointers to `quiet-log.md`, `auto-fix.md`, `coverage.md` for the non-drift lanes.
 3. Your **`## Advisory (semantic)`** section (or "none" if nothing survived).
+
+## Step 5 — Recommend next actions
+
+Close with a short, concrete action list derived from this run (skip lines that do not apply):
+
+1. **Apply the certain fixes**: if the summary counts anything under "Fixable now with `--fix`",
+   suggest re-running the engine with `--fix` (it applies exactly the `auto-fix.md` diffs).
+2. **Hand-fix the GONE findings**: point at `suggestions.md` for did-you-mean hints — including
+   config-key migration hints and ready link rewrites; all of them need a human decision and are
+   never auto-applied.
+3. **Close coverage gaps**: mention `coverage.md` items worth acting on (unanchored topics, interface
+   docs not opted into Tier-2, undocumented config keys, config records with no tunables section,
+   topic slugs with no document).
+4. **Close the review loop**: for each worklisted document whose semantic pass found every claim
+   `supported` (or whose contradictions have since been fixed), suggest bumping its `last_reviewed`
+   via `--mark-reviewed <entry-key>` (repeatable). A bare spec records the document's newest
+   anchored-source commit date — the state this run reviewed, shown as `newestAnchoredCommit` in
+   `worklist.json` — derived from the scanned checkout, never the wall clock (so a run against a stale
+   `main` never marks commits it did not review as reviewed); a document that anchors no source is
+   dated by the reviewed checkout's HEAD commit instead. Without the bump, every future run re-worklists
+   the same documents. Never suggest bumping a document that still has an unresolved contradiction
+   (which now includes a dangling reference to a renamed or removed symbol).
+5. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
+   copying `baseline.proposed.tsv`) and triaging the rows.
+
+Do **not** perform any of these yourself unless the user asks.
 
 If the user asks to triage or dismiss a finding, explain the baseline flow (see the module README):
 add the finding's `id` to `platform-sdk/consensus-kb-freshness/baseline/kb-freshness-baseline.tsv` with

@@ -8,7 +8,6 @@ module org.hiero.consensus.transaction.handling {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -16,7 +15,8 @@ module org.hiero.consensus.transaction.handling {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.state;
-    requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.consensus.status.monitor;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
@@ -24,12 +24,8 @@ module org.hiero.consensus.transaction.handling {
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.platformstate;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
-    requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
             TransactionHandlingConfigurationExtension;

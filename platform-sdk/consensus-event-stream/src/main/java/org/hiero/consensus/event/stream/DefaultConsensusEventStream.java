@@ -5,7 +5,7 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EVENT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.INFO_CATEGORY;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -20,11 +20,12 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
-import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.concurrent.NodeThreadNameProvider;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStreamConfiguration;
@@ -40,6 +41,8 @@ import org.hiero.consensus.model.stream.RunningEventHashOverride;
  */
 public class DefaultConsensusEventStream implements ConsensusEventStream {
     private static final Logger logger = LogManager.getLogger(DefaultConsensusEventStream.class);
+    public static final String WRITE_QUEUE = "write-queue";
+    public static final String HASH_QUEUE = "hash-queue";
 
     /**
      * receives consensus events then passes to hashQueueThread and
@@ -127,10 +130,13 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
                     false,
                     EventStreamType.getInstance());
 
-            writeQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager())
+            final NodeThreadNameProvider writeQueueNaming = new NodeThreadNameProvider()
                     .setNodeId(selfId)
                     .setComponent("event-stream")
-                    .setThreadName("write-queue")
+                    .setThreadName(WRITE_QUEUE);
+
+            writeQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager(), WRITE_QUEUE)
+                    .setThreadName(writeQueueNaming.generateNextThreadName())
                     .setCapacity(eventStreamQueueCapacity)
                     .setForwardTo(streamFileWriter)
                     .build();
@@ -153,10 +159,12 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
         // receives consensus events from hashQueueThread, calculates this event's Hash, then passes to
         // runningHashCalculator
         final HashCalculatorForStream<CesEvent> hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager())
+        final NodeThreadNameProvider hashThreadNaming = new NodeThreadNameProvider()
                 .setNodeId(selfId)
                 .setComponent("event-stream")
-                .setThreadName("hash-queue")
+                .setThreadName(HASH_QUEUE);
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager(), HASH_QUEUE)
+                .setThreadName(hashThreadNaming.generateNextThreadName())
                 .setCapacity(eventStreamQueueCapacity)
                 .setForwardTo(hashCalculator)
                 .build();

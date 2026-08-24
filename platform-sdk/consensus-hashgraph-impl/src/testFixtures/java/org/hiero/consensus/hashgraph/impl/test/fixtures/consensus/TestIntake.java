@@ -1,23 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
-import static com.swirlds.component.framework.wires.SolderType.INJECT;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.DeterministicWiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -31,12 +23,12 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -45,6 +37,13 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing
@@ -127,10 +126,6 @@ public class TestIntake {
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
 
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, scheduler("eventWindowManager"));
-        eventWindowManagerWiring.bind(new DefaultEventWindowManager());
-
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
         postHashCollectorWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
         final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
@@ -140,18 +135,16 @@ public class TestIntake {
                 .getOutputWire()
                 .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
                 .buildSplitter("consensusRoundsSplitter", "consensusRounds");
-        consensusRoundOutputWire.solderTo(
-                eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
+        consensusRoundOutputWire
+                .buildTransformer("EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow)
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow), INJECT);
         consensusEngineWiring
                 .getOutputWire()
                 .solderTo("consensusOutputTestTool", "consensus output", output::consensusEngineOutput);
 
-        eventWindowManagerWiring
-                .getOutputWire()
-                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow), INJECT);
-
         // Ensure unsoldered wires are created.
         hasherWiring.getInputWire(EventHasher::hashEvent);
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
 
         // Make sure this unsoldered wire is properly built
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
@@ -172,15 +165,14 @@ public class TestIntake {
     }
 
     /**
-     * @return a queue of all rounds that have reached consensus
+     * @return a list of all rounds that have reached consensus
      */
-    public @NonNull LinkedList<ConsensusRound> getConsensusRounds() {
+    public @NonNull List<ConsensusRound> getConsensusRounds() {
         return output.getConsensusRounds();
     }
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
-
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
@@ -198,6 +190,7 @@ public class TestIntake {
 
     public void reset() {
         time.reset();
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear).put(NoInput.getInstance());
         loadSnapshot(GenesisSnapshotFactory.newGenesisSnapshot());
         output.clear();
     }

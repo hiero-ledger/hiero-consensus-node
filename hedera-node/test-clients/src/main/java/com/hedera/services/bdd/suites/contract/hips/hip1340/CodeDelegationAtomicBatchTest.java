@@ -20,8 +20,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -52,11 +53,11 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -548,7 +549,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
-                assertionsHold((spec, opLog) -> {
+                doAdhoc(() -> {
                     assertEquals(
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
@@ -606,7 +607,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
-                assertionsHold((spec, opLog) -> {
+                doAdhoc(() -> {
                     assertEquals(
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
@@ -663,7 +664,7 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
-                assertionsHold((spec, opLog) -> {
+                doingContextual((spec) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var type4Record = getTxnRecord(type4Txn);
@@ -747,7 +748,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountBalance(successSender).exposingBalanceTo(successSenderAfter::set),
 
                 // Compare gas charges between success and rollback paths
-                assertionsHold((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var successRecord = getTxnRecord(successType4Txn);
@@ -845,11 +846,11 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertionsHold((spec, opLog) -> {
+                doingContextual((spec) -> {
                     final var accountInBatchRollbackKey = spec.registry().getKey(accountInBatchRollback);
                     final var accountInRollbackEvmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
                             accountInBatchRollbackKey.getECDSASecp256K1().toByteArray()));
-                    final var evmAddress = "0x" + Hex.toHexString(accountInRollbackEvmAddress.toByteArray());
+                    final var evmAddress = "0x" + HexFormat.of().formatHex(accountInRollbackEvmAddress.toByteArray());
                     allRunFor(
                             spec,
                             getContractBytecode(evmAddress)
@@ -886,7 +887,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress),
                 getAccountBalance(successPayer).exposingBalanceTo(successPayerBalanceAfter::set),
                 getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterBoth::set),
-                assertionsHold((spec, opLog) -> {
+                doingContextual((spec) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var type4RecordRollback =
@@ -984,6 +985,48 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 // Type-4 delegation should survive rollback
                 getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    final Stream<DynamicTest> testAtomicBatchType4NoncesWithInvalidSelfAuthorization() {
+        final var sender = "SenderAccount";
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var senderNonceBefore = new AtomicLong();
+        final var senderNonceAfter = new AtomicLong();
+        return hapiTest(
+                overriding("contracts.codeDelegations.enabled", "true"),
+                createHollowAccounts(sender),
+                getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceBefore::set),
+                atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        // Wrong nonce on purpose: this entry still recovers to the sender's address,
+                                        // but the node skips it, so it must not contribute to signer_nonce.
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, sender)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .nonce(2)
+                                        .type(EthTransactionType.EIP7702)
+                                        // Wrong nonce on purpose: this entry still recovers to the sender's address,
+                                        // but the node skips it, so it must not contribute to signer_nonce.
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, sender)
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 3, sender)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER))
+                        .payingWith(RELAYER)
+                        .hasKnownStatus(SUCCESS),
+                getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
+                doAdhoc(() -> assertEquals(
+                        senderNonceBefore.get() + 4,
+                        senderNonceAfter.get(),
+                        "Sender nonce should increment by 4 (2 * (tx + valid auth)); invalid auth must be skipped")),
+                getAliasedAccountInfo(sender).hasDelegationAddress(delegationTargetAddress));
     }
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {

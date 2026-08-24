@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
@@ -23,6 +22,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
@@ -48,6 +48,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -56,7 +57,6 @@ import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 
 public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     record AuthorizationListItem(Address target, Function<HapiSpec, Long> nonceFn, String privateKeyRef) {}
@@ -354,7 +354,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         if (explicitTo != null) {
             to = explicitTo;
         } else if (alias != null) {
-            to = recoverAddressFromPubKey(alias.toByteArray());
+            to = EthSigsUtils.recoverAddressFromPubKey(alias.toByteArray());
         } else if (account != null) {
             to = Utils.asAddress(spec.registry().getAccountID(account));
         } else if (isTokenFlow) {
@@ -432,7 +432,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
         if (createCallDataFile || (!isJumboTxn && callData.length > MAX_CALL_DATA_SIZE)) {
-            final var callDataBytesString = ByteString.copyFrom(Hex.encode(callData));
+            final var callDataBytesString =
+                    ByteString.copyFromUtf8(HexFormat.of().formatHex(callData));
             final var createFile = new HapiFileCreate(CALL_DATA_FILE_NAME);
             final var updateLargeFile =
                     updateLargeFile(payer.orElse(DEFAULT_CONTRACT_SENDER), CALL_DATA_FILE_NAME, callDataBytesString);

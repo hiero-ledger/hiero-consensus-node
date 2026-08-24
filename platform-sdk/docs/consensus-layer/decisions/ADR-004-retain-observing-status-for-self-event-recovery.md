@@ -2,7 +2,7 @@
 type: decision
 id: ADR-004
 title: Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
-topics: [event-creation, pces, platform-status]
+topics: [event-creator, restart-and-pces, platform-status]
 related:
   invariants: []
   decisions: []
@@ -15,22 +15,19 @@ deciders:
   - Kelly Greco (@poulok)
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-004 — Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
 
 ## Context
 
-The platform status state machine includes an `OBSERVING` status
-(`platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41`). On startup,
-after replaying events, the platform transitions into `OBSERVING`
-(`ReplayingEventsStatusLogic` → `OBSERVING`), where it **gossips but does not create events**: the event-creation gate
-permits creation only in `ACTIVE` or `CHECKING`
-(`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
-The node remains in `OBSERVING` for a configured span of wall-clock time — `platformStatus.observingStatusDelay`,
-default `10s` (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/PlatformStatusConfig.java:23`) —
-then transitions to `CHECKING` (or `FREEZING` if a freeze boundary was crossed while observing)
-(`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ObservingStatusLogic.java:176-187`).
+The platform status state machine includes an `OBSERVING` status, entered after event replay, in which the node
+**gossips but does not create events**. It holds there for a configured window (`platformStatus.observingStatusDelay`,
+TUN-019) before advancing to `CHECKING`. The transition path and the event-creation gate that withholds creation until
+`ACTIVE` or `CHECKING` are documented in
+[`../architecture/topics/platform-status.md`](../architecture/topics/platform-status.md); the specific code anchors are
+listed in this ADR's [References](#references).
 
 The purpose of this pause is to give the node a high chance of **learning its latest self event before it starts
 creating new ones**, so it does not create a new event off an old self-parent. A node that creates two events sharing
@@ -72,8 +69,8 @@ justification no longer applies:
   exit after `platformStatus.observingStatusDelay` (default `10s`)
   (`ObservingStatusLogic.java:176-187`).
 - The event-creation gate continues to withhold creation in `OBSERVING`
-  (`PlatformStatusRule.java:37-45`).
-- The default delay stays at `10s` (`PlatformStatusConfig.java:23`); it remains operator-tunable.
+  (`PlatformStatusRule.java#isEventCreationPermitted`).
+- The default delay stays at `10s` (`PlatformStatusConfig.java#observingStatusDelay`); it remains operator-tunable.
 
 ## Limitations
 
@@ -145,16 +142,16 @@ See **Decision** above.
 
 ## References
 
-- [`../../core/platform-status.md`](../../core/platform-status.md) — the platform status explainer; describes `OBSERVING` and
-  why the node listens to gossip before creating events.
+- [`../architecture/topics/platform-status.md`](../architecture/topics/platform-status.md) — the platform status topic;
+  describes `OBSERVING` and why the node listens to gossip before creating events.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — the PCES write/replay
   path and the guarantee that all gossiped events are on disk after shutdown, which is what made `OBSERVING` redundant
   for the ordinary-crash case.
 - `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41` — the
   `OBSERVING` status definition.
-- `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ObservingStatusLogic.java:176-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ObservingStatusLogic.java:176-187`
   — the exit transition driven by `observingStatusDelay`.
-- `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/PlatformStatusConfig.java:23` —
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/PlatformStatusConfig.java#observingStatusDelay` —
   the `observingStatusDelay` config field (default `10s`).
-- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
+- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`
   — the event-creation gate that withholds creation while in `OBSERVING`.

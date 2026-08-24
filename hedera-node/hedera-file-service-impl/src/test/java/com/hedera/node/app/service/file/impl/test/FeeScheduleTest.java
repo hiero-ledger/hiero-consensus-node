@@ -36,7 +36,8 @@ public class FeeScheduleTest {
                 .extras(
                         makeExtraDef(Extra.KEYS, 1),
                         makeExtraDef(Extra.STATE_BYTES, 1),
-                        makeExtraDef(Extra.SIGNATURES, 1))
+                        makeExtraDef(Extra.SIGNATURES, 1),
+                        makeExtraDef(Extra.GAS, 852))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(100)
@@ -303,6 +304,15 @@ public class FeeScheduleTest {
         assertFalse(
                 FeeScheduleUtils.isValid(badSchedule),
                 "Fee schedule with empty service schedule should fail validation");
+    }
+
+    @Test
+    void catchMissingGasExtra() {
+        FeeSchedule badSchedule = createMinimalValidSchedule()
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.KEYS, 1), makeExtraDef(Extra.SIGNATURES, 1))
+                .build();
+        assertFalse(FeeScheduleUtils.isValid(badSchedule), "Fee schedule without the GAS extra should fail validation");
     }
 
     @Test

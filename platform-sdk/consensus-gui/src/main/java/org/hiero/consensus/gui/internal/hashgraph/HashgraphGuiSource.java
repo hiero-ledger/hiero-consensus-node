@@ -13,19 +13,19 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 public interface HashgraphGuiSource {
 
     /**
-     * @return the maximum sequence number of all events this source has
+     * @return the maximum generation of all events this source has
      */
-    long getMaxSequenceNumber();
+    long getMaxGeneration();
 
     /**
      * Get events to be displayed by the GUI
      *
-     * @param startSequenceNum the start sequence number of events returned
-     * @param numEvents  the number of events to be returned
-     * @return a list of requested events
+     * @param startGeneration the start generation of events returned
+     * @param numGenerations  the number of generations to be returned
+     * @return an list of requested events
      */
     @NonNull
-    List<EventImpl> getEvents(final long startSequenceNum, final int numEvents);
+    List<EventImpl> getEvents(final long startGeneration, final int numGenerations);
 
     @NonNull
     Roster getRoster();

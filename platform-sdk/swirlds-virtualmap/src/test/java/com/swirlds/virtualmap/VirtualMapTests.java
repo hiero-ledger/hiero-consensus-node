@@ -32,9 +32,8 @@ import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -48,9 +47,11 @@ import java.time.Duration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
@@ -506,28 +507,8 @@ class VirtualMapTests extends VirtualTestBase {
         copy3.release();
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy4.release();
-        assertTrue(copy4.getPipeline().awaitTermination(5, SECONDS), "Timed out");
-        assertTrue(ds.isClosed(), "Should now be released");
-    }
 
-    @Test
-    @Tags({@Tag("VirtualMap"), @Tag("Pipeline"), @Tag("VMAP-021")})
-    @DisplayName("Database is closed if prematurely terminated")
-    void databaseClosedWhenExpresslyTerminated() throws InterruptedException {
-        final VirtualMap copy0 = createMap();
-        final InMemoryDataSource ds = (InMemoryDataSource) copy0.getDataSource();
-        final VirtualMap copy1 = copy0.copy();
-        final VirtualMap copy2 = copy1.copy();
-        final VirtualMap copy3 = copy2.copy();
-        final VirtualMap copy4 = copy3.copy();
-
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy0.release();
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy1.release();
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy2.getPipeline().terminate();
-        assertTrue(copy2.getPipeline().awaitTermination(5, SECONDS), "Timed out");
+        assertTrue(copy0.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
@@ -561,7 +542,7 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @DisplayName("Million sized hashed maps have non-null hashes on everything")
-    void millionNonNullHashesOnHashedMap() throws InterruptedException {
+    void millionNonNullHashesOnHashedMap() {
         VirtualMap fcm = createMap();
         for (int i = 0; i < 1_000_000; i++) {
             fcm.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
@@ -588,7 +569,6 @@ class VirtualMapTests extends VirtualTestBase {
         } finally {
             fcm.release();
             completed.release();
-            assertTrue(fcm.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -957,7 +937,6 @@ class VirtualMapTests extends VirtualTestBase {
             }
         } finally {
             map.release();
-            assertTrue(map.getPipeline().awaitTermination(60, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -1167,7 +1146,7 @@ class VirtualMapTests extends VirtualTestBase {
         root1.release();
         TimeUnit.MILLISECONDS.sleep(100);
         System.gc();
-        assertEquals(totalSize, root2.size(), "New map is expected to have all data and VirtualMapMetadata");
+        assertEquals(totalSize, root2.size(), "New map is expected to have all data and VirtualMap.Metadata");
         for (int index = 0; index < totalSize; index++) {
             final Bytes key = TestKey.longToKey(index);
             final TestValue expectedValue = new TestValue(index);
@@ -1221,8 +1200,8 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Detach Test")
-    void detachTest() throws IOException {
+    @DisplayName("Detach is not affected when map destroyed")
+    void detachIsNotAffectedByMapDestroy() throws IOException, InterruptedException {
         final VirtualMap original = new VirtualMap(new InMemoryBuilder(), DEFAULT_CONFIGURATION);
         Bytes testKey = Bytes.wrap("testKey");
         original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
@@ -1233,17 +1212,17 @@ class VirtualMapTests extends VirtualTestBase {
         final RecordAccessor detachedCopy = original.detach();
         assertNotNull(detachedCopy);
 
+        // release maps family
+        original.release();
+        copy.release();
+
         try {
-            VirtualMapMetadata originalMetadata = original.getMetadata();
-            // let's change the original state and make sure that the detached copy is not affected
-            originalMetadata.setFirstLeafPath(-1);
-            originalMetadata.setLastLeafPath(-1);
+            assertTrue(original.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+
             VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
             assertNotNull(leafRecord);
             assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
         } finally {
-            original.release();
-            copy.release();
             detachedCopy.close();
         }
     }
@@ -1272,15 +1251,141 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Copy of a root node with terminated pipeline")
-    void copyOfRootNodeWithTerminatedPipeline() {
-        VirtualMap map = createMap();
-        map.getPipeline().terminate();
-        assertThrows(IllegalStateException.class, map::copy);
+    void getVersion() {
+        assertEquals(4, createMap().getVersion());
     }
 
     @Test
-    void getVersion() {
-        assertEquals(4, createMap().getVersion());
+    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
+    @DisplayName("deletedLeaves()")
+    void deletedLeaves() {
+        // CREATED followed by UPDATED, UPDATED+DELETED, DELETED
+        // CREATED+UPDATED followed by UPDATED, UPDATED+DELETED, DELETED
+        // UPDATED followed by UPDATED, UPDATED+DELETED, DELETED
+        // DELETED followed by CREATED, CREATED+UPDATED, CREATED+DELETED, CREATED+UPDATED+DELETED, DELETED (nop)
+
+        // Create the following chain of mutations:
+        // A: [D, v2] -> [U+D (AARDVARK), v1] -> [C (APPLE), v0]
+        // B: [D, v3] -> [C+U (BEAR, BLASTOFF), v2] -> [D, v1] -> [C (BANANA), v0]
+        // C: [C+U+D (CHEMISTRY, CHAD), v3] -> [D, v2] -> [U (COMET), v1] -> [C+U (CHERRY, CUTTLEFISH), v0]
+        // D: [C+U (DISCIPLINE, DENMARK), v2] -> [U+D (DRACO), v1] -> [C+U (DATE, DOG), v0]
+        // E: [C+U (EXOPLANET, ECOLOGY), v3] -> [D, v2] -> [C+U (EGGPLANT, EMU), v0]
+        // F: [C (FORCE), v3] -> [D, v2] -> [U (FOX), v1] -> [C (FIG), v0]
+        // G: [U (GRAVITY), v3] -> [U (GOOSE), v2] -> [C (GRAPE), v1]
+
+        final VirtualMap map0 = createMap();
+        final VirtualNodeCache cache0 = map0.getCache();
+        // A: [C (APPLE), v0]
+        // B: [C (BANANA), v0]
+        // C: [C+U (CHERRY, CUTTLEFISH), v0]
+        // D: [C+U (DATE, DOG), v0]
+        // E: [C+U (EGGPLANT, EMU), v0]
+        // F: [C (FIG), v0]
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        map0.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
+        map0.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        map0.put(D_KEY, DOG, TestValueCodec.INSTANCE);
+        map0.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        map0.put(E_KEY, EMU, TestValueCodec.INSTANCE);
+        map0.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+
+        final VirtualMap map1 = map0.copy();
+        final VirtualNodeCache cache1 = map1.getCache();
+
+        // A: [U+D (AARDVARK), v1]
+        // B: [D, v1]
+        // C: [U (COMET), v1]
+        // D: [U+D (DRACO), v1]
+        // F: [U (FOX), v1]
+        // G: [C (GRAPE), v1]
+        map1.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
+        map1.remove(A_KEY);
+        map1.remove(B_KEY);
+        map1.put(C_KEY, COMET, TestValueCodec.INSTANCE);
+        map1.put(D_KEY, DRACO, TestValueCodec.INSTANCE);
+        map1.remove(D_KEY);
+        map1.put(F_KEY, FOX, TestValueCodec.INSTANCE);
+        map1.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
+
+        final VirtualMap map2 = map1.copy();
+        final VirtualNodeCache cache2 = map2.getCache();
+
+        // A: [D, v2]
+        // B: [C+U (BEAR, BLASTOFF), v2]
+        // C: [D, v2]
+        // D: [C+U (DISCIPLINE, DENMARK), v2]
+        // E: [D, v2]
+        // F: [D, v2]
+        // G: [U (GOOSE), v2]
+        map2.remove(A_KEY, TestValueCodec.INSTANCE);
+        map2.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
+        map2.put(B_KEY, BLASTOFF, TestValueCodec.INSTANCE);
+        map2.remove(C_KEY);
+        map2.put(D_KEY, DISCIPLINE, TestValueCodec.INSTANCE);
+        map2.put(D_KEY, DENMARK, TestValueCodec.INSTANCE);
+        map2.remove(E_KEY);
+        map2.remove(F_KEY);
+        map2.put(G_KEY, GOOSE, TestValueCodec.INSTANCE);
+
+        final VirtualMap map3 = map2.copy();
+        final VirtualNodeCache cache3 = map3.getCache();
+
+        // B: [D, v3]
+        // C: [C+U+D (CHEMISTRY, CHAD), v3]
+        // E: [C+U (EXOPLANET, ECOLOGY), v3]
+        // F: [C (FORCE), v3]
+        // G: [U (GRAVITY), v3]
+        map3.remove(B_KEY);
+        map3.put(C_KEY, CHEMISTRY, TestValueCodec.INSTANCE);
+        map3.put(C_KEY, CHAD, TestValueCodec.INSTANCE);
+        map3.remove(C_KEY);
+        map3.put(E_KEY, EXOPLANET, TestValueCodec.INSTANCE);
+        map3.put(E_KEY, ECOLOGY, TestValueCodec.INSTANCE);
+        map3.put(F_KEY, FORCE, TestValueCodec.INSTANCE);
+        map3.put(G_KEY, GRAVITY, TestValueCodec.INSTANCE);
+
+        // One last copy, so we can get the dirty leaves without an exception
+        final VirtualMap map4 = map3.copy();
+
+        final List<VirtualLeafBytes> deletedLeaves0 = cache0.deletedLeaves().toList();
+        assertEquals(0, deletedLeaves0.size(), "No deleted leaves in cache0");
+
+        cache0.seal();
+        cache1.seal();
+        cache0.merge();
+        validateDeletedLeaves(
+                cache1.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, D_KEY), "cache1");
+
+        cache2.seal();
+        cache1.merge();
+        validateDeletedLeaves(
+                cache2.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, C_KEY, E_KEY, F_KEY), "cache2");
+
+        cache3.seal();
+        cache2.merge();
+        validateDeletedLeaves(
+                cache3.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, C_KEY), "cache3");
+
+        map0.release();
+        map1.release();
+        map2.release();
+        map3.release();
+        map4.release();
+    }
+
+    private void validateDeletedLeaves(
+            final List<VirtualLeafBytes> deletedLeaves, final Set<Bytes> expectedKeys, final String name) {
+
+        assertEquals(expectedKeys.size(), deletedLeaves.size(), "Not enough deleted leaves in " + name);
+
+        final Set<Bytes> keys =
+                deletedLeaves.stream().map(VirtualLeafBytes::keyBytes).collect(Collectors.toSet());
+        assertEquals(deletedLeaves.size(), keys.size(), "Two records with the same key exist in " + name);
+
+        for (final var rec : deletedLeaves) {
+            assertTrue(keys.remove(rec.keyBytes()), "A record does not have the expected key in " + name);
+        }
     }
 }
