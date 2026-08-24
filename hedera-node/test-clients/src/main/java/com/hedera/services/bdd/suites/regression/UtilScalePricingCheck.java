@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.regression;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -79,10 +80,53 @@ public class UtilScalePricingCheck {
                         .toArray(HapiSpecOperation[]::new)));
     }
 
-    private long expectedMultiplier(final int mintNo) {
-        if (mintNo <= 5) {
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"topics.maxNumber", "fees.percentUtilizationScaleFactors"})
+    final Stream<DynamicTest> topicPriceScalesWithUtilization() {
+        final var civilian = "topicCivilian";
+        final var maxAllowed = 10;
+        final IntFunction<String> createOp = i -> "createTopic" + i;
+        final AtomicLong baseFee = new AtomicLong();
+        return hapiTest(
+                overridingTwo(
+                        "topics.maxNumber",
+                        "" + maxAllowed,
+                        "fees.percentUtilizationScaleFactors",
+                        "TOPIC(0,1:1,50,5:1,90,50:1)"),
+                cryptoCreate(civilian).balance(ONE_MILLION_HBARS),
+                blockingOrder(IntStream.range(1, maxAllowed + 1)
+                        .mapToObj(i -> createTopic("topic" + i)
+                                .payingWith(civilian)
+                                .blankMemo()
+                                .fee(1000 * ONE_HUNDRED_HBARS)
+                                .via(createOp.apply(i)))
+                        .toArray(HapiSpecOperation[]::new)),
+                blockingOrder(IntStream.range(1, maxAllowed + 1)
+                        .mapToObj(i -> getTxnRecord(createOp.apply(i))
+                                .noLogging()
+                                .loggingOnlyFee()
+                                .exposingTo(createRecord -> {
+                                    if (i == 1) {
+                                        baseFee.set(createRecord.getTransactionFee());
+                                    } else {
+                                        final var multiplier = expectedMultiplier(i);
+                                        final var expected = multiplier * baseFee.get();
+                                        assertCloseEnough(
+                                                expected,
+                                                createRecord.getTransactionFee(),
+                                                0.1,
+                                                "transaction fee",
+                                                multiplier + "x multiplier should be in effect at " + i + " topics");
+                                    }
+                                }))
+                        .toArray(HapiSpecOperation[]::new)));
+    }
+
+    private long expectedMultiplier(final int usageNo) {
+        if (usageNo <= 5) {
             return 1;
-        } else if (mintNo <= 9) {
+        } else if (usageNo <= 9) {
             return 5;
         } else {
             return 50;
