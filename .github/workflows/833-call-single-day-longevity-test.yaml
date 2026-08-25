@@ -451,8 +451,6 @@ jobs:
           cd "${{ github.workspace}}"/solo
 
           mv block-node-values.yaml block-node-values.yaml.orig
-          export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
-          #export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
 
           #dedicate top-3 nodes for BN
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
