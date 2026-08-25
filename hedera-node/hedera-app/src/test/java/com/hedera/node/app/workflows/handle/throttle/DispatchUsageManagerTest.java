@@ -182,6 +182,8 @@ class DispatchUsageManagerTest {
                 .isInstanceOf(ThrottleException.class)
                 .extracting(ex -> ((ThrottleException) ex).getStatus())
                 .isEqualTo(CONSENSUS_GAS_EXHAUSTED);
+
+        verify(throttleServiceManager, never()).saveThrottleSnapshotsAndCongestionLevelStartsTo(any());
     }
 
     @Test
@@ -197,6 +199,8 @@ class DispatchUsageManagerTest {
                 .isInstanceOf(ThrottleException.class)
                 .extracting(ex -> ((ThrottleException) ex).getStatus())
                 .isEqualTo(THROTTLED_AT_CONSENSUS);
+
+        verify(throttleServiceManager, never()).saveThrottleSnapshotsAndCongestionLevelStartsTo(any());
     }
 
     @Test
@@ -212,6 +216,7 @@ class DispatchUsageManagerTest {
 
         inOrder.verify(throttleServiceManager).resetThrottlesUnconditionally(readableStates);
         inOrder.verify(networkUtilizationManager).trackTxn(CRYPTO_TRANSFER_TXN_INFO, CONSENSUS_NOW, stack);
+        inOrder.verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
     }
 
     @Test
