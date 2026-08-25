@@ -49,11 +49,16 @@ public class Secp256k1Utils {
     };
 
     public static byte[] extractEcdsaPublicKey(final ECPrivateKey key) {
+        return extractEcdsaPublicKey(asPrivateKeyByteArray32(key.getS()));
+    }
+
+    /// Extracts an ECDSA public key from a 32-bytes-long private key.
+    /// An IllegalArgumentException is thrown if the input isn't a 32 bytes array
+    /// or is otherwise an invalid private key.
+    public static byte[] extractEcdsaPublicKey(final byte[] privateKeyBytes) {
         final Cache cache = CACHE.get();
 
-        if (LIBSECP256K1.secp256k1EcPubkeyCreate(
-                        cache.pubkeySeg, MemorySegment.ofArray(asPrivateKeyByteArray32(key.getS())))
-                != 1) {
+        if (LIBSECP256K1.secp256k1EcPubkeyCreate(cache.pubkeySeg, MemorySegment.ofArray(privateKeyBytes)) != 1) {
             throw new IllegalArgumentException("secp256k1EcPubkeyCreate failed. The private key is probably invalid.");
         }
 
@@ -76,8 +81,13 @@ public class Secp256k1Utils {
     /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
     /// if present, aligning remaining bytes to the right, and padding with zeros to 32 bytes.
     public static byte[] asPrivateKeyByteArray32(final BigInteger value) {
-        final byte[] bytes = value.toByteArray();
+        return asPrivateKeyByteArray32(value.toByteArray());
+    }
 
+    /// Accepts an array of 33 or fewer bytes, dropping the leading "33rd" zero byte, aligning
+    /// remaining bytes to the right, and padding with zeros to 32 bytes if needed.
+    /// The result is a byte[32], or an IllegalArgumentException if the input is malformed.
+    public static byte[] asPrivateKeyByteArray32(final byte[] bytes) {
         if (bytes.length == 32) {
             return bytes;
         } else {

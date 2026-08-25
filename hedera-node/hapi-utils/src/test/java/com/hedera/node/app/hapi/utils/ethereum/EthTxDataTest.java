@@ -25,7 +25,6 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
-import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,8 +32,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class EthTxDataTest {
-    private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
-
     static final String SIGNATURE_ADDRESS = "a94f5374fce5edbc8e2a8697c15331677e6ebf0b";
     static final String SIGNATURE_PUBKEY = "033a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d";
     static final String RAW_TX_TYPE_0 =
@@ -213,7 +210,7 @@ class EthTxDataTest {
     void extractSignatureThrowsWithInvalidR() {
         final var rCurvePointAtNEip155Tx = requireNonNull(
                         EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
-                .replaceR(N.toByteArray());
+                .replaceR(EthTxSigs.SECP256K1_CURVE_N.toByteArray());
         assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(rCurvePointAtNEip155Tx));
         final var rCurvePointAt0Eip155Tx = requireNonNull(
                         EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
@@ -225,7 +222,7 @@ class EthTxDataTest {
     void extractSignatureThrowsWithInvalidS() {
         final var sCurvePointAtNEip155Tx = requireNonNull(
                         EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
-                .replaceS(N.toByteArray());
+                .replaceS(EthTxSigs.SECP256K1_CURVE_N.toByteArray());
         assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(sCurvePointAtNEip155Tx));
         final var sCurvePointAt0Eip155Tx = requireNonNull(
                         EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
