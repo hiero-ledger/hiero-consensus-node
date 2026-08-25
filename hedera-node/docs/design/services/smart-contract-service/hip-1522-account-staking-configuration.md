@@ -101,6 +101,10 @@ Three spellings reach the same state and produce the same child record:
 | `stakeToNode(-1)`            | `-1` is the HAPI `staked_node_id` sentinel.                                          |
 | `stakeToAccount(address(0))` | The zero address resolves to account `0.0.0`, the HAPI `staked_account_id` sentinel. |
 
+Only the **literal** zero address spells the third form. `AddressIdConverter` also yields `0.0.0` for a
+non-canonical reference, and `stakeToAccount` rejects that with `INVALID_STAKING_ID` rather than
+treating it as a clear — see Security Implications.
+
 `stakeToNodeAndDeclineReward` deliberately does **not** accept the sentinel: it requires a
 non-negative `nodeId` and returns `INVALID_STAKING_ID` otherwise. A function whose name says "stake
 to node" should not also be the way to stop staking.
@@ -170,11 +174,36 @@ EVM caller observes `INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE` (326).
 
 - Staking configuration moves no balances. The maximum effect of an authorized call is to redirect
   or decline the caller's own staking rewards.
+- `stakeToAccount` will not accept a **non-canonical reference** — the long-zero form of an account
+  whose priority address is an EVM alias, which is what `getHederaAccountNumAlias` returns.
+  `AddressIdConverter` resolves such a reference to `0.0.0`, and everywhere else in the system
+  contracts that id is deliberately built to fail downstream. Staking is the one place `0.0.0` is a
+  *meaningful sentinel*, so accepting it would fail **open**: "stake to Alice" would silently become
+  "unstake" and return `SUCCESS`. The translator therefore reserves the sentinel for the literal zero
+  address and returns `INVALID_STAKING_ID` for the other route.
+- Adding the six `IHRC632` selectors to `HAS_PROXY_ELIGIBLE_CALL_DATA_PREFIXES` widens that allowlist
+  from three Hedera-specific names to nine, and three of the new ones — `unstake()`,
+  `stakeToNode(int64)`, `setDeclineReward(bool)` — are generic enough to collide with ordinary DeFi
+  vocabulary. Two consequences follow from the allowlist being a static set consulted by
+  `CustomMessageCallProcessor` *before* any configuration is read:
+  - `createProxyOrCodeDelegationContext` gives the HAS redirect priority over EIP-7702 code
+    delegation, so for an account with a delegation set, calldata carrying one of these selectors
+    reaches HAS instead of the delegate.
+  - With the HAS master switch `accountService.enabled` off, `HasSystemContract#computeFully` halts
+    with `NOT_SUPPORTED` and consumes all remaining gas, where before the change the same calldata
+    sent to a code-less account was simply a successful no-op call.
+
+  Neither behaviour is introduced by this change — the precedence rule and the halt both predate it,
+  and the facade is unimplementable without the allowlist entries — but both now apply to six more
+  selectors, and neither is gated by `stakingEnabled`.
+
 - The contract-account narrowing does not widen who may change an account's staking. The dispatched
   update is still subject to the same key requirements and the same `StakingValidator` checks, and
   still touches only `decline_reward` and `staked_id`.
+
 - Providing a keyless, authorization-gated EVM path removes the incentive to grant a funds-custody
   contract a ledger-level admin key purely so it can sign a `ContractUpdate`.
+
 - `getStakingInfo` is deliberately unauthorized: every field it returns is already public over HAPI
   and the mirror node. It dispatches nothing and mutates nothing.
 
@@ -185,33 +214,61 @@ EVM caller observes `INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE` (326).
 - `StakingTranslatorTest` — all twelve selectors match the HIP; none match with the flag off; a
   facade selector sent directly to `0x16a` does not match; each body asserted field by field,
   including that `decline_reward` is *unset* on the pure-stake forms and the two `staked_*` fields
-  are never both set.
+  are never both set. Both call shapes are covered: the explicit forms via `bodyDispatchedBy` and
+  each facade form via `facadeBodyDispatchedBy`, since the two are near-identical pairs and a
+  copy-paste slip between them would otherwise go unnoticed. `stakeToAccount` rejects a
+  non-canonical reference with `INVALID_STAKING_ID`.
 - `StakingUpdateCallTest` — the dispatch carries the metadata marker; `CRYPTO_UPDATE` gas; a
   business failure is returned, never reverted.
 - `GetStakingInfoCallTest` — every field and sentinel; the priority-EVM-address rendering for an
   aliased, non-aliased and missing staked-to account; a missing target returns `INVALID_ACCOUNT_ID`
   and a zeroed struct.
-- `CryptoUpdateHandlerTest` — a marked staking-only update may name a contract; **one test per
-  non-staking field** proves the marker does not admit it; an unmarked staking-only body on a
-  contract still fails `INVALID_ACCOUNT_ID`; `StakingValidator` still runs.
+- `HandleHederaNativeOperationsTest` — the staking stores and consensus time are exposed from the
+  handle scope, and `stakingInfoOf` is exercised **on an account staked to a node**, so the derived
+  `stake_period_start` pins the `periodMins` argument. Without that case the five arguments consumed
+  only inside `addNodeStakeMeta` could be transposed silently.
+- `HasSystemContractTest` — every `CallVia.PROXY` staking selector is in
+  `HAS_PROXY_ELIGIBLE_CALL_DATA_PREFIXES` and no explicit form is, so the hand-written hex list
+  cannot drift from the ABI-derived selectors.
+- `CryptoUpdateHandlerTest` — a marked staking-only update may name a contract; `isStakingOnly`
+  rejects every non-staking field of the body; an unmarked staking-only body on a contract still
+  fails `INVALID_ACCOUNT_ID`; `StakingValidator` still runs.
 
 ### BDD tests
 
 `suites/contract/hip1522/AccountStakingConfigurationTest`
 
+The driver is `HRC1522Contract`, **not** the shared `HRC632Contract`. That fixture is deployed by the
+HIP-632 suites under a hard-coded `creationGas`, and `IsAuthorizedTest` /`AtomicIsAuthorizedTest` pin
+the exact gas at which a call to it flips between `INSUFFICIENT_GAS` and `SUCCESS`. Adding functions
+to it therefore breaks suites that have nothing to do with staking, so each HIP gets its own contract.
+
+Two properties make the assertions meaningful and are easy to lose:
+
+- `NODE_ID` is **non-zero**. HAPI reports a cleared target as an unset `staked_id` oneof, so the proto
+  getter reads `0` — which makes `stakedNodeId(0)` and `noStakingNodeId()` the same assertion and every
+  before/after pair blind. Both smart-contract HAPI tasks run a 3-node network, so node 1 exists.
+- Every mutating call asserts its **`int64` response code** through the record. The Solidity wrappers
+  deliberately omit `require(responseCode == SUCCESS)`, so a business failure leaves the top-level
+  `ContractCall` status at `SUCCESS` and would otherwise be invisible.
+
 #### Positive
 
 - A contract created with **no admin key** stakes its own balance to a node and declines rewards;
   `getContractInfo` confirms it.
-- A contract reads its own staking state back.
-- An EOA configures its own staking through the `IHRC632` facade.
-- `unstake()`, `stakeToNode(-1)` and `stakeToAccount(address(0))` all clear the target.
+- A contract reads its own staking state back, asserting every field of the returned struct.
+- A contract stakes to another account, and `setDeclineReward` toggles the flag without disturbing
+  the node target.
+- An EOA configures its own staking, and declines rewards, through the `IHRC632` facade.
+- `unstake()`, `stakeToNode(-1)` and `stakeToAccount(address(0))` all clear the target — each from a
+  confirmed staked state, so the transition is observable in both directions.
 
 #### Negative
 
 - A cross-account call without the target's signature returns
-  `INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE` and changes nothing.
-- `stakeToNodeAndDeclineReward(-1, …)` returns `INVALID_STAKING_ID` and changes nothing.
+  `INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE` and leaves the target's staking untouched.
+- `stakeToNodeAndDeclineReward(-1, …)` returns `INVALID_STAKING_ID` and leaves a previously staked
+  account exactly as it was.
 - `IHRC632` calldata sent to a contract address reverts and changes nothing.
 - With the flag off, the calls are unavailable.
 
