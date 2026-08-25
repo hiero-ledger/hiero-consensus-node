@@ -28,6 +28,12 @@ import org.hiero.base.crypto.Hash;
 public interface StateLifecycleManager<S, D> {
 
     /**
+     * Prepare the current state for a platform freeze.
+     * Implementations must not wait for ongoing background tasks to complete.
+     */
+    void prepareForFreeze();
+
+    /**
      * Create a state from a root node. This method doesn't update the current mutable or immutable state.
      * @param rootNode the root node of a Merkle tree to create a state from
      * @return a state created from the root node

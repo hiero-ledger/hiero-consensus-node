@@ -34,6 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -311,6 +314,38 @@ class MerkleDbCompactionCoordinatorTest {
 
         verify(compactor).interruptCompaction();
         assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
+    }
+
+    @Test
+    void testDisableAndInterruptDoesNotWaitForRunningCompaction() throws Exception {
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(5, TimeUnit.SECONDS);
+            return true;
+        });
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config, fileCollection);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<?> disableFuture = executor.submit(coordinator::disableAndInterruptBackgroundCompaction);
+            disableFuture.get(1, TimeUnit.SECONDS);
+            verify(compactor).interruptCompaction();
+            assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
+        } finally {
+            releaseTask.countDown();
+            executor.shutdownNow();
+        }
     }
 
     // ========================================================================

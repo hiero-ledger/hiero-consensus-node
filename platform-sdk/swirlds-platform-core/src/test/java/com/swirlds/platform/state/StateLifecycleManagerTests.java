@@ -8,7 +8,10 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSo
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -22,6 +25,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.Reservable;
@@ -152,6 +156,22 @@ class StateLifecycleManagerTests {
         assertEquals(1, afterMutable.getRoot().getReservationCount(), "Mutable state should have one reference");
         assertEquals(1, newLatestImmutable.getRoot().getReservationCount(), "Latest immutable should have one ref");
         assertEquals(-1, beforeImmutable.getRoot().getReservationCount(), "Old immutable should be released");
+    }
+
+    @Test
+    @DisplayName("Preparing for a freeze disables background compaction")
+    void prepareForFreezeDisablesBackgroundCompaction() {
+        final VirtualMapStateLifecycleManager manager = spy((VirtualMapStateLifecycleManager) stateLifecycleManager);
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap virtualMap = mock(VirtualMap.class);
+        final VirtualDataSource dataSource = mock(VirtualDataSource.class);
+        doReturn(state).when(manager).getMutableState();
+        when(state.getRoot()).thenReturn(virtualMap);
+        when(virtualMap.getDataSource()).thenReturn(dataSource);
+
+        manager.prepareForFreeze();
+
+        verify(dataSource).disableAndInterruptBackgroundCompaction();
     }
 
     private static SignedState newSignedState() {

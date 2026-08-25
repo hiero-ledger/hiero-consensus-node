@@ -257,6 +257,11 @@ public class ConsensusLayerWiring {
         final OutputWire<PlatformStatus> platformStatus =
                 buildingBlocks.statusMonitorModule().platformStatusOutputWire();
 
+        platformStatus.solderTo("StateLifecycleManagerFreezeHandler", "status updates", status -> {
+            if (status == PlatformStatus.FREEZING) {
+                inputs.stateLifecycleManager().prepareForFreeze();
+            }
+        });
         platformStatus.solderTo(buildingBlocks.eventCreatorModule().platformStatusInputWire());
         platformStatus.solderTo(buildingBlocks.hashgraphModule().platformStatusInputWire(), INJECT);
         platformStatus.solderTo("ExecutionStatusHandler", "status updates", inputs.executionLayer()::newPlatformStatus);
