@@ -186,7 +186,7 @@ detected as stale.
 delivered through the notification engine rather than direct calls.
 Examples:
 [`StateWriteToDiskCompleteNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/StateWriteToDiskCompleteNotification.java),
-[`PlatformStatusChangeNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/PlatformStatusChangeNotification.java),
+[`PlatformStatusChangeNotification`](../../../consensus-model/src/main/java/org/hiero/consensus/model/notification/PlatformStatusChangeNotification.java),
 [`ReconnectCompleteNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/ReconnectCompleteNotification.java),
 [`StateHashedNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/state/notifications/StateHashedNotification.java),
 and

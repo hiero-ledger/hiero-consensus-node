@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.notification.internal;
 
-import com.swirlds.common.notification.Listener;
 import com.swirlds.common.notification.NotificationResult;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.notification.Listener;
 import org.hiero.consensus.model.notification.Notification;
 
 public class DispatchTask<L extends Listener<N>, N extends Notification> implements Comparable<DispatchTask<L, N>> {

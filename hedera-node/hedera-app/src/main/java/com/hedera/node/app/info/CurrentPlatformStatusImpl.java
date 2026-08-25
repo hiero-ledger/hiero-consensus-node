@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
+import org.hiero.consensus.model.notification.PlatformStatusChangeListener;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

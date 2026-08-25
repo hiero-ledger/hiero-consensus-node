@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.listeners;
 
-import com.swirlds.common.notification.DispatchMode;
-import com.swirlds.common.notification.DispatchModel;
-import com.swirlds.common.notification.DispatchOrder;
-import com.swirlds.common.notification.Listener;
+import org.hiero.consensus.model.notification.DispatchMode;
+import org.hiero.consensus.model.notification.DispatchModel;
+import org.hiero.consensus.model.notification.DispatchOrder;
+import org.hiero.consensus.model.notification.Listener;
 
 /**
  * The interface that must be implemented by all notification listeners {@link Listener} listening for

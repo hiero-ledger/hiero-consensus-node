@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.notification.internal;
 
-import com.swirlds.common.notification.DispatchMode;
-import com.swirlds.common.notification.DispatchModel;
-import com.swirlds.common.notification.DispatchOrder;
-import com.swirlds.common.notification.Listener;
 import com.swirlds.common.notification.NotificationEngine;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.model.notification.DispatchMode;
+import org.hiero.consensus.model.notification.DispatchModel;
+import org.hiero.consensus.model.notification.DispatchOrder;
+import org.hiero.consensus.model.notification.Listener;
 import org.hiero.consensus.model.notification.Notification;
 
 public abstract class AbstractNotificationEngine implements NotificationEngine {

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.notification;
-
-import org.hiero.consensus.model.notification.Notification;
+package org.hiero.consensus.model.notification;
 
 /**
  * Defines how the dispatcher handles the delivery of {@link Notification} to each registered {@link Listener}

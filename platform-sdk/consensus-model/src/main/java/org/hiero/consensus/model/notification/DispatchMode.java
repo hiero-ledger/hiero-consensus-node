@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.notification;
-
-import org.hiero.consensus.model.notification.Notification;
+package org.hiero.consensus.model.notification;
 
 /**
  * Defines how the dispatcher for a given {@link Listener} operates with respect to the caller.
@@ -17,8 +15,8 @@ public enum DispatchMode {
     SYNC,
 
     /**
-     * Queues the notification for delivery and returns control to the caller as quickly as possible.
-     * Any exceptions thrown will be available via the {@link NotificationResult#getExceptions()} method.
+     * Queues the notification for delivery and returns control to the caller as quickly as possible. Any exceptions
+     * thrown will be available via the result returned by the notification engine.
      */
     ASYNC
 }

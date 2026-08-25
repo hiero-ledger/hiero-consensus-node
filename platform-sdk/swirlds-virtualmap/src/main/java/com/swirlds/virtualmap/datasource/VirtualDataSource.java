@@ -159,7 +159,14 @@ public interface VirtualDataSource {
     void enableBackgroundCompaction();
 
     /**
-     * Cancels all compactions that are currently running and disables background compaction process.
+     * Disables background compaction and interrupts all compactions that are currently running. This method does not
+     * wait for the interrupted compactions to complete.
+     */
+    void disableAndInterruptBackgroundCompaction();
+
+    /**
+     * Disables background compaction, interrupts all compactions that are currently running, and waits for all current
+     * compaction tasks to complete.
      */
     void stopAndDisableBackgroundCompaction();
 
