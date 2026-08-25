@@ -372,9 +372,11 @@ class ProofControllerImplTest {
 
     @Test
     void setsAssemblyTimeEvenWhenNodeIsNotActive() {
-        // With every target node's proof key present (none expected here), assembly starts now. The
-        // resulting store write uses the consensus timestamp and must occur regardless of whether this
-        // node is ACTIVE; only the node's own proof-key self-submission is gated by ACTIVE status.
+        // With every target node's proof key present (none expected here) assembly starts now, so the
+        // assembly-time write uses the consensus timestamp regardless of ACTIVE status. This branch returns
+        // right after that write and never reaches the publish step in either state, so the never-publish
+        // check below is incidental — the ACTIVE-gating of proof-key publication itself is proven by
+        // advanceConstructionPublishesKeyWhenMetadataMissingAndActive / ...DoesNotPublishKeyWhenInactive.
         given(weights.numTargetNodesInSource()).willReturn(0);
         given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1)))
                 .willReturn(construction);
@@ -537,6 +539,83 @@ class ProofControllerImplTest {
 
         verify(writableHistoryStore).getLedgerId();
         verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(true));
+        verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
+    }
+
+    @Test
+    void finishesProofEvenWhenNodeIsNotActive() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var proof = aValidProof();
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Completed(proof));
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, false, tssConfig);
+
+        // The Completed-outcome commit write happens regardless of ACTIVE status; isActive only rides
+        // into prover.advance as the can-submit flag.
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(false));
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+    }
+
+    @Test
+    void failsConstructionEvenWhenNodeIsNotActive() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var reason = "test-failure";
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(reason));
+        given(writableHistoryStore.failForReason(CONSTRUCTION_ID, reason)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, false, tssConfig);
+
+        // The Failed-outcome commit write happens regardless of ACTIVE status.
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(false));
         verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
     }
 

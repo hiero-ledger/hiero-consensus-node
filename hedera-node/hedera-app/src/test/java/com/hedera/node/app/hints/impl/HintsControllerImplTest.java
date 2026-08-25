@@ -1073,7 +1073,7 @@ class HintsControllerImplTest {
     }
 
     @Test
-    void advancesCrsStateEvenWhenNodeIsNotActive() {
+    void repeatsProcessEvenWhenNodeIsNotActive() {
         setupWith(UNFINISHED_CONSTRUCTION);
 
         given(store.getCrsState())
@@ -1110,14 +1110,77 @@ class HintsControllerImplTest {
                         .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(7))))
                         .crs(INITIAL_CRS)
                         .build());
-        // drain any task scheduled during setup
-        while (scheduledTasks.poll() != null) {}
+        assertTrue(scheduledTasks.isEmpty());
 
         subject.advanceCrsWork(CONSENSUS_NOW, store, false);
 
         // Only the node-local self-submission is gated by isActive: no task scheduled, nothing submitted
         assertTrue(scheduledTasks.isEmpty());
         verify(submissions, never()).submitCrsUpdate(any(), any());
+    }
+
+    @Test
+    void setsFinalCrsIfAllIdsCompletedEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(null)
+                        .crs(INITIAL_CRS)
+                        .build());
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // The GATHERING -> WAITING_FOR_ADOPTING_FINAL_CRS transition is written regardless of ACTIVE status
+        verify(store)
+                .setCrsState(CRSState.newBuilder()
+                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(5))))
+                        .crs(INITIAL_CRS)
+                        .build());
+    }
+
+    @Test
+    void setsFinalCrsAndRemovesContributionEndTimeEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
+                        .crs(INITIAL_CRS)
+                        .build());
+        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
+        subject.setFinalCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 18)));
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // The threshold-met -> COMPLETED adoption is written regardless of ACTIVE status
+        verify(store)
+                .setCrsState(CRSState.newBuilder()
+                        .crs(INITIAL_CRS)
+                        .stage(CRSStage.COMPLETED)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime((Timestamp) null)
+                        .build());
+    }
+
+    @Test
+    void doesNotPublishHintsKeyWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+        // remove crs publication task
+        scheduledTasks.poll();
+        given(weights.numTargetNodesInSource()).willReturn(2);
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, false);
+
+        // isActive=false gates this node's own hinTS-key publication: nothing scheduled or submitted
+        assertNull(scheduledTasks.poll());
+        verify(submissions, never()).submitHintsKey(anyInt(), anyInt(), any());
     }
 
     private void setupWith(@NonNull final HintsConstruction construction) {
