@@ -32,6 +32,8 @@ import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockItemsStreamRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestResult;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestStatus;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
@@ -90,15 +92,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
+            final Class<?> cls = BlockNodeStreamingConnection.class;
+
             connectionStateHandle = MethodHandles.privateLookupIn(AbstractBlockNodeConnection.class, lookup)
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
-                    .findVarHandle(BlockNodeStreamingConnection.class, "streamingBlockNumber", AtomicLong.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
-                    .findVarHandle(BlockNodeStreamingConnection.class, "workerThreadRef", AtomicReference.class);
+            streamingBlockNumberHandle = MethodHandles.privateLookupIn(cls, lookup)
+                    .findVarHandle(cls, "streamingBlockNumber", AtomicLong.class);
+            workerThreadRefHandle = MethodHandles.privateLookupIn(cls, lookup)
+                    .findVarHandle(cls, "workerThreadRef", AtomicReference.class);
 
-            final Method sendRequest =
-                    BlockNodeStreamingConnection.class.getDeclaredMethod("sendRequest", StreamRequest.class);
+            final Method sendRequest = cls.getDeclaredMethod("sendRequest", StreamRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
         } catch (final Exception e) {
@@ -854,7 +857,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         activateConnection();
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         verify(requestCall).sendRequest(request, false);
         verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
@@ -873,7 +876,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
         connection.initialize();
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         verify(metrics).recordConnectionOpened();
         verifyNoMoreInteractions(metrics);
@@ -888,7 +891,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // don't create the observer
         connection.updateConnectionState(ConnectionState.READY);
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -902,8 +905,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         doThrow(new RuntimeException("kaboom!")).when(requestCall).sendRequest(any(), anyBoolean());
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
-        final RuntimeException e =
-                catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false)));
+        final RuntimeException e = catchRuntimeException(
+                () -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1)));
         assertThat(e).isInstanceOf(RuntimeException.class);
         // Exception gets wrapped when executed in virtual thread executor
         assertThat(e.getMessage()).contains("Error encountered while sending request to block node");
@@ -925,7 +928,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 .currentState();
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
-        sendRequest(spiedConnection, new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(spiedConnection, new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         verify(requestCall).sendRequest(any(), anyBoolean());
         verify(spiedConnection, atLeast(2)).currentState();
@@ -1940,7 +1943,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         activateConnection();
 
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         // Verify the request was sent successfully
         verify(requestCall).sendRequest(request, false);
@@ -1967,7 +1970,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
         // Since connection is not ACTIVE, sendRequest should not do anything
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         // Verify no interactions since connection is not ACTIVE
         verifyNoInteractions(requestCall);
@@ -1989,8 +1992,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
         // Should throw RuntimeException wrapped by the executor
-        final RuntimeException exception =
-                catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false)));
+        final RuntimeException exception = catchRuntimeException(
+                () -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1)));
 
         assertThat(exception).isNotNull();
         // Exception gets wrapped when executed in virtual thread executor
@@ -2020,7 +2023,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Try to send a request after close - should be ignored since connection is CLOSED
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
         verify(requestCall).completeRequests(); // Only from the close() call
         verify(requestCall).sendRequest(any(), anyBoolean()); // sendRequest executed to send the RESET request
@@ -2030,12 +2033,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(requestCall);
     }
 
-    /**
-     * Tests TimeoutException handling when pipeline.onNext() times out.
-     * Uses mocks to simulate a timeout without actually waiting, making the test fast.
-     */
     @Test
-    void testSendRequest_timeoutException() throws Exception {
+    void testSendRequest_timeoutException_firstFailure() throws Exception {
         activateConnection();
 
         // Create a mock Future that will throw TimeoutException when get() is called
@@ -2058,21 +2057,27 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
 
         // Send request - should trigger timeout handling immediately
-        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+        final SendRequestResult result =
+                sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false, 3_000, 1));
 
-        // Connection should be CLOSED after timeout
-        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
-        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(SendRequestStatus.TIMEOUT);
+
+        // Connection should still be open
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
+        assertThat(connection.closeReason()).isNull();
 
         // Verify timeout was detected and handled
         // Note: future.get() is called twice - once for sendRequest (times out)
         // and once for closePipeline/onComplete (also times out during cleanup)
-        verify(mockFuture, times(3)).get(anyLong(), any(TimeUnit.class));
+        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
         verify(mockFuture).cancel(true); // Future should be cancelled both times
 
-        // Timeout metric is recorded twice - once for sendRequest, once for onComplete during close
+        verify(metrics).recordRequestSendFailure();
         verify(metrics).recordPipelineOperationTimeout();
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+
+        verifyNoMoreInteractions(mockFuture);
+        verifyNoMoreInteractions(metrics);
     }
 
     /**
@@ -2159,7 +2164,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         doThrow(new RuntimeException("Execution failed")).when(requestCall).sendRequest(any(), anyBoolean());
 
         final PublishStreamRequestBytes request = createRequest(newBlockHeaderItem());
-        final BlockItemsStreamRequest bisReq = new BlockItemsStreamRequest(request, 10L, 1, 1, false, false);
+        final BlockItemsStreamRequest bisReq = new BlockItemsStreamRequest(request, 10L, 1, 1, false, false, 3_000, 1);
 
         // Should throw RuntimeException wrapping ExecutionException
         final RuntimeException exception = catchRuntimeException(() -> sendRequest(bisReq));
@@ -2306,13 +2311,13 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         doWorkMethod.invoke(worker);
     }
 
-    private void sendRequest(final StreamRequest request) {
-        sendRequest(connection, request);
+    private SendRequestResult sendRequest(final StreamRequest request) {
+        return sendRequest(connection, request);
     }
 
-    private void sendRequest(final BlockNodeStreamingConnection connection, final StreamRequest request) {
+    private SendRequestResult sendRequest(final BlockNodeStreamingConnection connection, final StreamRequest request) {
         try {
-            sendRequestHandle.invoke(connection, request);
+            return (SendRequestResult) sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {
             if (e instanceof final RuntimeException re) {
                 throw re;
