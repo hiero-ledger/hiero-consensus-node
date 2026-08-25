@@ -106,7 +106,7 @@ class MerkleDbCompactionCoordinator {
     /**
      * Active compactors by task key (e.g. "IdToHashChunk_compact_0_1"). Synchronized on this. Only populated when a
      * compaction task has created a DataFileCompactor and is actively compacting. Used for pause/resume during
-     * snapshots and interrupt during shutdown.
+     * snapshots and for interruption when background compaction is disabled.
      */
     final Map<String, DataFileCompactor> compactorsByName = new HashMap<>(16);
 
@@ -174,18 +174,26 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Stops all compactions in progress and disables background compaction. All subsequent calls to compacting methods
-     * will be ignored until {@link #enableBackgroundCompaction()} is called. Scanner tasks are not interrupted (they
-     * are read-only and will finish harmlessly).
+     * Disables background compaction and interrupts all compactions in progress without waiting for them to complete.
+     * All subsequent calls to compacting methods will be ignored until {@link #enableBackgroundCompaction()} is called.
+     * Scanner tasks are not interrupted (they are read-only and will finish harmlessly).
      *
      * <p>Queued compaction tasks that have not yet started will check {@code compactionEnabled}
      * when they begin execution and exit immediately.
      */
-    synchronized void stopAndDisableBackgroundCompaction() {
+    synchronized void disableAndInterruptBackgroundCompaction() {
         compactionEnabled = false;
         for (final DataFileCompactor compactor : compactorsByName.values()) {
             compactor.interruptCompaction();
         }
+    }
+
+    /**
+     * Disables background compaction, interrupts all compactions in progress, and waits for all current background
+     * compaction tasks to complete, including scanner tasks.
+     */
+    synchronized void stopAndDisableBackgroundCompaction() {
+        disableAndInterruptBackgroundCompaction();
         awaitForCurrentCompactionsToComplete(SHUTDOWN_TIMEOUT_MILLIS);
         if (!taskKeys.isEmpty()) {
             logger.warn(MERKLE_DB.getMarker(), "Timed out waiting to stop all compaction tasks");

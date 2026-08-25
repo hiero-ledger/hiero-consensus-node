@@ -16,6 +16,9 @@ import org.hiero.base.crypto.Hash;
 public class NoOpStateLifecycleManager<S, D> implements StateLifecycleManager<S, D> {
 
     @Override
+    public void prepareForFreeze() {}
+
+    @Override
     public S createStateFrom(@NonNull final D rootNode) {
         return null;
     }

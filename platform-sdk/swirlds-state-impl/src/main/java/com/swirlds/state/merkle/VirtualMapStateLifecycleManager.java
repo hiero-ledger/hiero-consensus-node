@@ -131,6 +131,14 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
      * {@inheritDoc}
      */
     @Override
+    public void prepareForFreeze() {
+        getMutableState().getRoot().getDataSource().disableAndInterruptBackgroundCompaction();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public VirtualMapState getLatestImmutableState() {
         return latestImmutableStateRef.get();
