@@ -186,6 +186,42 @@ class HandleHederaNativeOperationsTest {
     }
 
     @Test
+    void derivesStakePeriodStartForAnAccountStakedToANode() {
+        // The case above exercises only the two fields summarizeStakingInfo copies verbatim. Everything the
+        // accessor actually assembles - the two config values, the rewards flag, the staking info store and
+        // the consensus time - is consumed only under `hasStakedNodeId() && != SENTINEL_NODE_ID`, so without
+        // a node-staked account those arguments could be transposed and no test would notice.
+        final var now = Instant.ofEpochSecond(1_700_000_000L);
+        final var config = HederaTestConfigBuilder.createConfig();
+        given(context.configuration()).willReturn(config);
+        given(context.consensusNow()).willReturn(now);
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableStakingInfoStore.class)).willReturn(stakingInfoStore);
+        given(storeFactory.readableStore(ReadableNetworkStakingRewardsStore.class))
+                .willReturn(stakingRewardsStore);
+        given(stakingRewardsStore.isStakingRewardsActivated()).willReturn(false);
+        final long stakePeriodStartDay = 19_000L;
+        final var account = Account.newBuilder()
+                .accountId(beneficiaryAccount)
+                .declineReward(false)
+                .stakedNodeId(3L)
+                .stakePeriodStart(stakePeriodStartDay)
+                .build();
+
+        final var info = subject.stakingInfoOf(account);
+
+        assertEquals(3L, info.stakedNodeIdOrThrow());
+        // staking.periodMins defaults to 1440, so periods are whole UTC days. Passing
+        // rewardHistoryNumStoredPeriods here instead would take the non-daily branch of
+        // StakingRewardsApi#epochSecondAtStartOfPeriod and yield a wildly different second.
+        assertEquals(
+                stakePeriodStartDay * 86_400L, info.stakePeriodStartOrThrow().seconds());
+        // Rewards are inactive, so nothing has accrued
+        assertEquals(0L, info.pendingReward());
+        assertFalse(info.hasStakedAccountId());
+    }
+
+    @Test
     void getAccountUsesContextReadableStore() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
