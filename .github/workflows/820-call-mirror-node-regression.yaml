@@ -105,6 +105,7 @@ jobs:
 
       - name: Configure and run solo
         id: run-solo
+        timeout-minutes: 15
         env:
           MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.161.0' }}
         run: |
