@@ -11,6 +11,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.DataEncodingException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,10 +31,16 @@ public class ProtobufUtils {
 
     @NonNull
     public static Bytes extractPaymentBytes(@NonNull final Bytes serializedQuery) throws IOException, ParseException {
-        final var queryBody = extractQuery(serializedQuery.toReadableSequentialData());
-        final var queryHeader =
-                extractFieldBytes(queryBody.toReadableSequentialData(), TransactionGetReceiptQuerySchema.HEADER);
-        return extractFieldBytes(queryHeader.toReadableSequentialData(), QueryHeaderSchema.PAYMENT);
+        try {
+            final var queryBody = extractQuery(serializedQuery.toReadableSequentialData());
+            final var queryHeader =
+                    extractFieldBytes(queryBody.toReadableSequentialData(), TransactionGetReceiptQuerySchema.HEADER);
+            return extractFieldBytes(queryHeader.toReadableSequentialData(), QueryHeaderSchema.PAYMENT);
+        } catch (final DataEncodingException e) {
+            // Thrown by any varint read on a malformed varint. It is unchecked, so translate it here to keep
+            // the declared IOException/ParseException contract
+            throw new ParseException(e);
+        }
     }
 
     @NonNull
@@ -58,16 +65,15 @@ public class ProtobufUtils {
                 // No more fields
                 break;
             }
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
-            final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            final int fieldNum = tag >>> TAG_FIELD_OFFSET;
+            final ProtoConstants wireType = wireTypeFor(tag);
             if (fieldNum == field.number()) {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                     throw new ParseException("Unexpected wire type: " + tag);
                 }
-                final int length = input.readVarInt(false);
-                return input.readBytes(length);
+                return readLengthDelimitedBytes(input);
             } else {
-                ProtoParserTools.skipField(input, wireType);
+                skipField(input, wireType);
             }
         }
         throw new ParseException("Field not found: " + field);
@@ -87,18 +93,46 @@ public class ProtobufUtils {
                 // No more fields
                 break;
             }
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
-            final ProtoConstants wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+            final int fieldNum = tag >>> TAG_FIELD_OFFSET;
+            final ProtoConstants wireType = wireTypeFor(tag);
             if (QUERY_FIELDS.contains(fieldNum)) {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                     throw new ParseException("Unexpected wire type: " + tag);
                 }
-                final int length = input.readVarInt(false);
-                return input.readBytes(length);
+                return readLengthDelimitedBytes(input);
             } else {
-                ProtoParserTools.skipField(input, wireType);
+                skipField(input, wireType);
             }
         }
         throw new ParseException("Query not found");
+    }
+
+    @NonNull
+    private static ProtoConstants wireTypeFor(final int tag) throws ParseException {
+        final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
+        if (wireType >= ProtoConstants.values().length) {
+            throw new ParseException("Invalid wire type: " + wireType);
+        }
+        return ProtoConstants.get(wireType);
+    }
+
+    private static void skipField(@NonNull final ReadableSequentialData input, @NonNull final ProtoConstants wireType)
+            throws IOException, ParseException {
+        try {
+            ProtoParserTools.skipField(input, wireType, input.remaining());
+        } catch (final BufferUnderflowException e) {
+            throw new ParseException(e);
+        }
+    }
+
+    @NonNull
+    private static Bytes readLengthDelimitedBytes(@NonNull final ReadableSequentialData input) throws ParseException {
+        try {
+            // readBytes() rejects a negative length and a length past the end of the input for us, so the only
+            // thing to be done is to translate its unchecked exceptions
+            return input.readBytes(input.readVarInt(false));
+        } catch (final BufferUnderflowException | IllegalArgumentException e) {
+            throw new ParseException(e);
+        }
     }
 }
