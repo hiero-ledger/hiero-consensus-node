@@ -200,17 +200,10 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
         requireNonNull(attempt);
         if (attempt.isSelector(SIGN_SCHEDULE_PROXY)) {
             return getScheduleIDForSignScheduleProxy(attempt);
-        } else if (attempt.isSelector(SIGN_SCHEDULE)) {
-            return getScheduleIDForSignSchedule(attempt);
         } else if (attempt.isSelector(AUTHORIZE_SCHEDULE)) {
             return getScheduleIDForAuthorizeSchedule(attempt);
         }
         throw new IllegalStateException("Unexpected function selector");
-    }
-
-    private static ScheduleID getScheduleIDForSignSchedule(@NonNull HssCallAttempt attempt) {
-        final var call = SIGN_SCHEDULE.decodeCall(attempt.inputBytes());
-        return getScheduleIDFromCall(attempt, call);
     }
 
     private static ScheduleID getScheduleIDForAuthorizeSchedule(@NonNull HssCallAttempt attempt) {
@@ -245,17 +238,6 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
         final var maxRegularTxnSize =
                 attempt.configuration().getConfigData(HederaConfig.class).transactionMaxBytes();
         validateTrue(signaturesMapBytesSize <= maxRegularTxnSize, INVALID_TRANSACTION_BODY);
-    }
-
-    @VisibleForTesting
-    @NonNull
-    public static Set<Key> getKeyForSignSchedule(@NonNull HssCallAttempt attempt) {
-        requireNonNull(attempt);
-        final var call = SIGN_SCHEDULE.decodeCall(attempt.inputBytes());
-        final var scheduleId = requireNonNull(getScheduleIDFromCall(attempt, call));
-        final var signatureBlob = (byte[]) call.get(SIGNATURE_MAP_INDEX);
-        validateSignatureMapMaxLength(attempt, signatureBlob.length);
-        return getKeyForSignSchedule(attempt, scheduleId, parseSignatureMap(signatureBlob));
     }
 
     /**

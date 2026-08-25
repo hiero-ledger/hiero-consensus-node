@@ -44,11 +44,14 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 
 class SignScheduleTranslatorTest extends CallAttemptTestBase {
@@ -92,6 +95,9 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private Key key;
+
+    @Captor
+    private ArgumentCaptor<Set<Key>> authorizingKeysCaptor;
 
     private static final Key ecdsaKey = Key.newBuilder()
             .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(
@@ -362,10 +368,13 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
     }
 
     @Test
-    void testScheduleIdForScheduleService() {
+    void testCallFromSignScheduleWithEmptySignatureMapResolvesScheduleId() {
         given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.chainId()).willReturn(296);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(CONFIG_WITH_TRANSACTION_MAX_BYTES);
 
         attempt = createHssCallAttempt(
                 Bytes.wrapByteBuffer(SignScheduleTranslator.SIGN_SCHEDULE.encodeCall(
@@ -374,8 +383,7 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
                 configuration,
                 List.of(subject));
 
-        final var returnedScheduleId = subject.scheduleIdFor(attempt);
-        assertThat(returnedScheduleId).isEqualTo(scheduleID);
+        assertThat(authorizingKeysFor(attempt)).isEmpty();
     }
 
     @Test
@@ -397,9 +405,7 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
                 configuration,
                 List.of(subject));
 
-        final var keySet = SignScheduleTranslator.getKeyForSignSchedule(attempt);
-
-        assertThat(keySet).contains(ecdsaKey).contains(ed25519);
+        assertThat(authorizingKeysFor(attempt)).contains(ecdsaKey).contains(ed25519);
     }
 
     @Test
@@ -501,9 +507,7 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
                 configuration,
                 List.of(subject));
 
-        final var keySet = SignScheduleTranslator.getKeyForSignSchedule(attempt);
-
-        assertThat(keySet).isEmpty();
+        assertThat(authorizingKeysFor(attempt)).isEmpty();
     }
 
     @Test
@@ -511,8 +515,11 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(schedule.scheduleId()).willReturn(scheduleID);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.chainId()).willReturn(296);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(CONFIG_WITH_TRANSACTION_MAX_BYTES);
 
+        // Signatures are EIP-155 encoded for chain ID 396 while the node is configured for 296
         final var sigMapBytes = getSigMapKnownKeyTypeBytes(396, 1, 1);
         attempt = createHssCallAttempt(
                 Bytes.wrapByteBuffer(SignScheduleTranslator.SIGN_SCHEDULE.encodeCall(
@@ -521,8 +528,7 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
                 configuration,
                 List.of(subject));
 
-        HandleException exception =
-                assertThrows(HandleException.class, () -> SignScheduleTranslator.getKeyForSignSchedule(attempt));
+        HandleException exception = assertThrows(HandleException.class, () -> subject.callFrom(attempt));
         assertThat(exception.getStatus()).isEqualTo(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
     }
 
@@ -543,9 +549,7 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
                 configuration,
                 List.of(subject));
 
-        final var keySet = SignScheduleTranslator.getKeyForSignSchedule(attempt);
-
-        assertThat(keySet).isEmpty();
+        assertThat(authorizingKeysFor(attempt)).isEmpty();
     }
 
     @Test
@@ -563,9 +567,31 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
                 configuration,
                 List.of(subject));
 
-        HandleException exception =
-                assertThrows(HandleException.class, () -> SignScheduleTranslator.getKeyForSignSchedule(attempt));
+        HandleException exception = assertThrows(HandleException.class, () -> subject.callFrom(attempt));
         assertThat(exception.getStatus()).isEqualTo(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+    }
+
+    /**
+     * Drives a {@code signSchedule(address,bytes)} attempt through the production {@code callFrom} path and
+     * returns the authorizing key set the resulting call hands to the dispatch.
+     */
+    private Set<Key> authorizingKeysFor(@NonNull final HssCallAttempt attempt) {
+        given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
+        given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
+                .willReturn(verificationStrategy);
+        given(systemContractOperations.dispatch(
+                        eq(subject.bodyFor(scheduleID)),
+                        eq(verificationStrategy),
+                        eq(payerId),
+                        eq(ContractCallStreamBuilder.class),
+                        authorizingKeysCaptor.capture(),
+                        eq(DispatchOptions.UsePresetTxnId.NO)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+
+        subject.callFrom(attempt).execute(frame);
+
+        return authorizingKeysCaptor.getValue();
     }
 
     private static com.hedera.pbj.runtime.io.buffer.Bytes getSigMapKnownKeyTypeBytes(
