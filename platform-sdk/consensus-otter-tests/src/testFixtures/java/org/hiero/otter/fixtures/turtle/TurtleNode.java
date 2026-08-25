@@ -73,6 +73,8 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -92,7 +94,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  *
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
-public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
+public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManager.TimeTickReceiver {
     private static final Logger log = LogManager.getLogger();
     /**
      * Logger for startup messages that should appear in per-node logs (uses platform package to bypass org.hiero.otter
@@ -101,7 +103,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private static final Logger startupLogger = LogManager.getLogger("com.swirlds.platform.node.startup");
 
     private final Random random;
-    private final TurtleTimeManager timeManager;
+    private final SimulatorTimeManager timeManager;
     private final SimulatedGossip gossip;
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
@@ -141,7 +143,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     public TurtleNode(
             @NonNull final Random random,
-            @NonNull final TurtleTimeManager timeManager,
+            @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedGossip gossip,
@@ -307,6 +309,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformStatus = PlatformStatus.STARTING_UP;
 
             platform.start();
+
+            // Replay runs synchronously inside start(), so the node's event window is now final. Let it re-read what
+            // the network still holds, to recover events that were delivered before the restart but never persisted.
+            gossip.onRestart();
 
             quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = RUNNING;

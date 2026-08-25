@@ -26,6 +26,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -332,6 +333,58 @@ public class TipsetEventCreatorTestUtils {
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)
                 .build();
+    }
+
+    /**
+     * Create an event that chains off the given self parent. Unlike
+     * {@link #createTestEventWithParent(Random, NodeId, long, long)}, which invents a throw-away self parent, this
+     * builds an event whose self parent is the supplied event, so a caller can assemble a real self-event chain.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the event
+     * @param birthRound the birth round to assign to the event
+     * @param selfParent the self parent of the event, or null for the first event in a chain
+     * @return the new event
+     */
+    @NonNull
+    public static PlatformEvent createTestEventWithSelfParent(
+            @NonNull final Random random,
+            @NonNull final NodeId creator,
+            final long birthRound,
+            @Nullable final PlatformEvent selfParent) {
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .build();
+    }
+
+    /**
+     * Create a chain of self events, each the self parent of the next. The first event in the chain has a throw-away
+     * self parent, so that no event in the returned list is treated as a genesis event.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the events
+     * @param birthRound the birth round to assign to every event in the chain
+     * @param length     the number of events to create. Must be positive.
+     * @return the chain, oldest first
+     */
+    @NonNull
+    public static List<PlatformEvent> createSelfEventChain(
+            @NonNull final Random random, @NonNull final NodeId creator, final long birthRound, final int length) {
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be greater than 0");
+        }
+
+        final List<PlatformEvent> chain = new ArrayList<>(length);
+        PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(creator).build();
+        for (int i = 0; i < length; i++) {
+            selfParent = createTestEventWithSelfParent(random, creator, birthRound, selfParent);
+            chain.add(selfParent);
+        }
+        return chain;
     }
 
     /**

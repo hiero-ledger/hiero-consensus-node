@@ -24,6 +24,7 @@ public record UserAgent(
     private static final String UNKNOWN_STR = "Unknown";
     static final UserAgent UNKNOWN = new UserAgent(UserAgentType.UNKNOWN, UNKNOWN_STR);
     static final UserAgent UNSPECIFIED = new UserAgent(UserAgentType.UNSPECIFIED, UNKNOWN_STR);
+    static final UserAgent OTHER = new UserAgent(UserAgentType.OTHER, UNKNOWN_STR);
 
     private static final Logger logger = LogManager.getLogger(UserAgent.class);
 
