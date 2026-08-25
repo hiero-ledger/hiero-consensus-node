@@ -1,5 +1,5 @@
-citr-solo-version=0.79.1
-adhoc-solo-version=0.79.1
+citr-solo-version=v0.87.1
+adhoc-solo-version=v0.87.1
 adhoc-xts-solo-version=0.84.1
 cutover-solo-version=0.84.1
 citr-mirror-node-version=0.162.0-rc1
