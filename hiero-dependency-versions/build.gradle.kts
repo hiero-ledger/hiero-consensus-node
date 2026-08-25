@@ -9,7 +9,7 @@ dependencies {
 }
 
 val besu = "26.2.0"
-val bouncycastle = "1.84"
+val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
