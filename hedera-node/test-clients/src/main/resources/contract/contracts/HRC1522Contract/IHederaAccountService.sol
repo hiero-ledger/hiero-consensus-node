@@ -4,6 +4,28 @@ pragma experimental ABIEncoderV2;
 
 interface IHederaAccountService {
 
+    /// An account's staking state, mirroring the HAPI `StakingInfo` message. Because Solidity has no
+    /// `oneof`, the protobuf's `staked_id` is flattened into `stakedNodeId` and `stakedAccountId`,
+    /// carrying the same sentinels the mutating functions accept. At most one is ever set.
+    struct StakingInfo {
+        /// Whether the account has opted out of receiving staking rewards.
+        bool declineReward;
+        /// Epoch second at the start of the account's current staking period, derived from the period
+        /// number stored on the account; 0 unless the account is staked to a node.
+        int64 stakePeriodStart;
+        /// Reward in tinybar estimated to be payable at the next reward trigger. An estimate, not a
+        /// claimable balance; always 0 when the account declines rewards or is not staked to a node.
+        int64 pendingReward;
+        /// Total tinybar balance of all accounts staking to this account.
+        int64 stakedToMe;
+        /// Consensus node the account is staked to, or -1 if the account is not staked to a node.
+        int64 stakedNodeId;
+        /// Account the account is staked to, or the zero address if not staked to an account. Rendered
+        /// in the account's priority EVM form: its EVM address alias when it has one, and the long-zero
+        /// address otherwise.
+        address stakedAccountId;
+    }
+
     /// Returns the amount of hbar that the spender has been authorized to spend on behalf of the owner.
     /// @param owner The account that has authorized the spender.
     /// @param spender The account that has been authorized by the owner.
@@ -66,4 +88,43 @@ interface IHederaAccountService {
         address account,
         bytes memory message,
         bytes memory signature) external returns (int64 responseCode, bool response);
+
+    /// Stake `account`'s balance to consensus node `nodeId`.
+    /// @param account The account to configure.
+    /// @param nodeId A non-negative consensus node id, or -1 to clear the staking target
+    ///        (equivalent to unstake). Any other negative value is invalid.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function stakeToNode(address account, int64 nodeId) external returns (int64 responseCode);
+
+    /// Stake `account`'s balance to another account.
+    /// @param account The account to configure.
+    /// @param stakedTo The account to stake to; the zero address clears the staking target.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function stakeToAccount(address account, address stakedTo) external returns (int64 responseCode);
+
+    /// Clear `account`'s staking target (no node / account staking).
+    /// @param account The account to configure.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function unstake(address account) external returns (int64 responseCode);
+
+    /// Set `account`'s decline-staking-reward flag.
+    /// @param account The account to configure.
+    /// @param decline Whether the account declines staking rewards.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function setDeclineReward(address account, bool decline) external returns (int64 responseCode);
+
+    /// Stake `account` to a consensus node and set its decline-reward flag in one call.
+    /// @param account The account to configure.
+    /// @param nodeId The consensus node id to stake to; must be non-negative. To clear the staking
+    ///        target, call unstake instead.
+    /// @param decline Whether the account declines staking rewards.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function stakeToNodeAndDeclineReward(address account, int64 nodeId, bool decline)
+        external returns (int64 responseCode);
+
+    /// Read `account`'s staking state. Requires no authorization: staking state is already public.
+    /// @param account The account to read.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    /// @return info The account's staking state.
+    function getStakingInfo(address account) external returns (int64 responseCode, StakingInfo memory info);
 }

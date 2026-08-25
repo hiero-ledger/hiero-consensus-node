@@ -99,4 +99,65 @@ abstract contract HederaAccountService {
                 account, message, signature));
         return success ? abi.decode(result, (int64, bool)) : (int64(HederaResponseCodes.UNKNOWN), false);
     }
+
+    // --- HIP-1522 account staking configuration ----------------------------------------------------
+    // Note these decode the response code as int64, matching the ABI. The older wrappers above decode
+    // int32 and happen to work only because of ABI padding; do not copy that.
+
+    /// Stake `account`'s balance to consensus node `nodeId`. Pass -1 to clear the staking target.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function stakeToNode(address account, int64 nodeId) internal returns (int64 responseCode) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(IHederaAccountService.stakeToNode.selector, account, nodeId));
+        responseCode = success ? abi.decode(result, (int64)) : int64(HederaResponseCodes.UNKNOWN);
+    }
+
+    /// Stake `account`'s balance to `stakedTo`. Pass the zero address to clear the staking target.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function stakeToAccount(address account, address stakedTo) internal returns (int64 responseCode) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(IHederaAccountService.stakeToAccount.selector, account, stakedTo));
+        responseCode = success ? abi.decode(result, (int64)) : int64(HederaResponseCodes.UNKNOWN);
+    }
+
+    /// Clear `account`'s staking target.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function unstake(address account) internal returns (int64 responseCode) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(IHederaAccountService.unstake.selector, account));
+        responseCode = success ? abi.decode(result, (int64)) : int64(HederaResponseCodes.UNKNOWN);
+    }
+
+    /// Set `account`'s decline-staking-reward flag.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function setDeclineReward(address account, bool decline) internal returns (int64 responseCode) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(IHederaAccountService.setDeclineReward.selector, account, decline));
+        responseCode = success ? abi.decode(result, (int64)) : int64(HederaResponseCodes.UNKNOWN);
+    }
+
+    /// Stake `account` to node `nodeId` and set its decline-reward flag in one call. `nodeId` must be
+    /// non-negative; use unstake() to clear the target.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    function stakeToNodeAndDeclineReward(address account, int64 nodeId, bool decline)
+        internal returns (int64 responseCode) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(
+                IHederaAccountService.stakeToNodeAndDeclineReward.selector, account, nodeId, decline));
+        responseCode = success ? abi.decode(result, (int64)) : int64(HederaResponseCodes.UNKNOWN);
+    }
+
+    /// Read `account`'s staking state.
+    /// @return responseCode The response code for the status of the request. SUCCESS is 22.
+    /// @return info The account's staking state.
+    function getStakingInfo(address account) internal
+        returns (int64 responseCode, IHederaAccountService.StakingInfo memory info) {
+        (bool success, bytes memory result) = precompileAddress.call(
+            abi.encodeWithSelector(IHederaAccountService.getStakingInfo.selector, account));
+        if (success) {
+            (responseCode, info) = abi.decode(result, (int64, IHederaAccountService.StakingInfo));
+        } else {
+            responseCode = int64(HederaResponseCodes.UNKNOWN);
+        }
+    }
 }

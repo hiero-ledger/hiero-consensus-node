@@ -36,10 +36,15 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MODIFYING_IMMU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.AccountID;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -52,17 +57,31 @@ import org.junit.jupiter.api.Tag;
  * <p>Two surfaces are covered. A contract configures its own account through the explicit
  * {@code IHederaAccountService} form on {@code 0x16a} — the case the HIP exists to serve, and the only one
  * reachable from a contract. An EOA uses the {@code IHRC632} facade on its own address.
+ *
+ * <p>The driver contract is {@code HRC1522Contract} rather than the shared {@code HRC632Contract}: that
+ * fixture is deployed by the HIP-632 suites under a hard-coded {@code creationGas}, and two of them pin the
+ * exact gas at which a call to it flips between {@code INSUFFICIENT_GAS} and {@code SUCCESS}, so growing it
+ * breaks tests that have nothing to do with staking.
  */
 @Tag(SMART_CONTRACT)
 public class AccountStakingConfigurationTest {
     private static final String STAKING_FLAG = "contracts.systemContract.accountService.stakingEnabled";
-    private static final String HRC632_CONTRACT = "HRC632Contract";
+    private static final String HRC1522_CONTRACT = "HRC1522Contract";
     private static final String IHRC632 = "IHRC632";
     private static final String ACCOUNT = "account";
     private static final String OTHER = "other";
-    private static final long NODE_ID = 0L;
+
+    /**
+     * Deliberately non-zero. HAPI reports a cleared staking target as an unset {@code staked_id} oneof, so the
+     * proto getter reads 0 — which makes {@code stakedNodeId(0)} and {@code noStakingNodeId()} the very same
+     * assertion, and every before/after pair in this file blind. The CI network for both smart-contract HAPI
+     * tasks runs 3 nodes, so node 1 exists.
+     */
+    private static final long NODE_ID = 1L;
     /** The staked_node_id sentinel meaning "no node"; what unstake() leaves behind. */
     private static final long SENTINEL_NODE_ID = -1L;
+
+    private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
 
     // --- The motivating case: a keyless contract staking its own balance ---------------------------
 
@@ -72,12 +91,12 @@ public class AccountStakingConfigurationTest {
         return hapiTest(
                 overriding(STAKING_FLAG, "true"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
+                uploadInitCode(HRC1522_CONTRACT),
                 // No admin key: a ledger-level superuser over a custody contract is exactly what the HIP
                 // exists to avoid, and contractCreate would otherwise give it one
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
-                cryptoTransfer(tinyBarsFromTo(ACCOUNT, HRC632_CONTRACT, ONE_HUNDRED_HBARS)),
-                contractCall(HRC632_CONTRACT, "stakeSelfToNodeCall", NODE_ID, true)
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                cryptoTransfer(tinyBarsFromTo(ACCOUNT, HRC1522_CONTRACT, ONE_HUNDRED_HBARS)),
+                contractCall(HRC1522_CONTRACT, "stakeSelfToNodeCall", NODE_ID, true)
                         .payingWith(ACCOUNT)
                         .gas(1_000_000)
                         .via("stakeSelf"),
@@ -86,10 +105,10 @@ public class AccountStakingConfigurationTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(FUNCTION, "stakeSelfToNodeCall", HRC632_CONTRACT),
+                                                getABIFor(FUNCTION, "stakeSelfToNodeCall", HRC1522_CONTRACT),
                                                 isLiteralResult(new Object[] {(long) SUCCESS.getNumber()})))),
                 // The contract account really is staked now
-                getContractInfo(HRC632_CONTRACT)
+                getContractInfo(HRC1522_CONTRACT)
                         .has(contractWith().stakedNodeId(NODE_ID).isDeclinedReward(true)));
     }
 
@@ -99,17 +118,24 @@ public class AccountStakingConfigurationTest {
         return hapiTest(
                 overriding(STAKING_FLAG, "true"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
-                contractCall(HRC632_CONTRACT, "stakeSelfToNodeCall", NODE_ID, true)
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                contractCall(HRC1522_CONTRACT, "stakeSelfToNodeCall", NODE_ID, true)
                         .payingWith(ACCOUNT)
                         .gas(1_000_000),
-                contractCall(HRC632_CONTRACT, "getOwnStakingInfoCall")
+                contractCall(HRC1522_CONTRACT, "getOwnStakingInfoCall")
                         .payingWith(ACCOUNT)
                         .gas(1_000_000)
                         .via("readSelf"),
-                // declineReward true, no accruing reward (it declines), no account staking target
-                getTxnRecord("readSelf").logged().hasPriority(recordWith().status(SUCCESS)));
+                // Every field of the struct, not just the record status: declineReward true, no pending reward
+                // (it declines), nothing staked to it, node 1, and no account target.
+                getTxnRecord("readSelf")
+                        .hasPriority(recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .resultThruAbi(
+                                                getABIFor(FUNCTION, "getOwnStakingInfoCall", HRC1522_CONTRACT),
+                                                stakingInfoWith(true, 0L, 0L, NODE_ID, ZERO_ADDRESS)))));
     }
 
     // --- Unstaking: three spellings, one outcome ---------------------------------------------------
@@ -121,43 +147,41 @@ public class AccountStakingConfigurationTest {
         return hapiTest(
                 overriding(STAKING_FLAG, "true"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
-                getContractInfo(HRC632_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                getContractInfo(HRC1522_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // 1. the canonical form
-                        contractCall(HRC632_CONTRACT, "stakeToNodeCall", contractAddress.get(), NODE_ID)
+                        stakeToNode(contractAddress.get(), "stake1"),
+                        getContractInfo(HRC1522_CONTRACT).has(contractWith().stakedNodeId(NODE_ID)),
+                        contractCall(HRC1522_CONTRACT, "unstakeCall", contractAddress.get())
                                 .payingWith(ACCOUNT)
-                                .gas(1_000_000),
-                        getContractInfo(HRC632_CONTRACT).has(contractWith().stakedNodeId(NODE_ID)),
-                        contractCall(HRC632_CONTRACT, "unstakeCall", contractAddress.get())
-                                .payingWith(ACCOUNT)
-                                .gas(1_000_000),
+                                .gas(1_000_000)
+                                .via("unstake1"),
+                        succeeded("unstake1", "unstakeCall"),
                         // Note HAPI reports a cleared target as an unset staked_id oneof, so the proto
                         // getter reads 0 here. getStakingInfo maps that same state to the -1 sentinel,
                         // because Solidity has no oneof; GetStakingInfoCallTest pins that encoding.
-                        getContractInfo(HRC632_CONTRACT).has(contractWith().noStakingNodeId()),
+                        getContractInfo(HRC1522_CONTRACT).has(contractWith().noStakingNodeId()),
                         // 2. the node-id sentinel
-                        contractCall(HRC632_CONTRACT, "stakeToNodeCall", contractAddress.get(), NODE_ID)
+                        stakeToNode(contractAddress.get(), "stake2"),
+                        getContractInfo(HRC1522_CONTRACT).has(contractWith().stakedNodeId(NODE_ID)),
+                        contractCall(HRC1522_CONTRACT, "stakeToNodeCall", contractAddress.get(), SENTINEL_NODE_ID)
                                 .payingWith(ACCOUNT)
-                                .gas(1_000_000),
-                        contractCall(HRC632_CONTRACT, "stakeToNodeCall", contractAddress.get(), SENTINEL_NODE_ID)
-                                .payingWith(ACCOUNT)
-                                .gas(1_000_000),
-                        getContractInfo(HRC632_CONTRACT).has(contractWith().noStakingNodeId()),
+                                .gas(1_000_000)
+                                .via("unstake2"),
+                        succeeded("unstake2", "stakeToNodeCall"),
+                        getContractInfo(HRC1522_CONTRACT).has(contractWith().noStakingNodeId()),
                         // 3. the zero address, which resolves to the 0.0.0 staked_account_id sentinel
-                        contractCall(HRC632_CONTRACT, "stakeToNodeCall", contractAddress.get(), NODE_ID)
+                        stakeToNode(contractAddress.get(), "stake3"),
+                        getContractInfo(HRC1522_CONTRACT).has(contractWith().stakedNodeId(NODE_ID)),
+                        contractCall(HRC1522_CONTRACT, "stakeToAccountCall", contractAddress.get(), ZERO_ADDRESS)
                                 .payingWith(ACCOUNT)
-                                .gas(1_000_000),
-                        contractCall(
-                                        HRC632_CONTRACT,
-                                        "stakeToAccountCall",
-                                        contractAddress.get(),
-                                        asHeadlongAddress(new byte[20]))
-                                .payingWith(ACCOUNT)
-                                .gas(1_000_000),
-                        getContractInfo(HRC632_CONTRACT)
+                                .gas(1_000_000)
+                                .via("unstake3"),
+                        succeeded("unstake3", "stakeToAccountCall"),
+                        getContractInfo(HRC1522_CONTRACT)
                                 .has(contractWith().noStakedAccountId().noStakingNodeId()))));
     }
 
@@ -168,13 +192,17 @@ public class AccountStakingConfigurationTest {
         return hapiTest(
                 overriding(STAKING_FLAG, "true"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
-                getContractInfo(HRC632_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                getContractInfo(HRC1522_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
+                        // Stake first, so "nothing changed" below is a real observation rather than a
+                        // statement about an account that was never staked to begin with
+                        stakeToNode(contractAddress.get(), "stakeFirst"),
+                        getContractInfo(HRC1522_CONTRACT).has(contractWith().stakedNodeId(NODE_ID)),
                         contractCall(
-                                        HRC632_CONTRACT,
+                                        HRC1522_CONTRACT,
                                         "stakeToNodeAndDeclineRewardCall",
                                         contractAddress.get(),
                                         SENTINEL_NODE_ID,
@@ -187,11 +215,65 @@ public class AccountStakingConfigurationTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(FUNCTION, "stakeToNodeAndDeclineRewardCall", HRC632_CONTRACT),
+                                                getABIFor(
+                                                        FUNCTION, "stakeToNodeAndDeclineRewardCall", HRC1522_CONTRACT),
                                                 isLiteralResult(
                                                         new Object[] {(long) INVALID_STAKING_ID.getNumber()})))),
-                // and nothing changed
-                getContractInfo(HRC632_CONTRACT).has(contractWith().noStakingNodeId()));
+                // and the earlier staking is untouched
+                getContractInfo(HRC1522_CONTRACT)
+                        .has(contractWith().stakedNodeId(NODE_ID).isDeclinedReward(false)));
+    }
+
+    // --- Staking to an account ---------------------------------------------------------------------
+
+    @LeakyHapiTest(overrides = {STAKING_FLAG})
+    @DisplayName("a contract stakes to another account")
+    final Stream<DynamicTest> stakesToARealAccount() {
+        final AtomicReference<Address> contractAddress = new AtomicReference<>();
+        final AtomicReference<AccountID> otherId = new AtomicReference<>();
+        return hapiTest(
+                overriding(STAKING_FLAG, "true"),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(OTHER).exposingCreatedIdTo(otherId::set),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                getContractInfo(HRC1522_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        HRC1522_CONTRACT,
+                                        "stakeToAccountCall",
+                                        contractAddress.get(),
+                                        idAsHeadlongAddress(otherId.get()))
+                                .payingWith(ACCOUNT)
+                                .gas(1_000_000)
+                                .via("stakeToAccount"),
+                        succeeded("stakeToAccount", "stakeToAccountCall"),
+                        getContractInfo(HRC1522_CONTRACT)
+                                .has(contractWith().stakedAccountId(OTHER).noStakingNodeId()))));
+    }
+
+    @LeakyHapiTest(overrides = {STAKING_FLAG})
+    @DisplayName("setDeclineReward toggles the flag without touching the staking target")
+    final Stream<DynamicTest> setDeclineRewardLeavesTheTargetAlone() {
+        final AtomicReference<Address> contractAddress = new AtomicReference<>();
+        return hapiTest(
+                overriding(STAKING_FLAG, "true"),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                getContractInfo(HRC1522_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        stakeToNode(contractAddress.get(), "stakeFirst"),
+                        contractCall(HRC1522_CONTRACT, "setDeclineRewardCall", contractAddress.get(), true)
+                                .payingWith(ACCOUNT)
+                                .gas(1_000_000)
+                                .via("decline"),
+                        succeeded("decline", "setDeclineRewardCall"),
+                        // the flag flipped and the node target survived
+                        getContractInfo(HRC1522_CONTRACT)
+                                .has(contractWith().stakedNodeId(NODE_ID).isDeclinedReward(true)))));
     }
 
     // --- Authorization -----------------------------------------------------------------------------
@@ -204,11 +286,11 @@ public class AccountStakingConfigurationTest {
                 overriding(STAKING_FLAG, "true"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
                 cryptoCreate(OTHER).exposingCreatedIdTo(id -> otherAddress.set(idAsHeadlongAddress(id))),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
-                        contractCall(HRC632_CONTRACT, "stakeToNodeCall", otherAddress.get(), NODE_ID)
+                        contractCall(HRC1522_CONTRACT, "stakeToNodeCall", otherAddress.get(), NODE_ID)
                                 .payingWith(ACCOUNT)
                                 .gas(1_000_000)
                                 .via("crossAccount"))),
@@ -219,11 +301,13 @@ public class AccountStakingConfigurationTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(FUNCTION, "stakeToNodeCall", HRC632_CONTRACT),
+                                                getABIFor(FUNCTION, "stakeToNodeCall", HRC1522_CONTRACT),
                                                 isLiteralResult(new Object[] {
                                                     (long) INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE.getNumber()
                                                 })))),
-                getAccountInfo(OTHER).has(accountWith().noStakedAccountId()));
+                // ...and the target's staking really is untouched. The call named a *node*, so this is the
+                // field that would have changed had authorization been skipped.
+                getAccountInfo(OTHER).has(accountWith().noStakingNodeId().noStakedAccountId()));
     }
 
     // --- The IHRC632 facade, and its limit ---------------------------------------------------------
@@ -255,22 +339,48 @@ public class AccountStakingConfigurationTest {
     }
 
     @LeakyHapiTest(overrides = {STAKING_FLAG})
+    @DisplayName("an EOA declines rewards through the IHRC632 facade")
+    final Stream<DynamicTest> eoaDeclinesRewardThroughTheFacade() {
+        final AtomicReference<AccountID> accountNum = new AtomicReference<>();
+        return hapiTest(
+                overriding(STAKING_FLAG, "true"),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS).exposingCreatedIdTo(accountNum::set),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCallWithFunctionAbi(
+                                        String.valueOf(accountNum.get().getAccountNum()),
+                                        getABIFor(FUNCTION, "setDeclineReward", IHRC632),
+                                        true)
+                                .payingWith(ACCOUNT)
+                                .gas(1_000_000)
+                                .via("facadeDecline"))),
+                getTxnRecord("facadeDecline")
+                        .hasPriority(recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .resultThruAbi(
+                                                getABIFor(FUNCTION, "setDeclineReward", IHRC632),
+                                                isLiteralResult(new Object[] {(long) SUCCESS.getNumber()})))),
+                getAccountInfo(ACCOUNT).has(accountWith().isDeclinedReward(true)));
+    }
+
+    @LeakyHapiTest(overrides = {STAKING_FLAG})
     @DisplayName("the IHRC632 facade is unreachable on a contract address")
     final Stream<DynamicTest> facadeIsUnreachableOnAContractAddress() {
         return hapiTest(
                 overriding(STAKING_FLAG, "true"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
                 // The HAS proxy redirect fires only for an address carrying no contract bytecode, so this
                 // calldata executes the contract's own dispatcher, finds no such selector, and reverts.
-                // HRC632Contract implements stakeToNodeCall(address,int64), not stakeToNode(int64).
-                contractCallWithFunctionAbi(HRC632_CONTRACT, getABIFor(FUNCTION, "stakeToNode", IHRC632), NODE_ID)
+                // HRC1522Contract implements stakeToNodeCall(address,int64), not stakeToNode(int64).
+                contractCallWithFunctionAbi(HRC1522_CONTRACT, getABIFor(FUNCTION, "stakeToNode", IHRC632), NODE_ID)
                         .payingWith(ACCOUNT)
                         .gas(1_000_000)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                 // ...and nothing was staked, which is what makes this a proof rather than just "it reverted"
-                getContractInfo(HRC632_CONTRACT).has(contractWith().noStakingNodeId()));
+                getContractInfo(HRC1522_CONTRACT).has(contractWith().noStakingNodeId()));
     }
 
     // --- Backwards compatibility: HAPI behavior is unchanged ---------------------------------------
@@ -280,16 +390,16 @@ public class AccountStakingConfigurationTest {
     final Stream<DynamicTest> hapiCryptoUpdateStillRejectsAContractAccount() {
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT),
                 // The narrowing in CryptoUpdateHandler is gated on in-process dispatch metadata, which no
                 // wire transaction can carry, so this is unaffected
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
-                        cryptoUpdate(HRC632_CONTRACT)
+                        cryptoUpdate(HRC1522_CONTRACT)
                                 .newStakedNodeId(NODE_ID)
                                 .payingWith(ACCOUNT)
-                                .signedBy(ACCOUNT, HRC632_CONTRACT)
+                                .signedBy(ACCOUNT, HRC1522_CONTRACT)
                                 .hasKnownStatus(INVALID_ACCOUNT_ID))));
     }
 
@@ -298,9 +408,9 @@ public class AccountStakingConfigurationTest {
     final Stream<DynamicTest> hapiContractUpdateStillRejectsAnImmutableContract() {
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
-                contractUpdate(HRC632_CONTRACT)
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                contractUpdate(HRC1522_CONTRACT)
                         .newStakedNodeId(NODE_ID)
                         .payingWith(ACCOUNT)
                         .hasKnownStatus(MODIFYING_IMMUTABLE_CONTRACT));
@@ -315,17 +425,84 @@ public class AccountStakingConfigurationTest {
         return hapiTest(
                 overriding(STAKING_FLAG, "false"),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                uploadInitCode(HRC632_CONTRACT),
-                contractCreate(HRC632_CONTRACT).omitAdminKey(),
-                getContractInfo(HRC632_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
+                uploadInitCode(HRC1522_CONTRACT),
+                contractCreate(HRC1522_CONTRACT).omitAdminKey(),
+                getContractInfo(HRC1522_CONTRACT).exposingEvmAddress(cb -> contractAddress.set(asHeadlongAddress(cb))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // No translator matches, so 0x16a returns empty output and the Solidity wrapper's
                         // abi.decode of an empty buffer reverts
-                        contractCall(HRC632_CONTRACT, "stakeToNodeCall", contractAddress.get(), NODE_ID)
+                        contractCall(HRC1522_CONTRACT, "stakeToNodeCall", contractAddress.get(), NODE_ID)
                                 .payingWith(ACCOUNT)
                                 .gas(1_000_000)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
-                getContractInfo(HRC632_CONTRACT).has(contractWith().noStakingNodeId()));
+                getContractInfo(HRC1522_CONTRACT).has(contractWith().noStakingNodeId()));
+    }
+
+    // --- Helpers -----------------------------------------------------------------------------------
+
+    /** Stakes the contract to {@link #NODE_ID}; pair with {@link #succeeded} to assert the response code. */
+    private static SpecOperation stakeToNode(final Address contractAddress, final String txn) {
+        return contractCall(HRC1522_CONTRACT, "stakeToNodeCall", contractAddress, NODE_ID)
+                .payingWith(ACCOUNT)
+                .gas(1_000_000)
+                .via(txn);
+    }
+
+    /**
+     * Asserts the named call returned SUCCESS as its {@code int64} response code. The Solidity wrappers
+     * deliberately omit {@code require(responseCode == SUCCESS)} so failure cases can be asserted without
+     * reverting — which also means the top-level ContractCall status stays SUCCESS on a business failure, so
+     * without this the calls in these specs could all fail silently.
+     */
+    private static SpecOperation succeeded(final String txn, final String function) {
+        return getTxnRecord(txn)
+                .hasPriority(recordWith()
+                        .status(SUCCESS)
+                        .contractCallResult(resultWith()
+                                .resultThruAbi(
+                                        getABIFor(FUNCTION, function, HRC1522_CONTRACT),
+                                        isLiteralResult(new Object[] {(long) SUCCESS.getNumber()}))));
+    }
+
+    /**
+     * Asserts every field of the HIP-1522 {@code StakingInfo} struct except {@code stakePeriodStart}, which is
+     * a consensus-time-derived epoch second and so cannot be pinned to a literal; it is only required to be
+     * set when the account is staked to a node.
+     */
+    private static Function<HapiSpec, Function<Object[], Optional<Throwable>>> stakingInfoWith(
+            final boolean declineReward,
+            final long pendingReward,
+            final long stakedToMe,
+            final long stakedNodeId,
+            final Address stakedAccountId) {
+        return spec -> objs -> {
+            try {
+                final long responseCode = (long) objs[0];
+                if (responseCode != SUCCESS.getNumber()) {
+                    return Optional.of(new AssertionError("Expected SUCCESS, got response code " + responseCode));
+                }
+                final var info = (Tuple) objs[1];
+                assertField("declineReward", declineReward, info.get(0));
+                assertField("pendingReward", pendingReward, info.get(2));
+                assertField("stakedToMe", stakedToMe, info.get(3));
+                assertField("stakedNodeId", stakedNodeId, info.get(4));
+                assertField("stakedAccountId", stakedAccountId, info.get(5));
+                final long stakePeriodStart = info.get(1);
+                if (stakedNodeId != SENTINEL_NODE_ID && stakePeriodStart <= 0L) {
+                    return Optional.of(new AssertionError(
+                            "Expected a non-zero stakePeriodStart when staked to a node, got " + stakePeriodStart));
+                }
+                return Optional.empty();
+            } catch (final Throwable t) {
+                return Optional.of(t);
+            }
+        };
+    }
+
+    private static void assertField(final String name, final Object expected, final Object actual) {
+        if (!expected.equals(actual)) {
+            throw new AssertionError("Bad %s! expected <%s> but was <%s>".formatted(name, expected, actual));
+        }
     }
 }
