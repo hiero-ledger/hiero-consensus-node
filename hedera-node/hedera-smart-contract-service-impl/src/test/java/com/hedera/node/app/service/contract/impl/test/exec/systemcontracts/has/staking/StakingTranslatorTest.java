@@ -201,6 +201,16 @@ class StakingTranslatorTest extends CallAttemptTestBase {
     }
 
     @Test
+    void stakeToAccountRejectsANonCanonicalReference() {
+        // The long-zero form of an account whose priority address is an EVM alias resolves to 0.0.0 - the
+        // same id the zero address gives. Elsewhere 0.0.0 is an id built to fail downstream; for staking it
+        // is the "clear the target" sentinel, so accepting it here would turn "stake to X" into a silent
+        // unstake that reports SUCCESS.
+        given(addressIdConverter.convert(STAKED_TO_ADDRESS)).willReturn(SENTINEL_ACCOUNT_ID);
+        assertReturnsWithoutDispatch(STAKE_TO_ACCOUNT, INVALID_STAKING_ID, STAKED_TO_ADDRESS);
+    }
+
+    @Test
     void unstakeUsesTheNodeIdSentinel() {
         final var body = bodyDispatchedBy(UNSTAKE).cryptoUpdateAccountOrThrow();
         assertThat(body.accountIDToUpdate()).isEqualTo(TARGET_ID);
@@ -241,6 +251,60 @@ class StakingTranslatorTest extends CallAttemptTestBase {
     void stakeToNodeAndDeclineRewardRejectsANegativeNodeId() {
         // The sentinel is not accepted here: unstake() is the way to clear the target
         assertReturnsWithoutDispatch(STAKE_TO_NODE_AND_DECLINE_REWARD, INVALID_STAKING_ID, SENTINEL_NODE_ID, true);
+    }
+
+    // --- Facade forms decode their own arguments -------------------------------------------------------
+    // The facade and explicit forms are near-identical pairs, so a copy-paste slip between them (wrong
+    // decode index, wrong body factory) would land exactly here. Each facade branch decodes independently.
+
+    @Test
+    void facadeStakeToNodeDecodesItsNodeId() {
+        final var body = facadeBodyDispatchedBy(STAKE_TO_NODE_PROXY, NODE_ID).cryptoUpdateAccountOrThrow();
+        assertThat(body.accountIDToUpdate()).isEqualTo(TARGET_ID);
+        assertThat(body.stakedNodeIdOrThrow()).isEqualTo(NODE_ID);
+        assertThat(body.hasDeclineReward()).isFalse();
+        assertThat(body.hasStakedAccountId()).isFalse();
+    }
+
+    @Test
+    void facadeStakeToAccountDecodesItsAddress() {
+        given(addressIdConverter.convert(STAKED_TO_ADDRESS)).willReturn(STAKED_TO_ID);
+        final var body = facadeBodyDispatchedBy(STAKE_TO_ACCOUNT_PROXY, STAKED_TO_ADDRESS)
+                .cryptoUpdateAccountOrThrow();
+        assertThat(body.accountIDToUpdate()).isEqualTo(TARGET_ID);
+        assertThat(body.stakedAccountIdOrThrow()).isEqualTo(STAKED_TO_ID);
+        assertThat(body.hasStakedNodeId()).isFalse();
+        assertThat(body.hasDeclineReward()).isFalse();
+    }
+
+    @Test
+    void facadeSetDeclineRewardDecodesItsFlag() {
+        // A bool decoded as an int64 would silently become stakedNodeId(1), so assert the shape, not just
+        // the value
+        final var body = facadeBodyDispatchedBy(SET_DECLINE_REWARD_PROXY, true).cryptoUpdateAccountOrThrow();
+        assertThat(body.accountIDToUpdate()).isEqualTo(TARGET_ID);
+        assertThat(body.hasDeclineReward()).isTrue();
+        assertThat(body.declineReward()).isTrue();
+        assertThat(body.hasStakedNodeId()).isFalse();
+        assertThat(body.hasStakedAccountId()).isFalse();
+    }
+
+    @Test
+    void facadeStakeToNodeAndDeclineRewardDecodesBothArguments() {
+        final var body = facadeBodyDispatchedBy(STAKE_TO_NODE_AND_DECLINE_REWARD_PROXY, NODE_ID, true)
+                .cryptoUpdateAccountOrThrow();
+        assertThat(body.accountIDToUpdate()).isEqualTo(TARGET_ID);
+        assertThat(body.stakedNodeIdOrThrow()).isEqualTo(NODE_ID);
+        assertThat(body.declineReward()).isTrue();
+        assertThat(body.hasStakedAccountId()).isFalse();
+    }
+
+    @Test
+    void facadeUnstakeUsesTheNodeIdSentinel() {
+        final var body = facadeBodyDispatchedBy(UNSTAKE_PROXY).cryptoUpdateAccountOrThrow();
+        assertThat(body.accountIDToUpdate()).isEqualTo(TARGET_ID);
+        assertThat(body.stakedNodeIdOrThrow()).isEqualTo(SENTINEL_NODE_ID);
+        assertThat(body.hasDeclineReward()).isFalse();
     }
 
     @Test
@@ -297,6 +361,33 @@ class StakingTranslatorTest extends CallAttemptTestBase {
      */
     private TransactionBody bodyDispatchedBy(final SystemContractMethod method, final Object... args) {
         givenCallOf(method, args);
+        given(systemContractOperations.dispatch(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+
+        final var call = subject.callFrom(attempt);
+        assertThat(call).isInstanceOf(StakingUpdateCall.class);
+        call.execute(frame);
+
+        final var captor = ArgumentCaptor.forClass(TransactionBody.class);
+        verify(systemContractOperations).dispatch(captor.capture(), any(), any(), any(), any(), any(), any());
+        return captor.getValue();
+    }
+
+    /**
+     * As {@link #bodyDispatchedBy}, but for a facade form: the target comes from the redirect rather than a
+     * leading address argument, so the args are passed through untouched.
+     */
+    private TransactionBody facadeBodyDispatchedBy(final SystemContractMethod method, final Object... args) {
+        given(attempt.isSelector(method)).willReturn(true);
+        given(attempt.isRedirect()).willReturn(true);
+        given(attempt.redirectAccountId()).willReturn(TARGET_ID);
+        given(attempt.inputBytes()).willReturn(method.encodeCallWithArgs(args).array());
+        given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
+        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.senderId()).willReturn(SENDER_ID);
+        given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(systemContractOperations.dispatch(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);

@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.staki
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
+import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static java.util.Objects.requireNonNull;
 
@@ -222,7 +224,17 @@ public class StakingTranslator extends AbstractCallTranslator<HasCallAttempt> {
         // The zero address needs no special case: it converts to 0.0.0, which is the HAPI staked_account_id
         // sentinel for "no target", and it converts without consulting the entity id factory, so this is
         // correct on networks that do not run in shard 0 realm 0.
+        //
+        // But 0.0.0 is not the *only* way to reach that sentinel. The converter also yields it for a
+        // non-canonical reference - the long-zero form of an account whose priority address is an EVM alias,
+        // which is exactly the form getHederaAccountNumAlias hands back. Everywhere else in the system
+        // contracts 0.0.0 is an id deliberately built to fail downstream; staking is the one place it is a
+        // *valid sentinel*, so there it would fail open: "stake to Alice" would silently mean "unstake" and
+        // return SUCCESS. Reserve the sentinel for the literal zero address and reject the other route.
         final var stakedToId = attempt.addressIdConverter().convert(stakedTo);
+        if (SENTINEL_ACCOUNT_ID.equals(stakedToId) && !ZERO_ADDRESS.equals(stakedTo)) {
+            return new StakingUpdateCall(attempt, INVALID_STAKING_ID);
+        }
         return callFor(attempt, target, CryptoUpdateTransactionBody.newBuilder().stakedAccountId(stakedToId));
     }
 
