@@ -107,7 +107,6 @@ import org.junit.jupiter.api.Order;
  * and tests if they needed to ensure a transaction was handled before issuing any {@code FileGetContents} queries
  * or submitting {@code FileUpdate} transactions.)
  */
-// Run just before stream validation to avoid state pollution
 // Genesis tests build their own network, so they must run before any shared network exists
 @Order(Integer.MIN_VALUE)
 public class SystemFileExportsTest {
