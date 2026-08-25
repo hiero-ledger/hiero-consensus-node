@@ -43,10 +43,10 @@ preliminary: one block with two measured writes and a 262,144-long chunk.
 The 1B Segment result is 609.5 MB/s, or 87% of the published 700 MB/s. The
 preliminary 5B result is 685.1 MB/s, or 98%. Micron obtained its number with a
 different tool and write pattern, so 700 MB/s is not an exact ceiling for our
-Java/ext4 workload. However, the 5B result is already close enough to that
-number to suggest that an optimization which still writes the same 40 GB may
-have little throughput left to recover on this drive. The same-protocol control
-writer in Section 4 must confirm this.
+Java/ext4 workload. The same-protocol control subsequently established a
+12.62-second, 634 MB/s durable-write plateau for an 8 GB file. Its provisional
+comparison with the historical LongList campaign must be revisited after the
+corrected baseline.
 
 The campaign also established that:
 
@@ -136,8 +136,13 @@ time, force time, and total time, and delete the output after every invocation.
 Sweep `writerThreads={1,2,8,16,32}` and use the lowest stable mean as the
 practical best-case reference for the current Java/FileChannel/ext4 protocol
 on this host. Start with six measured writes per setting across three reordered
-blocks. If the fastest settings are too close to distinguish, confirm only
-those settings with the larger sample count.
+blocks. Confirm only the fastest settings, and only if their uncertainty
+prevents establishing the practical plateau.
+
+**Result:** `P=8` and `P=16` established the same approximately 12.62-second
+plateau. Parallel writers shortened the body phase by about 25%, but the final
+force became longer, leaving a 3.4% end-to-end reduction. See
+[`filechannel-write-reference.md`](00-filechannel-write-reference/filechannel-write-reference.md).
 
 Compare the resulting reference with the isolated results for all five
 LongList implementations:
@@ -470,10 +475,10 @@ document, and verify its calculations and conclusions.
    Linux archive under `01-parallel-chunk-writes/raw/`; keep this report and
    `assessment-go-no-go.md` at the root; and repair every affected relative
    link. Do not create documents for conditional experiments yet.~~
-2. **Run the FileChannel write reference on Linux.** Implement and smoke-test
+2. ~~**Run the FileChannel write reference on Linux.** Implement and smoke-test
    the dedicated control on the MacBook for correctness only, then run the
    writer-count sweep on Linux. Agree on `filechannel-write-reference.md`
-   before processing its raw results.
+   before processing its raw results.~~
 3. **Re-establish the corrected parallel-chunk baseline.** Apply the 5B heap,
    environment-capture, and sampling changes; compile and run a tiny local
    correctness smoke; then start the real Linux campaign directly. Its early

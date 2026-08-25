@@ -60,7 +60,8 @@ trap 'remove_scratch_directory "${SCRATCH_DIR}"' EXIT
 } >"${RESULTS_DIR}/environment.txt" 2>&1
 cp "${BASH_SOURCE[0]}" "${RESULTS_DIR}/runner.sh"
 
-# Build and select the single runnable JMH artifact used by all three blocks.
+# Remove artifacts left by older project versions, then build and select the current JMH JAR.
+rm -f -- "${MODULE_DIR}"/build/libs/swirlds-merkledb-*-jmh.jar
 "${REPO_ROOT}/gradlew" :swirlds-merkledb:jmhJar --console=plain 2>&1 | tee "${RESULTS_DIR}/build.log"
 
 shopt -s nullglob
