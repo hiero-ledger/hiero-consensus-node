@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.notification;
+package org.hiero.consensus.model.notification;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.hiero.consensus.model.notification.Notification;
 
 /**
  * Allows per {@link Listener} configuration of {@link DispatchMode} and {@link DispatchOrder}. Default configuration is

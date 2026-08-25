@@ -37,7 +37,7 @@ feeds it, and who reads its output.
   wired by
   [`StatusMonitorModule`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/StatusMonitorModule.java)).
 - Owns: the boundary notification to the application —
-  [`PlatformStatusChangeNotification`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/PlatformStatusChangeNotification.java)
+  [`PlatformStatusChangeNotification`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/notification/PlatformStatusChangeNotification.java)
   and the direct `ExecutionLayer.newPlatformStatus` feed (see
   [Consumers](#consumers)).
 - Does not own: the **decisions** that produce actions. Whether a self event
@@ -183,7 +183,7 @@ to every component that gates on it:
   [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md).
 - **Execution** — delivered directly via `ExecutionLayer.newPlatformStatus`
   (see [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md)) and
-  [`PlatformStatusChangeNotification`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/PlatformStatusChangeNotification.java)
+  [`PlatformStatusChangeNotification`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/notification/PlatformStatusChangeNotification.java)
   through the notification engine, consumed via `PlatformStatusChangeListener`.
 
 ## Rationale

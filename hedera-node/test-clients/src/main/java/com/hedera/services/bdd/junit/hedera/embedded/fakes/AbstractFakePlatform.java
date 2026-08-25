@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.context.PlatformContext;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
@@ -15,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.PlatformStatusChangeNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 public abstract class AbstractFakePlatform implements Platform {

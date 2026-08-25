@@ -11,8 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -28,6 +26,8 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.consensus.model.notification.PlatformStatusChangeListener;
+import org.hiero.consensus.model.notification.PlatformStatusChangeNotification;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

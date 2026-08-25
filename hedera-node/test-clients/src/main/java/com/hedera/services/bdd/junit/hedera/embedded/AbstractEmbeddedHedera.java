@@ -39,7 +39,6 @@ import com.hederahashgraph.api.proto.java.TransactionResponse;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -58,6 +57,7 @@ import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.PlatformStatusChangeNotification;
 
 /**
  * Implementation support for {@link EmbeddedHedera}.

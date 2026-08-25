@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.fixtures.container.docker;
 
-import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.notification.PlatformStatusChangeNotification;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.container.proto.EventMessage;
 import org.hiero.sloth.fixtures.container.proto.LogEntry;

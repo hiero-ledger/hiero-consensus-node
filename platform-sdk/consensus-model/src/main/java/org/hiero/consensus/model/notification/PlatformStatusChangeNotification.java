@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.listeners;
+package org.hiero.consensus.model.notification;
 
-import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

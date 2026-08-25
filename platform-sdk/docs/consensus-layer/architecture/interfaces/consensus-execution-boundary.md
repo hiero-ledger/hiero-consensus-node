@@ -197,7 +197,7 @@ interface.
 
 |                           Listener                            |              Notification              |    Dispatch     |                                                     Trigger                                                      |
 |---------------------------------------------------------------|----------------------------------------|-----------------|------------------------------------------------------------------------------------------------------------------|
-| `PlatformStatusChangeListener` (`…/listeners/`)               | `PlatformStatusChangeNotification`     | SYNC, ORDERED   | Platform status changed. *(The execution layer instead consumes status via `ExecutionLayer.newPlatformStatus`.)* |
+| `PlatformStatusChangeListener` (`consensus-model/…/notification/`) | `PlatformStatusChangeNotification` | SYNC, ORDERED | Platform status changed. *(The execution layer instead consumes status via `ExecutionLayer.newPlatformStatus`.)* |
 | `ReconnectCompleteListener` (`…/listeners/`)                  | `ReconnectCompleteNotification`        | SYNC, ORDERED   | A reconnect has completed.                                                                                       |
 | `StateWriteToDiskCompleteListener` (`…/listeners/`)           | `StateWriteToDiskCompleteNotification` | SYNC, ORDERED   | A state has been written to disk.                                                                                |
 | `IssListener` (`…/system/state/notifications/`)               | `IssNotification`                      | SYNC, ORDERED   | Any ISS (inconsistent state signature) event.                                                                    |
@@ -205,7 +205,8 @@ interface.
 | `NewRecoveredStateListener` (`…/system/state/notifications/`) | `NewRecoveredStateNotification`        | SYNC, UNORDERED | A state was produced by event-stream recovery.                                                                   |
 | `StateHashedListener` (`…/system/state/notifications/`)       | `StateHashedNotification`              | SYNC, UNORDERED | A state has been hashed.                                                                                         |
 
-All paths above are under `swirlds-platform-core/src/main/java/com/swirlds/platform/`.
+Except for the platform-status listener and notification in `consensus-model`, all paths above are under
+`swirlds-platform-core/src/main/java/com/swirlds/platform/`.
 
 **Registration anchor (execution layer):** `hedera-node/hedera-app/src/main/java/com/hedera/node/app/Hedera.java`
 registers `ReconnectCompleteListener`, `StateWriteToDiskCompleteListener`, `AsyncFatalIssListener`, and

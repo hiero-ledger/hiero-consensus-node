@@ -2,7 +2,6 @@
 package com.swirlds.common.notification.internal;
 
 import com.swirlds.common.notification.DispatchException;
-import com.swirlds.common.notification.Listener;
 import com.swirlds.common.notification.NotificationResult;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -11,6 +10,7 @@ import java.util.function.Consumer;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.consensus.model.notification.Listener;
 import org.hiero.consensus.model.notification.Notification;
 
 public class Dispatcher<L extends Listener> {
