@@ -492,8 +492,19 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         compactionCoordinator.enableBackgroundCompaction();
     }
 
-    /** Stop background compaction process, interrupting the current compaction if one is happening.
-     * This will not corrupt the database but will leave files around.*/
+    /**
+     * Disable background compaction and interrupt all compactions that are currently running without waiting for them
+     * to complete.
+     */
+    @Override
+    public void disableAndInterruptBackgroundCompaction() {
+        compactionCoordinator.disableAndInterruptBackgroundCompaction();
+    }
+
+    /**
+     * Stop background compaction, interrupting the current compaction if one is happening. This will not corrupt the
+     * database but will leave files around.
+     */
     @Override
     public void stopAndDisableBackgroundCompaction() {
         compactionCoordinator.stopAndDisableBackgroundCompaction();

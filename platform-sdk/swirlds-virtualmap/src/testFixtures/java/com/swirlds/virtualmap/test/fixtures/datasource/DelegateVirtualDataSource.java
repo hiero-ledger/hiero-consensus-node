@@ -95,6 +95,11 @@ public class DelegateVirtualDataSource implements VirtualDataSource {
     }
 
     @Override
+    public void disableAndInterruptBackgroundCompaction() {
+        delegate.disableAndInterruptBackgroundCompaction();
+    }
+
+    @Override
     public void stopAndDisableBackgroundCompaction() {
         delegate.stopAndDisableBackgroundCompaction();
     }

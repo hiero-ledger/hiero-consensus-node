@@ -63,6 +63,7 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.PlatformStatusChangeListener;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -229,6 +230,9 @@ public class ConsensusLayerFactory {
                 wiringModel, "InitialEventWindowDispatcher", "event window", UnaryOperator.identity());
 
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
+        if (stateLifecycleManager instanceof PlatformStatusChangeListener listener) {
+            notificationEngine.register(PlatformStatusChangeListener.class, listener);
+        }
         final ComponentWiring<AppNotifier, Void> notifierWiring = createNotifierWiring(notificationEngine);
 
         // Future Work: Once reconnect has been redesigned, only pces requires the pipeline flush

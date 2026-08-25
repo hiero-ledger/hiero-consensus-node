@@ -24,6 +24,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.model.notification.PlatformStatusChangeListener;
+import org.hiero.consensus.model.notification.PlatformStatusChangeNotification;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
@@ -46,7 +49,8 @@ import org.hiero.base.file.FileSystemManager;
  * <b>Important:</b> {@link #copyMutableState()} is NOT supposed to be called from multiple threads.
  * It only provides the happens-before guarantees that are described above.
  */
-public class VirtualMapStateLifecycleManager implements StateLifecycleManager<VirtualMapState, VirtualMap> {
+public class VirtualMapStateLifecycleManager
+        implements StateLifecycleManager<VirtualMapState, VirtualMap>, PlatformStatusChangeListener {
 
     private static final Logger log = LogManager.getLogger(VirtualMapStateLifecycleManager.class);
 
@@ -145,6 +149,16 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         final VirtualMapState state = stateRef.get();
         copyAndUpdateStateRefs(state);
         return stateRef.get();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void notify(final PlatformStatusChangeNotification notification) {
+        if (notification.getNewStatus() == PlatformStatus.FREEZING) {
+            getMutableState().getRoot().getDataSource().disableAndInterruptBackgroundCompaction();
+        }
     }
 
     /**
