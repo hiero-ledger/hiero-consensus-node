@@ -169,6 +169,53 @@ class SavepointStackImplTest extends StateTestBase {
                 .doesNotHaveDuplicates();
     }
 
+    @Test
+    @DisplayName("a scheduled execution gets no preset id after scheduling a contract call")
+    void scheduledExecutionGetsNoPresetIdAfterSchedulingAContractCall() {
+        final int maxPreceding = 3;
+        final int maxFollowing = 50;
+        // A schedule created by an earlier transaction executes in its own unit, keeping the nonce it was
+        // handed as a preset id and carrying scheduled=true
+        final var scheduledBaseId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .scheduled(true)
+                .nonce(maxPreceding + maxFollowing + 1)
+                .build();
+        final var stack = rootStackWith(scheduledBaseId, maxPreceding, maxFollowing);
+
+        // Scheduling a contract call is the last preset id a unit may take, c.f. RECURSIVE_FUNCTIONS in
+        // ChildDispatchFactory; without that no further preset range is reserved, and the nonces of a schedule
+        // this one creates cannot reach one
+        final var presetId = stack.nextPresetTxnId(true);
+
+        assertThat(presetId)
+                .isEqualTo(scheduledBaseId
+                        .copyBuilder()
+                        .nonce(scheduledBaseId.nonce() + maxPreceding + maxFollowing + 1)
+                        .build());
+        assertThatThrownBy(() -> stack.nextPresetTxnId(false))
+                .isInstanceOf(HandleException.class)
+                .hasMessage(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION.protoName());
+    }
+
+    /**
+     * Returns a root stack whose base builder carries the given transaction ID.
+     */
+    private SavepointStackImpl rootStackWith(
+            final TransactionID baseId, final int maxPreceding, final int maxFollowing) {
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                maxPreceding,
+                maxFollowing,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        initialized(stack.getBaseBuilder(StreamBuilder.class)).transactionID(baseId);
+        return stack;
+    }
+
     /**
      * Adds a committed {@code CHILD} builder to the given root stack's following builders.
      */
