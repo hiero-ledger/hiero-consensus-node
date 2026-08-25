@@ -47,7 +47,11 @@ public final class VirtualMapStateTestUtils {
                         final Path root = Files.createTempDirectory("VirtualMapStateTestUtils");
                         Runtime.getRuntime()
                                 .addShutdownHook(
-                                        new Thread(() -> FileUtils.rethrowIO(() -> FileUtils.deleteDirectory(root))));
+                                        new Thread(() -> FileUtils.rethrowIO(() -> {
+                                            if(root.toFile().exists()) {
+                                                FileUtils.deleteDirectory(root);
+                                            }
+                                        })));
                         fsm = new TestFileSystemManager(root);
                         fallbackFileSystemManager = fsm;
                     } catch (final IOException e) {
