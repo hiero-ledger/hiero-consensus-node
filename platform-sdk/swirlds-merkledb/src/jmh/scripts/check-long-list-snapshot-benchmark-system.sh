@@ -32,8 +32,8 @@ echo
 if [[ -r /proc/meminfo ]]; then
     ram_kib="$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)"
     echo "RAM: $((ram_kib / 1024 / 1024)) GiB"
-    if (( ram_kib < 64 * 1024 * 1024 )); then
-        echo "WARNING: At least 64 GiB RAM is recommended"
+    if (( ram_kib < 110 * 1024 * 1024 )); then
+        echo "WARNING: At least 110 GiB RAM is recommended for the 5B largest-chunk case"
     fi
 else
     echo "RAM: unavailable"
@@ -42,6 +42,11 @@ fi
 
 echo
 echo "Benchmark filesystem (must support sparse files):"
+if command -v findmnt >/dev/null; then
+    findmnt -T "${MODULE_DIR}" -o TARGET,SOURCE,FSTYPE,OPTIONS
+else
+    echo "findmnt unavailable"
+fi
 if [[ "${operating_system}" == "Linux" ]]; then
     df -hT "${MODULE_DIR}"
 else
@@ -63,9 +68,23 @@ fi
 echo
 echo "Storage devices:"
 if command -v lsblk >/dev/null; then
-    lsblk
+    lsblk -o NAME,MODEL,SIZE,ROTA,TRAN,TYPE,MOUNTPOINTS
 else
     echo "lsblk unavailable"
+fi
+
+echo
+echo "LongListDisk cache diagnostic:"
+if command -v python3 >/dev/null \
+    && python3 -c 'import os,sys; sys.exit(not hasattr(os,"posix_fadvise") or not hasattr(os,"POSIX_FADV_DONTNEED"))'; then
+    echo "Python supports per-file cache eviction"
+else
+    echo "WARNING: Python does not support POSIX_FADV_DONTNEED"
+fi
+if command -v fincore >/dev/null; then
+    echo "fincore: $(command -v fincore)"
+else
+    echo "WARNING: fincore is required to verify cache eviction"
 fi
 
 echo

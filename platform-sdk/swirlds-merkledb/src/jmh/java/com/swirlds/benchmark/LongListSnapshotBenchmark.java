@@ -17,12 +17,14 @@ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -53,6 +55,13 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class LongListSnapshotBenchmark {
 
+    /** Controls the source-file cache only for the focused {@link LongListDisk} diagnostic. */
+    public enum DiskCacheState {
+        UNCHANGED,
+        WARM,
+        COLD
+    }
+
     // Mirrors the LongList v3 header: format version followed by minimum valid index.
     private static final int LONG_LIST_FILE_FORMAT_VERSION = 3;
     private static final int LONG_LIST_FILE_HEADER_SIZE = Integer.BYTES + Long.BYTES;
@@ -80,9 +89,13 @@ public class LongListSnapshotBenchmark {
     @Param({"false"})
     public boolean verify;
 
+    @Param({"UNCHANGED"})
+    public DiskCacheState diskCacheState;
+
     private Path fixtureFile;
     private Path trialDirectory;
     private Path snapshotFile;
+    private Path diskSourceFile;
     private LongList source;
     private ExecutorService executor;
 
@@ -114,9 +127,48 @@ public class LongListSnapshotBenchmark {
 
         snapshotFile = trialDirectory.resolve("snapshot.ll");
         source = createSource(fixtureFile, capacity, configuration, fileSystemManager);
+        if (diskCacheState != DiskCacheState.UNCHANGED) {
+            if (!(source instanceof LongListDisk)) {
+                throw new IllegalArgumentException("Disk cache state can only be controlled for LongListDisk");
+            }
+            diskSourceFile = findDiskSourceFile(fileSystemManager.getTempPath());
+            // Keep source durability identical so the diagnostic changes only its cache residency.
+            try (final FileChannel channel = FileChannel.open(diskSourceFile, StandardOpenOption.WRITE)) {
+                channel.force(true);
+            }
+        }
         if (threadsPerLongList > 1) {
             executor = Executors.newFixedThreadPool(threadsPerLongList);
         }
+    }
+
+    @Setup(Level.Invocation)
+    public void prepareDiskCache() throws IOException, InterruptedException {
+        if (diskCacheState == DiskCacheState.UNCHANGED) {
+            return;
+        }
+
+        if (diskCacheState == DiskCacheState.WARM) {
+            warmDiskSourceFile();
+        } else {
+            runCommand(
+                    "python3",
+                    "-c",
+                    "import os,sys; fd=os.open(sys.argv[1],os.O_RDONLY); "
+                            + "os.posix_fadvise(fd,0,0,os.POSIX_FADV_DONTNEED); os.close(fd)",
+                    diskSourceFile.toString());
+        }
+
+        final long residentBytes = Long.parseLong(
+                runCommand("fincore", "--bytes", "--noheadings", "--output", "RES", diskSourceFile.toString()));
+        final long sourceDataSize = Math.multiplyExact(leafCount, Long.BYTES);
+        if (diskCacheState == DiskCacheState.WARM && residentBytes < sourceDataSize) {
+            throw new IOException("Expected at least " + sourceDataSize + " resident bytes, found " + residentBytes);
+        }
+        if (diskCacheState == DiskCacheState.COLD && residentBytes != 0) {
+            throw new IOException("Expected no resident bytes, found " + residentBytes);
+        }
+        System.out.printf("Prepared %s LongListDisk source: %,d resident bytes%n", diskCacheState, residentBytes);
     }
 
     @Benchmark
@@ -169,6 +221,33 @@ public class LongListSnapshotBenchmark {
             case "LongListDiskSegment" -> new LongListDiskSegment(file, capacity, configuration, fileSystemManager);
             default -> throw new IllegalArgumentException("Unknown LongList implementation: " + listImpl);
         };
+    }
+
+    private Path findDiskSourceFile(final Path tempDirectory) throws IOException {
+        try (final Stream<Path> files = Files.walk(tempDirectory)) {
+            return files.filter(Files::isRegularFile)
+                    .findFirst()
+                    .orElseThrow(() -> new IOException("LongListDisk backing file was not created"));
+        }
+    }
+
+    private void warmDiskSourceFile() throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocateDirect(FIXTURE_WRITE_BUFFER_SIZE);
+        try (final FileChannel channel = FileChannel.open(diskSourceFile, StandardOpenOption.READ)) {
+            while (channel.read(buffer) >= 0) {
+                buffer.clear();
+            }
+        }
+    }
+
+    private String runCommand(final String... command) throws IOException, InterruptedException {
+        final Process process =
+                new ProcessBuilder(command).redirectErrorStream(true).start();
+        final String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        if (process.waitFor() != 0) {
+            throw new IOException("Command failed: " + String.join(" ", command) + System.lineSeparator() + output);
+        }
+        return output;
     }
 
     private void createFixtureIfMissing(final Path file) throws IOException {

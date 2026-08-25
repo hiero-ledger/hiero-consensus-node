@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Runs the full LongList snapshot campaign, writing about 33 TB cumulatively across all configurations.
+# Runs the full LongList snapshot campaign, writing about 37 TB cumulatively across all configurations.
 # One fixture is reused for every configuration at a leaf count and then deleted, bounding peak disk usage.
 # Raw results and environment metadata are retained.
 # Run check-long-list-snapshot-benchmark-system.sh first to review the recommended system resources.
@@ -69,17 +69,24 @@ trap cleanup EXIT
         echo "free unavailable"
     fi
     echo
+    if command -v findmnt >/dev/null; then
+        findmnt -T "${MODULE_DIR}" -o TARGET,SOURCE,FSTYPE,OPTIONS
+    else
+        echo "findmnt unavailable"
+    fi
+    echo
     df -hT "${MODULE_DIR}"
     echo
     if command -v lsblk >/dev/null; then
-        lsblk
+        lsblk -o NAME,MODEL,SIZE,ROTA,TRAN,TYPE,MOUNTPOINTS
     else
         echo "lsblk unavailable"
     fi
 } >"${RESULTS_DIR}/environment.txt" 2>&1
 cp "${BASH_SOURCE[0]}" "${RESULTS_DIR}/runner.sh"
 
-# Build and select the single runnable JMH artifact used by the entire campaign.
+# Remove artifacts left by older project versions, then build and select the current JMH JAR.
+rm -f -- "${MODULE_DIR}"/build/libs/swirlds-merkledb-*-jmh.jar
 "${REPO_ROOT}/gradlew" :swirlds-merkledb:jmhJar --console=plain 2>&1 | tee "${RESULTS_DIR}/build.log"
 
 shopt -s nullglob
@@ -151,23 +158,63 @@ thread_values() {
     echo "${ordered[*]}"
 }
 
-# Scale JVM memory with the N * 8-byte dense source index; these limits are not benchmark parameters.
+# Scale JVM memory with the dense source index and its chunk-dependent retained footprint.
 jvm_args() {
     local leaf_count="$1"
+    local chunk_size="$2"
     if (( leaf_count <= 100000000 )); then
         echo "-Xms512m -Xmx4g -XX:MaxDirectMemorySize=4g"
     elif (( leaf_count <= 1000000000 )); then
         echo "-Xms512m -Xmx16g -XX:MaxDirectMemorySize=16g"
-    else
+    elif (( chunk_size == 262144 )); then
         echo "-Xms512m -Xmx48g -XX:MaxDirectMemorySize=48g"
+    elif (( chunk_size == 1048576 )); then
+        echo "-Xms512m -Xmx64g -XX:MaxDirectMemorySize=64g"
+    else
+        echo "-Xms512m -Xmx96g -XX:MaxDirectMemorySize=96g"
     fi
+}
+
+run_jmh() {
+    local result_name="$1"
+    local implementations="$2"
+    local threads="$3"
+    local leaf_count="$4"
+    local chunk_size="$5"
+    local measurement_iterations="$6"
+    local disk_cache_state="${7:-UNCHANGED}"
+    local size_directory="${SCRATCH_DIR}/leaves-${leaf_count}"
+    local java_options
+    java_options="$(jvm_args "${leaf_count}" "${chunk_size}")"
+
+    echo
+    echo "Running ${result_name}, threadsPerLongList={${threads}}"
+    java -jar "${JMH_JAR}" LongListSnapshotBenchmark.writeToFile \
+        -p "listImpl=${implementations}" \
+        -p "threadsPerLongList=${threads}" \
+        -p "leafCount=${leaf_count}" \
+        -p "longListChunkSize=${chunk_size}" \
+        -p "workDir=${size_directory}" \
+        -p "verify=false" \
+        -p "diskCacheState=${disk_cache_state}" \
+        -t 1 \
+        -bm ss \
+        -tu ms \
+        -wi 1 \
+        -i "${measurement_iterations}" \
+        -f 1 \
+        -to 60m \
+        -foe true \
+        -rf json \
+        -rff "${RESULTS_DIR}/${result_name}.json" \
+        -jvmArgs "${java_options}" \
+        2>&1 | tee "${RESULTS_DIR}/${result_name}.log"
 }
 
 # The first JMH fork creates the fixture; every remaining configuration for that leaf count reuses it.
 for leaf_count in "${LEAF_COUNTS[@]}"; do
     size_directory="${SCRATCH_DIR}/leaves-${leaf_count}"
     mkdir "${size_directory}"
-    java_options="$(jvm_args "${leaf_count}")"
 
     for block in "${BLOCKS[@]}"; do
         set_block_order "${block}"
@@ -175,30 +222,58 @@ for leaf_count in "${LEAF_COUNTS[@]}"; do
             threads="$(thread_values "${leaf_count}" "${chunk_size}" "${block}")"
             result_name="leaves-${leaf_count}-chunk-${chunk_size}-block-${block}"
 
-            echo
-            echo "Running ${result_name}, threadsPerLongList={${threads}}"
             # One fork performs one warmup and two measured single-shot writes, saving JSON and a readable log.
-            java -jar "${JMH_JAR}" LongListSnapshotBenchmark.writeToFile \
-                -p "listImpl=${IMPLEMENTATIONS}" \
-                -p "threadsPerLongList=${threads}" \
-                -p "leafCount=${leaf_count}" \
-                -p "longListChunkSize=${chunk_size}" \
-                -p "workDir=${size_directory}" \
-                -p "verify=false" \
-                -t 1 \
-                -bm ss \
-                -tu ms \
-                -wi 1 \
-                -i 2 \
-                -f 1 \
-                -to 60m \
-                -foe true \
-                -rf json \
-                -rff "${RESULTS_DIR}/${result_name}.json" \
-                -jvmArgs "${java_options}" \
-                2>&1 | tee "${RESULTS_DIR}/${result_name}.log"
+            run_jmh "${result_name}" "${IMPLEMENTATIONS}" "${threads}" "${leaf_count}" "${chunk_size}" 2
         done
     done
+
+    # Compare verified warm and cold LongListDisk sources without adding cache state to the full matrix.
+    if (( leaf_count == 1000000000 )); then
+        chunk_size=1048576
+        for block in "${BLOCKS[@]}"; do
+            case "${block}" in
+                A)
+                    threads="1,2,8"
+                    cache_states="WARM,COLD"
+                    ;;
+                B)
+                    threads="8,2,1"
+                    cache_states="COLD,WARM"
+                    ;;
+                C)
+                    threads="2,8,1"
+                    cache_states="WARM,COLD"
+                    ;;
+            esac
+            result_name="disk-cache-leaves-${leaf_count}-chunk-${chunk_size}-block-${block}"
+            run_jmh "${result_name}" "LongListDisk" "${threads}" "${leaf_count}" "${chunk_size}" 2 "${cache_states}"
+        done
+    fi
+
+    # Give the shortlisted production comparison 15 measurements per cell without expanding the broad matrix.
+    if (( leaf_count >= 1000000000 )); then
+        chunk_size=1048576
+        for block in "${BLOCKS[@]}"; do
+            case "${block}" in
+                A)
+                    implementations="LongListSegment,LongListDisk"
+                    threads="1,2"
+                    ;;
+                B)
+                    implementations="LongListDisk,LongListSegment"
+                    threads="2,1"
+                    ;;
+                C)
+                    implementations="LongListSegment,LongListDisk"
+                    threads="2,1"
+                    ;;
+            esac
+            result_name="confirmation-leaves-${leaf_count}-chunk-${chunk_size}-block-${block}"
+
+            # Five measurements in each reordered block give every shortlisted cell 15 samples.
+            run_jmh "${result_name}" "${implementations}" "${threads}" "${leaf_count}" "${chunk_size}" 5
+        done
+    fi
 
     # All configurations for this leaf count are complete; delete its fixture to bound peak disk usage.
     remove_scratch_directory "${size_directory}"
