@@ -118,15 +118,19 @@ jobs:
 
       - name: Retrieve BN Release Tag
         run: |
-          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          # An explicit version is used directly as the block-node chart/image version: solo pulls the
+          # OCI chart oci://ghcr.io/hiero-ledger/hiero-block-node/block-node-server at that version and
+          # needs no GitHub release, so tag-only alpha/rc builds (e.g. v0.41.0-alpha1) work. Only
+          # "latest"/blank is resolved through the releases API.
           if [[ -n "${{ inputs.bn-release-version }}" && "${{ inputs.bn-release-version }}" != "latest" ]]; then
-            bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/tags/${{ inputs.bn-release-version }}"
+            BN_RELEASE_TAG="${{ inputs.bn-release-version }}"
+          else
+            curl_response=$(curl -s -H "Accept: application/vnd.github+json" "https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest") || exit 1
+            BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
           fi
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
-          BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${BN_RELEASE_TAG}" ]]; then
-            echo "ERROR: Could not parse BN_RELEASE_TAG from response"
+            echo "ERROR: Could not determine BN_RELEASE_TAG"
             exit 1
           fi
 
