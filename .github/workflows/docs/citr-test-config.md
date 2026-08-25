@@ -19,6 +19,14 @@ test suites include:
 | Shortgevity | Short Longevity Tests         | Production throttled mixed TPS load with reconnects on a mainnet-like environment over several days |           |
 | MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues                      | X         |
 
+## Resource Allocation
+
+SDPT, SDLT, and MDLT acquire their Kubernetes environments from [Chewie](https://github.com/swirldslabs/chewie), the
+compute allocation service. Instead of running against a pre-provisioned cluster asset, these suites request the shape
+of environment they need and Chewie provisions a namespace for the duration of the run, then reclaims it.
+
+See [Chewie Resource Allocation](chewie.md) for the configuration files, secrets, and workflow chain involved.
+
 ## MATS
 
 ### Purpose
@@ -100,7 +108,7 @@ catching regressions without being unnecessarily long-running.
 | SDK TCK Regression Panel                  | [819: [CALL] TCK Regression](/.github/workflows/819-call-tck-regression.yaml)                    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
 | Mirror Node Regression Panel              | [820: [CALL] Mirror Node Regress](/.github/workflows/820-call-mirror-node-regression.yaml)       | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| Solo 0.76 to 0.77 Cutover Panel           | [826: [CALL] Solo 076-077 Cutover](/.github/workflows/826-call-solo-076-to-077-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 
 ## SDCT
 
@@ -166,11 +174,18 @@ potential performance regressions.
 
 ### Hardware
 
-Latitude kubernetes cluster
+The environment is allocated by Chewie. The requested shape is defined in
+[sdpt-config.json](/.github/workflows/support/chewie/sdpt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for CryptoBench
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes, CryptoBench| 9        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+The allocation duration and the time SDPT will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
@@ -214,10 +229,18 @@ environment to quickly identify regressions in overall network stability and rob
 
 ### Hardware
 
-Latitude kubernetes cluster
+The environment is allocated by Chewie. The requested shape is defined in
+[sdlt-config.json](/.github/workflows/support/chewie/sdlt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+The allocation duration and the time SDLT will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
@@ -266,10 +289,19 @@ running version of SDLT to catch potential issues that may not surface within th
 
 ### Hardware
 
-Latitude kubernetes cluster
+MDLT runs through the SDLT workflows, so it uses the same Chewie-allocated environment defined in
+[sdlt-config.json](/.github/workflows/support/chewie/sdlt-config.json).
 
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+Because MDLT holds the environment for multiple days, the allocation duration must be long enough to cover the whole
+run. Set it with the `duration-minutes` input on
+[202: [USER] CITR SDLT Ctrl Adhoc](/.github/workflows/202-user-sdlt-controller-adhoc.yaml); the `default_duration` in
+[`.github/chewie.yaml`](/.github/chewie.yaml) is sized for a single-day run. See
+[Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
