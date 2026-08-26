@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
+import static com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils.assertDatabaseFolderDeleted;
+import static com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils.createDataSource;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertDatabaseFolderDeleted;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertSomeDatabasesStillOpen;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createMetrics;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;

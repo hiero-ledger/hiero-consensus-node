@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
-import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
-import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
-import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
+import static com.swirlds.merkledb.internal.MerkleDbDataSource.ID_TO_HASH_CHUNK;
+import static com.swirlds.merkledb.internal.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
+import static com.swirlds.merkledb.internal.MerkleDbDataSource.PATH_TO_KEY_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.files.DataFileCompactor;
-import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
 import java.nio.file.Path;
