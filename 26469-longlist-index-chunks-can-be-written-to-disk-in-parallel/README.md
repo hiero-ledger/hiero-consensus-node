@@ -35,6 +35,7 @@ index or the master plan repeats them.
 | 00 | Prepared-memory FileChannel write reference | [`filechannel-write-reference.md`](00-filechannel-write-reference/filechannel-write-reference.md) | Complete; durable plateau is approximately 12.62 s for 8 GB; corrected non-Heap LongLists retain a 4.7–5.4% gap |
 | 01 | Corrected parallel-chunk baseline | [`linux-benchmark-results.md`](01-parallel-chunk-writes/linux-benchmark-results.md) | Complete equal-sample matrix for all five implementations; production thread count remains undecided |
 | 01 | `LongListDisk` cache diagnostic | [`disk-cache-diagnostic.md`](01-parallel-chunk-writes/disk-cache-diagnostic.md) | Complete; cold residency increases the parallel benefit but is not the default periodic-snapshot condition |
+| 02 | LongList phase breakdown | [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md) | Planned; reproduce the 1B gap and divide total time into final-force and non-force time |
 | 02 | Physical block preallocation | `02-reduce-durable-write-time/physical-block-preallocation.md` | Run only if profiling implicates file growth |
 | 02 | Direct I/O | `02-reduce-durable-write-time/direct-io.md` | Run only if profiling implicates the buffered path |
 | 02 | Compression | `02-reduce-durable-write-time/compression.md` | Requires team approval and favorable ratio/load-cost evidence |

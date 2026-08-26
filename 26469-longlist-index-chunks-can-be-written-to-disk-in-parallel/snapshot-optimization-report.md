@@ -442,6 +442,8 @@ Everything lives under `26469-longlist-index-chunks-can-be-written-to-disk-in-pa
 │           # Historical raw results from the interrupted Linux campaign.
 │
 ├── 02-reduce-durable-write-time/
+│   ├── phase-breakdown.md
+│   │   # Same-campaign FileChannel and all-five-LongList phase comparison.
 │   ├── physical-block-preallocation.md
 │   │   # Created if profiling identifies file growth as meaningful overhead.
 │   ├── direct-io.md
@@ -502,8 +504,12 @@ document, and verify its calculations and conclusions.
    `disk-cache-diagnostic.md` before processing their raw results.~~
 4. **Compare the FileChannel reference with the corrected baseline.** The
    initial comparison is complete: Heap reaches the reference, while the other
-   implementations retain a 4.7–5.4% 1B gap. Measure the responsible phase
-   before deciding whether any durable-write experiment is justified.
+   implementations retain a 4.7–5.4% 1B gap. Reproduce the comparison in one
+   campaign at `P={1,8}` using the prepared-memory control and all five
+   implementations. Use three reordered blocks and five measurements per
+   block, and record the final force with JFR. Measure the responsible phase
+   before deciding whether any durable-write experiment is justified. See
+   [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md).
 5. **Run only the resulting measurement-gated durable-write experiments.**
    Test physical block preallocation only if file growth is implicated, and
    direct I/O only if the buffered path is implicated. Preserve and document
