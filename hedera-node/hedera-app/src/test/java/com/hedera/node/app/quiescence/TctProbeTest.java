@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.token.api.StakingRewardsApi.epochSecon
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.stakePeriodAt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -121,9 +122,10 @@ class TctProbeTest {
         // When
         final var result = subject.findTct();
 
-        // Then - should return EPOCH (freeze time defaults to EPOCH when null)
-        assertNotNull(result);
-        assertEquals(Instant.EPOCH, result);
+        // Then - no deadline of any kind, so the probe must return null (not Instant.EPOCH).
+        // Returning EPOCH would cause QuiescenceController.getQuiescenceStatus() to treat the deadline
+        // as already past and force DONT_QUIESCE on every heartbeat tick (see issue #25140).
+        assertNull(result);
     }
 
     @Test
@@ -454,9 +456,8 @@ class TctProbeTest {
         // When
         final var result = subject.findTct();
 
-        // Then - should return EPOCH (freeze time defaults to EPOCH when null)
-        assertNotNull(result);
-        assertEquals(Instant.EPOCH, result);
+        // Then - no deadline of any kind, so the probe must return null
+        assertNull(result);
     }
 
     @Test
@@ -528,8 +529,8 @@ class TctProbeTest {
     }
 
     @Test
-    void findTctUsesEpochWhenFreezeTimeIsNull() {
-        // Given - no freeze time is set (null), so it defaults to EPOCH
+    void findTctReturnsStakePeriodStartWhenFreezeTimeIsNull() {
+        // Given - no freeze time is set and there are no scheduled transactions, but a positive stake period
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
@@ -542,9 +543,13 @@ class TctProbeTest {
         // When
         final var result = subject.findTct();
 
-        // Then - should return EPOCH (freeze time defaults to EPOCH when null, which is earlier than stake period)
+        // Then - the stake-period start is the only deadline; it must be returned (NOT Instant.EPOCH).
+        // Previously the probe leaked EPOCH here via a default freeze time, which broke quiescence.
         assertNotNull(result);
-        assertEquals(Instant.EPOCH, result);
+        final long currentStakePeriod = stakePeriodAt(LAST_HANDLED_TIME, STAKE_PERIOD_MINS);
+        final var expectedNextStakePeriodStart =
+                Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, STAKE_PERIOD_MINS));
+        assertEquals(expectedNextStakePeriodStart, result);
     }
 
     @Test
@@ -608,7 +613,6 @@ class TctProbeTest {
     @Test
     void findTctWithFreezeTimeAndNoStakePeriod() {
         // Given - freeze time is set but no stake period (stakePeriodMins = 0)
-        // When stakePeriodMins = 0, nextStakePeriodStart is set to EPOCH
         final var freezeTime = LAST_HANDLED_TIME.plusSeconds(500);
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
@@ -627,10 +631,10 @@ class TctProbeTest {
         // When
         final var result = subject.findTct();
 
-        // Then - should return EPOCH (min of EPOCH for stake period and freezeTime)
-        // When stakePeriodMins = 0, nextStakePeriodStart is EPOCH, which is earlier than freezeTime
+        // Then - freeze time is the only deadline; the stake-period absence must NOT manufacture an
+        // Instant.EPOCH deadline. This used to return EPOCH and break quiescence.
         assertNotNull(result);
-        assertEquals(Instant.EPOCH, result);
+        assertEquals(freezeTime, result);
     }
 
     @Test

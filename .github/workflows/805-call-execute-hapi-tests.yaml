@@ -670,7 +670,24 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestRestart
+        # hapiTestQuiescence is a separate subtask so it gets its own JVM-startup overrides
+        run: |
+          status=0
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestRestart
+          run_subtask hapiTestQuiescence
+          exit $status
 
       - name: Publish HAPI Test (Restart) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0

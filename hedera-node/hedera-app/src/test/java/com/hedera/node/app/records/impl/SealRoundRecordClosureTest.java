@@ -6,6 +6,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,16 +18,20 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -145,11 +150,14 @@ class SealRoundRecordClosureTest extends AppTestBase {
         when(producer.getRunningHash()).thenReturn(RUNNING_HASH);
         when(producer.finishCurrentBlock()).thenReturn(CompletableFuture.completedFuture(Bytes.EMPTY));
         final var controller = new QuiescenceController(
-                new com.hedera.node.config.data.QuiescenceConfig(false, java.time.Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
-                () -> 0);
-        final var platform = app.platform();
-        final var heartbeat = new QuiescedHeartbeat(controller, platform);
+                () -> 0,
+                Instant::now,
+                () -> {},
+                mock(QuiescenceCommands.class),
+                new NoOpMetrics());
+        final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
         final Supplier<BlockItemWriter> wrbSupplier = () -> Mockito.mock(BlockItemWriter.class);
         final var lifecycle = Mockito.mock(BlockRecordManager.Lifecycle.class);
 
@@ -159,7 +167,6 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 producer,
                 controller,
                 heartbeat,
-                platform,
                 Mockito.mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 wrbSupplier,
                 blockHashSigner,
