@@ -269,6 +269,9 @@ public class BlockBufferService {
         }
     }
 
+    /**
+     * @return the configured maximum number of in-progress blocks allowed
+     */
     private int maxInProgressBlocks() {
         final int maxInProgressBlocks = bufferConfig().maxInProgressBlocks();
         return maxInProgressBlocks <= 1 ? DEFAULT_MAX_IN_PROGRESS_BLOCKS : maxInProgressBlocks;
