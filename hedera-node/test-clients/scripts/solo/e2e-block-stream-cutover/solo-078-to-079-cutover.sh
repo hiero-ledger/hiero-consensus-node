@@ -1692,6 +1692,13 @@ upgrade_to_local_079() {
     --id "${BLOCK_NODE_ID}" \
     --upgrade-version "${BLOCK_NODE_UPGRADE_VERSION}" \
     --quiet-mode
+  # Same StatefulSet race seed_block_node_tss_parameters documents: an in-place `block node upgrade`
+  # rolls the StatefulSet, and `wait --for=condition=ready pod/<name>` matches the OLD pod -- still
+  # Ready while it terminates -- so it returns before the upgraded pod exists. The script then races
+  # ahead and the post-cutover BN port-forward finds no ready endpoint behind svc/block-node-N.
+  # Block on the rollout first, then confirm the recreated pod.
+  kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" \
+    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
   kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
 
   log "--- 0.79 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
