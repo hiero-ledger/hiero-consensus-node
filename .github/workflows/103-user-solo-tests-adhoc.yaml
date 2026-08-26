@@ -9,10 +9,10 @@ on:
         required: true
         type: string
       solo-version:
-        description: "[All] Solo version to install."
-        required: true
+        description: "[All] Solo version to install. Blank → the pinned adhoc-solo-version from .citr-env (recommended)."
+        required: false
         type: string
-        default: "0.79.0"
+        default: ""
       scenario:
         description: "Which Solo test scenario to run."
         required: true
@@ -23,7 +23,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
           - "075-to-076-tss"
-          - "076-to-077-cutover"
+          - "078-to-079-cutover"
           - "e2e-backpressure"
       cluster-target:
         description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
@@ -63,8 +63,8 @@ on:
         required: false
         type: string
         default: ""
-      cutover-076-to-077-starting-tag:
-        description: "[076-to-077-cutover] Consensus-node release tag for the initial 0.76 network deploy. The 0.77 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.76.0-rc.1."
+      cutover-078-to-079-starting-tag:
+        description: "[078-to-079-cutover] Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.2."
         required: false
         type: string
         default: ""
@@ -103,10 +103,23 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    # Runs for every scenario. Non-cutover jobs read adhoc-solo-version from it as the default
+    # Solo version when the solo-version input is left blank; the 078-to-079 cutover job reads
+    # cutover-solo-version. It must stay unconditional: a gated job would be "skipped", and a
+    # skipped need skips its dependents, so gating it would skip every non-cutover scenario.
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'jumpstart' }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
@@ -130,7 +143,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -143,14 +156,19 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -184,7 +202,7 @@ jobs:
       - name: Authorize Teleport K8S Access
         if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -306,6 +324,7 @@ jobs:
     name: "Solo E2E Block Stream Cutover"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
@@ -329,7 +348,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
           setup-go: "true"
           go-version: "1.26.4"
 
@@ -344,14 +363,19 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -385,7 +409,7 @@ jobs:
       - name: Authorize Teleport K8S Access
         if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -519,6 +543,7 @@ jobs:
     name: "Solo 0.75 -> 0.76 TSS Upgrade"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == '075-to-076-tss' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -554,13 +579,18 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -663,15 +693,16 @@ jobs:
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
-  solo-076-to-077-cutover:
-    name: "Solo 0.76 -> 0.77 BLOCKS Cutover"
+  solo-078-to-079-cutover:
+    name: "Solo 0.78 -> 0.79 BLOCKS Cutover"
     needs:
       - extract-jdk-version
-    if: ${{ inputs.scenario == '076-to-077-cutover' }}
+      - extract-citr-vars
+    if: ${{ inputs.scenario == '078-to-079-cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     env:
-      SOLO_CLUSTER_NAME: "cutover-076-to-077"
+      SOLO_CLUSTER_NAME: "cutover-078-to-079"
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -701,12 +732,14 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -740,25 +773,25 @@ jobs:
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
-        # The 0.77 cutover always upgrades to the local build, so a build is always required.
+        # The 0.79 cutover always upgrades to the local build, so a build is always required.
         run: ${GRADLE_EXEC} assemble
 
-      - name: Run 0.76 -> 0.77 BLOCKS Cutover Scenario
+      - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
         run: |
           set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-076-to-077-cutover.sh"
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.cutover-076-to-077-starting-tag || 'v0.76.0-rc.1' }}" \
-            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/076-to-077-cutover-script.log"
+              DEPLOY_RELEASE_TAG="${{ inputs.cutover-078-to-079-starting-tag || 'v0.78.0-rc.2' }}" \
+            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
         run: |
           set +e
-          OUT_DIR="${RUNNER_TEMP}/076-to-077-cutover-diagnostics"
+          OUT_DIR="${RUNNER_TEMP}/078-to-079-cutover-diagnostics"
           mkdir -p "${OUT_DIR}"
 
           kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
@@ -773,6 +806,9 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
               "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log" \
+              > "${OUT_DIR}/${pod}-block-node-comms.log" 2>&1
           done
 
           if [[ -d "${HOME}/.solo/logs" ]]; then
@@ -787,14 +823,14 @@ jobs:
             done
           fi
 
-      - name: Upload 076-to-077 Cutover Failure Artifacts
+      - name: Upload 078-to-079 Cutover Failure Artifacts
         if: ${{ !cancelled() && failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: 076-to-077-Cutover-Failure-Artifacts
+          name: 078-to-079-Cutover-Failure-Artifacts
           path: |
-            ${{ runner.temp }}/076-to-077-cutover-script.log
-            ${{ runner.temp }}/076-to-077-cutover-diagnostics/**
+            ${{ runner.temp }}/078-to-079-cutover-script.log
+            ${{ runner.temp }}/078-to-079-cutover-diagnostics/**
             hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
           if-no-files-found: warn
           retention-days: 7
@@ -810,6 +846,7 @@ jobs:
     name: "Solo E2E Backpressure (Block Node Outage)"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'e2e-backpressure' }}
     # Kind-only: the script provisions its own ephemeral Kind cluster on the runner
     # and scales block-node workloads directly, so cluster-target is ignored.
@@ -830,15 +867,22 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -904,6 +948,7 @@ jobs:
     name: "Solo WRB Streaming to Block Node"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
@@ -924,20 +969,25 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22.23.2"
           setup-go: "true"
           go-version: "1.26.4"
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
         run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -971,7 +1021,7 @@ jobs:
       - name: Authorize Teleport K8S Access
         if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
         id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot

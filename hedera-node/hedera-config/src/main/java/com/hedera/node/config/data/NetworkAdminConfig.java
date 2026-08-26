@@ -15,7 +15,6 @@ import java.time.Duration;
  * @param upgradeArtifactsPath path to the location where upgrade files are stored once uncompressed, and upgrade
  *                             marker files are written
  * @param upgradeSysFilesLoc path to the location where post-upgrade system files are located
- * @param upgradeFeeSchedulesFile name of the file containing the post-upgrade fee schedules
  * @param upgradeThrottlesFile name of the file containing the post-upgrade throttles
  * @param upgradePropertyOverridesFile name of the file containing the post-upgrade override properties
  * @param upgradePermissionOverridesFile name of the file containing the post-upgrade override permissions
@@ -27,7 +26,6 @@ public record NetworkAdminConfig(
         String upgradeArtifactsPath,
 
         @ConfigProperty(defaultValue = "data/config") String upgradeSysFilesLoc,
-        @ConfigProperty(defaultValue = "feeSchedules.json") String upgradeFeeSchedulesFile,
 
         @ConfigProperty(defaultValue = "simpleFeesSchedules.json")
         String upgradeSimpleFeeSchedulesFile,

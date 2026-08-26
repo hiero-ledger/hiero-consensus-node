@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "225: [DISP] Release Chewie Allocation"
+on:
+  workflow_dispatch:
+    inputs:
+      chewie-allocation-id:
+        description: "The Chewie Allocation ID to release."
+        required: true
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  get-chewie-jwt:
+    name: Get Chewie JWT
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  validate-chewie-jwt:
+    name: Validate Chewie JWT
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
+    with:
+      ref: ${{ github.ref }}
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-allocation:
+    name: Release Chewie Allocation
+    runs-on: hl-cn-chewie-lin-sm
+    needs:
+      - get-chewie-jwt
+      - validate-chewie-jwt
+    env:
+      HOST: "${{ secrets.CHEWIE_HOST }}"
+      API_EP_COMPUTE_ALLOCATION: "api/v1/compute/allocation"
+      ALLOCATION_ID: "${{ inputs.chewie-allocation-id }}"
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-ref: ${{ github.ref }}
+
+      - name: Mask Chewie JWT
+        env:
+          CHEWIE_JWT_B64: ${{ needs.get-chewie-jwt.outputs.jwt }}
+        run: |
+          # The JWT arrives here as a job output rather than through a secrets: input the way 859
+          # receives it, so nothing has registered it for redaction. Masks are job-scoped, so this
+          # has to happen in this job, ahead of every step that handles the token.
+          echo "::add-mask::${CHEWIE_JWT_B64}"
+
+      - name: Validate Allocation ID
+        id: validate-allocation-id
+        run: |
+          # Chewie parses :id as a positive int64; reject anything else before spending a request on it.
+          if [[ ! "${ALLOCATION_ID}" =~ ^[0-9]+$ ]] || [[ "${ALLOCATION_ID}" -le 0 ]]; then
+            echo "::error title=Invalid Allocation ID::'${ALLOCATION_ID}' is not a positive integer."
+            exit 1
+          fi
+
+          echo "Releasing Chewie allocation: ${ALLOCATION_ID}"
+
+      - name: Report Allocation Details
+        id: report-allocation-details
+        env:
+          CHEWIE_JWT_B64: ${{ needs.get-chewie-jwt.outputs.jwt }}
+        run: |
+          # No -g/-x: this allocation was built by some other run, so let the script discover
+          # whatever instance groups Chewie actually recorded for it.
+          .github/workflows/support/chewie/parse-chewie-allocation.sh \
+            -o "${HOST}" \
+            -e "${API_EP_COMPUTE_ALLOCATION}" \
+            -i "${ALLOCATION_ID}" \
+            -f summary
+
+      - name: Release Chewie Allocation
+        id: release-allocation
+        env:
+          CHEWIE_JWT_B64: ${{ needs.get-chewie-jwt.outputs.jwt }}
+        run: |
+          .github/workflows/support/chewie/release-chewie-allocation.sh \
+            -o "${HOST}" \
+            -e "${API_EP_COMPUTE_ALLOCATION}" \
+            -i "${ALLOCATION_ID}"

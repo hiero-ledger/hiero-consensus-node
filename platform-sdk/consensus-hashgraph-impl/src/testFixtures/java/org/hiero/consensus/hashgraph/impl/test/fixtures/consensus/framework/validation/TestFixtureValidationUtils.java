@@ -4,6 +4,7 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.val
 import static org.assertj.core.api.Assertions.fail;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -28,9 +29,14 @@ public class TestFixtureValidationUtils {
             fail(String.format("Length of event lists are unequal: %d vs %d", l1.size(), l2.size()));
         }
 
-        for (int index = 0; index < l1.size(); index++) {
-            final PlatformEvent e1 = l1.get(index);
-            final PlatformEvent e2 = l2.get(index);
+        // Iterate rather than index into the lists: the arguments may be linked lists, for which
+        // repeated get(index) calls would make this loop quadratic.
+        final Iterator<PlatformEvent> it1 = l1.iterator();
+        final Iterator<PlatformEvent> it2 = l2.iterator();
+        int index = 0;
+        while (it1.hasNext() && it2.hasNext()) {
+            final PlatformEvent e1 = it1.next();
+            final PlatformEvent e2 = it2.next();
             final boolean equals = e1.equalsGossipedData(e2);
             if (shouldBeEqual && !equals) {
                 final String sb = description
@@ -50,6 +56,7 @@ public class TestFixtureValidationUtils {
                 // events are not equal, and they are not expected to be, we can stop checking
                 return;
             }
+            index++;
         }
         if (!shouldBeEqual) {
             // events are not expected to be equal, but we have gone through the whole list without finding a mismatch

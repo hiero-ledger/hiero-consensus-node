@@ -53,11 +53,11 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -850,7 +850,7 @@ public class CodeDelegationAtomicBatchTest {
                     final var accountInBatchRollbackKey = spec.registry().getKey(accountInBatchRollback);
                     final var accountInRollbackEvmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
                             accountInBatchRollbackKey.getECDSASecp256K1().toByteArray()));
-                    final var evmAddress = "0x" + Hex.toHexString(accountInRollbackEvmAddress.toByteArray());
+                    final var evmAddress = "0x" + HexFormat.of().formatHex(accountInRollbackEvmAddress.toByteArray());
                     allRunFor(
                             spec,
                             getContractBytecode(evmAddress)

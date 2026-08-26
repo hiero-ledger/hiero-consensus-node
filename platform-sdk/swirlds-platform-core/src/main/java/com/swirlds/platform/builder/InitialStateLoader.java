@@ -31,7 +31,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
@@ -97,9 +96,7 @@ public class InitialStateLoader {
 
         final boolean startedFromGenesis = signedState.isGenesisState();
 
-        if (startedFromGenesis) {
-            buildingBlocks.platformCoordinator().updateEventWindow(EventWindow.getGenesisEventWindow());
-        } else {
+        if (!startedFromGenesis) {
             buildingBlocks.stateModule().sendState(signedState);
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
@@ -116,8 +113,14 @@ public class InitialStateLoader {
             final int roundsNonAncient =
                     inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
             buildingBlocks
-                    .platformCoordinator()
-                    .updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+                    .initialEventWindowDispatcher()
+                    .getInputWire()
+                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+            // No flush is required here. The dispatcher is a DIRECT_THREADSAFE transformer, so inject() delivers the
+            // event window on the calling thread: by the time it returns, every downstream component has either
+            // handled it or has it queued ahead of anything sent later. Gossip is the case that matters, as its start
+            // signal arrives on the same sequential scheduler when SwirldsPlatform.start() runs, so the sync threads
+            // it spawns are guaranteed to see the event window.
             buildingBlocks
                     .issDetectionModule()
                     .overridingStateInputWire()

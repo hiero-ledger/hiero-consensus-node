@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-28
 ---
 
 # Hashgraph
@@ -99,7 +99,7 @@ is wired against those.
   `ConsensusEngine.updatePlatformStatus`, which sets `pcesMode = true`
   on `Consensus` when the status is `REPLAYING_EVENTS`
   (`DefaultConsensusEngine.java#updatePlatformStatus`).
-- `consensusSnapshotInputWire(): InputWire<ConsensusSnapshot>` —
+- `consensusSnapshotOverrideInputWire(): InputWire<ConsensusSnapshot>` —
   drives `ConsensusEngine.outOfBandSnapshotUpdate`, which clears the
   linker and the future-event buffer and reloads
   `Consensus.loadSnapshot(snapshot)` at restart and reconnect
@@ -173,8 +173,8 @@ rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
 `r + 1` if a super-majority is reached. As a short-circuit, any event
-whose sequence number is below the latest decided round's judges
-(`ConsensusRounds.isOlderThanDecidedRoundSeqNum`), and any consensus
+whose nGen is below the latest decided round's judges
+(`ConsensusRounds.isOlderThanDecidedRoundGeneration`), and any consensus
 event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and
 strongly-seeing work — see RUL-005. For the conceptual background see
 [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
@@ -253,7 +253,7 @@ samples the flag both before and after `consensus.addEvent`
 `DefaultConsensusEngine.java:140-144`); the post-add check is the
 transition point out of waiting. When the last init judge arrives,
 `ConsensusImpl.checkInitJudges`
-(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
+(`ConsensusImpl.java#checkInitJudges`) takes the judges' common ancestors that are
 neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
 under the `nonConsensusNonAncient` predicate) and marks each
 `setConsensus(true)` while deliberately leaving `roundReceived` unset:

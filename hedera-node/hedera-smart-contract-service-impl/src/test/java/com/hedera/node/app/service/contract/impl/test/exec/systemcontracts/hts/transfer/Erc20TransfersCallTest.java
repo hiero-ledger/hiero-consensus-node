@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.exec.gas.DispatchType.ASSOCIATE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
@@ -58,6 +59,11 @@ class Erc20TransfersCallTest extends CallTestBase {
     private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
             .withValue("blockStream.streamMode", "BLOCKS")
             .getOrCreateConfig();
+    private static final Configuration NO_UNLIMITED_ASSOCIATIONS_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .withValue("entities.unlimitedAutoAssociationsEnabled", false)
+            .getOrCreateConfig();
+    private static final long CANONICAL_ASSOCIATE_GAS = 704_000L;
     private static final Address FROM_ADDRESS =
             ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
     private static final Address TO_ADDRESS =
@@ -230,6 +236,84 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         verify(streamBuilder, never()).contractCallResult(any());
+    }
+
+    @Test
+    void chargesGasForAutoAssociationsCreatedByTransfer() {
+        givenSynthIdHelperWithoutFrom();
+        givenFrameConfig();
+        givenSuccessfulDispatch();
+        given(streamBuilder.getNumAutoAssociations()).willReturn(2);
+        given(systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(2 * CANONICAL_ASSOCIATE_GAS, result.gasRequirement());
+    }
+
+    @Test
+    void chargesGasForAutoAssociationsCreatedByTransferFrom() {
+        givenSynthIdHelperWithFrom();
+        givenFrameConfig();
+        givenSuccessfulDispatch();
+        given(streamBuilder.getNumAutoAssociations()).willReturn(1);
+        given(systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
+
+        subject = subjectForTransferFrom(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(CANONICAL_ASSOCIATE_GAS, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotChargeAutoAssociationGasIfUnlimitedAssociationsDisabled() {
+        givenSynthIdHelperWithoutFrom();
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(NO_UNLIMITED_ASSOCIATIONS_CONFIG);
+        givenSuccessfulDispatch();
+        given(streamBuilder.getNumAutoAssociations()).willReturn(2);
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotConsultConfigWithoutAutoAssociations() {
+        givenSynthIdHelperWithoutFrom();
+        givenFrameConfig();
+        givenSuccessfulDispatch();
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
+        verify(systemContractGasCalculator, never()).canonicalGasRequirement(ASSOCIATE);
+    }
+
+    private void givenSuccessfulDispatch() {
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
+        given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        given(readableAccountStore.getAliasedAccountById(any())).willReturn(OWNER_ACCOUNT);
     }
 
     private void givenSynthIdHelperWithFrom() {

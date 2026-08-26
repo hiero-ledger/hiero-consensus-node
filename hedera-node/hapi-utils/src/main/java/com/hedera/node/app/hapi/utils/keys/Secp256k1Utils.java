@@ -4,24 +4,28 @@ package com.hedera.node.app.hapi.utils.keys;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.BC_PROVIDER;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
+import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.InputStream;
+import java.lang.foreign.MemorySegment;
 import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
-import org.bouncycastle.math.ec.ECPoint;
 
 /**
  * Useful methods for interacting with SECP256K1 ECDSA keys.
  */
 public class Secp256k1Utils {
+    private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
+
     public static final int ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH = 33;
 
     private static final int EVM_ADDRESS_BYTE_LENGTH = 20;
@@ -33,10 +37,73 @@ public class Secp256k1Utils {
                 || contractId.evmAddressOrElse(Bytes.EMPTY).length() == EVM_ADDRESS_BYTE_LENGTH;
     }
 
+    private record Cache(byte[] pubkey, MemorySegment pubkeySeg, long[] len, MemorySegment lenSeg) {}
+
+    private static final ThreadLocal<Cache> CACHE = new ThreadLocal<>() {
+        @Override
+        protected Cache initialValue() {
+            final byte[] pubkey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
+            final long[] len = new long[1];
+            return new Cache(pubkey, MemorySegment.ofArray(pubkey), len, MemorySegment.ofArray(len));
+        }
+    };
+
     public static byte[] extractEcdsaPublicKey(final ECPrivateKey key) {
-        final ECPoint pointQ =
-                ECNamedCurveTable.getParameterSpec("secp256k1").getG().multiply(key.getS());
-        return pointQ.getEncoded(true);
+        return extractEcdsaPublicKey(asPrivateKeyByteArray32(key.getS()));
+    }
+
+    /// Extracts an ECDSA public key from a 32-bytes-long private key.
+    /// An IllegalArgumentException is thrown if the input isn't a 32 bytes array
+    /// or is otherwise an invalid private key.
+    public static byte[] extractEcdsaPublicKey(final byte[] privateKeyBytes) {
+        final Cache cache = CACHE.get();
+
+        if (LIBSECP256K1.secp256k1EcPubkeyCreate(cache.pubkeySeg, MemorySegment.ofArray(privateKeyBytes)) != 1) {
+            throw new IllegalArgumentException("secp256k1EcPubkeyCreate failed. The private key is probably invalid.");
+        }
+
+        final byte[] serializedPubkey = new byte[ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH];
+        cache.len[0] = serializedPubkey.length;
+        if (LIBSECP256K1.secp256k1EcPubkeySerialize(
+                                MemorySegment.ofArray(serializedPubkey),
+                                cache.lenSeg,
+                                cache.pubkeySeg,
+                                Libsecp256k1.SECP256K1_EC_COMPRESSED)
+                        != 1
+                || cache.len[0] != serializedPubkey.length) {
+            throw new IllegalArgumentException(
+                    "secp256k1EcPubkeySerialize failed. The private key is probably invalid.");
+        }
+
+        return serializedPubkey;
+    }
+
+    /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
+    /// if present, aligning remaining bytes to the right, and padding with zeros to 32 bytes.
+    public static byte[] asPrivateKeyByteArray32(final BigInteger value) {
+        return asPrivateKeyByteArray32(value.toByteArray());
+    }
+
+    /// Accepts an array of 33 or fewer bytes, dropping the leading "33rd" zero byte, aligning
+    /// remaining bytes to the right, and padding with zeros to 32 bytes if needed.
+    /// The result is a byte[32], or an IllegalArgumentException if the input is malformed.
+    public static byte[] asPrivateKeyByteArray32(final byte[] bytes) {
+        if (bytes.length == 32) {
+            return bytes;
+        } else {
+            final byte[] tmp = new byte[32];
+
+            if (bytes.length == 33 && bytes[0] == 0) {
+                System.arraycopy(bytes, 1, tmp, 0, 32);
+                return tmp;
+            } else if (bytes.length < 32) {
+                System.arraycopy(bytes, 0, tmp, 32 - bytes.length, bytes.length);
+                return tmp;
+            }
+        }
+
+        // The byte array is longer than 33 bytes. It's an invalid secp256k1 key.
+        throw new IllegalArgumentException("Invalid BigInteger that is too long. It cannot be a valid private key.");
     }
 
     public static byte[] getEvmAddressFromString(final Key key) {

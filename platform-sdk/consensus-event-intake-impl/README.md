@@ -13,7 +13,7 @@ should depend on the API, not this module directly. For the intake pipeline, see
 May depend on:
 - `consensus-event-intake` (its API), any supporting module
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other `consensus-*-impl` modules

@@ -55,7 +55,13 @@ public class RsaContext {
     private volatile Bytes rosterHash = Bytes.EMPTY;
     private volatile Map<Long, PublicKey> publicKeys = Map.of();
     private volatile Map<Long, Long> weights = Map.of();
-    private final ThreadLocal<Map<Long, BytesSignatureVerifier>> verifiers = ThreadLocal.withInitial(HashMap::new);
+    // Per-thread cache of verifiers keyed by node id, holding the key each was built for so a rotated
+    // key is rebuilt on next use. Keyed by node id (not the key) to stay bounded by the roster size.
+    // Thread-local because JcaVerifier wraps a stateful, non-thread-safe java.security.Signature that
+    // must not be shared across the concurrent (parallel pre-handle) verification threads.
+    private final ThreadLocal<Map<Long, CachedVerifier>> verifiers = ThreadLocal.withInitial(HashMap::new);
+
+    private record CachedVerifier(PublicKey key, BytesSignatureVerifier verifier) {}
 
     @Inject
     public RsaContext(@NonNull final Supplier<Configuration> configProvider) {
@@ -82,7 +88,6 @@ public class RsaContext {
         rosterHash = RosterUtils.hash(roster).getBytes();
         publicKeys = Map.copyOf(keys);
         weights = publicKeys.keySet().stream().collect(toMap(identity(), nodeId -> weightFor(weightFn, nodeId)));
-        verifiers.remove();
     }
 
     /**
@@ -125,9 +130,13 @@ public class RsaContext {
             return false;
         }
         try {
-            final var verifier =
-                    verifiers.get().computeIfAbsent(nodeId, ignore -> SigningFactory.createVerifier(publicKey));
-            return verifier.verify(message, signature);
+            final var cache = verifiers.get();
+            var cached = cache.get(nodeId);
+            if (cached == null || !cached.key().equals(publicKey)) {
+                cached = new CachedVerifier(publicKey, SigningFactory.createVerifier(publicKey));
+                cache.put(nodeId, cached);
+            }
+            return cached.verifier().verify(message, signature);
         } catch (final CryptographyException e) {
             log.debug("Failed to validate RSA signature from node {}", nodeId, e);
             return false;

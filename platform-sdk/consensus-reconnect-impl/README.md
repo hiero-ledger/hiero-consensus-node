@@ -16,8 +16,9 @@ May depend on:
 - Functional-api modules: `consensus-gossip`, `consensus-event-creator`, `consensus-event-intake`,
 `consensus-hashgraph`, `consensus-pces`
 - Structural-transitional module: `consensus-state`; supporting module: `consensus-platformstate`
+- Self-contained functional module: `consensus-status-monitor`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other `consensus-*-impl` modules
@@ -34,3 +35,9 @@ to the execution layer; this dependency is expected during the transition.
 - `requires transitive com.swirlds.state.api`, `com.swirlds.state.impl`,
 `com.swirlds.virtualmap` — transitional; acceptable during modularization but not permitted
 in the final architecture.
+- `requires org.hiero.consensus.iss.detection`, `org.hiero.consensus.transaction.handling` —
+structural-transitional modules that nothing should depend on (rule 3). Neither is named
+anywhere in this module's sources; both are required because `DefaultReconnectModule` receives
+`ConsensusLayerBuildingBlocks`, whose record components are typed `IssDetectionModule` and
+`TransactionHandlingModule`. A consequence of the `com.swirlds.platform.core` dependency above,
+and it resolves with the same move to the execution layer.

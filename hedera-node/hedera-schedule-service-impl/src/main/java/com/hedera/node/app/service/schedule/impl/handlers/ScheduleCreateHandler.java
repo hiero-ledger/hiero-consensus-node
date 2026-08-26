@@ -115,7 +115,8 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var scheduledFunctionality =
                 functionalityForType(scheduledTxnBody.data().kind());
         checkMemo(scheduledTxnBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
-        checkMaxCustomFees(scheduledTxnBody.maxCustomFees(), scheduledFunctionality);
+        checkMaxCustomFees(
+                scheduledTxnBody.maxCustomFees(), scheduledFunctionality, hederaConfig.shard(), hederaConfig.realm());
         // For backward compatibility, use ACCOUNT_ID_DOES_NOT_EXIST for a nonexistent designated payer
         if (op.hasPayerAccountID()) {
             final var accountStore = context.createStore(ReadableAccountStore.class);
