@@ -27,49 +27,50 @@ and decisions.
 
 ## 1. Decision-relevant evidence already established
 
-The representative Linux campaign used an AMD EPYC host, ext4, and a 480 GB
-[Micron 7450 PRO M.2](https://www.micron.com/products/storage/ssd/data-center-ssd/7450-ssd/part-catalog)
-(`MTFDKBA480TFR`). Micron rates this model at 700 MB/s for sequential writes.
+The representative Linux experiments used an AMD EPYC host, ext4, and a
+480 GB [Micron 7450 PRO M.2](https://www.micron.com/products/storage/ssd/data-center-ssd/7450-ssd/part-catalog)
+(`MTFDKBA480TFR`). Micron rates this model at 700 MB/s for sequential writes;
+that figure is useful context rather than an exact ceiling for Java and ext4.
 
-| Workload | Implementation | `P=1` | `P=2` | `P=8` |
-|---|---|---:|---:|---:|
-| 1B leaves, 8.0 GB, default chunk | Segment | 13.126 s | 12.979 s (-1.1%) | 12.887 s (-1.8%) |
-| 1B leaves, 8.0 GB, default chunk | Disk | 14.007 s | 13.163 s (-6.0%) | 12.941 s (-7.6%) |
-| 5B leaves, 40 GB, small chunk | Segment | 58.383 s | 58.400 s (+0.0%) | 58.160 s (-0.4%) |
+The prepared-memory 8 GB FileChannel control reaches a tested plateau at
+approximately 12.62 seconds and 634 MB/s with `P=8`/`P=16`. Parallel writers
+shorten its body-write phase, but most of that saving moves into the final
+`force(true)` wait.
 
-The complete 1B means contain six measured writes. The 5B result is
-preliminary: one block with two measured writes and a 262,144-long chunk.
+The corrected baseline covers all five LongList implementations, four leaf
+counts, three chunk sizes, and three reordered blocks. The table below uses
+only the equal-sample broad matrix: six measurements for every implementation
+and setting at the production-default chunk size.
 
-The 1B Segment result is 609.5 MB/s, or 87% of the published 700 MB/s. The
-preliminary 5B result is 685.1 MB/s, or 98%. Micron obtained its number with a
-different tool and write pattern, so 700 MB/s is not an exact ceiling for our
-Java/ext4 workload. The same-protocol control subsequently established a
-12.62-second, 634 MB/s durable-write plateau for an 8 GB file. Its provisional
-comparison with the historical LongList campaign must be revisited after the
-corrected baseline.
+| Implementation | 1B `P=1` | 1B best | Reduction | 5B `P=1` | 5B best | Reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| Heap | 14.497 s | 12.601 s (`P=16`) | 13.1% | 62.202 s | 57.262 s (`P=8`) | 7.9% |
+| OffHeap | 13.753 s | 13.205 s (`P=16`) | 4.0% | 58.233 s | 57.995 s (`P=8`) | 0.4% |
+| Segment | 13.731 s | 13.204 s (`P=8`) | 3.8% | 58.567 s | 57.984 s (`P=32`) | 1.0% |
+| Disk | 14.471 s | 13.301 s (`P=8`) | 8.1% | 63.693 s | 58.983 s (`P=16`) | 7.4% |
+| DiskSegment | 13.958 s | 13.286 s (`P=8`) | 4.8% | 59.662 s | 58.595 s (`P=32`) | 1.8% |
 
-The campaign also established that:
+At 1B/default, Heap reaches the prepared-memory reference. The other four
+implementations remain 4.7–5.4% slower. That gap is a reason to measure the
+slower phase, not evidence for a specific I/O change.
 
-- Additional Segment writers provide no material large-state improvement on
-  this host.
-- Disk benefits from parallelism: `P=2` saved 6.0% at 1B and won in every
-  corresponding A/B/C block. Whether this comes from overlapping its source
-  work or from target-file concurrency remains to be established.
-- At 1B/default/`P=1`, all five implementations fall between 13.126 and
-  14.007 seconds. This suggests that their shared target-file path dominates
-  at large size, but it does not separate body-write time from force time.
+The separate `LongListDisk` cache diagnostic shows that source residency
+changes its result: `P=2` improved 4.4% warm and 14.5% cold. It does not
+justify rerunning the complete baseline cold. Default periodic snapshots use
+Segment, and an explicitly enabled Disk source is normally loaded, accessed,
+and scanned rather than deliberately evicted. Fully cold residency remains a
+memory-pressure sensitivity case.
 
-It did **not** establish the same-protocol practical ceiling, the time split
-between body writes and `force(true)`, or the end-to-end effect on a
-representative Linux MerkleDb snapshot.
+The experiments have not yet established the production thread count, the
+effect on a complete Linux MerkleDB snapshot, the cause of the remaining
+LongList gap, or the benefit and safety of removing `force(true)`.
 
 ## 2. Questions the experiments must answer
 
-1. **How much headroom remains in the current durable file-writing path?**
-   Run one prepared-memory control using the same Java, filesystem, and
-   durability boundary as LongList. Compare that reference with the existing
-   results for all five implementations. A stable gap identifies something to
-   investigate; the control alone does not explain its cause.
+1. **What causes the remaining durable-write gap?** The prepared-memory
+   control and corrected baseline expose 4.7–5.4% of 1B headroom for four
+   implementations. Measure the responsible phase before choosing another
+   experiment; the total-time gap alone does not identify its cause.
 2. **Does the current parallel-writing change improve a complete snapshot?**
    The isolated benchmark shows a repeatable improvement for `LongListDisk`,
    but not for `LongListSegment`. Compare complete snapshots using those two
@@ -158,6 +159,12 @@ LongList implementations:
 Keep results for all five LongList implementations. Highlight Segment and Disk
 because they are currently selected by `MerkleDbDataSource`, but do not treat
 them as the only results that matter.
+
+**Comparison result:** at 1B/default, Heap reaches the control plateau. The
+best OffHeap, Segment, DiskSegment, and Disk means remain 4.7–5.4% slower.
+This gates in phase measurement, but not a specific I/O experiment. See the
+corrected comparison in
+[`filechannel-write-reference.md`](00-filechannel-write-reference/filechannel-write-reference.md).
 
 ### Step 2 — only if Step 1 exposes a gap
 
@@ -354,45 +361,45 @@ need correctness analysis and measurement.
 
 All decision numbers come from the Linux machine. Reasons: production runs
 Linux/ext4/NVMe; the macOS numbers already misled twice (a ~9× faster drive,
-and a 25–35% result that shrank to ~6% on Linux); and benchmarking must not
-block a developer's laptop. The macbook is used only to smoke-test that
-benchmark code runs (tiny sizes), never for numbers. One cheap insurance
-before committing a final default: validate the *winning* way once on a
-second device — the host's faster striped `/opt` volume counts — so
+and a 25–35% result that became approximately 6% in the corrected ordinary
+Linux run); and benchmarking must not block a developer's laptop. The focused
+cold-source diagnostic is recorded separately. The macbook is used only to
+smoke-test that benchmark code runs (tiny sizes), never for numbers. One cheap
+insurance before committing a final default: validate the *winning* way once
+on a second device — the host's faster striped `/opt` volume counts — so
 conclusions aren't married to one 447 GB drive.
 
-### Harness fixes and focused confirmation
+Every comparative LongList campaign uses the same configurations and sample
+counts for all five implementations. A narrow implementation-specific
+diagnostic is agreed separately, clearly labeled, and never substituted for
+that comparison, as with the `LongListDisk` source-file residency check.
 
-1. **Fix the 5-billion out-of-memory failure.** The runner currently gives
-   every 5B case a 48 GiB heap, although `LongListHeap` retains different
-   amounts of memory at different chunk sizes. Keep all five implementations
-   and make heap sizing depend on both leaf count and chunk size. At 5B, use
-   `-Xmx48g` for 262,144-long chunks, `-Xmx64g` for 1,048,576-long chunks, and
-   `-Xmx96g` for 4,194,304-long chunks. These limits follow the retained G1
-   region footprints calculated from the failed campaign.
-2. **Test the disk-cache hypothesis narrowly.** `LongListDisk` copies the
-   fixture into its temporary backing file during setup, which warms that
-   source in the OS cache. Linux's 125 GiB RAM makes it likely that the whole
-   8 GiB source remains cached, but this does not prove that cache state caused
-   the Linux/macOS result difference. Do not add warm/cold state to the full
-   matrix. Run one focused warm-versus-cold comparison for `LongListDisk` at
-   1B leaves, the default chunk size, and `P={1,2,8}`. Use only a method that
-   can reliably evict the benchmark source; otherwise do not label the run
-   cold.
-3. **Collect more samples only for decision-making cells.** The broad campaign
-   has two measured writes in each of three parameter-order blocks, giving six
-   samples per cell. Keep broad exploratory runs bounded, then give shortlisted
-   comparisons five measured writes in each of the three counterbalanced
-   blocks, giving 15 samples per cell. Preserve the individual measurements
-   and report their mean and observed variability; the different block orders
-   reduce bias from machine drift during a long run.
-4. **Complete the automatic environment record.** The existing Linux host is
-   already documented as a Micron 7450 NVMe using ext4 with
-   `rw,relatime,stripe=16` and 125 GiB RAM. For future result archives, add the
-   exact filesystem and mount options from `findmnt` and explicit drive model,
-   size, rotational status, and transport columns from `lsblk` to
-   `environment.txt`. The runner already records the remaining required
-   source, JVM, operating-system, CPU, memory, and capacity information.
+### Corrected baseline protocol
+
+The completed runner resolves the problems found in the interrupted campaign:
+
+1. **5B heap sizing:** `-Xmx48g`, `-Xmx64g`, and `-Xmx96g` are selected for
+   262,144-, 1,048,576-, and 4,194,304-long chunks respectively. All five
+   implementations completed at 5B.
+2. **Focused disk-cache diagnostic:** warm and reliably evicted
+   `LongListDisk` sources were compared only at 1B/default and `P={1,2,8}`;
+   cache residency was verified before every invocation. This
+   implementation-specific sensitivity check does not replace the baseline or
+   require a complete cold rerun.
+3. **Equal comparative samples:** the broad matrix uses six measurements for
+   every implementation and cell. A historical supplemental check gave
+   Segment/Disk `P={1,2}` 15 measurements at 1B and 5B; it is retained as
+   repeatability evidence for those cases only and is not used for
+   cross-implementation comparison. Future comparative campaigns use equal
+   sample counts for all five implementations.
+4. **Environment capture:** the result archive records the filesystem and
+   mount options plus the exact drive model, size, rotational status, and
+   transport, alongside the source revision, JVM, OS, CPU, RAM, and capacity.
+
+The complete campaign and diagnostic are documented in
+[`linux-benchmark-results.md`](01-parallel-chunk-writes/linux-benchmark-results.md)
+and
+[`disk-cache-diagnostic.md`](01-parallel-chunk-writes/disk-cache-diagnostic.md).
 
 ### Directory structure for the branch folder
 
@@ -424,12 +431,15 @@ Everything lives under `26469-longlist-index-chunks-can-be-written-to-disk-in-pa
 │   ├── macos-benchmark-results.md
 │   │   # Existing development-machine evidence, retained for history.
 │   ├── linux-benchmark-results.md
-│   │   # Rewritten after the corrected complete Linux baseline campaign.
+│   │   # Complete equal-sample Linux baseline and clearly separated
+│   │   # supplemental stability measurements.
 │   ├── disk-cache-diagnostic.md
-│   │   # Planned focused LongListDisk warm/cold comparison.
+│   │   # Complete focused LongListDisk warm/cold comparison.
 │   └── raw/
+│       ├── 20260825T103909Z-3524645.tar.gz
+│       │   # Raw corrected campaign, including the cache diagnostic.
 │       └── long-list-snapshot-partial.tar.gz
-│           # Raw results from the interrupted Linux campaign already completed.
+│           # Historical raw results from the interrupted Linux campaign.
 │
 ├── 02-reduce-durable-write-time/
 │   ├── physical-block-preallocation.md
@@ -457,11 +467,12 @@ Everything lives under `26469-longlist-index-chunks-can-be-written-to-disk-in-pa
         # that timing gates it in, the scheduling change and snapshot results.
 ```
 
-Each experiment document starts with its conclusion and records the tested Git
-revision, environment summary, comparison baseline, raw archive name and
-checksum, method, and measurements. Large future archives may remain outside
-Git; the existing 123 KiB partial campaign archive is already tracked and stays
-with the parallel-write evidence.
+Each experiment document records the tested Git revision, environment summary,
+comparison baseline, raw archive name and checksum, method, and measurements.
+Measurement records put their result tables first; cross-experiment decisions
+remain in this report. Large future archives may remain outside Git. The
+existing partial archive and the compact corrected-campaign archive stay with
+the parallel-write evidence.
 
 ### Execution ladder
 
@@ -479,19 +490,20 @@ document, and verify its calculations and conclusions.
    the dedicated control on the MacBook for correctness only, then run the
    writer-count sweep on Linux. Agree on `filechannel-write-reference.md`
    before processing its raw results.~~
-3. **Re-establish the corrected parallel-chunk baseline.** Apply the 5B heap,
+3. ~~**Re-establish the corrected parallel-chunk baseline.** Apply the 5B heap,
    environment-capture, and sampling changes; compile and run a tiny local
    correctness smoke; then start the real Linux campaign directly. Its early
    10M work provides the operational check before the campaign reaches larger
-   states. Complete all five LongList implementations, including 5B; use the
-   larger sample count for shortlisted comparisons; and run the planned
-   `LongListDisk` warm/cold diagnostic as part of resolving the baseline. Agree
-   on the structures of `linux-benchmark-results.md` and
-   `disk-cache-diagnostic.md` before processing their raw results.
-4. **Compare the FileChannel reference with the corrected baseline.** Decide
-   which implementations have material same-path headroom, which measured
-   phase is responsible, and which durable-write experiment, if any, that
-   evidence justifies.
+   states. Complete all five LongList implementations, including 5B, with
+   equal broad-matrix sampling; retain the separate supplemental Segment/Disk
+   stability check without using it for cross-implementation comparison; and
+   run the planned `LongListDisk` warm/cold diagnostic as part of resolving
+   the baseline. Agree on the structures of `linux-benchmark-results.md` and
+   `disk-cache-diagnostic.md` before processing their raw results.~~
+4. **Compare the FileChannel reference with the corrected baseline.** The
+   initial comparison is complete: Heap reaches the reference, while the other
+   implementations retain a 4.7–5.4% 1B gap. Measure the responsible phase
+   before deciding whether any durable-write experiment is justified.
 5. **Run only the resulting measurement-gated durable-write experiments.**
    Test physical block preallocation only if file growth is implicated, and
    direct I/O only if the buffered path is implicated. Preserve and document
