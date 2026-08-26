@@ -37,11 +37,17 @@ with `java -jar`.
   coverage check, scoped to `consensus-*` modules plus modules the catalog already documents),
   baseline TSV + join. The engine subsumes a Tier-0 source-path GONE finding when a `CONFIG_PREFIX`
   finding already asserts the same citation as a class move (one root cause, one finding).
-- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`). Anchored-source
-  resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations both resolve
-  through the `SourceIndex`, and a moved anchor is tracked at its new location), so an abbreviated- or
-  FQN-only topic keeps feeding the freshness signal. Each entry carries `anchoredSourceCount`; a zero
-  count (topic anchors nothing) is surfaced in the coverage lane, not the drift report.
+- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`), built for **every**
+  scanned document: it is flagged for review when any anchored source was committed **on or after**
+  `last_reviewed`. The boundary is inclusive because commit dates are day-granular — a same-day merge is
+  never skipped, at the cost of not clearing a document until the day after its last change. A document
+  that anchors no code is `unknown` regardless of its marker (the no-sources check runs first).
+  Anchored-source resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations
+  both resolve through the `SourceIndex`, and a moved anchor is tracked at its new location), so an
+  abbreviated- or FQN-only document keeps feeding the freshness signal. Each entry carries
+  `anchoredSourceCount` and `newestAnchoredCommit` (the reviewed-state date `--mark-reviewed` records);
+  a zero count (anchors nothing) reads as `unknown`, and — for topics only — is surfaced in the coverage
+  lane.
 - `engine/` also carries `ScanStats` — what the run scanned and checked (entries, anchors, check
   groups, findings by lane, Tier-2 surfaces), rendered as the report's "Scan coverage" section so
   silence is auditable as checked-and-clean rather than never-scanned.
@@ -50,13 +56,17 @@ with `java -jar`.
   grouping findings that share one code move. `AutoFix` is the shared planner (structured `Edit`s) that
   both `AutoFixRenderer` (Markdown) and `apply/AutoFixApplier` (writes) consume, so the proposal a curator
   reads is exactly the edit `--fix` applies. `SuggestionsRenderer` emits the non-asserting "did you mean"
-  hints for GONE targets (scoring in `findings/NearNameMatcher`), kept out of `findings.json` so that
-  artifact stays reproducible. See `README.md` for the full suggestion and rollup semantics.
+  hints for GONE targets (scoring in `findings/NearNameMatcher`) plus a line-reference section naming the
+  enclosing symbol for each body-line/past-EOF `File.java:NN` that `--fix` cannot migrate (built by the
+  engine as `LineSuggestion`s), kept out of `findings.json` so that artifact stays reproducible. See
+  `README.md` for the full suggestion and rollup semantics.
 - `apply/` — `AutoFixApplier` (`--fix`): writes the certain auto-fix `Edit`s to the KB in place, guarded
   by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames. `ReviewedMarker`
   (`--mark-reviewed <key>[=<date>]`): bumps an entry's *existing* `last_reviewed:` frontmatter line —
   the workflow closure after a semantic pass; it never invents the line, requires an unambiguous key
-  and an ISO date, and is idempotent.
+  and an ISO date; a bare spec derives the reviewed-state date from git — the document's newest
+  anchored-source commit, or the checkout's `HEAD` commit for an unanchored doc — never wall-clock; see
+  `README.md` — and is idempotent.
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.
@@ -67,19 +77,25 @@ with `java -jar`.
   package/path-move `present`) asserts into the report. When in doubt → `unverifiable` (quiet log).
   A package/path move that resolves at exactly one new location still asserts, but also carries
   `resolvedPath` (in `findings.json`) and a ready path-rewrite diff in `auto-fix.md`.
-- **Never assert on line numbers.** A moved line for a *named* symbol → an `auto-fix` proposal, never
-  an assert. Bare `File.java:NN` links carry no line (the KB uses them for members too). A stale-hint
-  note on a path rewrite is header text only — never a finding, never a blocked edit.
+- **Never assert on line numbers; migrate them to symbols.** A `File.java:NN` — code span or markdown
+  link alike — whose line NN is exactly a declaration auto-migrates to `File.java#symbol`, a
+  `SOURCE_SYMBOL` anchor checking the method/field/enum-constant/type exists (which *does* assert on a
+  rename or removal; a constructor is reported as its enclosing type, the only citable `#symbol`). A
+  `:NN` inside a body or past end-of-file cannot become one symbol, so it is left untouched but surfaced
+  in `suggestions.md` naming its enclosing declaration to cite instead — deterministic, parsed from the
+  current checkout (no git line-tracking). A moved *method-link* line → an `auto-fix` proposal, never an
+  assert. A stale-hint note on a path rewrite is header text only — never a finding, never a blocked edit.
 - **Package/FQN absence asserts only inside indexed namespaces.** A prose package or fully-qualified
   type whose two-segment namespace (`com.swirlds`, `org.hiero`, …) contains no indexed package is
   external — quiet log, never an assert. Package existence is prefix-based (a parent of an indexed
   package exists); package extraction requires a reverse-domain root and ≥ 3 segments so dotted
   non-packages (config prefixes, JPMS-ish values with other roots) are never extracted. Do not weaken
   these guards.
-- **`--fix` applies only the certain fixes** (moved lines, unique path moves, on-line `Module:` label,
-  and — for a config record located by its `@ConfigData` prefix — the renamed class in headings/link
-  text) — the exact `auto-fix.md` diffs, guarded by a full-line before-match so it is idempotent. It
-  must never apply fuzzy `suggestions.md` renames (topics-slug, near-name): those need a human decision.
+- **`--fix` applies only the certain fixes** (moved lines, declaration-line→`#symbol` migrations, unique
+  path moves, on-line `Module:` label, and — for a config record located by its `@ConfigData` prefix —
+  the renamed class in headings/link text) — the exact `auto-fix.md` diffs, guarded by a full-line
+  before-match so it is idempotent (two refs on one line take a second run to converge). It must never
+  apply fuzzy `suggestions.md` renames (topics-slug, near-name): those need a human decision.
 - **Tunables checks assert only on literal facts.** A documented key missing from its resolved
   `@ConfigData` record asserts; a documented default differing from a plain-literal `defaultValue`
   asserts. A *type* difference is quiet-log only (the catalog documents semantic types, e.g. `Path`

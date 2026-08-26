@@ -2,7 +2,6 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
@@ -215,9 +214,6 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         // Close the initial reservation made on this state, taken in {@link StartupStateUtils#loadInitialState}
         initialState.close();
-
-        // FutureWork figure out if this can be moved into Platform.start()
-        getMetricsProvider().start();
 
         return platform;
     }

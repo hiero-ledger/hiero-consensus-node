@@ -2,13 +2,13 @@
 package org.hiero.consensus.state.signing;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Queue;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed
