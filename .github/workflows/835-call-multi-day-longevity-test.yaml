@@ -144,61 +144,6 @@ jobs:
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.chewie-host }}
 
-  acquire-kubernetes-resources:
-    needs:
-      - acquire-kubernetes-resources
-    runs-on: hl-cn-mdlt-lin-sm
-    if: ${{ !cancelled() && needs.acquire-kubernetes-resources-chewie.result == 'success' }}
-    outputs:
-      namespace: ${{ steps.normalize.outputs.namespace }}
-      fqdn: ${{ steps.normalize.outputs.fqdn }}
-      cn-quantity: ${{ steps.normalize.outputs.cn-quantity }}
-      aux-quantity: ${{ steps.normalize.outputs.aux-quantity }}
-      cn-tolerations: ${{ steps.normalize.outputs.cn-tolerations }}
-      aux-tolerations: ${{ steps.normalize.outputs.aux-tolerations }}
-      cn-role: ${{ steps.normalize.outputs.cn-role }}
-      aux-role: ${{ steps.normalize.outputs.aux-role }}
-      network-id: ${{ steps.normalize.outputs.network-id }}
-      owner: ${{ steps.normalize.outputs.owner }}
-      request-expiration: ${{ steps.normalize.outputs.expiration }}
-      allocation-id: ${{ steps.normalize.outputs.allocation-id }}
-    steps:
-      - name: Harden Runner
-        id: harden-runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Normalize Outputs
-        id: normalize
-        env:
-          NAMESPACE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.namespace }}
-          FQDN: ${{ needs.acquire-kubernetes-resources-chewie.outputs.fqdn }}
-          CN_QUANTITY: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-quantity }}
-          AUX_QUANTITY: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-quantity }}
-          CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-tolerations }}
-          AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-tolerations }}
-          CN_ROLE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.cn-role }}
-          AUX_ROLE: ${{ needs.acquire-kubernetes-resources-chewie.outputs.aux-role }}
-          NETWORK_ID: ${{ needs.acquire-kubernetes-resources-chewie.outputs.network-id }}
-          OWNER: ${{ needs.acquire-kubernetes-resources-chewie.outputs.owner }}
-          EXPIRATION: ${{ needs.acquire-kubernetes-resources-chewie.outputs.request-expiration }}
-          ALLOCATION_ID: ${{ needs.acquire-kubernetes-resources-chewie.outputs.allocation-id }}
-        run: |
-          echo "::group::Set Outputs"
-          echo "namespace=${NAMESPACE}" | tee -a "${GITHUB_OUTPUT}"
-          echo "fqdn=${FQDN}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-quantity=${CN_QUANTITY}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-quantity=${AUX_QUANTITY}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-tolerations=${CN_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-tolerations=${AUX_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
-          echo "cn-role=${CN_ROLE}" | tee -a "${GITHUB_OUTPUT}"
-          echo "aux-role=${AUX_ROLE}" | tee -a "${GITHUB_OUTPUT}"
-          echo "network-id=${NETWORK_ID}" | tee -a "${GITHUB_OUTPUT}"
-          echo "owner=${OWNER}" | tee -a "${GITHUB_OUTPUT}"
-          echo "expiration=${EXPIRATION}" | tee -a "${GITHUB_OUTPUT}"
-          echo "allocation-id=${ALLOCATION_ID}" | tee -a "${GITHUB_OUTPUT}"
-          echo "::endgroup::"
 
   print-allocation-details:
     runs-on: hl-cn-default-lin-sm
