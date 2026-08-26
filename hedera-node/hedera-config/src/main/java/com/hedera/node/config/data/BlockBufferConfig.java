@@ -39,6 +39,8 @@ import java.time.Duration;
  *                            floor may still be pruned to make room. When the block node is healthy, this floor allows
  *                            the buffer to remain small while still preserving a recent window of acknowledged blocks
  *                            in case the block node re-requests one.
+ * @param maxInProgressBlocks the maximum number of in-progress blocks to permit (an in-progress block is a block that
+ *                            has yet to be closed.) This must be 2 or greater.
  */
 // spotless:off
 @ConfigData("blockStream.buffer")
@@ -51,5 +53,6 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "85.0") @Min(0) @NetworkProperty double recoveryThreshold,
         @ConfigProperty(defaultValue = "false") @NodeProperty boolean isBufferPersistenceEnabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
-        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain) {}
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain,
+        @ConfigProperty(defaultValue = "5") @Min(2) @NetworkProperty int maxInProgressBlocks) {}
 // spotless:on
