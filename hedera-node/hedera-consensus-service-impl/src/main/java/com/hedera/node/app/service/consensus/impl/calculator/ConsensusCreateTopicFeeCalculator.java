@@ -38,7 +38,7 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
         final var hasCustomFees = !op.customFees().isEmpty();
-        if (hasCustomFees) {
+        if (hasCustomFees || op.hasFeeScheduleKey()) {
             addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE, feeSchedule, 1);
         }
     }

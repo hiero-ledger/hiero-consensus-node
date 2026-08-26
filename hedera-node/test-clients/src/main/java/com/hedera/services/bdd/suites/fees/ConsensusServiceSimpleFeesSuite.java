@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -151,6 +152,42 @@ public class ConsensusServiceSimpleFeesSuite {
                                 KEYS, keys,
                                 PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
+                    }));
+        }
+
+        @HapiTest
+        @DisplayName("compare create topic with fee schedule key")
+        final Stream<DynamicTest> createTopicWithFeeScheduleKeyComparison() {
+            // if set a fee schedule key but no custom fee, still get charged the penalty
+            // Signatures: payer only; Keys: fee key
+            final var sigs = 1L;
+            final var keys = 1L;
+            final var txnId = "create-topic-fee-schedule-txn";
+            final var TOPIC = "topic";
+            final var TOKEN = "token";
+            final var COLLECTOR = "collector";
+            final var FEE_SCHEDULE_KEY = "feeScheduleKey";
+            return hapiTest(
+                    newKeyNamed(FEE_SCHEDULE_KEY),
+                    cryptoCreate(COLLECTOR),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    tokenCreate(TOKEN).treasury(COLLECTOR).initialSupply(100),
+                    createTopic(TOPIC)
+                            .blankMemo()
+                            .feeScheduleKeyName(FEE_SCHEDULE_KEY)
+//                            .withConsensusCustomFee(fixedConsensusHtsFee(1, TOKEN, COLLECTOR))
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnId),
+                    withOpContext((spec, log) -> {
+                        final var signedTxnSize = signedTxnSizeFor(spec, txnId);
+                        final var expectedFee = expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                SIGNATURES, sigs,
+                                KEYS, keys,
+                                PROCESSING_BYTES, (long) signedTxnSize));
+                        allRunFor(
+                                spec,
+                                validateChargedSimpleFees("Simple Fees", txnId, expectedFee, 1));
                     }));
         }
 
