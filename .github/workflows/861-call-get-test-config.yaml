@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "861 [CALL] Get CITR Test Config"
+name: "861: [CALL] Get CITR Test Config"
 on:
   workflow_call:
     inputs:
