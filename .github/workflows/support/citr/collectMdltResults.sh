@@ -29,8 +29,11 @@ WORKSPACE=${GITHUB_WORKSPACE:-$(pwd)}
 REPORT_DIR=${WORKSPACE}/report
 STEP_SUMMARY=${GITHUB_STEP_SUMMARY:-/dev/null}
 
-if [[ -z "${NAMESPACE}" ]] || [[ -z "${BUILD_TAG}" ]]; then
+# NAMESPACE is derived from a Chewie HTTP response, so jq yields the literal string "null" (not an
+# empty string) when the field is absent; reject both that and empty values.
+if [[ -z "${NAMESPACE}" || "${NAMESPACE}" == "null" ]] || [[ -z "${BUILD_TAG}" || "${BUILD_TAG}" == "null" ]]; then
   echo "Usage: $(basename "${0}") <namespace> <build-tag> [fsts-report]" >&2
+  echo "Error: <namespace> and <build-tag> must be non-empty and not 'null'." >&2
   exit 1
 fi
 
