@@ -86,6 +86,12 @@ than the control and the other four implementations were 3.18–4.84% slower.
 That gap occurs before the final force. See
 [`phase-breakdown.md`](../02-reduce-durable-write-time/phase-breakdown.md).
 
+The focused follow-up found that 99.76–99.93% of the four slower
+implementations' additional non-force wall time is covered by at least one
+target `FileChannel.write()` call. Only 1.3–4.7 milliseconds is outside all
+target writes. See
+[`write-path-diagnostic.md`](../02-reduce-durable-write-time/write-path-diagnostic.md).
+
 ## Environment and raw evidence
 
 - Run ID: `20260824T155243Z-3103148`

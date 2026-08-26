@@ -57,13 +57,12 @@ by the mean) among all cells was 1.78%.
   of that saving.
 
 Non-force time still combines source access, data preparation, and target
-write calls. This result does not separate those subphases and therefore does
-not yet justify physical preallocation, direct I/O, or another production
-change. If the remaining 0.410–0.624-second total gap is worth pursuing, the
-next diagnostic should divide the non-force phase before selecting an
-experiment. That diagnostic is defined in
-[`write-path-diagnostic.md`](write-path-diagnostic.md). Removing the final
-force remains a separate planned experiment.
+write calls. The completed follow-up found that 99.76–99.93% of the four
+slower implementations' additional non-force wall time is covered by at least
+one target write call, rather than forming a serial gap between calls. See
+[`write-path-diagnostic.md`](write-path-diagnostic.md). That result does not
+gate in physical preallocation or direct I/O. Removing the final force remains
+a separate planned experiment.
 
 ## Method and validation
 

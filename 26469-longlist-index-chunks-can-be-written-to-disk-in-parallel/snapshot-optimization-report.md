@@ -61,6 +61,15 @@ extra time occurs before the final force: the four implementations spend
 1.764–1.872 seconds more outside `force(true)`, while their force is
 1.247–1.361 seconds shorter.
 
+The focused write-path diagnostic finds that 99.76–99.93% of that additional
+non-force wall time is covered by at least one target `FileChannel.write()`
+call. Only 1.3–4.7 milliseconds is outside all target writes. This rules out a
+material serial gap between writes, but does not prove that overlapping source
+work is free. The control uses the same file growth and buffered target path,
+so the result does not gate in physical preallocation or direct I/O. A deeper
+buffer- and kernel-level investigation would be a separate follow-up for a
+demonstrated final gap of 0.474–0.678 seconds per 8 GB write.
+
 The separate `LongListDisk` cache diagnostic shows that source residency
 changes its result: `P=2` improved 4.4% warm and 14.5% cold. It does not
 justify rerunning the complete baseline cold. Default periodic snapshots use
@@ -69,16 +78,16 @@ and scanned rather than deliberately evicted. Fully cold residency remains a
 memory-pressure sensitivity case.
 
 The experiments have not yet established the production thread count, the
-effect on a complete Linux MerkleDB snapshot, which source/preparation/write
-work causes the remaining non-force gap, or the benefit and safety of removing
-`force(true)`.
+effect on a complete Linux MerkleDB snapshot, or the benefit and safety of
+removing `force(true)`.
 
 ## 2. Questions the experiments must answer
 
-1. **What causes the remaining durable-write gap?** The same-campaign phase
-   measurement places the 3.18–4.84% `P=8` gap outside the final force.
-   Non-force time still combines source access, data preparation, and target
-   writes, so it does not yet identify a production change.
+1. **What causes the remaining durable-write gap? — Answered at the required
+   scope.** The focused diagnostic finds virtually all of it covered by target
+   write calls, with no material serial gap between them. Overlapping source
+   work can still contribute, but identifying the lower-level effect would be
+   a separate follow-up rather than another production change in this PR.
 2. **Does the current parallel-writing change improve a complete snapshot?**
    The isolated benchmark shows a repeatable improvement for `LongListDisk`,
    but not for `LongListSegment`. Compare complete snapshots using those two
@@ -113,10 +122,10 @@ The original benchmark measured all of this as one number:
 total = create/header + body writes + force + close
 ```
 
-The phase-breakdown campaign now separates the final force from everything
-before it. It places the remaining LongList gap before the force, but that
-non-force number still combines source access, data preparation, and target
-write calls.
+The phase-breakdown campaign separates the final force from everything before
+it. The focused follow-up then shows that virtually all of the remaining
+LongList gap is covered by target write calls, with no material serial gap
+between them.
 
 ## 4. Way 1 — reduce durable-write time
 
@@ -193,6 +202,13 @@ before the final force. That combined phase is still too broad to implicate
 file growth or the buffered target path, so neither experiment above is gated
 in. See
 [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md).
+
+**Write-path result:** 99.76–99.93% of the four slower implementations'
+additional non-force wall time is covered by at least one target write call.
+File growth and the buffered target path are common to the faster control, so
+the result still does not gate in physical preallocation or direct I/O.
+Further source-buffer work is outside this parallel-chunk PR. See
+[`write-path-diagnostic.md`](02-reduce-durable-write-time/write-path-diagnostic.md).
 
 Periodic `force()` calls are not a planned experiment. Each call waits; it does
 not tell the operating system to start asynchronous writeback.
@@ -527,13 +543,14 @@ document, and verify its calculations and conclusions.
    block, and record the final force with JFR. Measure the responsible phase
    before deciding whether any durable-write experiment is justified. See
    [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md).~~
-5. **Run only the resulting measurement-gated durable-write experiments.**
-   Test physical block preallocation only if file growth is implicated, and
-   direct I/O only if the buffered path is implicated. Preserve and document
-   each experiment independently. The completed phase split does not yet gate
-   in either candidate. Run the focused
+5. ~~**Run only the resulting measurement-gated durable-write experiments.**
+   The focused
    [`write-path diagnostic`](02-reduce-durable-write-time/write-path-diagnostic.md)
-   to classify the remaining non-force gap before running one.
+   found virtually all of the remaining non-force gap covered by target writes,
+   with no material serial gap between them. Because the faster control shares
+   the same file growth and buffered target path, neither physical
+   preallocation nor direct I/O was gated in. No Way-1 production experiment
+   proceeds.~~
 6. **Test removing the final force independently.** This experiment runs even
    if Step 5 produces no candidate. If Step 5 does run an experiment, finish
    and preserve that benchmark first, then start the no-force campaign while

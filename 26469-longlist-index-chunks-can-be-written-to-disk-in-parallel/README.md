@@ -36,9 +36,9 @@ index or the master plan repeats them.
 | 01 | Corrected parallel-chunk baseline | [`linux-benchmark-results.md`](01-parallel-chunk-writes/linux-benchmark-results.md) | Complete equal-sample matrix for all five implementations; production thread count remains undecided |
 | 01 | `LongListDisk` cache diagnostic | [`disk-cache-diagnostic.md`](01-parallel-chunk-writes/disk-cache-diagnostic.md) | Complete; cold residency increases the parallel benefit but is not the default periodic-snapshot condition |
 | 02 | LongList phase breakdown | [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md) | Complete; the same-campaign OffHeap, Segment, Disk, and DiskSegment `P=8` gap is 3.18–4.84% and occurs before the final force |
-| 02 | Pre-force write-path diagnostic | [`write-path-diagnostic.md`](02-reduce-durable-write-time/write-path-diagnostic.md) | Planned; separate target-write calls from LongList source/preparation time at `P=8` |
-| 02 | Physical block preallocation | `02-reduce-durable-write-time/physical-block-preallocation.md` | Run only if profiling implicates file growth |
-| 02 | Direct I/O | `02-reduce-durable-write-time/direct-io.md` | Run only if profiling implicates the buffered path |
+| 02 | Pre-force write-path diagnostic | [`write-path-diagnostic.md`](02-reduce-durable-write-time/write-path-diagnostic.md) | Complete; 99.76–99.93% of the slower implementations' non-force gap is covered by target write calls |
+| 02 | Physical block preallocation | `02-reduce-durable-write-time/physical-block-preallocation.md` | Not gated in; file growth is shared with the faster control |
+| 02 | Direct I/O | `02-reduce-durable-write-time/direct-io.md` | Not gated in; the control reaches the reference through the same buffered target path |
 | 02 | Compression | `02-reduce-durable-write-time/compression.md` | Requires team approval and favorable ratio/load-cost evidence |
 | 03 | Remove the final LongList force | `03-remove-final-force/remove-final-force.md` | Required independent experiment; not run |
 | 04 | No-force plus preallocation | `04-combine-measured-wins/no-force-plus-preallocation.md` | Run only if both changes independently win |
