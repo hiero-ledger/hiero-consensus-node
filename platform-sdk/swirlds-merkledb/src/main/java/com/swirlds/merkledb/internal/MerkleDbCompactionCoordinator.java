@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
-import static com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats.estimateAliveBytes;
-import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
+import static com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats.estimateAliveBytes;
+import static com.swirlds.merkledb.internal.MerkleDbDataSource.MERKLEDB_COMPONENT;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
-import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.internal.GarbageScanner.GarbageFileStats;
+import com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;

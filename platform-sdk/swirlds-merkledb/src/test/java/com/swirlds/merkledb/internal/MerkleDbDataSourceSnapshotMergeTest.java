@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
-import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
+import static com.swirlds.merkledb.internal.MerkleDbDataSourceTest.assertLeaf;
+import static com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils.createDataSource;
+import static com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils.restoreDataSource;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.restoreDataSource;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.snapshotDataDir;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -82,11 +84,16 @@ class MerkleDbDataSourceSnapshotMergeTest extends AbstractFileManagerAwareTest {
             checkData(COUNT, testType, dataSource);
             // create snapshot and test creating a second snapshot in another thread causes exception
             final Path snapshotDir = fileSystemManager.resolveNewTemp();
+            // Snapshot straight into the layout MerkleDbDataSourceBuilder restores from. The two
+            // concurrent attempts below must go through MerkleDbDataSource.snapshot() directly:
+            // MerkleDbDataSourceBuilder.snapshot() serialises on the compaction coordinator, which
+            // would mask the "snapshot already in progress" failure this test asserts on.
+            final Path snapshotDataDir = snapshotDataDir(snapshotDir, dataSource.getTableName());
             final CountDownLatch countDownLatch = new CountDownLatch(3);
             exec.submit(() -> {
                 // do a good snapshot
                 try {
-                    dataSource.snapshot(snapshotDir);
+                    dataSource.snapshot(snapshotDataDir);
                 } finally {
                     countDownLatch.countDown();
                 }
@@ -98,7 +105,7 @@ class MerkleDbDataSourceSnapshotMergeTest extends AbstractFileManagerAwareTest {
                 try {
                     assertThrows(
                             IllegalStateException.class,
-                            () -> dataSource.snapshot(snapshotDir),
+                            () -> dataSource.snapshot(snapshotDataDir),
                             "Snapshot while doing a snapshot should throw a IllegalStateException");
                 } finally {
                     countDownLatch.countDown();
@@ -133,8 +140,8 @@ class MerkleDbDataSourceSnapshotMergeTest extends AbstractFileManagerAwareTest {
             // doing the snapshot
             checkData(COUNT2, testType, dataSource);
             // load snapshot and check data
-            final MerkleDbDataSource snapshotDataSource =
-                    restoreDataSource(fileSystemManager, snapshotDir, dataSource.getTableName(), false);
+            final MerkleDbDataSource snapshotDataSource = restoreDataSource(
+                    DEFAULT_CONFIGURATION, fileSystemManager, snapshotDir, dataSource.getTableName(), false);
             checkData(COUNT, testType, snapshotDataSource);
             // validate all data in the snapshot
             final DataSourceValidator dataSourceValidator = new DataSourceValidator(snapshotDataSource);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static java.lang.Math.max;
