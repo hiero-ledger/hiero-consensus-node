@@ -95,7 +95,6 @@ env:
   NLG_VERSION: 0.14.3
 
 jobs:
-
   get-chewie-jwt:
     needs:
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
@@ -144,7 +143,6 @@ jobs:
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.chewie-host }}
 
-
   print-allocation-details:
     runs-on: hl-cn-default-lin-sm
     needs:
@@ -182,6 +180,11 @@ jobs:
       kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
     needs:
       - acquire-kubernetes-resources
+    env:
+      K8S_CLUSTER: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
+      NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
+      NETWORK_ID: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}
+      OWNER: ${{ needs.acquire-kubernetes-resources.outputs.owner }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -195,13 +198,14 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
           gradle-version: "wrapper"
+          setup-task: "true"
+          task-version: "3.39.2"
 
       - name: Set Grafana Details
         id: set-grafana-url
         run: |
-          K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
           grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
-          if [[ "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" =~ [.]chi[.] ]]; then
+          if [[ "${K8S_CLUSTER}" =~ [.]chi[.] ]]; then
             grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
           echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
@@ -250,11 +254,6 @@ jobs:
           which helm
           helm version
 
-      - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        with:
-          version: 3.39.2
-
       - name: OS check procedure
         id: setup
         shell: bash
@@ -287,8 +286,8 @@ jobs:
           REF: ${{ inputs.ref }}
         run: |
           echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Network-ID=${NETWORK_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Owner=${OWNER}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -363,13 +362,12 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
           # Update Taskfile values
-          sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
+          sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${NAMESPACE}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           # Update Init Containers values
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
-          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
+          NETWORK_OWNER="${OWNER}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
           # Generate the application.properties file inline
@@ -406,15 +404,15 @@ jobs:
           fi
 
           sleep 30
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods
           cd "${{ github.workspace }}"
 
           mkdir solo_deploy
           cp -r "${HOME}"/.solo/logs solo_deploy/
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${NAMESPACE}"
+          cp -r podlog_"${NAMESPACE}" solo_deploy/
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${NAMESPACE}_${NETWORK_ID}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${NAMESPACE}_${NETWORK_ID}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -427,9 +425,9 @@ jobs:
           set +e
           cd ${{ github.workspace }}/solo
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${NAMESPACE}" -l "solo.hedera.com/type=network-node-svc" |\
             grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${NAMESPACE}" -l "solo.hedera.com/type=network-node-svc" |\
             grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
 
           # Generate the nlg-values.yaml file inline
@@ -445,9 +443,8 @@ jobs:
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
+          NETWORK_OWNER="${OWNER}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
       - name: Deploy NLG test
@@ -455,22 +452,22 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${NAMESPACE}"
           sleep 180
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
       - name: JDK25 for NLG pod
         run: |
           set +x
           set +e
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "\
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -- bash -c "\
           apt update; \
           apt install -y wget apt-transport-https gpg; \
           wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
@@ -482,7 +479,7 @@ jobs:
         run: |
           set +x
           set +e
-          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
+          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
 
           cat <<EOF > block-nodes.json
           {
@@ -492,24 +489,24 @@ jobs:
           }
           EOF
 
-          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ./block-nodes.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" cp ./block-nodes.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
           done
 
       - name: Deploy Validator
         run: |
           set +x
           set +e
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" \
             cp "${{ github.workspace }}"/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" \
             exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" \
             cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
 
       - name: Distribution of K8S nodes, SysAdmin Grafana
@@ -519,7 +516,7 @@ jobs:
 
           start_date=$(date +%Y-%m-%dT%T)
           echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Start Longevity test
@@ -530,7 +527,7 @@ jobs:
         # allocation expires; this workflow never deletes the namespace.
         run: |
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
           n=`expr ${{ inputs.nlg-accounts }} / 1000`
           NLG_c=32
 
@@ -538,11 +535,11 @@ jobs:
 
           NLGargs="-K ECDSA -L -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
-          echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
+          echo kubectl -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
 
-          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
+          kubectl -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
           sleep 30
