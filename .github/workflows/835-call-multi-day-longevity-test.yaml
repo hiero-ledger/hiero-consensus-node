@@ -95,26 +95,9 @@ env:
   NLG_VERSION: 0.14.3
 
 jobs:
-  validate-chewie-inputs:
-    runs-on: hl-cn-default-lin-sm
-    steps:
-      - name: Validate Chewie Inputs
-        env:
-          CHEWIE_HOST: ${{ secrets.chewie-host }}
-          CHEWIE_ID_KEY: ${{ secrets.chewie-id-key }}
-        run: |
-          missing=()
-          [[ -z "${CHEWIE_HOST}" ]] && missing+=("chewie-host")
-          [[ -z "${CHEWIE_ID_KEY}" ]] && missing+=("chewie-id-key")
-
-          if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "::error::Chewie requires the following secrets: ${missing[*]}."
-            exit 1
-          fi
 
   get-chewie-jwt:
     needs:
-      - validate-chewie-inputs
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
@@ -141,7 +124,7 @@ jobs:
       chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
       checkout-token: ${{ secrets.github-token }}
 
-  acquire-kubernetes-resources-chewie:
+  acquire-kubernetes-resources:
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
@@ -163,7 +146,7 @@ jobs:
 
   acquire-kubernetes-resources:
     needs:
-      - acquire-kubernetes-resources-chewie
+      - acquire-kubernetes-resources
     runs-on: hl-cn-mdlt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources-chewie.result == 'success' }}
     outputs:
