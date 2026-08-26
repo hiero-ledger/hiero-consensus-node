@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
+import static com.hedera.node.config.types.StreamMode.BOTH;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
@@ -34,15 +39,27 @@ import org.junit.jupiter.api.DynamicTest;
  * block files to see it.
  */
 public class LedgerIdPublicationTimestampTest {
+    private static final String STREAM_MODE_PROPERTY = "blockStream.streamMode";
     private static final Duration PUBLICATION_TIMEOUT = Duration.ofMinutes(5);
 
     @HapiTest
     final Stream<DynamicTest> ledgerIdPublicationIsNotBackdatedWithinItsBlock() {
+        // TSS is deactivated and no blocks are written when streamMode=RECORDS, so nothing publishes a ledger id
+        assumeFalse(targetStreamMode() == RECORDS, "No block stream to check when streamMode=RECORDS");
         return hapiTest(
                 streamMustIncludePassWithReplayFrom(
                         spec -> new LedgerIdPublicationOrderAssertion(), PUBLICATION_TIMEOUT),
                 // Some traffic, in case the network is still finishing its genesis ceremony
                 cryptoCreate("a"));
+    }
+
+    /**
+     * Returns the stream mode of the network under test, defaulting to {@link StreamMode#BOTH} if it is not yet
+     * targeted.
+     */
+    private static StreamMode targetStreamMode() {
+        final var network = SHARED_NETWORK.get();
+        return network == null ? BOTH : network.startupProperties().getStreamMode(STREAM_MODE_PROPERTY);
     }
 
     /**
