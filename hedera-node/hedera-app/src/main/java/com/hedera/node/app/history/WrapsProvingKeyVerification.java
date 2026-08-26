@@ -95,6 +95,22 @@ public class WrapsProvingKeyVerification {
     static final Set<String> REQUIRED_ARTIFACT_FILES =
             Set.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin");
 
+    /**
+     * Outcome of an install attempt, which decides whether a retry is worth scheduling.
+     */
+    private enum InstallOutcome {
+        /** The artifacts directory now passes {@link #installationDefect}. */
+        INSTALLED,
+        /**
+         * Retrying cannot help. The archive's SHA-384 matched {@code tss.wrapsProvingKeyHash}, so its contents
+         * are fixed; if it did not yield the required artifacts, no later attempt on the same configured hash
+         * ever will. Also covers an unset artifacts path.
+         */
+        PERMANENTLY_BLOCKED,
+        /** An environmental failure (I/O error, permissions, disk space); a later attempt may succeed. */
+        RETRYABLE
+    }
+
     private final Executor downloadExecutor;
 
     @Nullable
@@ -285,8 +301,10 @@ public class WrapsProvingKeyVerification {
             asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
             return;
         }
-        // Hash matches - extract the archive
-        tryExtractTarGz(provingKeyPath, expectedHash.toHex());
+        // Hash matches - install the archive, retrying only if a later attempt could succeed
+        if (tryExtractTarGz(provingKeyPath, expectedHash.toHex()) == InstallOutcome.RETRYABLE) {
+            scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+        }
     }
 
     private void asyncDownloadAndVerify(
@@ -313,8 +331,14 @@ public class WrapsProvingKeyVerification {
                                 scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
                                 return;
                             }
-                            tryExtractTarGz(provingKeyPath, expectedHash.toHex());
-                            log.info("Successfully downloaded and verified WRAPS proving key (hash={})", expectedHash);
+                            final var outcome = tryExtractTarGz(provingKeyPath, expectedHash.toHex());
+                            if (outcome == InstallOutcome.INSTALLED) {
+                                log.info(
+                                        "Successfully downloaded and verified WRAPS proving key (hash={})",
+                                        expectedHash);
+                            } else if (outcome == InstallOutcome.RETRYABLE) {
+                                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                            }
                         } catch (final Throwable t) {
                             log.error(
                                     "Failed to initiate async download of WRAPS proving key (from URL {}):",
@@ -352,20 +376,36 @@ public class WrapsProvingKeyVerification {
                         return;
                     }
                     try {
-                        log.info("Retrying WRAPS proving key download from {}", downloadUrl);
-                        downloader.download(downloadUrl, provingKeyPath);
-                        final Bytes downloadedHash = hashFile(provingKeyPath);
-                        if (downloadedHash.equals(expectedHash)) {
-                            tryExtractTarGz(provingKeyPath, expectedHash.toHex());
+                        // A retry may be here only because the install failed, not the download. Re-pulling a
+                        // multi-gigabyte archive that is already on disk and still verifies wastes bandwidth
+                        // every interval, so re-run the install directly in that case.
+                        if (archiveAlreadyVerifies(provingKeyPath, expectedHash)) {
+                            log.info(
+                                    "WRAPS proving key archive at {} still matches the expected hash; retrying the "
+                                            + "install without re-downloading",
+                                    provingKeyPath);
+                        } else {
+                            log.info("Retrying WRAPS proving key download from {}", downloadUrl);
+                            downloader.download(downloadUrl, provingKeyPath);
+                            final Bytes downloadedHash = hashFile(provingKeyPath);
+                            if (!downloadedHash.equals(expectedHash)) {
+                                log.error(
+                                        "Downloaded WRAPS proving key hash mismatch on retry: expected={}, actual={}",
+                                        expectedHash,
+                                        downloadedHash);
+                                return;
+                            }
+                        }
+                        final var outcome = tryExtractTarGz(provingKeyPath, expectedHash.toHex());
+                        if (outcome == InstallOutcome.INSTALLED) {
                             log.info(
                                     "Successfully downloaded and verified WRAPS proving key on retry (hash={})",
                                     expectedHash);
                             cancelRetry();
-                        } else {
-                            log.error(
-                                    "Downloaded WRAPS proving key hash mismatch on retry: expected={}, actual={}",
-                                    expectedHash,
-                                    downloadedHash);
+                        } else if (outcome == InstallOutcome.PERMANENTLY_BLOCKED) {
+                            // Nothing a later attempt can change; stop burning I/O re-running it every interval
+                            log.error("Giving up on WRAPS proving key retries; see the error above for the cause");
+                            cancelRetry();
                         }
                     } catch (final Throwable e) {
                         log.error("Failed to download WRAPS proving key on retry", e);
@@ -376,6 +416,23 @@ public class WrapsProvingKeyVerification {
                 retryInterval.toMillis(),
                 retryInterval.toMillis(),
                 TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Returns whether the archive already on disk matches the expected hash, in which case a retry only needs
+     * to re-run the install. A read failure is reported as "does not verify" so the retry falls back to
+     * downloading.
+     */
+    private static boolean archiveAlreadyVerifies(@NonNull final Path provingKeyPath, @NonNull final Bytes expected) {
+        if (!Files.exists(provingKeyPath)) {
+            return false;
+        }
+        try {
+            return hashFile(provingKeyPath).equals(expected);
+        } catch (final UncheckedIOException e) {
+            log.warn("Failed to read WRAPS proving key archive at {} on retry; will re-download", provingKeyPath, e);
+            return false;
+        }
     }
 
     private void cancelRetry() {
@@ -426,13 +483,14 @@ public class WrapsProvingKeyVerification {
 
     // --- Tar.gz extraction ---
 
-    private static void tryExtractTarGz(@NonNull final Path tarGzPath, @NonNull final String expectedHashHex) {
+    private static InstallOutcome tryExtractTarGz(
+            @NonNull final Path tarGzPath, @NonNull final String expectedHashHex) {
         final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
         if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
             log.warn(
                     "Cannot extract WRAPS proving key archive; {} environment variable is not set",
                     WRAPS_ARTIFACTS_ENV_VAR);
-            return;
+            return InstallOutcome.PERMANENTLY_BLOCKED;
         }
         final var extractionDir = Paths.get(envArtifactsPath);
         final var stagingDir = extractionDir.resolve(STAGING_DIR_NAME);
@@ -447,18 +505,36 @@ public class WrapsProvingKeyVerification {
                     .toList();
             if (!missingArtifacts.isEmpty()) {
                 log.error(
-                        "WRAPS proving key archive {} did not yield required artifacts {}; leaving the "
-                                + "installed artifacts in {} untouched",
+                        "WRAPS proving key archive {} verified against configured hash {} but did not yield "
+                                + "required artifacts {}; the installed artifacts in {} are left untouched and "
+                                + "WRAPS proving stays disabled. Retrying cannot help - the hash matches, so the "
+                                + "archive contents are fixed. Correct tss.wrapsProvingKeyHash (or the published "
+                                + "archive it names) and restart.",
                         tarGzPath,
+                        expectedHashHex,
                         missingArtifacts,
                         extractionDir);
-                return;
+                return InstallOutcome.PERMANENTLY_BLOCKED;
             }
             publishStagedArtifacts(stagingDir, extractionDir, expectedHashHex);
-            log.info("Installed WRAPS proving key artifacts from {} into {}", tarGzPath, extractionDir);
             verifyArtifactsDirectoryExists();
+            // The only credible evidence of a complete install is that the artifacts directory now passes
+            // the same check the prover readiness gate applies. Writing the markers is best-effort, so a
+            // clean return from the steps above does not by itself mean the install landed.
+            final var defect = installationDefect(envArtifactsPath, expectedHashHex);
+            if (defect != null) {
+                log.error(
+                        "WRAPS proving key install from {} did not complete: {}; proving stays disabled until "
+                                + "a later attempt succeeds",
+                        tarGzPath,
+                        defect);
+                return InstallOutcome.RETRYABLE;
+            }
+            log.info("Installed WRAPS proving key artifacts from {} into {}", tarGzPath, extractionDir);
+            return InstallOutcome.INSTALLED;
         } catch (final IOException e) {
             log.error("Failed to install WRAPS proving key archive {}", tarGzPath, e);
+            return InstallOutcome.RETRYABLE;
         } finally {
             try {
                 deleteRecursively(stagingDir);
@@ -520,8 +596,9 @@ public class WrapsProvingKeyVerification {
     /**
      * Writes the hash file ({@value #WRAPS_HASH_FILE_NAME}) into the artifacts directory so that
      * subsequent startups can detect the artifacts are already present and skip the download/extraction.
-     * A failure to write (e.g. a read-only mount) is logged but is non-fatal: the extracted artifacts
-     * remain usable.
+     * A failure to write (e.g. a read-only mount) is logged rather than thrown, but it is not harmless:
+     * without this file the install does not pass {@link #installationDefect} and the prover stays
+     * disabled, so the caller treats it as a failed install and retries.
      *
      * @param extractionDir the directory the artifacts were extracted into
      * @param hashHex the archive hash (bare hex) to record
