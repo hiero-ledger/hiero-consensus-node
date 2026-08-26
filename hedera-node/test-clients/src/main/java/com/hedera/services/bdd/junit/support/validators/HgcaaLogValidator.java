@@ -111,7 +111,9 @@ public class HgcaaLogValidator {
                 List.of("Restarted WRAPS signing"),
                 // Expected as part of WRAPS proving key verification tests
                 List.of("WRAPS proving key hash mismatch at"),
+                // Pre-0.79 nodes log "extract"; the staged install logs "install"
                 List.of("Failed to extract WRAPS proving key archive"),
+                List.of("Failed to install WRAPS proving key archive"),
                 List.of("Failed to download WRAPS proving key"),
                 List.of("WRAPS proving key download failed"),
                 List.of("Downloaded WRAPS proving key hash mismatch"),
