@@ -3,23 +3,19 @@ package com.hedera.node.app.history;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsAlreadyPresent;
-import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsInstalledAndVerified;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.validateArtifactsPathConsistency;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -30,12 +26,10 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -419,18 +413,9 @@ class WrapsProvingKeyVerificationTest {
     @SuppressWarnings("unchecked")
     @Test
     void retrySucceedsAndCancelsScheduledFuture(final EnvironmentVariables environment) throws Exception {
-        // The retry only counts as successful once a complete, verified install has landed, so the
-        // archive the retry fetches must be a real one containing every required artifact.
-        final byte[] validArchive = createTarGz(
-                entry("decider_pp.bin", "pp".getBytes(StandardCharsets.UTF_8)),
-                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_vp.bin", "nvp".getBytes(StandardCharsets.UTF_8)));
-        final var validHash = noThrowSha384HashOf(Bytes.wrap(validArchive)).toHex();
-
         final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
         final var path = tempDir.resolve("key.tar.gz");
-        givenConfigWithHashAndPath(validHash, path);
+        givenConfigWithHashAndPath(HASH_A.toHex(), path);
         givenDownloaderWritesContent(path, CONTENT_B);
         setArtifactsEnvVar(environment);
 
@@ -440,12 +425,11 @@ class WrapsProvingKeyVerificationTest {
 
         subject.ensureProvingKey(configuration, downloader);
 
-        // Re-stub downloader to return a valid archive for the retry
-        givenDownloaderWritesContent(path, validArchive);
+        // Re-stub downloader to return correct content for the retry
+        givenDownloaderWritesContent(path, CONTENT_A);
         retryCaptor.getValue().run();
 
         verify(scheduledFuture).cancel(false);
-        assertTrue(artifactsInstalledAndVerified(validHash));
     }
 
     @SuppressWarnings("unchecked")
@@ -620,235 +604,6 @@ class WrapsProvingKeyVerificationTest {
         assertEquals(archiveHash, Files.readString(hashFile).trim());
     }
 
-    // ===== proving key readiness (SIGBUS / wrong-key guard) =====
-
-    @Test
-    void notInstalledWhenHashFileIsMissingEvenThoughEveryArtifactIsPresent(final EnvironmentVariables environment)
-            throws IOException {
-        // The provisioning shape that caused the crash: the four bins copied in without wraps.sha384,
-        // which leaves WRAPSLibraryBridge.isProofSupported() true while a download/extract is still due.
-        writeRequiredArtifacts(tempDir);
-        setArtifactsEnvVar(environment);
-
-        assertTrue(WRAPSLibraryBridge.isProofSupported());
-        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
-    }
-
-    @Test
-    void notInstalledWhenHashFileIsForADifferentProvingKey(final EnvironmentVariables environment) throws IOException {
-        writeRequiredArtifacts(tempDir);
-        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), "bb".repeat(48));
-        setArtifactsEnvVar(environment);
-
-        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
-    }
-
-    @Test
-    void installedOnlyOnceAMatchingHashFileIsInPlace(final EnvironmentVariables environment) throws IOException {
-        writeRequiredArtifacts(tempDir);
-        setArtifactsEnvVar(environment);
-        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
-
-        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
-
-        assertTrue(artifactsInstalledAndVerified(HASH_A.toHex()));
-    }
-
-    @Test
-    void notInstalledWhenArtifactsPathIsUnset() {
-        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
-    }
-
-    // ===== staged install =====
-
-    @Test
-    void installingOverAMappedArtifactLeavesTheExistingMappingIntact(final EnvironmentVariables environment)
-            throws Exception {
-        // Both contents are the same length on purpose. An in-place extract truncates the mapped inode and
-        // regrows it, so a regression shows up as this mapping reading the *new* bytes rather than as a
-        // SIGBUS that would take the test JVM down with it.
-        final byte[] installedContent = "pp-installed".getBytes(StandardCharsets.UTF_8);
-        final byte[] replacementContent = "pp-replaced!".getBytes(StandardCharsets.UTF_8);
-        assertEquals(installedContent.length, replacementContent.length);
-
-        final var extractionDir = tempDir.resolve("extracted");
-        Files.createDirectories(extractionDir);
-        writeRequiredArtifacts(extractionDir);
-        final var deciderPp = extractionDir.resolve("decider_pp.bin");
-        Files.write(deciderPp, installedContent);
-
-        final byte[] archiveBytes = createTarGz(
-                entry("decider_pp.bin", replacementContent),
-                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_vp.bin", "nvp".getBytes(StandardCharsets.UTF_8)));
-        final var archivePath = tempDir.resolve("wraps.tar.gz");
-        Files.write(archivePath, archiveBytes);
-        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
-
-        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
-        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
-
-        try (final var channel = FileChannel.open(deciderPp, StandardOpenOption.READ)) {
-            final var mapping = channel.map(FileChannel.MapMode.READ_ONLY, 0, installedContent.length);
-
-            subject.ensureProvingKey(configuration, downloader);
-
-            final var seenThroughMapping = new byte[installedContent.length];
-            mapping.get(0, seenThroughMapping);
-            assertArrayEquals(
-                    installedContent,
-                    seenThroughMapping,
-                    "the install rewrote the inode a native proof had mapped instead of replacing the directory entry");
-        }
-        assertArrayEquals(replacementContent, Files.readAllBytes(deciderPp), "the new artifact was not published");
-    }
-
-    @Test
-    void leavesNoStagingDirectoryBehindAfterInstalling(final EnvironmentVariables environment) throws Exception {
-        final byte[] archiveBytes = createTarGz(
-                entry("decider_pp.bin", "pp".getBytes(StandardCharsets.UTF_8)),
-                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_vp.bin", "nvp".getBytes(StandardCharsets.UTF_8)));
-        final var archivePath = tempDir.resolve("wraps.tar.gz");
-        Files.write(archivePath, archiveBytes);
-        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
-        final var extractionDir = tempDir.resolve("extracted");
-
-        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
-        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
-
-        subject.ensureProvingKey(configuration, downloader);
-
-        assertFalse(
-                Files.exists(extractionDir.resolve(WrapsProvingKeyVerification.STAGING_DIR_NAME)),
-                "staging directory was not cleaned up");
-        assertTrue(artifactsInstalledAndVerified(archiveHash));
-    }
-
-    @Test
-    void leavesInstalledArtifactsUntouchedWhenTheArchiveIsIncomplete(final EnvironmentVariables environment)
-            throws Exception {
-        final var extractionDir = tempDir.resolve("extracted");
-        Files.createDirectories(extractionDir);
-        writeRequiredArtifacts(extractionDir);
-
-        // Missing nova_vp.bin, so the staged tree must never be published
-        final byte[] archiveBytes = createTarGz(
-                entry("decider_pp.bin", "new-pp".getBytes(StandardCharsets.UTF_8)),
-                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)));
-        final var archivePath = tempDir.resolve("wraps.tar.gz");
-        Files.write(archivePath, archiveBytes);
-        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
-
-        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
-        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
-
-        subject.ensureProvingKey(configuration, downloader);
-
-        assertArrayEquals(
-                "decider_pp.bin".getBytes(StandardCharsets.UTF_8),
-                Files.readAllBytes(extractionDir.resolve("decider_pp.bin")));
-        assertFalse(Files.exists(extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME)));
-        assertFalse(Files.exists(extractionDir.resolve(WrapsProvingKeyVerification.STAGING_DIR_NAME)));
-    }
-
-    // ===== install failure handling =====
-
-    @Test
-    void doesNotRetryWhenTheVerifiedArchiveIsMissingRequiredArtifacts(final EnvironmentVariables environment)
-            throws Exception {
-        // The archive matches the configured hash, so its contents are fixed: if it yields only 3 of the 4
-        // artifacts it always will. Retrying re-runs a multi-gigabyte install to reach the same result.
-        final byte[] archiveBytes = createTarGz(
-                entry("decider_pp.bin", "pp".getBytes(StandardCharsets.UTF_8)),
-                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)));
-        final var archivePath = tempDir.resolve("wraps.tar.gz");
-        Files.write(archivePath, archiveBytes);
-        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
-        final var extractionDir = tempDir.resolve("extracted");
-
-        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
-        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
-        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
-        Mockito.lenient().when(tssConfig.wrapsProvingKeyDownloadUrl()).thenReturn(DOWNLOAD_URL);
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
-
-        subject.ensureProvingKey(configuration, downloader);
-
-        verifyNoInteractions(retryScheduler);
-        assertFalse(artifactsInstalledAndVerified(archiveHash));
-    }
-
-    @Test
-    void schedulesRetryWhenTheInstallFailsForAnEnvironmentalReason(final EnvironmentVariables environment)
-            throws Exception {
-        final var extractionDir = tempDir.resolve("extracted");
-        // A non-empty directory where decider_pp.bin belongs makes the publishing rename fail with an
-        // IOException. Unlike a chmod-based setup this still fails when the tests run as root.
-        Files.createDirectories(extractionDir.resolve("decider_pp.bin"));
-        Files.writeString(extractionDir.resolve("decider_pp.bin").resolve("blocker"), "x");
-
-        final var archivePath = tempDir.resolve("wraps.tar.gz");
-        Files.write(archivePath, completeArchiveBytes());
-        final var archiveHash =
-                noThrowSha384HashOf(Bytes.wrap(completeArchiveBytes())).toHex();
-
-        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
-        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
-        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
-        Mockito.lenient().when(tssConfig.wrapsProvingKeyDownloadUrl()).thenReturn(DOWNLOAD_URL);
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
-
-        subject.ensureProvingKey(configuration, downloader);
-
-        verify(retryScheduler).scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
-        assertFalse(artifactsInstalledAndVerified(archiveHash));
-    }
-
-    @Test
-    void retrySkipsTheDownloadWhenTheArchiveOnDiskStillVerifies(final EnvironmentVariables environment)
-            throws Exception {
-        final var extractionDir = tempDir.resolve("extracted");
-        Files.createDirectories(extractionDir.resolve("decider_pp.bin"));
-        Files.writeString(extractionDir.resolve("decider_pp.bin").resolve("blocker"), "x");
-
-        final var archivePath = tempDir.resolve("wraps.tar.gz");
-        Files.write(archivePath, completeArchiveBytes());
-        final var archiveHash =
-                noThrowSha384HashOf(Bytes.wrap(completeArchiveBytes())).toHex();
-
-        final var subject = new WrapsProvingKeyVerification(Runnable::run, retryScheduler);
-        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
-        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
-        Mockito.lenient().when(tssConfig.wrapsProvingKeyDownloadUrl()).thenReturn(DOWNLOAD_URL);
-        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
-
-        final ArgumentCaptor<Runnable> retryCaptor = ArgumentCaptor.forClass(Runnable.class);
-        given(retryScheduler.scheduleWithFixedDelay(retryCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class)))
-                .willReturn(scheduledFuture);
-
-        subject.ensureProvingKey(configuration, downloader);
-        retryCaptor.getValue().run();
-
-        // The archive on disk still matches, so the multi-gigabyte download must be skipped entirely
-        verifyNoInteractions(downloader);
-        // ... and the retry stays armed, because an environmental failure may still clear
-        verify(scheduledFuture, never()).cancel(anyBoolean());
-    }
-
     // ===== helpers =====
 
     private void givenConfigWithHashAndPath(final String bootstrapHash, final Path provingKeyPath) {
@@ -872,14 +627,6 @@ class WrapsProvingKeyVerificationTest {
 
     private void setArtifactsEnvVar(final EnvironmentVariables environment) {
         environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
-    }
-
-    private static byte[] completeArchiveBytes() throws IOException {
-        return createTarGz(
-                entry("decider_pp.bin", "pp".getBytes(StandardCharsets.UTF_8)),
-                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)),
-                entry("nova_vp.bin", "nvp".getBytes(StandardCharsets.UTF_8)));
     }
 
     private static void writeRequiredArtifacts(final Path dir) throws IOException {
