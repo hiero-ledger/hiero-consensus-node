@@ -3,24 +3,24 @@
 #
 # Isolated reproducer for the 0.78 -> 0.79 BLOCKS cutover that deploys directly at the
 # published 0.78 release tag, verifies the 0.78 baseline, then upgrades the CN to the local 0.79
-# build and simultaneously upgrades the Block Node from v0.39.1 to v0.41.0-rc1.
+# build and simultaneously upgrades the Block Node from v0.41.0-rc1 to v0.41.0.
 #
-#   1. Deploy a CN network directly at the published v0.78.0-rc.2 release tag. The 0.78 genesis
+#   1. Deploy a CN network directly at the published v0.78.0-rc.3 release tag. The 0.78 genesis
 #      baseline uses dual-write streaming (streamMode=BOTH, writerMode=FILE_AND_GRPC) + mock TSS
 #      signatures, so genesis + staking complete without a block node (deployed mid-chain, step 3).
 #      The WRAPS env is injected before the JVMs start so all nodes initialize WRAPS in lockstep.
 #   2. Deploy a mirror node + explorer UI on the 0.78 network (importer reads blocks from the BN).
-#   3. Deploy a Block Node (v0.39.1) mid-chain; it verifies the real-TSS blocks streamed by the CN.
+#   3. Deploy a Block Node (v0.41.0-rc1) mid-chain; it verifies the real-TSS blocks streamed by the CN.
 #   4. Seed the Block Node with the network's TSS ledger id (published during 0.78) so it can
 #      verify blocks after the upgrade.
 #   5. Upgrade the CN in place to the local 0.79 build with
 #      resources/0.79/application-078-to-079.properties, and simultaneously upgrade the Block Node
-#      to v0.41.0-rc1. The mirror importer continues reading blocks from the upgraded BN.
+#      to v0.41.0. The mirror importer continues reading blocks from the upgraded BN.
 #
 # Verifications after the 0.79 upgrade:
 #   - local-build version on all consensus nodes
 #   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node (v0.41.0-rc1) verifies + persists the post-upgrade blocks (nextExpectedBlock
+#   - Block Node (v0.41.0) verifies + persists the post-upgrade blocks (nextExpectedBlock
 #     advances)
 #   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. Enable with RESTART_REPLAY_CHECK=true.
 #
@@ -41,7 +41,12 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 # We deploy the network directly at the published 0.78 release tag (genesis at 0.78 with TSS +
 # WRAPS, dual-write + mock signatures — the pre-cutover baseline, no block node required), then
 # cut over to BLOCKS/GRPC/real-TSS at the local 0.79 upgrade.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.78.0-rc.2}"
+#
+# v0.78.0-rc.3 is the first 0.78 tag carrying the fixed 16-slot block root tree (#26919), so both
+# sides of the upgrade hash block roots the same way. Do NOT raise this to v0.78.0-rc.5 on this
+# branch: rc.5 IS the release/0.78 head, which would make the baseline and the upgrade target the
+# same commit and turn the cutover into a no-op.
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.78.0-rc.3}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
@@ -86,15 +91,21 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
 # --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
-# The reproducer deploys a Block Node (v0.39.1) before the 0.78 step, seeds it with the network's
-# TSS ledger id before the 0.79 upgrade, and asserts the upgraded BN (v0.41.0-rc1) verifies +
+# The reproducer deploys a Block Node (v0.41.0-rc1) before the 0.78 step, seeds it with the
+# network's TSS ledger id before the 0.79 upgrade, and asserts the upgraded BN (v0.41.0) verifies +
 # persists the real-TSS-signed post-upgrade blocks.
+#
+# The baseline BN floor is v0.41.0-rc1, not something older: the block root tree the CN builds became
+# a fixed 16-slot merkle tree (#26919) and only BN v0.41.0-rc1+ feeds 16 leaves to its Merkle
+# Mountain Top hasher (hiero-block-node #3378). A v0.40.x-or-older BN rejects every block a
+# post-rework CN produces with EndOfStream/BAD_BLOCK_PROOF, which saturates the CN block buffer and
+# wedges the handle thread on backpressure.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.39.1}"
-BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0-rc1}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.41.0-rc1}"
+BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -201,6 +212,42 @@ configured_wraps_artifacts_container_dir() {
   else
     printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
   fi
+}
+
+# Solo creates the per-node `network-<alias>-data-config-cm` ConfigMaps straight through the
+# Kubernetes API during `block node add` (Helpers.copyBlockNodesJsonToConsensusNodes), passing an
+# empty label map, so they carry no Helm ownership metadata. From Solo v0.87.0 the profile manager
+# also writes `hedera.nodes[i].blockNodesJson` into the per-cluster values file, which makes the
+# solo-deployment chart template those same ConfigMaps -- so the next `helm upgrade` (driven by
+# `consensus network upgrade`) aborts with "invalid ownership metadata". Stamp the standard Helm
+# adoption keys so Helm can take ownership instead. Solo only merge-patches `.data` afterwards, so
+# the metadata survives the later `block node upgrade`.
+#
+# This branch still pins cutover-solo-version=0.84.1, which predates that values-file write and so
+# does not hit the conflict yet; the helper is a harmless no-op there and keeps the scenario working
+# when the pin moves to v0.87.x or later.
+adopt_node_data_config_maps_into_helm() {
+  # Solo's release name for the solo-deployment chart (constants.SOLO_DEPLOYMENT_CHART). This is NOT
+  # ${SOLO_DEPLOYMENT}, which is the Solo deployment name and defaults to something else entirely.
+  local helm_release="solo-deployment"
+  local node cm
+  local nodes=()
+
+  log "Stamping Helm ownership metadata on the per-node data ConfigMaps"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    cm="network-${node}-data-config-cm"
+    if ! kubectl -n "${SOLO_NAMESPACE}" get configmap "${cm}" >/dev/null 2>&1; then
+      echo "  ${cm}: absent, nothing to adopt"
+      continue
+    fi
+    kubectl -n "${SOLO_NAMESPACE}" label configmap "${cm}" \
+      "app.kubernetes.io/managed-by=Helm" --overwrite >/dev/null
+    kubectl -n "${SOLO_NAMESPACE}" annotate configmap "${cm}" \
+      "meta.helm.sh/release-name=${helm_release}" \
+      "meta.helm.sh/release-namespace=${SOLO_NAMESPACE}" --overwrite >/dev/null
+    echo "  ${cm}: adopted into Helm release ${helm_release}"
+  done
 }
 
 reapply_application_property_overrides() {
@@ -1622,6 +1669,10 @@ update_mirror_node_for_block_cutover() {
 
 upgrade_to_local_079() {
   log "=== 0.79 upgrade: upgrade CN to local build + upgrade BN to ${BLOCK_NODE_UPGRADE_VERSION} ==="
+
+  # `consensus network upgrade` re-runs `helm upgrade` on the solo-deployment release, which on
+  # Solo v0.87.0+ renders the per-node data ConfigMaps the block node deploy created out of band.
+  adopt_node_data_config_maps_into_helm
 
   local upgrade_cmd=(
     solo consensus network upgrade
