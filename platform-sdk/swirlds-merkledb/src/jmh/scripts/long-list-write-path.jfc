@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<configuration label="LongList write path" version="2.0">
+
+  <event name="jdk.FileWrite">
+    <setting name="enabled">true</setting>
+    <setting name="stackTrace">false</setting>
+    <setting name="threshold">0 ns</setting>
+    <setting name="throttle">off</setting>
+  </event>
+
+  <event name="jdk.FileRead">
+    <setting name="enabled">true</setting>
+    <setting name="stackTrace">false</setting>
+    <setting name="threshold">0 ns</setting>
+    <setting name="throttle">off</setting>
+  </event>
+
+  <event name="jdk.FileForce">
+    <setting name="enabled">true</setting>
+    <setting name="stackTrace">false</setting>
+    <setting name="threshold">0 ns</setting>
+  </event>
+
+</configuration>

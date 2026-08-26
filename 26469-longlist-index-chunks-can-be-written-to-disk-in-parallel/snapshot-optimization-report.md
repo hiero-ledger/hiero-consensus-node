@@ -54,6 +54,13 @@ At 1B/default, Heap reaches the prepared-memory reference. The other four
 implementations remain 4.7–5.4% slower. That gap is a reason to measure the
 slower phase, not evidence for a specific I/O change.
 
+The subsequent same-campaign comparison at `P=8` measured Heap 1.56% faster
+than the control and the other four implementations 3.18–4.84% slower. Every
+one of those four gaps remained positive in all three reordered blocks. The
+extra time occurs before the final force: the four implementations spend
+1.764–1.872 seconds more outside `force(true)`, while their force is
+1.247–1.361 seconds shorter.
+
 The separate `LongListDisk` cache diagnostic shows that source residency
 changes its result: `P=2` improved 4.4% warm and 14.5% cold. It does not
 justify rerunning the complete baseline cold. Default periodic snapshots use
@@ -62,15 +69,16 @@ and scanned rather than deliberately evicted. Fully cold residency remains a
 memory-pressure sensitivity case.
 
 The experiments have not yet established the production thread count, the
-effect on a complete Linux MerkleDB snapshot, the cause of the remaining
-LongList gap, or the benefit and safety of removing `force(true)`.
+effect on a complete Linux MerkleDB snapshot, which source/preparation/write
+work causes the remaining non-force gap, or the benefit and safety of removing
+`force(true)`.
 
 ## 2. Questions the experiments must answer
 
-1. **What causes the remaining durable-write gap?** The prepared-memory
-   control and corrected baseline expose 4.7–5.4% of 1B headroom for four
-   implementations. Measure the responsible phase before choosing another
-   experiment; the total-time gap alone does not identify its cause.
+1. **What causes the remaining durable-write gap?** The same-campaign phase
+   measurement places the 3.18–4.84% `P=8` gap outside the final force.
+   Non-force time still combines source access, data preparation, and target
+   writes, so it does not yet identify a production change.
 2. **Does the current parallel-writing change improve a complete snapshot?**
    The isolated benchmark shows a repeatable improvement for `LongListDisk`,
    but not for `LongListSegment`. Compare complete snapshots using those two
@@ -99,16 +107,16 @@ When Java writes a large LongList file normally, these stages overlap:
 3. After all write calls finish, `force(true)` waits for any remaining file
    content and required metadata to become durable.
 
-The benchmark currently measures all of this as one number:
+The original benchmark measured all of this as one number:
 
 ```text
 total = create/header + body writes + force + close
 ```
 
-It does not show how the time is divided. The body writes may already include
-most of the wait for the drive, or a substantial wait may remain in
-`force(true)`. Time the two phases separately before predicting how much Way 2
-can save.
+The phase-breakdown campaign now separates the final force from everything
+before it. It places the remaining LongList gap before the force, but that
+non-force number still combines source access, data preparation, and target
+write calls.
 
 ## 4. Way 1 — reduce durable-write time
 
@@ -160,9 +168,9 @@ Keep results for all five LongList implementations. Highlight Segment and Disk
 because they are currently selected by `MerkleDbDataSource`, but do not treat
 them as the only results that matter.
 
-**Comparison result:** at 1B/default, Heap reaches the control plateau. The
-best OffHeap, Segment, DiskSegment, and Disk means remain 4.7–5.4% slower.
-This gates in phase measurement, but not a specific I/O experiment. See the
+**Initial comparison result:** at 1B/default, Heap reaches the control plateau.
+The best OffHeap, Segment, DiskSegment, and Disk means remain 4.7–5.4% slower.
+This gated in phase measurement, but not a specific I/O experiment. See the
 corrected comparison in
 [`filechannel-write-reference.md`](00-filechannel-write-reference/filechannel-write-reference.md).
 
@@ -178,6 +186,13 @@ measurement identifies:
    direct-I/O prototype. Direct I/O avoids the page cache, but it may be slower
    and is not a small change here: the 12-byte header, body offsets, and final
    partial range are not block-aligned.
+
+**Phase result:** the direct same-campaign comparison confirms a smaller
+3.18–4.84% `P=8` gap for the four non-Heap implementations and places it
+before the final force. That combined phase is still too broad to implicate
+file growth or the buffered target path, so neither experiment above is gated
+in. See
+[`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md).
 
 Periodic `force()` calls are not a planned experiment. Each call waits; it does
 not tell the operating system to start asynchronous writeback.
@@ -444,6 +459,8 @@ Everything lives under `26469-longlist-index-chunks-can-be-written-to-disk-in-pa
 ├── 02-reduce-durable-write-time/
 │   ├── phase-breakdown.md
 │   │   # Same-campaign FileChannel and all-five-LongList phase comparison.
+│   ├── write-path-diagnostic.md
+│   │   # Target FileChannel writes versus the remaining pre-force work.
 │   ├── physical-block-preallocation.md
 │   │   # Created if profiling identifies file growth as meaningful overhead.
 │   ├── direct-io.md
@@ -502,18 +519,21 @@ document, and verify its calculations and conclusions.
    run the planned `LongListDisk` warm/cold diagnostic as part of resolving
    the baseline. Agree on the structures of `linux-benchmark-results.md` and
    `disk-cache-diagnostic.md` before processing their raw results.~~
-4. **Compare the FileChannel reference with the corrected baseline.** The
+4. ~~**Compare the FileChannel reference with the corrected baseline.** The
    initial comparison is complete: Heap reaches the reference, while the other
    implementations retain a 4.7–5.4% 1B gap. Reproduce the comparison in one
    campaign at `P={1,8}` using the prepared-memory control and all five
    implementations. Use three reordered blocks and five measurements per
    block, and record the final force with JFR. Measure the responsible phase
    before deciding whether any durable-write experiment is justified. See
-   [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md).
+   [`phase-breakdown.md`](02-reduce-durable-write-time/phase-breakdown.md).~~
 5. **Run only the resulting measurement-gated durable-write experiments.**
    Test physical block preallocation only if file growth is implicated, and
    direct I/O only if the buffered path is implicated. Preserve and document
-   each experiment independently.
+   each experiment independently. The completed phase split does not yet gate
+   in either candidate. Run the focused
+   [`write-path diagnostic`](02-reduce-durable-write-time/write-path-diagnostic.md)
+   to classify the remaining non-force gap before running one.
 6. **Test removing the final force independently.** This experiment runs even
    if Step 5 produces no candidate. If Step 5 does run an experiment, finish
    and preserve that benchmark first, then start the no-force campaign while

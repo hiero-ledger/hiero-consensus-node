@@ -57,7 +57,7 @@ leave more outstanding work for `force(true)`. From `P=1` to `P=16`, body time
 fell by 1.85 seconds while force time grew by 1.40 seconds, so durable total
 time improved by only 0.45 seconds.
 
-## Comparison with all five LongList implementations
+## Initial cross-campaign comparison with all five LongLists
 
 The corrected one-billion-leaf/default-chunk benchmark writes the same
 8,000,000,012-byte file shape. The values below come from the equal-sample
@@ -79,6 +79,12 @@ file growth, or another phase.
 The comparison applies only to the 8 GB one-billion-leaf workload. The 40 GB
 five-billion-leaf workload needs a same-size control before this number can be
 treated as its practical reference.
+
+A later direct comparison ran the control and all five LongLists in the same
+three blocks with 15 measurements per cell. At `P=8`, Heap was 1.56% faster
+than the control and the other four implementations were 3.18–4.84% slower.
+That gap occurs before the final force. See
+[`phase-breakdown.md`](../02-reduce-durable-write-time/phase-breakdown.md).
 
 ## Environment and raw evidence
 
