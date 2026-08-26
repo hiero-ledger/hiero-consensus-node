@@ -36,7 +36,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ printf "Allocation ID: %s\nFQDN: %s\nNamespace: %s" (getenv "ALLOCATION_ID") (getenv "FQDN") (getenv "NAMESPACE") | data.ToJSON }}
+            "text": {{ printf "Allocation ID: %s\nFQDN: %s\nNamespace: %s" (getenv "ALLOCATION_ID") (getenv "K8S_CLUSTER") (getenv "NAMESPACE") | data.ToJSON }}
           }
         }
       ]

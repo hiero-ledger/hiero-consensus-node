@@ -96,7 +96,6 @@ env:
 
 jobs:
   get-chewie-jwt:
-    needs:
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
@@ -148,6 +147,11 @@ jobs:
     needs:
       - acquire-kubernetes-resources
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
+    env:
+      K8S_CLUSTER: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
+      NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
+      NETWORK_ID: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}
+      OWNER: ${{ needs.acquire-kubernetes-resources.outputs.owner }}
     steps:
       - name: Harden Runner
         id: harden-runner
@@ -160,12 +164,12 @@ jobs:
           echo "::group::Output Step Summary"
           echo "## Allocation Details" > "${GITHUB_STEP_SUMMARY}"
           echo "- **Allocation ID**: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Namespace**: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **FQDN**: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" | tee -a  "${GITHUB_STEP_SUMMARY}"
+          echo "- **Namespace**: ${NAMESPACE}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **FQDN**: ${K8S_CLUSTER}" | tee -a  "${GITHUB_STEP_SUMMARY}"
           echo "- **CN Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Network ID**: ${NETWORK_ID}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Owner**: ${OWNER}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "::endgroup::"
 
@@ -177,7 +181,7 @@ jobs:
       run-hcn-version: ${{ steps.set-hcn-version.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
       waiterMatrix: ${{ steps.matrix.outputs.value }}
-      kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+      kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
     needs:
       - acquire-kubernetes-resources
     env:
@@ -234,7 +238,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ env.K8S_CLUSTER }}
           certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
@@ -336,7 +340,7 @@ jobs:
 
       - name: Deploy with Solo
         env:
-          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          CONTEXT: hashgraph.teleport.sh-${{ env.K8S_CLUSTER }}
           REF: ${{ inputs.ref }}
         run: |
           set +x
@@ -517,7 +521,7 @@ jobs:
           start_date=$(date +%Y-%m-%dT%T)
           echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
-            perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
+            perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-grafana-url.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Start Longevity test
         # MDLT smoke: launch a short validation run (nlg-time defaults to 3m) so the GitHub runner is
@@ -558,6 +562,9 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - longevity-tests-start
+    env:
+      K8S_CLUSTER: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
+      NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
     strategy:
       max-parallel: 1
       fail-fast: true
@@ -573,7 +580,6 @@ jobs:
       - name: Set Kubernetes Cluster
         id: set-k8s-cluster
         run: |
-          K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
@@ -642,16 +648,16 @@ jobs:
 
           sleep 60
 
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}
 
           ec=2
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -662,13 +668,13 @@ jobs:
            counter=$(expr "${current_time}" - "${start_time}")
            counter=$(expr "${counter}" \/ 60)
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
@@ -682,7 +688,7 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
 
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
@@ -710,6 +716,9 @@ jobs:
       - longevity-tests-wait
     outputs:
       launched: ${{ steps.launch.outputs.launched }}
+    env:
+      K8S_CLUSTER: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
+      NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
     steps:
       # Checked out at the workflow ref for the support tooling (support/citr/kubectlt); this job
       # does not build anything from the ref under test.
@@ -749,7 +758,6 @@ jobs:
       - name: Launch MDLT production run
         id: launch
         env:
-          NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
           NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
           PRODUCTION_MINUTES: ${{ inputs.mdlt-length }} # MDLT production run length (5 days by default)
         run: |
@@ -787,8 +795,6 @@ jobs:
       - name: Print monitor values to summary
         if: ${{ always() }}
         env:
-          NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
-          FQDN: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           ALLOCATION_ID: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
           PRODUCTION_MINUTES: ${{ inputs.mdlt-length }}
         run: |
@@ -803,7 +809,7 @@ jobs:
             echo "**205: [DISP] CITR MDLT Publish Results** (logs), and **225: [DISP] Release Chewie Allocation**"
             echo "(early teardown) each resolve the cluster + namespace from it."
             echo "- **Allocation ID**: \`${ALLOCATION_ID}\`"
-            echo "- **Cluster**: \`${FQDN}\`"
+            echo "- **Cluster**: \`${K8S_CLUSTER}\`"
             echo "- **Namespace**: \`${NAMESPACE}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -849,6 +855,9 @@ jobs:
       - longevity-tests-start
       - longevity-launch-production
       - multi-day-longevity-test-result
+    env:
+      K8S_CLUSTER: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
+      NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -885,8 +894,6 @@ jobs:
         id: payload
         env:
           BUILD_TAG: ${{ steps.clean-branch-name.outputs.clean_ref }}
-          NAMESPACE: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
-          FQDN: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           ALLOCATION_ID: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
           RESULT: ${{ needs.multi-day-longevity-test-result.outputs.result }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
