@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.sync;
 
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -116,10 +116,10 @@ public final class LearnerTreeExchanger {
     public long getNextPathToSend() {
         // If the last leaf path request has been sent, don't send anything else
         if (lastLeafSent.get()) {
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         final long intPath = traversalOrder.getNextInternalPathToSend();
-        if (intPath != Path.INVALID_PATH) {
+        if (intPath != MerklePathUtils.INVALID_PATH) {
             assert (intPath < 0) || !isLeafOnTeacher(intPath);
             return intPath;
         }
@@ -128,7 +128,7 @@ public final class LearnerTreeExchanger {
             // are expected to return INVALID_PATH, so there is no need to check
             // lastLeafPath.get() here again
             final long leafPath = traversalOrder.getNextLeafPathToSend();
-            if (leafPath == Path.INVALID_PATH) {
+            if (leafPath == MerklePathUtils.INVALID_PATH) {
                 lastLeafSent.set(true);
             } else {
                 assert (leafPath < 0) || isLeafOnTeacher(leafPath);

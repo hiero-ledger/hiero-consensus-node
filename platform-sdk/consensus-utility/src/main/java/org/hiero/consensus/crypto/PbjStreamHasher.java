@@ -14,6 +14,7 @@ import java.util.Objects;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -49,7 +50,9 @@ public class PbjStreamHasher implements EventHasher {
      * @param event the event to hash
      */
     public void hashUnsignedEvent(@NonNull final UnsignedEvent event) {
-        final Hash hash = hashEvent(event.getEventCore(), event.getParents(), event.getTransactions());
+        final List<EventDescriptor> parentDescriptors =
+                event.getParents().stream().map(EventDescriptorWrapper::toPbj).toList();
+        final Hash hash = hashEvent(event.getEventCore(), parentDescriptors, event.getTransactions());
         event.setHash(hash);
     }
 

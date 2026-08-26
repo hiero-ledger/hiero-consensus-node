@@ -56,6 +56,53 @@ class EngineFixtureTest {
     }
 
     @Test
+    void declarationLineRefsMigrateToSymbolForEveryKind() {
+        final String autoFix = AutoFixRenderer.render(result);
+        assertThat(autoFix)
+                .contains("`WithMethod.java:6` → `WithMethod.java#foo`") // method
+                .contains("`WithMethod.java:5` → `WithMethod.java#WithMethod`") // type
+                .contains("`PaletteFixture.java:6` → `PaletteFixture.java#RED`") // enum constant
+                .contains("`FieldFixture.java:6` → `FieldFixture.java#counter`"); // field
+        // A line inside a body (line 7 is blank, in no declaration) is not a symbol — it does not migrate.
+        assertThat(autoFix).doesNotContain("`WithMethod.java:7` →");
+    }
+
+    @Test
+    void sourceSymbolRefResolvesWhenDeclaredAndAssertsWhenGone() {
+        // `WithMethod.java#foo` names a declared method — clean, no finding.
+        assertThat(findings)
+                .noneMatch(
+                        f -> f.kind() == AnchorKind.SOURCE_SYMBOL && f.target().equals("foo"));
+        // `WithMethod.java#nope` names no declared symbol — a rename/removal, asserted absent.
+        final Finding gone = require(AnchorKind.SOURCE_SYMBOL, "nope"::equals);
+        assertThat(gone.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(gone.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(gone.evidence()).contains("WithMethod.java").contains("nope");
+    }
+
+    @Test
+    void markdownLinkDeclRefMigratesTextAndUrlToSymbol() {
+        // `[WithMethod.java:6](.../WithMethod.java:6)` — both the URL and the `File.java`-shaped link text
+        // migrate to `#foo`.
+        assertThat(AutoFixRenderer.render(result)).contains("[WithMethod.java#foo](");
+    }
+
+    @Test
+    void bodyLineRefSuggestsItsEnclosingSymbol() {
+        // Line 7 of WithMethod.java is inside foo() (declared at 6): suggested, not migrated.
+        assertThat(SuggestionsRenderer.render(result, new Git(repo)))
+                .contains("Line references to anchor to a symbol")
+                .contains("`WithMethod.java:7` is inside `foo` — cite `WithMethod.java#foo`");
+    }
+
+    @Test
+    void pastEndOfFileRefIsSuggestedAsGone() {
+        assertThat(SuggestionsRenderer.render(result, new Git(repo)))
+                .contains("`WithMethod.java:99`")
+                .contains("exceeds `WithMethod.java`");
+    }
+
+    @Test
     void classInDifferentModuleIsPackageMoveNotAbsent() {
         final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.contains("module-a") && t.endsWith("MovedClass.java"));
         assertThat(f.outcome()).isNotEqualTo(Outcome.ABSENT);
@@ -271,8 +318,11 @@ class EngineFixtureTest {
         // (CONFIG_PREFIX), the FQN citation of MovedClass, and RelocatedClass. Moved lines: foo, run.
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("| Auto-fix — moved lines | 2 |");
+        // Symbol migrations: the WithMethod.java code span + the WithMethod.java link, PaletteFixture.java,
+        // FieldFixture.java (concepts/symbol-refs).
+        assertThat(report).contains("| Auto-fix — `:NN`→`#symbol` migrations | 4 |");
         assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 5 |");
-        assertThat(report).contains("| Fixable now with `--fix` | 7 |");
+        assertThat(report).contains("| Fixable now with `--fix` | 11 |");
     }
 
     @Test
@@ -286,6 +336,29 @@ class EngineFixtureTest {
         assertThat(report)
                 .contains("`platform-sdk/module-a/src/main/java/com/y/MovedClass.java` → "
                         + "`platform-sdk/module-b/src/main/java/com/y/MovedClass.java` — 2 doc(s)");
+    }
+
+    @Test
+    void everyDocumentTypeEntersTheWorklist() {
+        // The worklist is no longer topic/interface-only: decisions, invariants, rules, and concepts are
+        // all evaluated now. Each anchors code, so it is present (not dropped by a type gate).
+        assertThat(result.worklist())
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("decisions/ADR-001-fixture.md"))
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("invariants/INV-001-fixture.md"))
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("rules/RUL-001-fixture.md"))
+                .anySatisfy(e -> assertThat(e.entryPath()).endsWith("concepts/external-cites.md"));
+    }
+
+    @Test
+    void anchorlessDocIsUnknownRegardlessOfMarker() {
+        // ADR-003-fixture anchors no code and carries a non-ISO `TBD` marker. The no-anchored-sources
+        // check must win over the marker check, so it is `unknown`, not routed to `review`.
+        final WorklistEntry e = result.worklist().stream()
+                .filter(x -> x.entryPath().endsWith("decisions/ADR-003-fixture.md"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(e.status()).isEqualTo(WorklistEntry.Status.UNKNOWN);
+        assertThat(e.note()).isEqualTo("no anchored sources");
     }
 
     @Test

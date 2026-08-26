@@ -31,7 +31,6 @@ import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
@@ -456,11 +455,6 @@ public class SystemTransactions {
         final var filesConfig = config.getConfigData(FilesConfig.class);
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = new ArrayList<>(List.of(
-                new AutoEntityUpdate<>(
-                        (ctx, bytes) ->
-                                dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
-                        adminConfig.upgradeFeeSchedulesFile(),
-                        SystemTransactions::parseFeeSchedules),
                 new AutoEntityUpdate<>(
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.throttleDefinitions(), config), bytes),
@@ -1032,16 +1026,6 @@ public class SystemTransactions {
 
     private @Nullable Long currentBlockNumber() {
         return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
-    }
-
-    private static Bytes parseFeeSchedules(@NonNull final InputStream in) {
-        try {
-            final var bytes = in.readAllBytes();
-            final var feeSchedules = V0490FileSchema.parseFeeSchedules(bytes);
-            return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedules);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {

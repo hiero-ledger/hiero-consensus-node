@@ -21,8 +21,8 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.citr-mirror-node-version }}
       citr-solo-version:
         value: ${{ jobs.extract-citr-vars.outputs.citr-solo-version }}
-      mqpt-cluster:
-        value: ${{ jobs.extract-citr-vars.outputs.mqpt-cluster }}
+      cutover-solo-version:
+        value: ${{ jobs.extract-citr-vars.outputs.cutover-solo-version }}
       tck-version:
         value: ${{ jobs.extract-citr-vars.outputs.tck-version }}
       js-sdk-version:
@@ -50,7 +50,7 @@ jobs:
       adhoc-xts-solo-version: ${{ steps.get-citr-vars.outputs.adhoc-xts-solo-version }}
       citr-mirror-node-version: ${{ steps.get-citr-vars.outputs.citr-mirror-node-version }}
       citr-solo-version: ${{ steps.get-citr-vars.outputs.citr-solo-version }}
-      mqpt-cluster: ${{ steps.get-citr-vars.outputs.mqpt-cluster }}
+      cutover-solo-version: ${{ steps.get-citr-vars.outputs.cutover-solo-version }}
       tck-version: ${{ steps.get-citr-vars.outputs.tck-version }}
       js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
       block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
@@ -94,7 +94,7 @@ jobs:
             "adhoc-xts-solo-version"
             "citr-mirror-node-version"
             "citr-solo-version"
-            "mqpt-cluster"
+            "cutover-solo-version"
             "tck-version"
             "js-sdk-version"
             "block-node-version"

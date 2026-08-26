@@ -7,7 +7,7 @@ new modules, or deciding where a new dependency belongs.
 ### Modularization Rules
 
 1. Base modules (`base-*`) must never depend on any non-base modules.
-2. Supporting modules must not depend on functional-api or functional-impl modules.
+2. Supporting modules must not depend on functional-api, functional-impl, or self-contained functional modules.
 3. Nothing must depend on impl modules except test code and test fixtures.
 4. Test fixtures must not expose impl classes transitively to other modules.
 5. Classes in `internal` packages must not be used outside their defining module.
@@ -48,7 +48,7 @@ principles as `consensus-*` modules.
 - `swirlds-config-api` — configuration API.
 - `swirlds-metrics-api` — metrics API.
 - `swirlds-metrics-impl` — metrics implementation; depend on `swirlds-metrics-api` instead.
-- `swirlds-component-framework` — wiring framework for composing components into data pipelines.
+- `consensus-wiring-framework` — wiring framework for composing components into data pipelines.
 - `swirlds-state-api` — state access and lifecycle API (singleton, queue, key-value).
 - `swirlds-state-impl` — implementation of `swirlds-state-api`.
 - `swirlds-virtualmap` — disk-backed virtual merkle map for large state.
@@ -59,9 +59,9 @@ principles as `consensus-*` modules.
 **Usage rules:**
 
 - **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
-- **Allowed in functional-api and functional-impl modules only (not supporting modules):** `swirlds-component-framework`
+- **Allowed in functional-api, functional-impl, self-contained functional, and fake modules only (not supporting modules):** `consensus-wiring-framework`
 - **Allowed in `consensus-platformstate`, `consensus-roster`, and `consensus-iss-detection` only:** `swirlds-state-api`, `swirlds-state-impl`
-- **Allowed in `consensus-state`, `consensus-state-management`, and `consensus-transaction-handling` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
+- **Allowed in `consensus-state`, `consensus-state-management`, `consensus-transaction-handling`, and `consensus-fakes` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Transitional — currently present in `consensus-gossip`, `consensus-gossip-impl`, and `consensus-reconnect-impl` but not permitted in the final architecture:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
 - **Prohibited everywhere — implementation modules; depend on the API instead:** `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
@@ -82,6 +82,11 @@ each module's `README.md` for its description and dependency rules.
 paired API and any supporting module. Must not depend on other impl modules:
 - `consensus-event-creator-impl`, `consensus-event-intake-impl`, `consensus-event-intake-concurrent`, `consensus-gossip-impl`, `consensus-hashgraph-impl`, `consensus-pces-impl`, `consensus-pces-noop-impl`, `consensus-reconnect-impl`
 
+**Self-contained functional modules** — permanent modules that bundle their public API and
+implementation in one module rather than a split api/impl pair. Unlike structural-transitional
+modules, other modules are expected to depend on them; the implementation stays unexported:
+- `consensus-status-monitor`
+
 **Structural-transitional modules** — treated like impl modules (rule 3 applies); temporary, awaiting either a move to the execution layer or removal:
 - `consensus-state` — will move to the execution layer.
 - `consensus-state-management` — will move to the execution layer alongside the signed-state machinery it drives.
@@ -91,3 +96,10 @@ paired API and any supporting module. Must not depend on other impl modules:
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
 - `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
+
+**Fake modules** — implementations for tools and tests only, never for production code: no-op
+implementations, deliberately insecure cryptographic entities, and the like. May depend on any
+consensus-layer module whose API they fake, plus `consensus-wiring-framework`. Must not depend
+on an impl module.
+- `consensus-fakes` — Transitional: also reached from production paths in
+`swirlds-platform-core` (`PlatformContext.create`, `DefaultSwirldMain`, `ConsensusNoOpModules`).

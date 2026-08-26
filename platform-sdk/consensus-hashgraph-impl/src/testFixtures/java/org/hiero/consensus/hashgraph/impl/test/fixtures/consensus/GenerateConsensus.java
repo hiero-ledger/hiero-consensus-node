@@ -6,7 +6,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
@@ -31,7 +30,7 @@ public final class GenerateConsensus {
      * @param seed the seed to use
      * @return consensus rounds
      */
-    public static Deque<ConsensusRound> generateConsensusRounds(
+    public static List<ConsensusRound> generateConsensusRounds(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
