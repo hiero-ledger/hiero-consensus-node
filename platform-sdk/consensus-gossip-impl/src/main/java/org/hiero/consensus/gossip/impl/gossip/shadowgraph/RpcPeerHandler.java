@@ -18,8 +18,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -131,6 +131,16 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private volatile boolean communicationOverload = false;
 
     /**
+     * Last time the in-flight sync made progress; aborted if it stalls for {@link SyncConfig#maxSyncTime()}
+     */
+    private Instant lastSyncProgress;
+
+    /**
+     * Whether the no-progress timeout has already broken this conversation, so we only break it once
+     */
+    private boolean syncBreakRequested = false;
+
+    /**
      * Create new state class for an RPC peer
      *
      * @param sharedShadowgraphSynchronizer shared logic reference for actions which have to work against global state
@@ -172,6 +182,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
         this.lastReceiveEventFinished = time.nanoTime();
+        this.lastSyncProgress = time.now();
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
     }
@@ -185,6 +196,12 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     public boolean checkForPeriodicActions(final boolean wantToExit, final boolean ignoreIncomingEvents) {
 
         this.ignoreIncomingEvents = ignoreIncomingEvents;
+
+        // abort a stalled sync; checked before the guards below, which short-circuit while a sync is waiting
+        if (!syncBreakRequested && isSyncStalled()) {
+            abortStalledSync();
+            return !wantToExit;
+        }
 
         if (!isSyncCooldownComplete()) {
             this.syncMetrics.doNotSyncCooldown();
@@ -241,6 +258,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         }
         clearInternalState();
         state.peerStillSendingEvents = false;
+        syncBreakRequested = false;
+        lastSyncProgress = time.now();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
         // mark sync as never happened to stop broadcast from running
         state.lastSyncFinishedTime = Instant.MIN;
@@ -280,6 +299,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     @Override
     public void receiveSyncData(@NonNull final SyncData syncMessage) {
 
+        recordSyncProgress();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.EXCHANGING_WINDOWS);
         this.syncMetrics.acceptedSyncRequest();
 
@@ -294,6 +314,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
 
+        recordSyncProgress();
         if (state.mySyncData == null) {
             throw new IllegalStateException("Received tips confirmation before sending sync data from " + peerId);
         }
@@ -335,6 +356,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     @Override
     public void receiveEvents(@NonNull final List<GossipEvent> gossipEvents) {
+        recordSyncProgress();
         final SyncData mySyncData = state.mySyncData;
         if (mySyncData != null && mySyncData.dontReceiveEvents()) {
             // we ignore all incoming events - they should not be sent to us in first place
@@ -354,6 +376,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     @Override
     public void receiveEventsFinished() {
+        recordSyncProgress();
         if (state.mySyncData == null) {
             // have we already finished sending out events? if yes, mark the sync as finished
             reportSyncFinished();
@@ -444,6 +467,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     }
 
     private void sendSyncData(final boolean ignoreIncomingEvents) {
+        recordSyncProgress();
         syncMetrics.syncStarted();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.EXCHANGING_WINDOWS);
         state.shadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow();
@@ -501,6 +525,35 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             syncGuard.onSyncCompleted(peerId);
         }
         state.clear(time.now());
+    }
+
+    /**
+     * Resets the no-progress timeout because the sync advanced. Deliberately not called for pings.
+     */
+    private void recordSyncProgress() {
+        lastSyncProgress = time.now();
+    }
+
+    /**
+     * @return true if a sync is in progress but has not advanced within {@link SyncConfig#maxSyncTime()}
+     */
+    private boolean isSyncStalled() {
+        final boolean syncInProgress = state.mySyncData != null || state.peerStillSendingEvents;
+        return syncInProgress
+                && isGreaterThanOrEqualTo(Duration.between(lastSyncProgress, time.now()), syncConfig.maxSyncTime());
+    }
+
+    /**
+     * Breaks a stalled sync so the connection is torn down and re-negotiated.
+     */
+    private void abortStalledSync() {
+        syncBreakRequested = true;
+        logger.warn(
+                SYNC_INFO.getMarker(),
+                "Sync with {} made no progress for {}; aborting the conversation so it can be re-negotiated",
+                peerId,
+                syncConfig.maxSyncTime());
+        sender.breakConversation();
     }
 
     /**

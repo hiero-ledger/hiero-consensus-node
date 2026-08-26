@@ -28,9 +28,9 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
-import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
-import org.hiero.consensus.concurrent.pool.ParallelExecutor;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
+import org.hiero.base.concurrent.pool.ParallelExecutionException;
+import org.hiero.base.concurrent.pool.ParallelExecutor;
+import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
@@ -481,7 +481,10 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             final long correlationId = input.readLong();
                             final long pingMillis =
                                     TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(correlationId));
-                            overloadMonitor.reportPing(pingMillis);
+                            // we are still reporting delay to receive, not to handle
+                            // we want to measure the network ping, rather than dispatch thread ping
+                            // it is still handled over there, to make overloadMonitor managed from same thread
+                            inputQueue.add(() -> overloadMonitor.reportPing(pingMillis));
                             break;
                     }
                 }

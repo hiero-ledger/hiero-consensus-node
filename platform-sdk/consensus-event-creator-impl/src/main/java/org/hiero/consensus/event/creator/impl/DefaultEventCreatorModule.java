@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +21,7 @@ import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -31,11 +29,19 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Default implementation of the {@link EventCreatorModule}.
  */
 public class DefaultEventCreatorModule implements EventCreatorModule {
+
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     @Nullable
     private ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
@@ -65,8 +71,17 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
         final EventCreationWiringConfig wiringConfig = configuration.getConfigData(EventCreationWiringConfig.class);
 
         // Set up component wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "EventCreator_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, wiringConfig.eventCreationManager());
+
+        // Wire components
+        eventWindowExtractor
+                .getOutputWire()
+                .solderTo(
+                        eventCreationManagerWiring.getInputWire(EventCreationManager::setEventWindow, "event window"),
+                        INJECT);
 
         // Set up heartbeat wire
         model.buildHeartbeatWire(eventCreationConfig.period())
@@ -111,7 +126,16 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
                 .getInputWire(EventCreationManager::setEventWindow, "event window");
     }

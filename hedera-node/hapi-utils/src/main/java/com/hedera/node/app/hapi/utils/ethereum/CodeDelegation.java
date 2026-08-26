@@ -9,8 +9,8 @@ import com.google.common.base.MoreObjects;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Optional;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.tuweni.bytes.Bytes;
 
 /**
@@ -91,12 +91,12 @@ public record CodeDelegation(byte[] chainId, byte[] address, long nonce, int yPa
     @NonNull
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("chainId", chainId == null ? null : Hex.encodeHexString(chainId))
-                .add("address", address == null ? null : Hex.encodeHexString(address))
+                .add("chainId", chainId == null ? null : HexFormat.of().formatHex(chainId))
+                .add("address", address == null ? null : HexFormat.of().formatHex(address))
                 .add("nonce", nonce)
                 .add("yParity", yParity)
-                .add("r", Hex.encodeHexString(r))
-                .add("s", Hex.encodeHexString(s))
+                .add("r", HexFormat.of().formatHex(r))
+                .add("s", HexFormat.of().formatHex(s))
                 .toString();
     }
 }

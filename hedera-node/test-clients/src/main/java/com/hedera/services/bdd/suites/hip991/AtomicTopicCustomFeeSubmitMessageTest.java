@@ -53,6 +53,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_DENOMINATION_IN_MAX_CUSTOM_FEE_LIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED;
@@ -792,6 +793,28 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         }
 
         @HapiTest
+        @DisplayName("Submits a message when aggregated hbar custom fees overflow a long")
+        final Stream<DynamicTest> submitFailsWhenAggregatedHbarFeesOverflow() {
+            final var collector = "collector";
+            // Two hbar fees whose sum exceeds Long.MAX_VALUE
+            final long halfMaxPlusOne = Long.MAX_VALUE / 2 + 1;
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                    cryptoCreate(collector).balance(ONE_HBAR),
+                    atomicBatch(createTopic(TOPIC)
+                                    .withConsensusCustomFee(fixedConsensusHbarFee(halfMaxPlusOne, collector))
+                                    .withConsensusCustomFee(fixedConsensusHbarFee(halfMaxPlusOne, collector))
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR),
+                    submitMessageTo(TOPIC)
+                            .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                            .message("TEST")
+                            .payingWith(SUBMITTER)
+                            .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED),
+                    getAccountBalance(collector).hasTinyBars(ONE_HBAR));
+        }
+
+        @HapiTest
         @DisplayName("Submits a message to a topic with custom fee FT with 4 layer fees")
         // TOPIC_FEE_144
         final Stream<DynamicTest> submitToTopicWithFourLayersOfFees() {
@@ -973,11 +996,32 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     cryptoCreate(COLLECTOR),
                     atomicBatch(createTopic(TOPIC).feeExemptKeys(SUBMITTER).batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR),
+                    // The denominating token id is validated even though the payer is fee exempt
                     submitMessageTo(TOPIC)
                             .message("TEST")
                             .maxCustomFee(maxCustomFee(SUBMITTER, htsLimit("invalidToken", 1)))
-                            .payingWith(SUBMITTER),
-                    getAccountBalance(COLLECTOR).hasTokenBalance("invalidToken", 0));
+                            .payingWith(SUBMITTER)
+                            .hasPrecheck(INVALID_MAX_CUSTOM_FEES));
+        }
+
+        @HapiTest
+        @DisplayName("MessageSubmit with an invalid token in a max custom fee that is not the payer's")
+        final Stream<DynamicTest> submitMessageWithInvalidTokenInNonPayerMaxCustomFee() {
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                    withOpContext((spec, opLog) -> {
+                        spec.registry().saveTokenId("invalidToken", TokenID.getDefaultInstance());
+                    }),
+                    tokenCreate("tokenA"),
+                    cryptoCreate("otherPayer"),
+                    atomicBatch(createTopic(TOPIC).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
+                    // Fee assessment only reads the payer's entry, but every entry is still validated
+                    submitMessageTo(TOPIC)
+                            .message("TEST")
+                            .maxCustomFee(maxCustomFee(SUBMITTER, htsLimit("tokenA", 1)))
+                            .maxCustomFee(maxCustomFee("otherPayer", htsLimit("invalidToken", 1)))
+                            .payingWith(SUBMITTER)
+                            .hasPrecheck(INVALID_MAX_CUSTOM_FEES));
         }
 
         @HapiTest
@@ -1042,13 +1086,9 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         // TOPIC_FEE_199
         final Stream<DynamicTest> submitMessageFromFeeCollector() {
             final var fee = fixedConsensusHtsFee(5, BASE_TOKEN, COLLECTOR);
-            final var feeLimit = maxCustomFee(
-                    COLLECTOR, htsLimit("invalidToken", 1), htsLimit(BASE_TOKEN, 1), htsLimit("tokenA", 1));
+            final var feeLimit = maxCustomFee(COLLECTOR, htsLimit(BASE_TOKEN, 1), htsLimit("tokenA", 1));
             return hapiTest(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                    withOpContext((spec, opLog) -> {
-                        spec.registry().saveTokenId("invalidToken", TokenID.getDefaultInstance());
-                    }),
                     tokenCreate("tokenA"),
                     cryptoCreate(COLLECTOR),
                     tokenAssociate(COLLECTOR, BASE_TOKEN),

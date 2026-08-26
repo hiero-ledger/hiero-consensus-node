@@ -2,8 +2,8 @@
 package org.hiero.base.concurrent.locks;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,10 +12,10 @@ import java.time.Duration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.utility.test.fixtures.assertions.AssertionUtils;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -67,8 +67,8 @@ class IndexLockTests {
     }
 
     /**
-     * Although it is possible for different indexes to acquire the same lock, if the requested indices are less
-     * than hte total size of the array then they will not block.
+     * Although it is possible for different indexes to acquire the same lock, if the requested indices are less than
+     * hte total size of the array then they will not block.
      */
     @Test
     @Tag(TestComponentTags.THREADING)
@@ -199,7 +199,7 @@ class IndexLockTests {
 
             final int finalIndex = index;
             threads.add(new ThreadConfiguration(getStaticThreadManager())
-                    .setThreadName("background-locker")
+                    .setSingleThreadName("background-locker")
                     .setRunnable(() -> {
                         lock.lock(finalIndex);
                         lock.unlock(finalIndex);
@@ -232,7 +232,7 @@ class IndexLockTests {
 
                 final int finalIndex = index;
                 threads.add(new ThreadConfiguration(getStaticThreadManager())
-                        .setThreadName("background-locker")
+                        .setSingleThreadName("background-locker")
                         .setRunnable(() -> {
                             lock.lock(finalIndex);
                             lock.unlock(finalIndex);

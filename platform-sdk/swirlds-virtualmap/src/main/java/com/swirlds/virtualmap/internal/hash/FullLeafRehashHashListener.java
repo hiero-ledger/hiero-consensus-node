@@ -4,10 +4,10 @@ package com.swirlds.virtualmap.internal.hash;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -67,12 +67,12 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
             @NonNull final VirtualMapStatistics statistics,
             final int flushInterval) {
 
-        if (firstLeafPath != Path.INVALID_PATH && !(firstLeafPath > 0 && firstLeafPath <= lastLeafPath)) {
+        if (firstLeafPath != MerklePathUtils.INVALID_PATH && !(firstLeafPath > 0 && firstLeafPath <= lastLeafPath)) {
             throw new IllegalArgumentException("The first leaf path is invalid. firstLeafPath=" + firstLeafPath
                     + ", lastLeafPath=" + lastLeafPath);
         }
 
-        if (lastLeafPath != Path.INVALID_PATH && lastLeafPath <= 0) {
+        if (lastLeafPath != MerklePathUtils.INVALID_PATH && lastLeafPath <= 0) {
             throw new IllegalArgumentException(
                     "The last leaf path is invalid. firstLeafPath=" + firstLeafPath + ", lastLeafPath=" + lastLeafPath);
         }
