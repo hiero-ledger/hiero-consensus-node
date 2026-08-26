@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "837: [CALL] Exec HAPI Rec/Crypto"
+name: "837: [CALL] Exec HAPI Rec Crypto"
 on:
   workflow_call:
     inputs:

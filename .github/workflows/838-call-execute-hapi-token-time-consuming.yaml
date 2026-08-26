@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "838: [CALL] Exec HAPI Token/Time"
+name: "838: [CALL] Exec HAPI Token Time"
 on:
   workflow_call:
     inputs:

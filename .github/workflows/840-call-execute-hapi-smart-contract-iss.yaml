@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "840: [CALL] Exec HAPI SC/ISS"
+name: "840: [CALL] Exec HAPI SC ISS"
 on:
   workflow_call:
     inputs:
