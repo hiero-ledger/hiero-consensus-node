@@ -7,7 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
 import org.hiero.consensus.BasicConfig_;
-import org.hiero.consensus.config.PathsConfig_;
+import org.hiero.consensus.PathsConfig_;
 import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;

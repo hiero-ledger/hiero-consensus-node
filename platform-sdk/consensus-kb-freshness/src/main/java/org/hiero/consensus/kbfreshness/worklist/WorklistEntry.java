@@ -17,6 +17,10 @@ import java.util.List;
  * @param anchoredSourceCount how many distinct source files the topic anchors (full or abbreviated,
  *                            resolved to concrete files). Zero means the doc carries no
  *                            mechanically-checkable code anchor — surfaced in the coverage lane.
+ * @param newestAnchoredCommit the newest last-commit date ({@code yyyy-MM-dd}) among the topic's anchored
+ *                            sources in the scanned checkout, or {@code null} when the topic anchors no
+ *                            dated source or git is unavailable. This is the date to record with
+ *                            {@code --mark-reviewed} — the state this run reviewed, never wall-clock.
  */
 public record WorklistEntry(
         String entryKey,
@@ -25,7 +29,8 @@ public record WorklistEntry(
         Status status,
         String note,
         List<String> changedPaths,
-        int anchoredSourceCount) {
+        int anchoredSourceCount,
+        String newestAnchoredCommit) {
 
     /** Freshness of a topic relative to the code it anchors. */
     public enum Status {

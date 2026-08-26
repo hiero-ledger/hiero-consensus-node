@@ -18,7 +18,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*MATS test failure on `main`. See status below.*"
+            "text": {{ printf "*MATS test failure on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") | data.ToJSON }}
           },
           "fields": [
             {

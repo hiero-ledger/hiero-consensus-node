@@ -65,8 +65,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -807,6 +809,78 @@ public class Hip1259EnabledTests {
                 // Verify fee went to fee collector and not to legacy accounts
                 validateRecordContains("failedTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("failedTxn", UNEXPECTED_FEE_ACCOUNTS));
+    }
+
+    /**
+     * Regression test for the HIP-1259 node-fee double-count on post-charge handle failures.
+     *
+     * <p>A transaction that passes precheck but throws during handling is charged, has its stack
+     * rolled back, and is then re-charged; its node-fee component must be settled exactly once. This
+     * is checked by asserting that the increase in the NodePayments payout tally equals the increase
+     * in the rollback-aware NodeRewards.nodeFeesCollected reward tally over the same window. Before the
+     * fix, the rolled-back accumulation was left behind in NodePayments, so a handle failure inflated
+     * the payout tally by twice its node fee while the reward tally rose by one.
+     */
+    @Order(20)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> failedTransactionDoesNotDoubleCountNodeFeeInNodePayments() {
+        final String unassociatedReceiver = "unassociatedReceiver";
+        final String regressionToken = "regressionToken";
+        final AtomicLong nodePaymentsBefore = new AtomicLong(0);
+        final AtomicLong nodeFeesCollectedBefore = new AtomicLong(0);
+        final AtomicLong nodePaymentsAfter = new AtomicLong(0);
+        final AtomicLong nodeFeesCollectedAfter = new AtomicLong(0);
+
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(unassociatedReceiver).maxAutomaticTokenAssociations(0),
+                tokenCreate(regressionToken).treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                // Flush any pending fees to state, then snapshot both node-fee tallies
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                EmbeddedVerbs.<NodePayments>viewSingleton(
+                        TokenService.NAME,
+                        NODE_PAYMENTS_STATE_ID,
+                        nodePayments -> nodePaymentsBefore.set(nodePayments.payments().stream()
+                                .mapToLong(NodePayment::fees)
+                                .sum())),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        NODE_REWARDS_STATE_ID,
+                        nodeRewards -> nodeFeesCollectedBefore.set(nodeRewards.nodeFeesCollected())),
+                // A transaction that passes precheck but fails during handling (post-charge failure):
+                // the token is not associated with the receiver, so the handler throws after the payer
+                // has been charged; the stack is rolled back and the payer is re-charged.
+                cryptoTransfer(TokenMovement.moving(1, regressionToken).between(CIVILIAN_PAYER, unassociatedReceiver))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                // Flush again, then snapshot both tallies
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                EmbeddedVerbs.<NodePayments>viewSingleton(
+                        TokenService.NAME,
+                        NODE_PAYMENTS_STATE_ID,
+                        nodePayments -> nodePaymentsAfter.set(nodePayments.payments().stream()
+                                .mapToLong(NodePayment::fees)
+                                .sum())),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        NODE_REWARDS_STATE_ID,
+                        nodeRewards -> nodeFeesCollectedAfter.set(nodeRewards.nodeFeesCollected())),
+                doingContextual(spec -> {
+                    final long payoutDelta = nodePaymentsAfter.get() - nodePaymentsBefore.get();
+                    final long rewardDelta = nodeFeesCollectedAfter.get() - nodeFeesCollectedBefore.get();
+                    assertTrue(
+                            payoutDelta > 0,
+                            "the failing transaction and flush must accumulate node fees in NodePayments");
+                    assertEquals(
+                            rewardDelta,
+                            payoutDelta,
+                            "NodePayments (payout tally) must rise by the same amount as "
+                                    + "NodeRewards.nodeFeesCollected (reward tally); a larger NodePayments increase "
+                                    + "means a post-charge handle failure double-counted the node fee");
+                }));
     }
 
     /**

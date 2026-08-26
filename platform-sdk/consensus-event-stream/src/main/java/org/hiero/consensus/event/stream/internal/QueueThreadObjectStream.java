@@ -6,9 +6,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.QueueThread;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHashable;
-import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
 
 /**

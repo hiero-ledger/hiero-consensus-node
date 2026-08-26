@@ -175,17 +175,23 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         // Validate both accounts are not frozen and have the right keys
         final var oldTreasuryRel = getIfUsable(oldTreasury, tokenId, tokenRelStore);
         final var newTreasuryRel = getIfUsable(newTreasury, tokenId, tokenRelStore);
-        if (oldTreasuryRel.balance() > 0) {
+        final var hasBalanceToTransfer = oldTreasuryRel.balance() > 0;
+        if (hasBalanceToTransfer) {
             validateFrozenAndKey(oldTreasuryRel);
             validateFrozenAndKey(newTreasuryRel);
-
-            if (token.tokenType().equals(FUNGIBLE_COMMON)) {
+        }
+        if (token.tokenType().equals(FUNGIBLE_COMMON)) {
+            if (hasBalanceToTransfer) {
                 // Transfers fungible balances and updates account's numOfPositiveBalances
                 // and puts to modifications on state.
                 transferFungibleTokensToTreasury(oldTreasuryRel, newTreasuryRel, tokenRelStore, accountStore);
-            } else {
-                // Check whether new treasury has balance, if it does throw TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES
-                validateTrue(newTreasuryRel.balance() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
+            }
+        } else {
+            // The incoming treasury must own no serials of its own, even when the outgoing one is empty:
+            // changeOwnerToNewTreasury() moves NFTs by relation balance alone, so a later handoff away
+            // from this account would zero counters covering serials it owns explicitly, orphaning them
+            validateTrue(newTreasuryRel.balance() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
+            if (hasBalanceToTransfer) {
                 // Transfers NFT ownerships and updates account's numOwnedNfts and
                 // tokenRelation's balance and puts to modifications on state.
                 changeOwnerToNewTreasury(oldTreasuryRel, newTreasuryRel, tokenRelStore, accountStore);

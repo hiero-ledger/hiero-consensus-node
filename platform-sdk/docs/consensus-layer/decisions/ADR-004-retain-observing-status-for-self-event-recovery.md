@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-004 — Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
@@ -68,8 +69,8 @@ justification no longer applies:
   exit after `platformStatus.observingStatusDelay` (default `10s`)
   (`ObservingStatusLogic.java:176-187`).
 - The event-creation gate continues to withhold creation in `OBSERVING`
-  (`PlatformStatusRule.java:37-45`).
-- The default delay stays at `10s` (`PlatformStatusConfig.java:23`); it remains operator-tunable.
+  (`PlatformStatusRule.java#isEventCreationPermitted`).
+- The default delay stays at `10s` (`PlatformStatusConfig.java#observingStatusDelay`); it remains operator-tunable.
 
 ## Limitations
 
@@ -148,9 +149,9 @@ See **Decision** above.
   for the ordinary-crash case.
 - `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41` — the
   `OBSERVING` status definition.
-- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ObservingStatusLogic.java:176-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ObservingStatusLogic.java:176-187`
   — the exit transition driven by `observingStatusDelay`.
-- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java:23` —
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/PlatformStatusConfig.java#observingStatusDelay` —
   the `observingStatusDelay` config field (default `10s`).
-- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
+- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`
   — the event-creation gate that withholds creation while in `OBSERVING`.
