@@ -3,7 +3,9 @@ package com.hedera.node.app.history;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsAlreadyPresent;
+import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsInstalledAndVerified;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.validateArtifactsPathConsistency;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,10 +28,12 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -602,6 +606,147 @@ class WrapsProvingKeyVerificationTest {
         final var hashFile = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME);
         assertTrue(Files.isRegularFile(hashFile), "hash file was not written");
         assertEquals(archiveHash, Files.readString(hashFile).trim());
+    }
+
+    // ===== proving key readiness (SIGBUS / wrong-key guard) =====
+
+    @Test
+    void notInstalledWhenHashFileIsMissingEvenThoughEveryArtifactIsPresent(final EnvironmentVariables environment)
+            throws IOException {
+        // The provisioning shape that caused the crash: the four bins copied in without wraps.sha384,
+        // which leaves WRAPSLibraryBridge.isProofSupported() true while a download/extract is still due.
+        writeRequiredArtifacts(tempDir);
+        setArtifactsEnvVar(environment);
+
+        assertTrue(WRAPSLibraryBridge.isProofSupported());
+        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
+    }
+
+    @Test
+    void notInstalledWhenHashFileIsForADifferentProvingKey(final EnvironmentVariables environment) throws IOException {
+        writeRequiredArtifacts(tempDir);
+        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), "bb".repeat(48));
+        setArtifactsEnvVar(environment);
+
+        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
+    }
+
+    @Test
+    void installedOnlyOnceAMatchingHashFileIsInPlace(final EnvironmentVariables environment) throws IOException {
+        writeRequiredArtifacts(tempDir);
+        setArtifactsEnvVar(environment);
+        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
+
+        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
+
+        assertTrue(artifactsInstalledAndVerified(HASH_A.toHex()));
+    }
+
+    @Test
+    void notInstalledWhenArtifactsPathIsUnset() {
+        assertFalse(artifactsInstalledAndVerified(HASH_A.toHex()));
+    }
+
+    // ===== staged install =====
+
+    @Test
+    void installingOverAMappedArtifactLeavesTheExistingMappingIntact(final EnvironmentVariables environment)
+            throws Exception {
+        // Both contents are the same length on purpose. An in-place extract truncates the mapped inode and
+        // regrows it, so a regression shows up as this mapping reading the *new* bytes rather than as a
+        // SIGBUS that would take the test JVM down with it.
+        final byte[] installedContent = "pp-installed".getBytes(StandardCharsets.UTF_8);
+        final byte[] replacementContent = "pp-replaced!".getBytes(StandardCharsets.UTF_8);
+        assertEquals(installedContent.length, replacementContent.length);
+
+        final var extractionDir = tempDir.resolve("extracted");
+        Files.createDirectories(extractionDir);
+        writeRequiredArtifacts(extractionDir);
+        final var deciderPp = extractionDir.resolve("decider_pp.bin");
+        Files.write(deciderPp, installedContent);
+
+        final byte[] archiveBytes = createTarGz(
+                entry("decider_pp.bin", replacementContent),
+                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
+                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)),
+                entry("nova_vp.bin", "nvp".getBytes(StandardCharsets.UTF_8)));
+        final var archivePath = tempDir.resolve("wraps.tar.gz");
+        Files.write(archivePath, archiveBytes);
+        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
+
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
+        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
+        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
+
+        try (final var channel = FileChannel.open(deciderPp, StandardOpenOption.READ)) {
+            final var mapping = channel.map(FileChannel.MapMode.READ_ONLY, 0, installedContent.length);
+
+            subject.ensureProvingKey(configuration, downloader);
+
+            final var seenThroughMapping = new byte[installedContent.length];
+            mapping.get(0, seenThroughMapping);
+            assertArrayEquals(
+                    installedContent,
+                    seenThroughMapping,
+                    "the install rewrote the inode a native proof had mapped instead of replacing the directory entry");
+        }
+        assertArrayEquals(replacementContent, Files.readAllBytes(deciderPp), "the new artifact was not published");
+    }
+
+    @Test
+    void leavesNoStagingDirectoryBehindAfterInstalling(final EnvironmentVariables environment) throws Exception {
+        final byte[] archiveBytes = createTarGz(
+                entry("decider_pp.bin", "pp".getBytes(StandardCharsets.UTF_8)),
+                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
+                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)),
+                entry("nova_vp.bin", "nvp".getBytes(StandardCharsets.UTF_8)));
+        final var archivePath = tempDir.resolve("wraps.tar.gz");
+        Files.write(archivePath, archiveBytes);
+        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
+        final var extractionDir = tempDir.resolve("extracted");
+
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
+        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
+        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        assertFalse(
+                Files.exists(extractionDir.resolve(WrapsProvingKeyVerification.STAGING_DIR_NAME)),
+                "staging directory was not cleaned up");
+        assertTrue(artifactsInstalledAndVerified(archiveHash));
+    }
+
+    @Test
+    void leavesInstalledArtifactsUntouchedWhenTheArchiveIsIncomplete(final EnvironmentVariables environment)
+            throws Exception {
+        final var extractionDir = tempDir.resolve("extracted");
+        Files.createDirectories(extractionDir);
+        writeRequiredArtifacts(extractionDir);
+
+        // Missing nova_vp.bin, so the staged tree must never be published
+        final byte[] archiveBytes = createTarGz(
+                entry("decider_pp.bin", "new-pp".getBytes(StandardCharsets.UTF_8)),
+                entry("decider_vp.bin", "vp".getBytes(StandardCharsets.UTF_8)),
+                entry("nova_pp.bin", "npp".getBytes(StandardCharsets.UTF_8)));
+        final var archivePath = tempDir.resolve("wraps.tar.gz");
+        Files.write(archivePath, archiveBytes);
+        final var archiveHash = noThrowSha384HashOf(Bytes.wrap(archiveBytes)).toHex();
+
+        given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
+        given(tssConfig.wrapsProvingKeyHash()).willReturn(archiveHash);
+        given(tssConfig.wrapsProvingKeyPath()).willReturn(archivePath.toString());
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, extractionDir.toString());
+
+        subject.ensureProvingKey(configuration, downloader);
+
+        assertArrayEquals(
+                "decider_pp.bin".getBytes(StandardCharsets.UTF_8),
+                Files.readAllBytes(extractionDir.resolve("decider_pp.bin")));
+        assertFalse(Files.exists(extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME)));
+        assertFalse(Files.exists(extractionDir.resolve(WrapsProvingKeyVerification.STAGING_DIR_NAME)));
     }
 
     // ===== helpers =====

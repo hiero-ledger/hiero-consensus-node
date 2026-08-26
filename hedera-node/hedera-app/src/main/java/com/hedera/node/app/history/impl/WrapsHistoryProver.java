@@ -485,7 +485,7 @@ public class WrapsHistoryProver implements HistoryProver {
         // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading.
         final boolean needsWrapsForOutput =
                 phase == POST_AGGREGATION || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
-        if (needsWrapsForOutput && !historyLibrary.wrapsProverReady()) {
+        if (needsWrapsForOutput && !historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
             if (isWrapsReadinessRetry) {
                 log.debug(
                         "Deferring {} output for construction #{}: WRAPS library is not ready", phase, constructionId);
@@ -781,7 +781,7 @@ public class WrapsHistoryProver implements HistoryProver {
                             yield new AggregatePhaseOutput(
                                     signature, signers.stream().toList());
                         } else {
-                            if (!historyLibrary.wrapsProverReady()) {
+                            if (!historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
                                 yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                             }
                             final var isValid = historyLibrary.verifyAggregateSignature(
@@ -833,7 +833,7 @@ public class WrapsHistoryProver implements HistoryProver {
                         }
                     }
                     case POST_AGGREGATION -> {
-                        if (!historyLibrary.wrapsProverReady()) {
+                        if (!historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
                             yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                         }
                         final var signature = requireNonNull(aggregatedSignatureProof)

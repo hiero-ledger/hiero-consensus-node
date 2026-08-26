@@ -15,9 +15,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -45,6 +48,11 @@ import org.apache.logging.log4j.Logger;
  * <p>After successful hash verification, the proving key archive (.tar.gz) is extracted
  * to the directory specified by the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable.
  * The {@code tss.wrapsProvingKeyPath} config controls only where the archive file is stored on disk.
+ *
+ * <p>The archive is extracted into a staging subdirectory first and only then published onto the
+ * artifacts directory, one atomic rename per file. The native library maps these artifacts, and
+ * rewriting one in place truncates an inode a running proof may already have mapped, which faults
+ * with {@code SIGBUS}; a rename leaves that inode intact.
  *
  * <p>To avoid re-downloading and re-extracting the multi-gigabyte archive on every startup when the
  * extracted artifacts are already present (e.g. mounted from the published data-only image), a
@@ -75,6 +83,13 @@ public class WrapsProvingKeyVerification {
      * incomplete installation.
      */
     static final String WRAPS_ARTIFACTS_MANIFEST_FILE_NAME = "wraps-artifacts.sha384";
+
+    /**
+     * Name of the staging subdirectory the archive is extracted into before its contents are published
+     * onto the artifacts directory. Kept inside the artifacts directory so that publishing is a
+     * same-filesystem rename; a sibling directory could land on a different mount.
+     */
+    static final String STAGING_DIR_NAME = ".wraps-staging";
 
     public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
     static final Set<String> REQUIRED_ARTIFACT_FILES =
@@ -160,9 +175,8 @@ public class WrapsProvingKeyVerification {
 
     /**
      * Determines whether the extracted WRAPS artifacts are already present in the artifacts directory
-     * and up to date, so that the archive download and extraction can be skipped. This is the case when
-     * the hash file ({@value #WRAPS_HASH_FILE_NAME}) exists, its contents match the expected
-     * archive hash from config, and all {@link #REQUIRED_ARTIFACT_FILES} are present.
+     * and up to date, so that the archive download and extraction can be skipped. Logs the reason when
+     * they are not.
      *
      * @param envArtifactsPath the artifacts directory path, or null/blank if unset
      * @param expectedHashHex the expected archive hash (bare hex) from {@code tss.wrapsProvingKeyHash}
@@ -170,51 +184,70 @@ public class WrapsProvingKeyVerification {
      */
     static boolean artifactsAlreadyPresent(
             @Nullable final String envArtifactsPath, @NonNull final String expectedHashHex) {
-        if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
+        final var defect = installationDefect(envArtifactsPath, expectedHashHex);
+        if (defect != null) {
+            log.info("Not skipping WRAPS download and extraction for {}: {}", envArtifactsPath, defect);
             return false;
+        }
+        return true;
+    }
+
+    /**
+     * Returns whether the WRAPS artifacts installed in {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} are complete
+     * and verified against the given archive hash, so that native code may safely map them.
+     *
+     * <p>This holds the installation to the same bar as {@link #artifactsAlreadyPresent}: merely finding
+     * the four {@code *.bin} filenames is not enough, because they may be a different proving key, or the
+     * partially published output of an install still in flight. Unlike {@code artifactsAlreadyPresent}
+     * this is quiet, since it is consulted once per consensus round.
+     *
+     * @param expectedHashHex the expected archive hash (bare hex) from {@code tss.wrapsProvingKeyHash}
+     * @return true if the installed artifacts are complete and match the expected hash
+     */
+    public static boolean artifactsInstalledAndVerified(@NonNull final String expectedHashHex) {
+        requireNonNull(expectedHashHex);
+        return installationDefect(System.getenv(WRAPS_ARTIFACTS_ENV_VAR), expectedHashHex) == null;
+    }
+
+    /**
+     * Returns a human-readable description of why the artifacts directory does not hold a complete
+     * installation of the expected proving key, or null if it does.
+     */
+    @Nullable
+    private static String installationDefect(
+            @Nullable final String envArtifactsPath, @NonNull final String expectedHashHex) {
+        if (envArtifactsPath == null || envArtifactsPath.isBlank()) {
+            return WRAPS_ARTIFACTS_ENV_VAR + " is not set";
         }
         final var artifactsDir = Paths.get(envArtifactsPath);
         final var hashFile = artifactsDir.resolve(WRAPS_HASH_FILE_NAME);
         if (!Files.isRegularFile(hashFile)) {
-            return false;
+            return "hash file " + hashFile + " is missing";
         }
         final String storedHash;
         try {
             storedHash = Files.readString(hashFile).trim();
         } catch (final IOException e) {
-            log.warn("Failed to read WRAPS hash file {}; will verify the archive instead", hashFile, e);
-            return false;
+            return "hash file " + hashFile + " could not be read (" + e.getMessage() + ")";
         }
         if (!storedHash.equalsIgnoreCase(expectedHashHex.trim())) {
-            log.info(
-                    "WRAPS hash file {} ({}) does not match configured hash ({}); will download and extract",
-                    hashFile,
-                    storedHash,
-                    expectedHashHex);
-            return false;
+            return "hash file " + hashFile + " (" + storedHash + ") does not match the configured hash ("
+                    + expectedHashHex + ")";
         }
         final var missingArtifacts = REQUIRED_ARTIFACT_FILES.stream()
                 .filter(name -> !Files.isRegularFile(artifactsDir.resolve(name)))
                 .toList();
         if (!missingArtifacts.isEmpty()) {
-            log.warn(
-                    "WRAPS hash file {} matches config but artifacts {} are missing in {}; will download and extract",
-                    hashFile,
-                    missingArtifacts,
-                    artifactsDir);
-            return false;
+            return "artifacts " + missingArtifacts + " are missing from " + artifactsDir;
         }
         // If a manifest is present, verify it lists all required artifacts. An absent manifest is
         // accepted (e.g. an older image without the manifest file) to preserve backwards compatibility
         // with read-only mounts that cannot be updated.
         final var manifestFile = artifactsDir.resolve(WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
         if (Files.isRegularFile(manifestFile) && !manifestListsAllArtifacts(manifestFile)) {
-            log.warn(
-                    "WRAPS artifacts manifest {} is incomplete or unreadable; will re-download and extract",
-                    manifestFile);
-            return false;
+            return "artifacts manifest " + manifestFile + " is incomplete or unreadable";
         }
-        return true;
+        return null;
     }
 
     private void verifyFileAndDownloadIfNeeded(
@@ -402,15 +435,85 @@ public class WrapsProvingKeyVerification {
             return;
         }
         final var extractionDir = Paths.get(envArtifactsPath);
+        final var stagingDir = extractionDir.resolve(STAGING_DIR_NAME);
         try {
             Files.createDirectories(extractionDir);
-            TarGzExtractor.extract(tarGzPath, extractionDir);
-            log.info("Extracted WRAPS proving key archive {} to {}", tarGzPath, extractionDir);
+            deleteRecursively(stagingDir);
+            Files.createDirectories(stagingDir);
+            TarGzExtractor.extract(tarGzPath, stagingDir);
+            log.info("Extracted WRAPS proving key archive {} to staging directory {}", tarGzPath, stagingDir);
+            final var missingArtifacts = REQUIRED_ARTIFACT_FILES.stream()
+                    .filter(name -> !Files.isRegularFile(stagingDir.resolve(name)))
+                    .toList();
+            if (!missingArtifacts.isEmpty()) {
+                log.error(
+                        "WRAPS proving key archive {} did not yield required artifacts {}; leaving the "
+                                + "installed artifacts in {} untouched",
+                        tarGzPath,
+                        missingArtifacts,
+                        extractionDir);
+                return;
+            }
+            publishStagedArtifacts(stagingDir, extractionDir, expectedHashHex);
+            log.info("Installed WRAPS proving key artifacts from {} into {}", tarGzPath, extractionDir);
             verifyArtifactsDirectoryExists();
-            writeHashFile(extractionDir, expectedHashHex);
-            writeArtifactsManifest(extractionDir);
         } catch (final IOException e) {
-            log.error("Failed to extract WRAPS proving key archive {}", tarGzPath, e);
+            log.error("Failed to install WRAPS proving key archive {}", tarGzPath, e);
+        } finally {
+            try {
+                deleteRecursively(stagingDir);
+            } catch (final IOException e) {
+                log.warn("Failed to clean up WRAPS staging directory {}", stagingDir, e);
+            }
+        }
+    }
+
+    /**
+     * Publishes freshly extracted artifacts from the staging directory onto the live artifacts directory.
+     *
+     * <p>Each file is moved with {@link StandardCopyOption#ATOMIC_MOVE}, which replaces the directory entry
+     * without touching the previous inode. A proof already running against the old artifacts therefore keeps
+     * a valid mapping, rather than faulting with {@code SIGBUS} the way an in-place rewrite does when it
+     * truncates a file the native library has mapped.
+     *
+     * <p>The readiness markers are removed first: while the moves are in flight the directory holds a mix of
+     * old and new files, and {@code HistoryLibrary.wrapsProverReady} must not admit a proof against it. The
+     * hash file is written last, so its presence implies a complete installation.
+     */
+    private static void publishStagedArtifacts(
+            @NonNull final Path stagingDir, @NonNull final Path extractionDir, @NonNull final String expectedHashHex)
+            throws IOException {
+        Files.deleteIfExists(extractionDir.resolve(WRAPS_HASH_FILE_NAME));
+        Files.deleteIfExists(extractionDir.resolve(WRAPS_ARTIFACTS_MANIFEST_FILE_NAME));
+        final List<Path> stagedFiles;
+        try (final var paths = Files.walk(stagingDir)) {
+            stagedFiles = paths.filter(Files::isRegularFile).toList();
+        }
+        for (final var source : stagedFiles) {
+            final var target = extractionDir.resolve(stagingDir.relativize(source));
+            final var targetParent = target.getParent();
+            if (targetParent != null) {
+                Files.createDirectories(targetParent);
+            }
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        }
+        writeArtifactsManifest(extractionDir);
+        writeHashFile(extractionDir, expectedHashHex);
+    }
+
+    /**
+     * Deletes the given directory tree if it exists, deepest entries first.
+     */
+    private static void deleteRecursively(@NonNull final Path dir) throws IOException {
+        if (!Files.exists(dir)) {
+            return;
+        }
+        final List<Path> entries;
+        try (final var paths = Files.walk(dir)) {
+            entries = paths.sorted(Comparator.reverseOrder()).toList();
+        }
+        for (final var entry : entries) {
+            Files.deleteIfExists(entry);
         }
     }
 

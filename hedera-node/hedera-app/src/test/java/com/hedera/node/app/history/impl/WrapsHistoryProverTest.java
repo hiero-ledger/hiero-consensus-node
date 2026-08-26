@@ -600,7 +600,7 @@ class WrapsHistoryProverTest {
                 new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray());
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(incremental);
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
         given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
                 .willReturn(true);
 
@@ -988,7 +988,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -1044,7 +1044,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         // Not ready on the first advance() (download still in flight); ready on the second.
-        given(historyLibrary.wrapsProverReady()).willReturn(false, true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(false, true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -1111,7 +1111,7 @@ class WrapsHistoryProverTest {
         // First call (publishIfNeeded early-exit guard): true -> skips early-exit.
         // Second call (inside outputFuture supplier): false -> NoopOutput.
         // Third call (next-round retry early-exit guard): true -> proceeds to publish.
-        given(historyLibrary.wrapsProverReady()).willReturn(true, false, true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true, false, true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -1172,7 +1172,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         // Stays false across every advance() — exercises the retry loop while the library is still loading.
-        given(historyLibrary.wrapsProverReady()).willReturn(false);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(false);
 
         final var aggregatedSignatureProof = HistoryProof.newBuilder()
                 .chainOfTrustProof(ChainOfTrustProof.newBuilder()
