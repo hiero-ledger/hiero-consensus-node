@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       starting-tag:
-        description: "Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.2."
+        description: "Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.5."
         required: false
         type: string
       block-node-ref:
@@ -131,7 +131,7 @@ jobs:
       - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
         id: run-cutover
         env:
-          DEPLOY_RELEASE_TAG: ${{ inputs.starting-tag || 'v0.78.0-rc.2' }}
+          DEPLOY_RELEASE_TAG: ${{ inputs.starting-tag || 'v0.78.0-rc.5' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"

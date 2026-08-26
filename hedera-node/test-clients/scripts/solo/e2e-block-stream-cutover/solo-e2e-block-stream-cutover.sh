@@ -78,10 +78,10 @@ Environment:
                             Must point at a published Solo tag (Solo resolves it before applying
                             --local-build-path), but the binary always comes from the local build.
                             Solo accepts reusing the same label across local-build upgrades.
-                            (default: v0.75.0-rc.6)
+                            (default: v0.75.1)
   UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
                             release image (no --local-build-path), so the 0.76 step exercises the
-                            tag's own default config. (default: v0.76.0-rc.1)
+                            tag's own default config. (default: v0.76.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
   SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
@@ -194,8 +194,8 @@ APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.e
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
-UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
-UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
+UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.1}"
+UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.1}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -210,8 +210,9 @@ MIRROR_IMPORTER_MEMORY_LIMIT="${MIRROR_IMPORTER_MEMORY_LIMIT:-1536Mi}"
 
 # WRAPS proving-key config (Step 10).
 # The CN downloads + extracts the WRAPS proving-key archive itself from the
-# tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties
-# (tss.wrapsProvingKeyDownloadEnabled=true). The script does not pre-download or serve it;
+# tss.wrapsProvingKeyDownloadUrl set in resources/0.76 application.properties (WRAPS v1.0, matching
+# the published 0.76 cryptography library) and resources/0.77 application.properties (WRAPS v1.6,
+# matching the local 3.15.2 binary). The script does not pre-download or serve it;
 # to use a different URL, point APP_PROPS_076_FILE/APP_PROPS_077_FILE at edited copies.
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 HAPI_PATH="${HAPI_PATH:-/opt/hgcapp/services-hedera/HapiApp2.0}"
@@ -2312,7 +2313,8 @@ report_wraps_download_times() {
 
 run_077_upgrade() {
   # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10; the
-  # 0.77 properties keep the same download URL so any restarted pod re-fetches from it.
+  # 0.77 properties use the v1.6 proving-key URL so any restarted pod re-fetches the set that
+  # matches the local 3.15.2 WRAPS library (0.76 left v1.0 artifacts on disk).
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"

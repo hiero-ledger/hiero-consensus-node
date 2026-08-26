@@ -152,8 +152,8 @@ public class ProcessUtils {
         environment.put("hedera.config.version", Integer.toString(configVersion));
         environment.put("RUST_BACKTRACE", "full");
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
-        // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz,
-        // e.g. "/Users/hincadenza/misc/wraps-v1.0.0", to get the WRAPS library ready to produce proofs
+        // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v1.6/wraps-v1.6.0.tar.gz,
+        // e.g. "/Users/hincadenza/misc/wraps-v1.6.0", to get the WRAPS library ready to produce proofs
         final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", "");
         environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", wrapsArtifactsPath);
         // When WRAPS proving is active, hand the native prover a per-node, on-disk swap file. Its global

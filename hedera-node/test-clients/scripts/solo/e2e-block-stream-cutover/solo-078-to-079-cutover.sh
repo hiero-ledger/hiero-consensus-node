@@ -5,7 +5,7 @@
 # published 0.78 release tag, verifies the 0.78 baseline, then upgrades the CN to the local 0.79
 # build and simultaneously upgrades the Block Node from v0.39.1 to v0.41.0-rc1.
 #
-#   1. Deploy a CN network directly at the published v0.78.0-rc.2 release tag. The 0.78 genesis
+#   1. Deploy a CN network directly at the published v0.78.0-rc.5 release tag. The 0.78 genesis
 #      baseline uses dual-write streaming (streamMode=BOTH, writerMode=FILE_AND_GRPC) + mock TSS
 #      signatures, so genesis + staking complete without a block node (deployed mid-chain, step 3).
 #      The WRAPS env is injected before the JVMs start so all nodes initialize WRAPS in lockstep.
@@ -41,7 +41,7 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 # We deploy the network directly at the published 0.78 release tag (genesis at 0.78 with TSS +
 # WRAPS, dual-write + mock signatures — the pre-cutover baseline, no block node required), then
 # cut over to BLOCKS/GRPC/real-TSS at the local 0.79 upgrade.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.78.0-rc.2}"
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.78.0-rc.5}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 

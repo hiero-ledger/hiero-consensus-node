@@ -501,7 +501,7 @@ public class WrapsProvingKeyVerification {
                 } else {
                     log.error(
                             "After extraction, {} ({}) is missing required WRAPS artifact files {}. "
-                                    + "Expected at least {} from the WRAPS v1.0.0 artifact set.",
+                                    + "Expected at least {} from the WRAPS v1.6.0 artifact set.",
                             WRAPS_ARTIFACTS_ENV_VAR,
                             envArtifactsPath,
                             missingArtifacts,
