@@ -70,6 +70,19 @@ WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/w
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
+# Every time Solo rewrites application.properties on the consensus nodes
+# (Helpers.copyBlockNodesJsonToConsensusNodes -> updateBlockStreamPropertiesForMode, added in Solo
+# v0.87.0) it force-sets blockStream.writerMode to constants.BLOCK_STREAM_WRITER_MODE. The sole call
+# site passes only the resolved streamMode, so that parameter always falls back to its default of
+# FILE_AND_GRPC and silently overwrites the writerMode=GRPC the 0.79 properties ask for.
+#
+# The upgrade itself is handled the way the 0.78 deploy handles Solo's property rewrites: stage it
+# with --skip-node-start and re-apply the properties before the JVMs start. `block node upgrade`
+# runs after the nodes are already up, though, so a re-apply there would not be picked up until the
+# next restart -- for that one command we use Solo's own environment override instead
+# (constants.ts: getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE')).
+BLOCK_STREAM_WRITER_MODE_079="${BLOCK_STREAM_WRITER_MODE_079:-GRPC}"
+
 # When true (default), after the 0.79 upgrade we delete a CN pod to force an
 # event replay and assert it comes back ACTIVE without a SELF_ISS. This is the
 # actual failure mode observed in the full run (an OOMKilled node replayed past
@@ -1665,19 +1678,34 @@ upgrade_to_local_079() {
   # renders the per-node data ConfigMaps the block node deploy created out of band.
   adopt_node_data_config_maps_into_helm
 
+  # --skip-node-start stages the freeze upgrade and leaves the nodes CONFIGURED instead of started,
+  # which is the only point at which the properties Solo just rewrote can still be corrected. Same
+  # deploy -> re-apply -> start ordering deploy_078 uses.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_079_FILE}"
+    --skip-node-start
     --quiet-mode
     --force
   )
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
+  reapply_application_property_overrides "${APP_PROPS_079_FILE}"
+
+  solo consensus node start \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}" \
+    --force-port-forward false
+
   log "--- 0.79 step: upgrade Block Node ${BLOCK_NODE_ID} to ${BLOCK_NODE_UPGRADE_VERSION} ---"
-  solo block node upgrade \
+  # `block node upgrade` rebuilds block-nodes.json through the same helper and runs after the nodes
+  # are already up, so re-applying the properties afterwards would not take effect until the next
+  # restart. Use Solo's environment override here so the on-disk file never drifts back.
+  env "BLOCK_STREAM_WRITER_MODE=${BLOCK_STREAM_WRITER_MODE_079}" \
+    solo block node upgrade \
     --deployment "${SOLO_DEPLOYMENT}" \
     --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
     --id "${BLOCK_NODE_ID}" \
