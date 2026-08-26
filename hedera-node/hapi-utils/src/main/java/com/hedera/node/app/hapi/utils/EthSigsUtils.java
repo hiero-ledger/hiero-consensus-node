@@ -9,7 +9,6 @@ import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.foreign.MemorySegment;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 
 /**
  * Utility class for recovering EVM addresses from keys.
@@ -82,7 +81,7 @@ public final class EthSigsUtils {
 
         var preHash = new byte[64];
         System.arraycopy(recoveredFullKey, 1, preHash, 0, 64);
-        var keyHash = new Keccak.Digest256().digest(preHash);
+        var keyHash = MiscCryptoUtils.keccak256DigestOf(preHash);
         var address = new byte[20];
         arraycopy(keyHash, 12, address, 0, 20);
         return address;

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
@@ -19,13 +18,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +38,6 @@ class PcesReplayerTests {
     private AtomicInteger eventOutputCount;
     private AtomicBoolean flushPrimaryPipelineCalled;
     private Runnable flushPrimaryPipeline;
-    private Supplier<PcesReplayProgress> replayProgressSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
     private final int eventCount = 100;
@@ -62,8 +59,6 @@ class PcesReplayerTests {
 
         flushPrimaryPipelineCalled = new AtomicBoolean(false);
         flushPrimaryPipeline = () -> flushPrimaryPipelineCalled.set(true);
-
-        replayProgressSupplier = () -> new PcesReplayProgress(0L, null);
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < eventCount; i++) {
@@ -96,8 +91,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, replayProgressSupplier, () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         replayer.replayPces(ioIterator);
 
@@ -113,8 +108,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, replayProgressSupplier, () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);

@@ -2,8 +2,8 @@
 package org.hiero.consensus.event.stream.test.fixtures;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.base.crypto.DetRandomProvider.getDetRandom;
 import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.consensus.fakes.crypto.DetRandomProvider.getDetRandom;
 
 import java.security.InvalidKeyException;
 import java.security.KeyPair;

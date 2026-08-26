@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring.components;
 
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Function;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * PassThrough Component Wiring, useful for wiring no-op components with the given scheduler type.

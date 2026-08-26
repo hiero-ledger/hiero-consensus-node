@@ -13,7 +13,7 @@ the API, not this module directly. For how gossip is implemented, see the
 May depend on:
 - `consensus-gossip` (its API), `consensus-state`, any supporting module
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other `consensus-*-impl` modules

@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip;
 
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -16,6 +9,13 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 
 /**
  * Wiring for gossip.

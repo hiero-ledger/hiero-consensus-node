@@ -49,7 +49,7 @@ classDiagram
     TurtleTestEnvironment "1" --* "1" Randotron
 ```
 
-The `TurtleTestEnvironment` is the main container that owns a single `TurtleNetwork`, `TurtleTimeManager`, `TurtleTransactionGenerator`, and `Randotron`. The `TurtleNetwork` can contain zero or more `TurtleNode` instances. `TurtleTestEnvironment` manages all the core components needed to run deterministic consensus tests with multiple nodes in a simulated, single-JVM environment.
+The `TurtleTestEnvironment` is the main container that owns a single `TurtleNetwork`, `SimulatorTimeManager`, `TurtleTransactionGenerator`, and `Randotron`. The `TurtleNetwork` can contain zero or more `TurtleNode` instances. `TurtleTestEnvironment` manages all the core components needed to run deterministic consensus tests with multiple nodes in a simulated, single-JVM environment.
 
 ## 🏗️ Network and Node Management
 
@@ -95,7 +95,7 @@ classDiagram
     }
     Network <|-- AbstractNetwork
 
-    class TimeTickReceiver ["TurtleTimeManager.TimeTickReceiver"] {
+    class TimeTickReceiver ["SimulatorTimeManager.TimeTickReceiver"] {
         <<interface>>
         +tick(Instant): void*
     }
@@ -284,7 +284,7 @@ The simulation of network communication happens in two steps:
 
 #### Delivering and transmitting events
 
-2\. When the simulated time is advanced, the `TurtleTimeManager` calls `SimulatedNetwork.tick(now)`.
+2\. When the simulated time is advanced, the `SimulatorTimeManager` calls `SimulatedNetwork.tick(now)`.
 
 2.1 The `SimulatedNetwork` calls `deliverEvents(now)` to process all events that are due for delivery.
 
@@ -329,7 +329,7 @@ sequenceDiagram
     TurtleTimeManager-->>Test Method: Time advancement complete
 ```
 
-This sequence shows how time advancement drives the entire simulation, ensuring deterministic execution. While code is running, time does not advance. When the test calls `waitFor()` or a related method on the `TurtleTimeManager`, it advances time in fixed granularity steps (default 10ms) until the specified duration is reached. During each tick, the `SimulatedNetwork` processes events, the `TransactionGenerator` creates transactions submitting them to active nodes, and the nodes execute their consensus logic.
+This sequence shows how time advancement drives the entire simulation, ensuring deterministic execution. While code is running, time does not advance. When the test calls `waitFor()` or a related method on the `SimulatorTimeManager`, it advances time in fixed granularity steps (default 10ms) until the specified duration is reached. During each tick, the `SimulatedNetwork` processes events, the `TransactionGenerator` creates transactions submitting them to active nodes, and the nodes execute their consensus logic.
 
 ## 🎲 Deterministic Testing
 

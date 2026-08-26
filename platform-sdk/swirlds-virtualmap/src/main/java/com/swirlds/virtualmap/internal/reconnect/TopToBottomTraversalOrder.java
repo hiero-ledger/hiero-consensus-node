@@ -3,7 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.MerklePathUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Deque;
 import java.util.Queue;
@@ -137,15 +137,15 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         ChunkState(final long chunkRootPath, final int chunkLastRank) {
             this.chunkRootPath = chunkRootPath;
             this.chunkLastRank = chunkLastRank;
-            final int chunkRootRank = Path.getRank(chunkRootPath);
-            this.chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
+            final int chunkRootRank = MerklePathUtils.getRank(chunkRootPath);
+            this.chunkLastLeafPath = MerklePathUtils.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 
             // Seed initial internals at the midpoint of the chunk
             final int chunkHeight = chunkLastRank - chunkRootRank;
             final int skipRanks = chunkHeight / 2;
             this.chunkFirstCheckedRank = chunkRootRank + skipRanks;
-            final long firstPath = Path.getLeftGrandChildPath(chunkRootPath, skipRanks);
-            final long lastPath = Path.getRightGrandChildPath(chunkRootPath, skipRanks);
+            final long firstPath = MerklePathUtils.getLeftGrandChildPath(chunkRootPath, skipRanks);
+            final long lastPath = MerklePathUtils.getRightGrandChildPath(chunkRootPath, skipRanks);
             for (long path = firstPath; path <= lastPath; path++) {
                 internals.add(path);
             }
@@ -267,16 +267,16 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
         currentLeafPath.set(firstLeafPath);
 
-        firstLeafRank = Path.getRank(firstLeafPath);
-        lastLeafRank = Path.getRank(lastLeafPath);
+        firstLeafRank = MerklePathUtils.getRank(firstLeafPath);
+        lastLeafRank = MerklePathUtils.getRank(lastLeafPath);
 
         if (firstLeafRank < 10) {
             simpleMode = true;
         } else {
             chunkRootRank = Math.max(1, lastLeafRank - DEFAULT_CHUNK_HEIGHT);
             final long startingLeaf = Math.max(firstLeafPath, oldFirstLeafPath);
-            final int chunkLastRank = Path.getRank(startingLeaf);
-            final long chunkRootPath = Path.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
+            final int chunkLastRank = MerklePathUtils.getRank(startingLeaf);
+            final long chunkRootPath = MerklePathUtils.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
             activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank));
 
             logger.debug(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
@@ -290,12 +290,12 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     @Nullable
     private ChunkState findOwningChunk(final long path) {
-        final int rank = Path.getRank(path);
+        final int rank = MerklePathUtils.getRank(path);
         if (rank <= chunkRootRank) {
             throw new IllegalStateException("Path " + path + " (rank " + rank + ") is at or above chunk root rank "
                     + chunkRootRank + " — not part of any chunk's subtree");
         }
-        final long ancestor = Path.getGrandParentPath(path, rank - chunkRootRank);
+        final long ancestor = MerklePathUtils.getGrandParentPath(path, rank - chunkRootRank);
         for (final ChunkState chunk : activeChunks) {
             if (chunk.chunkRootPath == ancestor) {
                 return chunk;
@@ -331,15 +331,15 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         if (chunk == null) {
             return; // stale response for a completed chunk
         }
-        final int rank = Path.getRank(path);
+        final int rank = MerklePathUtils.getRank(path);
         if (isClean) {
             chunk.cleanPaths.add(path);
         } else if (rank >= chunk.chunkLastRank - RANK_STEP) {
             chunk.someDirtyPaths.add(path);
         } else {
-            final long left = Path.getLeftGrandChildPath(path, RANK_STEP);
-            final long right = Path.getRightGrandChildPath(path, RANK_STEP);
-            final long lastChunkInternal = Math.min(firstLeafPath - 1, Path.getParentPath(chunk.chunkLastLeafPath));
+            final long left = MerklePathUtils.getLeftGrandChildPath(path, RANK_STEP);
+            final long right = MerklePathUtils.getRightGrandChildPath(path, RANK_STEP);
+            final long lastChunkInternal = Math.min(firstLeafPath - 1, MerklePathUtils.getParentPath(chunk.chunkLastLeafPath));
             for (long p = left; p <= right; p++) {
                 if (p <= lastChunkInternal) {
                     chunk.internals.add(p);
@@ -351,16 +351,16 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     @Override
     public long getNextInternalPathToSend() {
         if (simpleMode) {
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         long leafPath = currentLeafPath.get();
         if (leafPath < oldFirstLeafPath) {
             // Proceed to leaves
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         if (leafPath > oldLastLeafPath) {
             // Proceed to leaves
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         // Current chunk's internals always have highest priority — these are
         // drill-down children that help resolve the current chunk's leaf stall.
@@ -375,7 +375,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         // leaf phase is stalled. Once the stall resolves (a leaf becomes sendable),
         // currentChunkStalled is cleared, and pre-fetch internals yield to leaves.
         if (!currentChunkStalled) {
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         for (final ChunkState chunk : activeChunks) {
             final Long internal = chunk.internals.poll();
@@ -384,7 +384,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             }
         }
         // Proceed to leaves
-        return Path.INVALID_PATH;
+        return MerklePathUtils.INVALID_PATH;
     }
 
     @Override
@@ -394,7 +394,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // Simple mode iterates over all leaves and terminates on its own — it has no
             // chunks and nothing to finalize, so it must never reach finalizeTraversal.
             if (leafPath > lastLeafPath) {
-                return Path.INVALID_PATH;
+                return MerklePathUtils.INVALID_PATH;
             }
             currentLeafPath.set(leafPath + 1);
             return leafPath;
@@ -402,7 +402,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         if (leafPath > lastLeafPath) {
             // Processing is over, this method must return INVALID_PATH
             finalizeTraversal(activeChunks.peekFirst());
-            return Path.INVALID_PATH;
+            return MerklePathUtils.INVALID_PATH;
         }
         if ((leafPath < oldFirstLeafPath) || (leafPath > oldLastLeafPath)) {
             // Processing leaves before or after the old path range, all known to be dirty
@@ -413,7 +413,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         assert chunk != null : "activeChunks must not be empty outside simpleMode";
         // Skip all clean leaf paths starting from the current path
         leafPath = skipCleanPaths(chunk, leafPath);
-        if (leafPath == Path.INVALID_PATH) {
+        if (leafPath == MerklePathUtils.INVALID_PATH) {
             // All remaining leaves in the current chunk are clean — the chunk is finished,
             // whether it is the last chunk (finalize below) or not (promote below). Pop it
             // now, for both paths, and advance the popped-rightmost watermark so that any
@@ -430,7 +430,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 // empty), then finalize.
                 currentLeafPath.set(leafPath);
                 finalizeTraversal(chunk);
-                return Path.INVALID_PATH;
+                return MerklePathUtils.INVALID_PATH;
             }
             // Finalize stall timing and accumulate totals for the completing chunk
             currentChunkStalled = false;
@@ -589,7 +589,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * indefinitely. Pre-fetch therefore must not seed across this boundary.
      */
     private boolean crossesRankBoundary(final ChunkState lastChunk) {
-        return Path.getRank(lastChunk.chunkRootPath + 1) != chunkRootRank;
+        return MerklePathUtils.getRank(lastChunk.chunkRootPath + 1) != chunkRootRank;
     }
 
     /**
@@ -606,8 +606,8 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         long nextChunkRootPath = lastChunk.chunkRootPath + 1;
         int nextChunkLastRank = lastChunk.chunkLastRank;
         if (crossesRankBoundary(lastChunk)) {
-            assert Path.getRank(nextChunkRootPath) == chunkRootRank + 1;
-            nextChunkRootPath = Path.getParentPath(nextChunkRootPath);
+            assert MerklePathUtils.getRank(nextChunkRootPath) == chunkRootRank + 1;
+            nextChunkRootPath = MerklePathUtils.getParentPath(nextChunkRootPath);
             assert lastChunk.chunkLastRank == firstLeafRank;
             nextChunkLastRank = lastLeafRank;
         }
@@ -673,7 +673,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     /**
      * Skip all clean paths starting from the given path at the same rank, up until the limit. If
-     * all paths are clean up to and including the limit, Path.INVALID_PATH is returned.
+     * all paths are clean up to and including the limit, MerklePathUtils.INVALID_PATH is returned.
      *
      * <p>The limit is clamped to {@code lastLeafPath}. For the final chunk in the traversal,
      * {@code chunk.chunkLastLeafPath} is the rightmost descendant of the chunk root at the leaf
@@ -687,7 +687,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             path = result;
             result = skipCleanPath(chunk, path);
         }
-        return (result <= limit) ? result : Path.INVALID_PATH;
+        return (result <= limit) ? result : MerklePathUtils.INVALID_PATH;
     }
 
     /**
@@ -697,24 +697,24 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     private long skipCleanPath(final ChunkState chunk, final long path) {
         assert path > 0;
-        final int rank = Path.getRank(path);
-        long parent = Path.getParentPath(path);
+        final int rank = MerklePathUtils.getRank(path);
+        long parent = MerklePathUtils.getParentPath(path);
         int parentRank = rank - 1;
-        long cleanParent = Path.INVALID_PATH;
+        long cleanParent = MerklePathUtils.INVALID_PATH;
         while (parentRank >= chunk.chunkFirstCheckedRank) {
             if (chunk.cleanPaths.contains(parent)) {
                 cleanParent = parent;
                 break;
             }
-            parent = Path.getParentPath(parent);
+            parent = MerklePathUtils.getParentPath(parent);
             parentRank--;
         }
         final long result;
-        if (cleanParent == Path.INVALID_PATH) {
+        if (cleanParent == MerklePathUtils.INVALID_PATH) {
             // no clean parent found
             result = path;
         } else {
-            result = Path.getRightGrandChildPath(cleanParent, rank - parentRank) + 1;
+            result = MerklePathUtils.getRightGrandChildPath(cleanParent, rank - parentRank) + 1;
         }
         assert result >= path;
         return result;
@@ -731,12 +731,12 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * ancestors is a confirmed-dirty internal.
      */
     private boolean hasDirtyParentWithinRankStep(final ChunkState chunk, final long leafPath) {
-        long parentPath = Path.getParentPath(leafPath);
+        long parentPath = MerklePathUtils.getParentPath(leafPath);
         for (int i = 0; i < RANK_STEP; i++) {
             if (chunk.someDirtyPaths.contains(parentPath)) {
                 return true;
             }
-            parentPath = Path.getParentPath(parentPath);
+            parentPath = MerklePathUtils.getParentPath(parentPath);
         }
         return false;
     }

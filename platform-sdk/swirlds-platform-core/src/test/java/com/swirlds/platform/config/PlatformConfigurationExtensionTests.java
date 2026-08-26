@@ -3,7 +3,6 @@ package com.swirlds.platform.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.ConfigUtils;
@@ -11,12 +10,12 @@ import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.monitor.StatusMonitorWiringConfig;
-import com.swirlds.platform.uptime.UptimeConfig;
 import java.util.Arrays;
 import java.util.Set;
 import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.FallenBehindConfig;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.wiring.framework.WiringConfig;
 import org.junit.jupiter.api.Test;
 
 class PlatformConfigurationExtensionTests {
@@ -47,12 +46,11 @@ class PlatformConfigurationExtensionTests {
         assertThat(extension.getConfigDataTypes())
                 .containsExactlyInAnyOrderElementsOf(Arrays.asList(
                         BasicConfig.class,
+                        PathsConfig.class,
                         ModulesConfig.class,
                         FallenBehindConfig.class,
                         OSHealthCheckConfig.class,
                         PlatformMetricsConfig.class,
-                        StatusMonitorWiringConfig.class,
-                        UptimeConfig.class,
                         WiringConfig.class,
                         InternalLoggingConfig.class));
     }
