@@ -77,10 +77,20 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicBoolean isConnectionManagerActive = new AtomicBoolean(false);
     /**
-     * Serializes lifecycle transitions so {@link #start()} and {@link #shutdown()} never run concurrently: a
-     * transition issued while another is in progress waits (blocks) for it to finish.
+     * Serializes lifecycle transitions so {@link #start()} and {@link #shutdown()} never run concurrently. A
+     * {@link #start()} waits (blocks) for an in-progress transition to finish; a {@link #shutdown()} waits only up
+     * to {@link #SHUTDOWN_LOCK_TIMEOUT} and then proceeds without the lock, so a shutdown driven from a bounded or
+     * fatal path cannot block indefinitely behind an in-progress {@link #start()} (which performs disk I/O).
      */
     private final ReentrantLock lifecycleLock = new ReentrantLock();
+    /**
+     * Bound on how long {@link #shutdown()} waits to acquire {@link #lifecycleLock} before proceeding without it.
+     */
+    private static final Duration SHUTDOWN_LOCK_TIMEOUT = Duration.ofSeconds(5);
+    /**
+     * Bound on how long teardown waits for the {@code bn-conn-monitor} thread to terminate after interrupting it.
+     */
+    private static final Duration MONITOR_JOIN_TIMEOUT = Duration.ofSeconds(5);
     /**
      * Service used to retrieve block node configurations.
      */
@@ -224,8 +234,22 @@ public class BlockNodeConnectionManager {
      * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
-        lifecycleLock.lock();
+        // Bound the wait for the lock: shutdown() is invoked from bounded/fatal paths (see Hedera.java) and must
+        // never block indefinitely behind an in-progress start() (which does disk I/O). If the lock can't be
+        // acquired in time, proceed without it — a slightly racy but bounded shutdown beats an unbounded hang.
+        boolean locked = false;
         try {
+            try {
+                locked = lifecycleLock.tryLock(SHUTDOWN_LOCK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("Interrupted while acquiring lifecycle lock for shutdown; proceeding without it", e);
+            }
+            if (!locked) {
+                logger.warn(
+                        "Could not acquire lifecycle lock within {} for shutdown; proceeding without it to stay bounded",
+                        SHUTDOWN_LOCK_TIMEOUT);
+            }
             if (!isConnectionManagerActive.compareAndSet(true, false)) {
                 logger.info("Attempted to shutdown block node connection manager, but it is already shutdown");
                 return;
@@ -236,7 +260,9 @@ public class BlockNodeConnectionManager {
 
             logger.info("Block node connection manager shutdown");
         } finally {
-            lifecycleLock.unlock();
+            if (locked) {
+                lifecycleLock.unlock();
+            }
         }
     }
 
@@ -287,9 +313,12 @@ public class BlockNodeConnectionManager {
             } finally {
                 if (!started) {
                     // Roll back a partial start to a consistent stopped state (never "active but not started").
+                    // Clear the active flag BEFORE teardown: it is the monitor thread's only exit condition, so it
+                    // must already be false when teardown interrupts/joins the thread, and clearing it first stops a
+                    // monitor thread that did start from repopulating activeConnectionRef after teardown nulls it.
                     logger.error("Failed to start block node connection manager; rolling back to a stopped state");
-                    teardownQuietly();
                     isConnectionManagerActive.set(false);
+                    teardownQuietly();
                 }
             }
         } finally {
@@ -302,6 +331,9 @@ public class BlockNodeConnectionManager {
      * even if an earlier one fails, so a partial start or a failing shutdown still leaves a consistent stopped state.
      */
     private void teardownQuietly() {
+        // Stop the monitor thread first (callers clear isConnectionManagerActive beforehand) so it cannot
+        // repopulate activeConnectionRef or act on nodes while the remaining teardown steps run.
+        quietly(this::stopConnectionMonitorThread);
         quietly(() -> {
             final ExecutorService blockingIoExecutor = blockingIoExecutorRef.getAndSet(null);
             if (blockingIoExecutor != null) {
@@ -310,11 +342,34 @@ public class BlockNodeConnectionManager {
         });
         quietly(blockNodeConfigService::shutdown);
         quietly(blockBufferService::shutdown);
-        connectionMonitorThreadRef.set(null);
         for (final BlockNode node : nodes.values()) {
             quietly(() -> node.onTerminate(CloseReason.SHUTDOWN));
         }
         activeConnectionRef.set(null);
+    }
+
+    /**
+     * Stops the {@code bn-conn-monitor} thread (if any): clears the reference, interrupts the thread to break its
+     * sleep, and waits a bounded {@link #MONITOR_JOIN_TIMEOUT} for it to exit. Callers must have already set
+     * {@link #isConnectionManagerActive} to {@code false} — the monitor loop's only exit condition — so the
+     * interrupted thread observes the flag and terminates instead of resuming its loop. Never joins the caller.
+     */
+    private void stopConnectionMonitorThread() {
+        final Thread monitorThread = connectionMonitorThreadRef.getAndSet(null);
+        if (monitorThread == null || monitorThread == Thread.currentThread()) {
+            return;
+        }
+        monitorThread.interrupt();
+        try {
+            monitorThread.join(MONITOR_JOIN_TIMEOUT.toMillis());
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Interrupted while waiting for the connection monitor thread to terminate", e);
+            return;
+        }
+        if (monitorThread.isAlive()) {
+            logger.warn("Connection monitor thread did not terminate within {}; abandoning join", MONITOR_JOIN_TIMEOUT);
+        }
     }
 
     private void quietly(final Runnable action) {

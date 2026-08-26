@@ -217,6 +217,74 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void shutdownTerminatesConnectionMonitorThread() {
+        connectionManager.start();
+        final Thread monitor = connectionMonitorThreadRef().get();
+        assertThat(monitor)
+                .as("start() should spawn the bn-conn-monitor thread")
+                .isNotNull();
+        assertThat(monitor.isAlive()).isTrue();
+
+        connectionManager.shutdown();
+
+        // shutdown() must actually stop the monitor thread (interrupt + bounded join), not merely null the
+        // reference: it is already terminated the moment shutdown() returns, and the reference is cleared.
+        assertThat(monitor.isAlive())
+                .as("shutdown() should have joined the monitor thread, not just nulled the reference")
+                .isFalse();
+        assertThat(connectionMonitorThreadRef().get()).isNull();
+        assertThat(isConnectionManagerActive().get()).isFalse();
+    }
+
+    @Test
+    void failedStartRollsBackToStoppedState() {
+        // A start step fails, forcing the rollback path; start() rolls back and then rethrows.
+        doThrow(new RuntimeException("boom")).when(bufferService).start();
+
+        assertThatThrownBy(() -> connectionManager.start())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("boom");
+
+        // The rollback must leave a consistent stopped state — never "active but not started".
+        assertThat(isConnectionManagerActive().get())
+                .as("a failed start must clear the active flag")
+                .isFalse();
+        assertThat(activeConnectionRef().get()).isNull();
+        assertThat(connectionMonitorThreadRef().get()).isNull();
+    }
+
+    @Test
+    @Timeout(30)
+    void shutdownStaysBoundedWhileConcurrentStartHoldsLock() throws InterruptedException {
+        // Make start() block inside a start step while it holds the lifecycle lock.
+        final CountDownLatch startInProgress = new CountDownLatch(1);
+        final CountDownLatch releaseStart = new CountDownLatch(1);
+        doAnswer(inv -> {
+                    startInProgress.countDown();
+                    releaseStart.await();
+                    return null;
+                })
+                .when(bufferService)
+                .start();
+
+        final Thread starter = new Thread(connectionManager::start, "starter");
+        starter.start();
+        assertThat(startInProgress.await(5, TimeUnit.SECONDS))
+                .as("start() should reach the lock-held blocking step")
+                .isTrue();
+
+        // With the old unbounded lock() this call would block until start() releases the lock (never, within this
+        // test) and the @Timeout would fire; the bounded tryLock lets shutdown() proceed without the lock.
+        connectionManager.shutdown();
+        assertThat(isConnectionManagerActive().get())
+                .as("shutdown() should have proceeded and cleared the active flag despite the held lock")
+                .isFalse();
+
+        releaseStart.countDown();
+        starter.join();
+    }
+
+    @Test
     void testIsActiveConnectionAutoReset_nullConnection() throws Throwable {
         final boolean isAutoReset = invoke_isActiveConnectionAutoReset(Instant.now(), null);
         assertThat(isAutoReset).isFalse();
