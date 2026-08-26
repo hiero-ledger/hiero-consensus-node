@@ -196,16 +196,14 @@ jobs:
           setup-gradle: "true"
           gradle-version: "wrapper"
 
-      - name: Set Kubernetes Cluster
-        id: set-k8s-cluster
+      - name: Set Grafana Details
+        id: set-grafana-url
         run: |
           K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
           grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
           if [[ "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" =~ [.]chi[.] ]]; then
             grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
-          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
-          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
           echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
