@@ -37,7 +37,6 @@ public final class ConstructableRegistration {
         registry.registerConstructable(
                 new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
         registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
-        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
     }
 
     /**

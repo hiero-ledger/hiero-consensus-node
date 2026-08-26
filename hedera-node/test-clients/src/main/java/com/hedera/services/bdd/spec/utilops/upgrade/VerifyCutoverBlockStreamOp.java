@@ -16,6 +16,7 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
@@ -251,17 +252,31 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        final var d5n1 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
-        final var d5n2 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var d5n3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var d5n4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-        final var d4n1 = BlockImplUtils.hashInternalNode(d5n1, d5n2);
-        final var d4n2 = BlockImplUtils.hashInternalNode(d5n3, d5n4);
-        final var d3n1 = BlockImplUtils.hashInternalNode(d4n1, d4n2);
-        final var tsBytes = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var d2n1 = BlockImplUtils.hashLeaf(tsBytes);
-        final var d2n2 = BlockImplUtils.hashInternalNodeSingleChild(d3n1);
-        return BlockImplUtils.hashInternalNode(d2n1, d2n2);
+        // Built by hand, on purpose. This check must not share the block root tree implementation with block
+        // production: if it did, any error in that implementation would be reproduced here and the check
+        // would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
+        final var branches12 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
+        final var branches78 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
+        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
+        final var assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
+
+        final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, emptyReservedHalf());
+        final var timestampLeaf = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        return BlockImplUtils.hashInternalNode(timestampLeaf, subtreesRoot);
+    }
+
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties =
+                BlockImplUtils.hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
     }
 
     @Override

@@ -63,6 +63,7 @@ module org.hiero.sloth.fixtures {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.event.stream;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.platformstate;

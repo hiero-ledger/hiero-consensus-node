@@ -167,7 +167,7 @@ class SynthTxnUtilsTest {
         final var bodyIn = ContractCreateTransactionBody.newBuilder()
                 .autoRenewPeriod(SOME_DURATION)
                 .build();
-        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS);
+        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes());
         final var bodyOut = CryptoCreateTransactionBody.newBuilder()
                 .key(Key.newBuilder().contractID(CALLED_CONTRACT_ID).build())
                 .autoRenewPeriod(SOME_DURATION)

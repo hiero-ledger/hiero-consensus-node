@@ -11,3 +11,5 @@ nodes.gossipFqdnRestricted=false
 blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config
 
 staking.periodMins=360
+
+tss.forceMockSignatures=false
