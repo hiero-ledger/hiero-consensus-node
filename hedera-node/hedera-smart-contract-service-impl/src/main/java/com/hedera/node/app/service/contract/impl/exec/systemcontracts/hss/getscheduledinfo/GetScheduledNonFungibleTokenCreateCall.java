@@ -36,6 +36,11 @@ public class GetScheduledNonFungibleTokenCreateCall extends AbstractCall {
         this.scheduleID = scheduleID;
     }
 
+    @Override
+    public boolean allowsStaticFrame() {
+        return true;
+    }
+
     @NonNull
     @Override
     public PricedResult execute(MessageFrame frame) {
