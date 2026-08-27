@@ -377,36 +377,38 @@ jobs:
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
 
-  xts-optional-execution:
-    name: Execute Optional XTS Tests
+  deploy-xts-optional-trigger:
+    name: Trigger Optional XTS
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
-      - parameters
-      - state-validator-uberjar
-      - extract-jdk-version
-      - extract-citr-vars
-      - verify-citr-vars
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
-    uses: ./.github/workflows/815-call-xts-tests.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-      branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
-      solo-version: ${{ needs.parameters.outputs.solo-version }}
-      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
-      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
-      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
-      custom-job-label: "XTS (Optional):"
-      enable-migration-testing-panel: "true"
-      # (FUTURE) Move to xts-execution once the panel proves stable, so failures block build-candidate promotion.
-      enable-078-to-079-cutover-panel: "true"
-      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-      tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
-      js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
-      bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
-      bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      # Dispatched fire-and-forget: the optional panels do not gate promotion, and this run is
+      # deliberately not awaited.
+      #
+      # Dispatch on the candidate COMMIT, not on a branch name. The dispatched run reads 106's
+      # definition from whatever ref it is given, so a branch name would run the branch tip's
+      # version of the workflow against an older candidate -- and once XTS runs on release
+      # branches, dispatching on `main` would run the wrong definition entirely. The commit is
+      # also always resolvable here, whereas the xts-candidate tag has already been deleted by
+      # fetch-xts-candidate.
+      - name: "Trigger 106: [DISP] XTS Optional Tests"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/106-disp-xts-optional-tests.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}",
+            "branch-name": "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}"
+            }'
 
   tag-for-promotion:
     name: Tag as XTS-Passing
