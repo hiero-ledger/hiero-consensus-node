@@ -42,4 +42,4 @@ do
 
 done
 
-sh $TOOLDIR/getBlockNodeErrors.sh ${NAMESPACE}
+sh ${TOOLDIR}/getBlockNodeErrors.sh ${NAMESPACE}

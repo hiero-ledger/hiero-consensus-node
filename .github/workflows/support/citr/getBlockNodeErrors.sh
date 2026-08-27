@@ -2,7 +2,7 @@ NAMESPACE=$1
 BN_LOG=/opt/hiero/block-node/logs
 TOOLDIR=`dirname $0`
 
-if [ ! -d  podlog_${NAMESPACE} ]
+if [[ ! -d  podlog_${NAMESPACE} ]]
 then
   mkdir podlog_${NAMESPACE}
 fi
@@ -21,5 +21,5 @@ log_
 for i in `sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} get pods | grep 'block-node-' | awk '{print $1}'`
 do
   mkdir podlog_${NAMESPACE}/${i}_logs
-  sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} cp ${i}:$BN_LOG podlog_${NAMESPACE}/${i}_logs
+  sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} cp ${i}:${BN_LOG} podlog_${NAMESPACE}/${i}_logs
 done

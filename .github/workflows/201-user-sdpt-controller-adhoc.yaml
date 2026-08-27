@@ -86,7 +86,7 @@ jobs:
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.ref }}"
+          CHECK_TAG: "${{ inputs.ref || github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -198,12 +198,12 @@ jobs:
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
-      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
+      crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
       duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
       chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-      nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
+      nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -337,7 +337,7 @@ jobs:
           RUN_TEST_RESULT: ${{ needs.run-single-day-performance-test.outputs.result }}
           TAG_LABEL: "Tag SDPT Passing"
           TAG_RESULT: ${{ needs.tag-sdpt-result.result }}
-          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -469,7 +469,7 @@ jobs:
           TAG_LABEL: "Tag SDPT Passing"
           TAG_RESULT: ${{ needs.tag-sdpt-result.result }}
           COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
-          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}

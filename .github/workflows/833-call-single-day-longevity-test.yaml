@@ -324,7 +324,6 @@ jobs:
 
       - name: Compile
         run: |
-          set +e
           set +x
           cd "${{ github.workspace }}"/target_consensus_node
 
@@ -502,7 +501,7 @@ jobs:
 
       - name: Generate RSARoster
         run: |
-          genesisFile=$(find $HOME/.solo -type f -name 'genesis-network.json')
+          genesisFile=$(find ${HOME}/.solo -type f -name 'genesis-network.json')
           bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
           jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
 
@@ -511,8 +510,8 @@ jobs:
           ls "${{ github.workspace }}"/target_block_node
           ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/
           bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
-          bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
-          echo "$bnTar=$bnTar"
+          bnVersion=$(basename ${bnTar} | sed -e 's/[\.]tar//g')
+          echo "bnTar=$bnTar"
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${bnTar} ${pod}:/tmp/BN.tar
@@ -592,9 +591,9 @@ jobs:
           do
             echo "Pod $pod"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec $pod -- bash -c "mount | grep '/dev/md0 on .*/data/saved'"
-            if [ $? -ne 0 ]
+            if [[ $? -ne 0 ]]
             then
-              echo "Error /dev/md0 is not mounted for CN"
+              echo "Error: /dev/md0 is not mounted for CN"
               exit 13
             fi
           done
@@ -1381,7 +1380,7 @@ jobs:
           fi
 
           #last line is 5, it does not need comma block separator
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
+          freport=`/usr/bin/echo -e "${report}" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},${freport},\
            {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\n\"},
            {\"type\": \"text\",\"text\": \"ReconnectTest ${Reconnect}\"}"

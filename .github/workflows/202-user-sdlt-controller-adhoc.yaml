@@ -93,7 +93,7 @@ jobs:
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.ref }}"
+          CHECK_TAG: "${{ inputs.ref || github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -209,7 +209,7 @@ jobs:
       duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
       chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-      nlg-version: "${{ needs.extract-jdk-version.outputs.nlg-version }}"
+      nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -344,7 +344,7 @@ jobs:
           RUN_TEST_RESULT: ${{ needs.run-single-day-longevity-test.outputs.result }}
           TAG_LABEL: "Tag SDLT Passing"
           TAG_RESULT: ${{ needs.tag-sdlt-result.result }}
-          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -476,7 +476,7 @@ jobs:
           TAG_LABEL: "Tag SDLT Passing"
           TAG_RESULT: ${{ needs.tag-sdlt-result.result }}
           COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
-          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
