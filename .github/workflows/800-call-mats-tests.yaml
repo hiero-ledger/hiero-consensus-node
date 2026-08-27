@@ -219,7 +219,7 @@ jobs:
   mats-hapi-tests:
     name: HAPI Tests
     if: ${{ inputs.enable-hapi-tests == 'true' }}
-    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
+    uses: ./.github/workflows/810-call-execute-mats-hapi.yaml
     needs:
       - commit-info
       - compile-and-spotless
@@ -227,14 +227,6 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
       java-distribution: "${{ inputs.java-distribution }}"
-      enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
-      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch == 'true' }}"
-      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
-      enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -247,12 +239,11 @@ jobs:
     needs:
       - commit-info
       - compile-and-spotless
-    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
+    uses: ./.github/workflows/811-call-execute-mats-otter.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
       java-distribution: "${{ inputs.java-distribution }}"
-      enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.access-token }}
