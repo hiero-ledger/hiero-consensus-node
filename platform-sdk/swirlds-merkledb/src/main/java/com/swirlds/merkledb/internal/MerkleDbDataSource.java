@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListSegment;
@@ -534,7 +535,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      *
      * @param action action to run while compaction is paused
      */
-    void pauseCompactionAndRun(@NonNull final IORunnable action) throws IOException {
+    public void pauseCompactionAndRun(@NonNull final IORunnable action) throws IOException {
         compactionCoordinator.pauseCompactionAndRun(action);
     }
 

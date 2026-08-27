@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.DoubleAccumulator;

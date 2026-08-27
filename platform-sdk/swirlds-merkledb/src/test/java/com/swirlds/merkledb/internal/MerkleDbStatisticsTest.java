@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
-import static com.swirlds.merkledb.MerkleDbStatistics.STAT_CATEGORY;
+import static com.swirlds.merkledb.internal.MerkleDbStatistics.STAT_CATEGORY;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;

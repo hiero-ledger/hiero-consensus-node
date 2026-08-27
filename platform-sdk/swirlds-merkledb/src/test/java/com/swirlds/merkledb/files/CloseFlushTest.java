@@ -5,8 +5,9 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFI
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
+import com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -71,7 +72,7 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
         final Path tmpFileDir = fileSystemManager.resolveNewTemp();
         Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
-            final MerkleDbDataSource dataSource = MerkleDbTestUtils.createDataSource(
+            final MerkleDbDataSource dataSource = MerkleDbDataSourceTestUtils.createDataSource(
                     DEFAULT_CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
