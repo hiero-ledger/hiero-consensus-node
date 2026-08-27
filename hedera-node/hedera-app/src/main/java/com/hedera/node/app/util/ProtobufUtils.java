@@ -26,6 +26,7 @@ public class ProtobufUtils {
     private ProtobufUtils() {}
 
     private static final Set<Integer> QUERY_FIELDS = Stream.of(QueryOneOfType.values())
+            .filter(type -> type != QueryOneOfType.UNSET)
             .map(QueryOneOfType::protoOrdinal)
             .collect(Collectors.toUnmodifiableSet());
 
@@ -110,7 +111,7 @@ public class ProtobufUtils {
     @NonNull
     private static ProtoConstants wireTypeFor(final int tag) throws ParseException {
         final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
-        if (wireType >= ProtoConstants.values().length) {
+        if (wireType > ProtoConstants.WIRE_TYPE_FIXED_32_BIT.ordinal()) {
             throw new ParseException("Invalid wire type: " + wireType);
         }
         return ProtoConstants.get(wireType);
@@ -119,7 +120,7 @@ public class ProtobufUtils {
     private static void skipField(@NonNull final ReadableSequentialData input, @NonNull final ProtoConstants wireType)
             throws IOException, ParseException {
         try {
-            ProtoParserTools.skipField(input, wireType, input.remaining());
+            ProtoParserTools.skipField(input, wireType);
         } catch (final BufferUnderflowException e) {
             throw new ParseException(e);
         }
