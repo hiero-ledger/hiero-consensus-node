@@ -289,6 +289,15 @@ iteration to inherit; drain or account for its pending writeback outside the
 timed interval. Keep the forced result as the reference for the device work
 that still occurs after an unforced call returns.
 
+The focused Linux campaign passed the performance gate: unforced writes
+returned 22-30% earlier at `P=1` and 43-58% earlier at `P=8`. Forcing each
+target immediately after return accounted for virtually the complete saving,
+so this moves storage waiting rather than removing it. The next experiment
+repeats the complete equal-sample Linux baseline without the final force to
+measure how state size, chunk size, parallelism, implementation, and Disk
+source residency affect the early-return path. See
+[`remove-final-force.md`](03-remove-final-force/remove-final-force.md).
+
 ## 6. Way 3 — combine only measured wins
 
 Way 3 is not a separate optimization. It combines removing the final LongList
@@ -551,13 +560,12 @@ document, and verify its calculations and conclusions.
    the same file growth and buffered target path, neither physical
    preallocation nor direct I/O was gated in. No Way-1 production experiment
    proceeds.~~
-6. **Test removing the final force independently.** Start with all five
-   implementations at 1B/default, `P={1,8}`, and forced/unforced modes, using
-   three reordered blocks and five measurements per cell. Drain every
-   unforced target outside the measured return time so no invocation inherits
-   pending writes. Revise any larger size-confirmation matrix only after this
-   focused result. See
-   [`remove-final-force.md`](03-remove-final-force/remove-final-force.md).
+6. **Establish the complete unforced baseline.** The focused campaign is
+   complete and its early-return benefit is material. Repeat the forced
+   baseline's equal-sample broad matrix and `LongListDisk` cache diagnostic
+   with `forceToDisk=false`, then directly compare matching forced and
+   unforced cells. Do not repeat the Segment/Disk-only supplemental check. See
+   [`linux-benchmark-results-without-force.md`](03-remove-final-force/linux-benchmark-results-without-force.md).
 7. **Take compression and hash-cache pre-flush overlap to the team.** Neither
    experiment proceeds without approval. If approved, each retains its own
    measurement gate: representative ratio and load-cost evidence before a
