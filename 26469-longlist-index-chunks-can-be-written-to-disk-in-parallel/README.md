@@ -40,7 +40,7 @@ index or the master plan repeats them.
 | 02 | Physical block preallocation | `02-reduce-durable-write-time/physical-block-preallocation.md` | Not gated in; file growth is shared with the faster control |
 | 02 | Direct I/O | `02-reduce-durable-write-time/direct-io.md` | Not gated in; the control reaches the reference through the same buffered target path |
 | 02 | Compression | `02-reduce-durable-write-time/compression.md` | Requires team approval and favorable ratio/load-cost evidence |
-| 03 | Remove the final LongList force | `03-remove-final-force/remove-final-force.md` | Required independent experiment; not run |
+| 03 | Remove the final LongList force | [`remove-final-force.md`](03-remove-final-force/remove-final-force.md) | Focused forced/unforced Linux campaign ready to run |
 | 04 | No-force plus preallocation | `04-combine-measured-wins/no-force-plus-preallocation.md` | Run only if both changes independently win |
 | 04 | No-force plus compression | `04-combine-measured-wins/no-force-plus-compression.md` | Requires team approval and two independent wins |
 | 05 | Overlap the hash-cache pre-flush | `05-overlap-hash-cache-flush/overlap-hash-cache-flush.md` | Requires team approval, then a significant pre-flush measurement |

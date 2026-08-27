@@ -499,31 +499,30 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     @Override
     public void writeToFile(final Path file) throws IOException {
-        try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            // write header
-            writeHeader(fc);
-            if (size() > 0) {
-                // write data
-                writeLongsData(fc, minValidIndex.get(), size(), FILE_HEADER_SIZE_V3);
-            }
-            fc.force(true);
-        }
+        writeToFile(file, null, 1, true);
     }
 
     /** {@inheritDoc} */
     @Override
     public void writeToFile(final Path file, final Executor executor, final int threadCount) throws IOException {
-        if (threadCount == 1) {
-            writeToFile(file);
-            return;
-        }
+        writeToFile(file, executor, threadCount, true);
+    }
 
+    // Benchmark-only durability switch; both public write methods always force before returning.
+    void writeToFile(final Path file, final Executor executor, final int threadCount, final boolean forceToDisk)
+            throws IOException {
         try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             writeHeader(fc);
             if (size() > 0) {
-                writeLongsDataInParallel(fc, executor, threadCount);
+                if (threadCount == 1) {
+                    writeLongsData(fc, minValidIndex.get(), size(), FILE_HEADER_SIZE_V3);
+                } else {
+                    writeLongsDataInParallel(fc, executor, threadCount);
+                }
             }
-            fc.force(true);
+            if (forceToDisk) {
+                fc.force(true);
+            }
         }
     }
 

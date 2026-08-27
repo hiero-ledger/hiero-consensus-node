@@ -551,11 +551,13 @@ document, and verify its calculations and conclusions.
    the same file growth and buffered target path, neither physical
    preallocation nor direct I/O was gated in. No Way-1 production experiment
    proceeds.~~
-6. **Test removing the final force independently.** This experiment runs even
-   if Step 5 produces no candidate. If Step 5 does run an experiment, finish
-   and preserve that benchmark first, then start the no-force campaign while
-   processing and documenting the completed Step-5 results. Never overlap two
-   benchmark campaigns on the Linux machine.
+6. **Test removing the final force independently.** Start with all five
+   implementations at 1B/default, `P={1,8}`, and forced/unforced modes, using
+   three reordered blocks and five measurements per cell. Drain every
+   unforced target outside the measured return time so no invocation inherits
+   pending writes. Revise any larger size-confirmation matrix only after this
+   focused result. See
+   [`remove-final-force.md`](03-remove-final-force/remove-final-force.md).
 7. **Take compression and hash-cache pre-flush overlap to the team.** Neither
    experiment proceeds without approval. If approved, each retains its own
    measurement gate: representative ratio and load-cost evidence before a

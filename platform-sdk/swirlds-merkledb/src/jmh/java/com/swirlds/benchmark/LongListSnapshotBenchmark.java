@@ -4,12 +4,13 @@ package com.swirlds.benchmark;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.AbstractLongList;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListDiskSegment;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
+import com.swirlds.merkledb.collections.LongListSnapshotBenchmarkAccess;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.files.DataFileCommon;
@@ -27,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
+import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -92,11 +94,15 @@ public class LongListSnapshotBenchmark {
     @Param({"UNCHANGED"})
     public DiskCacheState diskCacheState;
 
+    /** Whether the measured snapshot waits for the target file to reach durable storage. */
+    @Param({"true"})
+    public boolean forceToDisk;
+
     private Path fixtureFile;
     private Path trialDirectory;
     private Path snapshotFile;
     private Path diskSourceFile;
-    private LongList source;
+    private AbstractLongList<?> source;
     private ExecutorService executor;
 
     @Setup(Level.Trial)
@@ -173,16 +179,21 @@ public class LongListSnapshotBenchmark {
 
     @Benchmark
     public void writeToFile() throws IOException {
-        if (threadsPerLongList == 1) {
-            source.writeToFile(snapshotFile);
-        } else {
-            source.writeToFile(snapshotFile, executor, threadsPerLongList);
-        }
+        LongListSnapshotBenchmarkAccess.writeToFile(source, snapshotFile, executor, threadsPerLongList, forceToDisk);
     }
 
     @TearDown(Level.Invocation)
-    public void tearDownInvocation() throws IOException {
+    public void tearDownInvocation(final DrainTiming drainTiming) throws IOException {
         try {
+            drainTiming.postReturnForceNanos = 0;
+            if (!forceToDisk) {
+                final long drainStart = System.nanoTime();
+                try (final FileChannel channel = FileChannel.open(snapshotFile, StandardOpenOption.WRITE)) {
+                    // Drain outside the measured method so the next invocation starts without pending target writes.
+                    channel.force(true);
+                }
+                drainTiming.postReturnForceNanos = System.nanoTime() - drainStart;
+            }
             if (verify) {
                 final long mismatch = Files.mismatch(fixtureFile, snapshotFile);
                 if (mismatch >= 0) {
@@ -207,7 +218,7 @@ public class LongListSnapshotBenchmark {
         }
     }
 
-    private LongList createSource(
+    private AbstractLongList<?> createSource(
             final Path file,
             final long capacity,
             final MerkleDbConfig configuration,
@@ -285,5 +296,12 @@ public class LongListSnapshotBenchmark {
             // Prevent fixture writeback from competing with the measured snapshot writes.
             channel.force(true);
         }
+    }
+
+    /** Time spent draining an unforced target after the measured method has returned. */
+    @AuxCounters(AuxCounters.Type.EVENTS)
+    @State(Scope.Thread)
+    public static class DrainTiming {
+        public long postReturnForceNanos;
     }
 }
