@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "826: [CALL] Solo 078-079 Cutover"
+name: "826: [CALL] Solo 076-077 Cutover"
 on:
   workflow_call:
     inputs:
@@ -12,26 +12,26 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The Solo version to install for this cutover (Block Node >= v0.41.0 requires Solo >= v0.84.0)."
-        required: true
+        description: "The Solo version to install (if not specified, 0.79.0 will be used)."
+        required: false
         type: string
       java-version:
         description: "Java JDK Version:"
         required: false
         type: string
       starting-tag:
-        description: "Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.2."
+        description: "Consensus-node release tag for the initial 0.76 network deploy. The 0.77 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.76.0-rc.1."
         required: false
         type: string
       block-node-ref:
         description: "hiero-block-node ref to checkout. Only used for the serverStatus/proto sources consumed by the grpcurl diagnostics; the deployed Block Node chart version is pinned inside the scenario script. Defaults to the tag matching that chart."
         required: false
         type: string
-        default: "v0.41.0-rc1"
+        default: "v0.35.0"
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.solo-078-to-079-cutover.outputs.failure-mode }}
+        value: ${{ jobs.solo-076-to-077-cutover.outputs.failure-mode }}
 
 defaults:
   run:
@@ -42,15 +42,15 @@ permissions:
   actions: read
 
 env:
-  SOLO_CLUSTER_NAME: "cutover-078-to-079"
+  SOLO_CLUSTER_NAME: "cutover-076-to-077"
   SOLO_NAMESPACE: "solo"
   SOLO_DEPLOYMENT: "solo-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-cluster"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
-  solo-078-to-079-cutover:
-    name: ${{ inputs.custom-job-name || 'Solo 0.78 -> 0.79 BLOCKS Cutover' }}
+  solo-076-to-077-cutover:
+    name: ${{ inputs.custom-job-name || 'Solo 0.76 -> 0.77 BLOCKS Cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     outputs:
@@ -85,13 +85,13 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version }}
+          SOLO_VERSION: ${{ inputs.solo-version || '0.79.0' }}
         run: |
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -125,28 +125,28 @@ jobs:
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
-        # The 0.79 cutover always upgrades to the local build, so a build is always required.
+        # The 0.77 cutover always upgrades to the local build, so a build is always required.
         run: ${GRADLE_EXEC} assemble
 
-      - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
+      - name: Run 0.76 -> 0.77 BLOCKS Cutover Scenario
         id: run-cutover
         env:
-          DEPLOY_RELEASE_TAG: ${{ inputs.starting-tag || 'v0.78.0-rc.2' }}
+          DEPLOY_RELEASE_TAG: ${{ inputs.starting-tag || 'v0.76.0-rc.1' }}
         run: |
           set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-076-to-077-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG}" \
-            "${SCRIPT_PATH}" 2>&1 | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
+            "${SCRIPT_PATH}" 2>&1 | tee "${RUNNER_TEMP}/076-to-077-cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
         run: |
           set +e
-          OUT_DIR="${RUNNER_TEMP}/078-to-079-cutover-diagnostics"
+          OUT_DIR="${RUNNER_TEMP}/076-to-077-cutover-diagnostics"
           mkdir -p "${OUT_DIR}"
 
           kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
@@ -178,14 +178,14 @@ jobs:
             done
           fi
 
-      - name: Upload 078-to-079 Cutover Failure Artifacts
+      - name: Upload 076-to-077 Cutover Failure Artifacts
         if: ${{ !cancelled() && failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: 078-to-079-Cutover-Failure-Artifacts
+          name: 076-to-077-Cutover-Failure-Artifacts
           path: |
-            ${{ runner.temp }}/078-to-079-cutover-script.log
-            ${{ runner.temp }}/078-to-079-cutover-diagnostics/**
+            ${{ runner.temp }}/076-to-077-cutover-script.log
+            ${{ runner.temp }}/076-to-077-cutover-diagnostics/**
             hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
           if-no-files-found: warn
           retention-days: 7

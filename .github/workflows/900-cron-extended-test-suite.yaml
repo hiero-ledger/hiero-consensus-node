@@ -395,7 +395,7 @@ jobs:
       enable-migration-testing-panel: "true"
       enable-chaos-otter-test-suite: "true"
       # (FUTURE) Move to xts-execution once the panel proves stable, so failures block build-candidate promotion.
-      enable-078-to-079-cutover-panel: "true"
+      enable-076-to-077-cutover-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
