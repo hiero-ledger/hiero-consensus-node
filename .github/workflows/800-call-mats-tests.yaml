@@ -28,36 +28,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-misc-records-crypto-and-serial:
-        description: "HAPI Testing (Misc Records, Crypto & Misc Serial) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-token-and-time-consuming:
-        description: "HAPI Testing (Token & Time Consuming) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-simple-fees-and-nd-reconnect:
-        description: "HAPI Testing (Simple Fees & ND Reconnect) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-atomic-batch:
-        description: "HAPI Testing (Atomic Batch) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-smart-contract-and-iss:
-        description: "HAPI Testing (Smart Contracts & ISS) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-state-throttling:
-        description: "HAPI Testing (State Throttling) Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
