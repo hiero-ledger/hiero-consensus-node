@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class CryptoGetInfoRegression {
+
     /**
      * For Demo purpose : The limit on each account info and account balance queries is set to 5
      */

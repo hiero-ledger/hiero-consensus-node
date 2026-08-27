@@ -73,6 +73,99 @@ class BlockStateProofGeneratorTest {
         }
     }
 
+    @Test
+    void throwsOnDuplicatePendingBlockNumber() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var duplicate = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(duplicate)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate pending block #0");
+    }
+
+    @Test
+    void throwsWhenSignedBlockIsNotAfterCurrentPendingBlock() {
+        final var current = pendingBlock(5L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // The signed block number equals the current pending block number, so there is no indirect range to prove
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 5L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.empty()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot construct an indirect proof for pending block #5 from signed block #5");
+    }
+
+    @Test
+    void throwsWhenPendingBlocksDoNotCoverEntireRange() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // Blocks #1 and #2 between the current (#0) and signed (#3) blocks are absent from the queue
+        final var signed = pendingBlock(3L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 3L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #1 is missing");
+    }
+
+    @Test
+    void throwsWhenSignedBlockItselfIsMissing() {
+        // Every intermediate block is present; only the signed block (#102) at the top of the range is missing
+        final var current = pendingBlock(100L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var intermediate = pendingBlock(101L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 102L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(intermediate)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #102 is missing");
+    }
+
+    @Test
+    void throwsWhenIndirectBlockHasUnexpectedSiblingCount() {
+        // The proof starts from the current block's own root hash, so an intermediate indirect block (#1) is the
+        // first whose siblings are consumed. Give it one too few sibling hashes for the expected layout.
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var indirect = pendingBlock(1L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK - 1);
+        final var signed = pendingBlock(2L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 2L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(indirect, signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Pending block #1 produced %d sibling hashes but exactly %d were expected"
+                        .formatted(
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK - 1,
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+    }
+
+    @Test
+    void throwsWhenSignedBlockHasUnexpectedSiblingCount() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // The signed block has one too many sibling hashes for the fixed array layout
+        final var signed = pendingBlock(1L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Signed block #1 produced %d sibling hashes but exactly %d were expected"
+                        .formatted(
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1,
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+    }
+
+    /**
+     * Builds a minimal {@link PendingBlock} with the given number and sibling-hash count. Each sibling hash reuses
+     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, a valid SHA-384-length value, so that hash
+     * conversion succeeds and only the guard under test can fail.
+     */
+    private static PendingBlock pendingBlock(final long number, final int siblingCount) {
+        final var siblings = new MerkleSiblingHash[siblingCount];
+        for (int i = 0; i < siblingCount; i++) {
+            siblings[i] = new MerkleSiblingHash(false, HASH_OF_ZERO);
+        }
+        return new PendingBlock(
+                number,
+                null,
+                HASH_OF_ZERO,
+                HASH_OF_ZERO,
+                BlockProof.newBuilder().block(number),
+                new NoOpTestWriter(),
+                Timestamp.DEFAULT,
+                siblings);
+    }
+
     /**
      * Verifies each generated state proof by following {@link MerklePath#nextPathIndex()} links —
      * the same traversal strategy the block-node's {@code StateProofVerifier} uses — and confirms
@@ -121,9 +214,8 @@ class BlockStateProofGeneratorTest {
      * <ul>
      *   <li>Timestamp leaf: {@code hashLeaf(timestamp)}</li>
      *   <li>Sibling path (has siblings): accumulate from {@code startHash}; left siblings are
-     *       block timestamps and require {@code hashInternalNodeSingleChild} before combining.</li>
-     *   <li>Internal node (no content): combine the children that point to this path —
-     *       one child → {@code hashInternalNodeSingleChild}; two children →
+     *       block timestamps, right siblings are sub-tree roots.</li>
+     *   <li>Internal node (no content): combine the children that point to this path as
      *       {@code hashInternalNode(timestampChild, otherChild)}.</li>
      * </ul>
      * The terminal path (last in DFS order, {@code nextPathIndex < 0}) holds the root hash.
@@ -148,14 +240,8 @@ class BlockStateProofGeneratorTest {
                         .isEqualTo(startHash);
                 var current = startHash;
                 for (final SiblingNode sibling : path.siblings()) {
-                    if (sibling.hash().length() == 0) {
-                        // Null-hash sentinel: applies the single-child internal node wrap (depth3→depth2).
-                        // Present for every block — intermediate blocks have a timestamp after it;
-                        // the signed block does not (its timestamp is in mp1).
-                        current = BlockImplUtils.hashInternalNodeSingleChild(current);
-                    } else if (sibling.isLeft()) {
-                        // Left sibling is an indirect block's consensus timestamp; the sentinel
-                        // immediately before it has already applied the single-child wrap.
+                    if (sibling.isLeft()) {
+                        // Left sibling is an indirect block's consensus timestamp
                         current = BlockImplUtils.hashInternalNode(sibling.hash(), current);
                     } else {
                         current = BlockImplUtils.hashInternalNode(current, sibling.hash());
@@ -164,7 +250,7 @@ class BlockStateProofGeneratorTest {
                 pathHashes[i] = current;
             } else {
                 // Only mp3 (the root path) falls here. Its two children are mp1 (timestamp) and mp2
-                // (block-contents, which already incorporated the single-child wrap via the null sentinel).
+                // (block-contents, which already climbed to the signed block's sub-tree root).
                 Bytes timestampChildHash = null;
                 Bytes otherChildHash = null;
                 for (int j = 0; j < i; j++) {
@@ -290,8 +376,7 @@ class BlockStateProofGeneratorTest {
             Assertions.assertThat(paths.getFirst()).isEqualTo(expectedMp1);
 
             // Verify all the sibling hashes in mp2. Proof starts from the block's own root hash;
-            // siblings begin at the next block. The last sibling is a null-hash sentinel that encodes
-            // the single-child internal node wrapping (depth2Node2) for the signed block.
+            // siblings begin at the next block, the last for each block being its reserved-branches root.
             final var allMp2Hashes = paths.get(BLOCK_CONTENTS_PATH_INDEX).siblings();
 
             var finalHash = EXPECTED_BLOCK_HASHES.get(outerCurrentBlockNum);
@@ -304,10 +389,7 @@ class BlockStateProofGeneratorTest {
                 }
 
                 final var currentSibling = allMp2Hashes.get(i);
-                if (currentSibling.hash().length() == 0) {
-                    // Null-hash sentinel: single-child wrap (depth3→depth2), present for every block
-                    finalHash = BlockImplUtils.hashInternalNodeSingleChild(finalHash);
-                } else if (currentSibling.isLeft()) {
+                if (currentSibling.isLeft()) {
                     // Left sibling is an indirect block's consensus timestamp
                     finalHash = BlockImplUtils.hashInternalNode(currentSibling.hash(), finalHash);
                 } else {
@@ -315,7 +397,7 @@ class BlockStateProofGeneratorTest {
                 }
             }
 
-            // Combine depth2Node2 with the signed block's timestamp to reach the signed block root hash
+            // Combine the signed block's sub-tree root with its timestamp to reach the signed block root hash
             final var expectedHashedTsBytes = BlockImplUtils.hashLeaf(expectedSignedTsBytes);
             finalHash = BlockImplUtils.hashInternalNode(expectedHashedTsBytes, finalHash);
             Assertions.assertThat(finalHash).isEqualTo(expectedFinalBlockHash);
@@ -445,7 +527,9 @@ class BlockStateProofGeneratorTest {
     private static final Bytes[] EXPECTED_FIRST_SIBLING_HASHES = new Bytes[] {
         Bytes.fromBase64("vsAhtPNo4waRNOASwrQwcIPTqb3SBuJOXw2G4T1mNmVZM+wrQTRllmgXqcIIoRcX"),
         Bytes.fromBase64("szITXG1kGEeXF7DN1DvaAbyUh8cPXASqotbz+ddav6nSZkOGN3cg44MAtTf49zxN"),
-        Bytes.fromBase64("Neol38vLZtLyxE3J2b6Hah7XTQgwpu3e3TGlyDRlUbW7xA3gqXZnm3jGlXIY9S6j")
+        Bytes.fromBase64("Neol38vLZtLyxE3J2b6Hah7XTQgwpu3e3TGlyDRlUbW7xA3gqXZnm3jGlXIY9S6j"),
+        // The root of the reserved branches 9-16
+        Bytes.fromBase64("z352R/V4BwBvT1hw0iELW0A40ACyv6cRvO639KMnNGtQxh/aTlxoEQsDznCPuRz4")
     };
 
     private static final Map<Long, Timestamp> EXPECTED_BLOCK_TIMESTAMPS = Map.of(
@@ -465,17 +549,17 @@ class BlockStateProofGeneratorTest {
             TssSignedBlockProof.newBuilder().blockSignature(FINAL_SIGNATURE).build();
     private static final Map<Long, Bytes> EXPECTED_BLOCK_HASHES = Map.of(
             0L,
-            Bytes.fromBase64("fPVG8M+HGGrH+OcYj/Huzt21v8MGlTP/uGRGOffAnmfZiWY39pVejl8mz+G/Br/W"),
+            Bytes.fromBase64("uSoOcoQxNudtZLRHmr5xRGFJ6ulFlCpVkJGy66zOy79Eblzud7HXmWraO10BGNBe"),
             1L,
-            Bytes.fromBase64("ahOe8gN58oNlZ9ujl4qQPznwhcLb8lm3vpfBAawc9BWVgxhG9M/E9TEcg4IC8Q13"),
+            Bytes.fromBase64("bf8uIiwZm7Q7HuyWNUyu0Vm7BKaU3EtfQMpn3cWMr3DndK3EIVcXVbI9vdRe4unV"),
             2L,
-            Bytes.fromBase64("RRcfehwqOGFE5uitIhIaNoACq8s5exCg++1GtqgP33YVxh2DhPy87G9LpN4Guapz"),
+            Bytes.fromBase64("4ZovgLbr2KOVk3zTgjVWclMgIDTRR5wVMA16s2SVlcBTYM46z9g4IO7jBngztTPl"),
             3L,
-            Bytes.fromBase64("FwgU9fmkMUewLy4NinJTWlnx1ZhfynuD0u+Vwsjc+HbF8Ym1rh4msyRQUz++Ea2N"),
+            Bytes.fromBase64("rV4yBTsadYQcKbiLNurMTskWz0WglVts057Xu3RBWgclDsjZMWLifvoqx1uJPNHi"),
             4L,
-            Bytes.fromBase64("v0llIoDI9Srpl2Zoqag9xornzUmlaFguYKMB/IxbDlVCzMMVzkygo2QyxGXd0Nuf"),
+            Bytes.fromBase64("8Hz6NrOOi+iyv6fResvEZ8CQwzX1KVAlDZvpvrQBCqH79aY/8ElKowzPa9xYAdp2"),
             5L,
-            Bytes.fromBase64("BPQoPITnc3+YX70N8cVeRMlY+QekkYOHiVKxV2H9IO5eqFDTA+X6wkKmCsw1Lk4W"));
+            Bytes.fromBase64("6gXxZsMRh+2XEFovdXrdnKPW1uX0p8JtlreK3MvMLJX1+WmnzBaW/WtfSazGuzWg"));
     private static final Map<Long, Bytes> EXPECTED_PREVIOUS_BLOCK_HASHES;
 
     static {

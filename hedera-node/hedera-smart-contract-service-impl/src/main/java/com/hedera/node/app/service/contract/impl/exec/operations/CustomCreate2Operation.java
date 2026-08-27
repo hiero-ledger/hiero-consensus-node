@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.operations.Customiz
 import static org.hyperledger.besu.evm.Code.EMPTY_CODE;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,7 +14,6 @@ import java.util.function.Supplier;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -95,6 +95,6 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
     }
 
     private static byte[] keccak256DigestOf(final byte[] msg) {
-        return new Keccak.Digest256().digest(msg);
+        return MiscCryptoUtils.keccak256DigestOf(msg);
     }
 }

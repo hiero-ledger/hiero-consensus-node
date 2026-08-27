@@ -14,9 +14,8 @@ open module org.hiero.consensus.event.stream.test.fixtures {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.model.test.fixtures;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.fakes;
     requires org.apache.logging.log4j;
     requires org.mockito;
 }

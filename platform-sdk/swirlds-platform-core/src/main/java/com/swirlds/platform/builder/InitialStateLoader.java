@@ -18,7 +18,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -32,7 +31,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
@@ -54,13 +52,11 @@ public class InitialStateLoader {
      * @param platform            the newly constructed platform
      * @param inputs              consensus layer inputs from the execution layer
      * @param buildingBlocks      the consensus layer building blocks
-     * @param platformCoordinator the platform coordinator
      */
     public static void initializeModulesWithInitialState(
             @NonNull final Platform platform,
             @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
-            @NonNull final PlatformCoordinator platformCoordinator) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final SignedState signedState = inputs.initialState().get();
 
         initializeState(platform, signedState, inputs.consensusStateEventHandler());
@@ -82,7 +78,7 @@ public class InitialStateLoader {
                 requireNonNullElse(legacyRunningEventHashOf(signedState.getState()), Cryptography.NULL_HASH);
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
-        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
+        buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateInput().inject(runningEventHashOverride);
 
         // Load the minimum birth round into the pre-consensus event writer
         final String actualMainClassName =
@@ -95,29 +91,40 @@ public class InitialStateLoader {
             // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
             final long minimumBirthRoundNonAncientForOldestState =
                     savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumBirthRoundNonAncientForOldestState);
+            buildingBlocks.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = signedState.isGenesisState();
 
-        if (startedFromGenesis) {
-            platformCoordinator.updateEventWindow(EventWindow.getGenesisEventWindow());
-        } else {
+        if (!startedFromGenesis) {
             buildingBlocks.stateModule().sendState(signedState);
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
 
             final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(signedState.getState()));
-            buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
+            buildingBlocks
+                    .hashgraphModule()
+                    .consensusSnapshotOverrideInputWire()
+                    .inject(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
             final int roundsNonAncient =
                     inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
-            platformCoordinator.updateEventWindow(
-                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks.issDetectionModule().overrideIssDetectorState(signedState.reserve("initialize issDetector"));
+            buildingBlocks
+                    .initialEventWindowDispatcher()
+                    .getInputWire()
+                    .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+            // No flush is required here. The dispatcher is a DIRECT_THREADSAFE transformer, so inject() delivers the
+            // event window on the calling thread: by the time it returns, every downstream component has either
+            // handled it or has it queued ahead of anything sent later. Gossip is the case that matters, as its start
+            // signal arrives on the same sequential scheduler when SwirldsPlatform.start() runs, so the sync threads
+            // it spawns are guaranteed to see the event window.
+            buildingBlocks
+                    .issDetectionModule()
+                    .overridingStateInputWire()
+                    .put(signedState.reserve("initialize issDetector"));
         }
     }
 

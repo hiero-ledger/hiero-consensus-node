@@ -274,7 +274,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             SHARED_NETWORK.get().start();
         }
 
-        private static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
+        public static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
             final var outputDir = network.nodes()
                     .getFirst()
                     .getExternalPath(ExternalPath.APPLICATION_LOG)

@@ -6,10 +6,12 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID_RECURSIVE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.Instant.EPOCH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.isNull;
@@ -598,7 +600,7 @@ class WrapsHistoryProverTest {
                 new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray());
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(incremental);
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
         given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
                 .willReturn(true);
 
@@ -737,19 +739,17 @@ class WrapsHistoryProverTest {
     }
 
     @Test
-    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsNull() {
+    void observeProofVoteDoesNotSubmitWhenVoteDecisionFutureIsNull() {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        // voteDecisionFuture is null by default, so this should return early
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
-        // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
     }
 
     @Test
-    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsDone() {
+    void observeProofVoteDoesNotSubmitWhenVoteDecisionFutureIsDone() {
         final var completedFuture = CompletableFuture.completedFuture(null);
         setField("voteDecisionFuture", completedFuture);
 
@@ -758,7 +758,6 @@ class WrapsHistoryProverTest {
 
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
-        // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
     }
 
@@ -852,6 +851,95 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void validRecursiveVoteObservedBeforeProofIsReadyCausesImmediateCongruentVote() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(submissions.submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID))
+                .willReturn(CompletableFuture.completedFuture(null));
+        final var proof = recursiveProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, VALID_RECURSIVE);
+        scheduleVote(proof);
+
+        verify(submissions).submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID);
+        assertEquals(0, delayedExecutor.pendingTasks());
+    }
+
+    @Test
+    void finalizedRecursiveProofObservedBeforeProofIsReadyPreventsLateVote() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        final var proof = recursiveProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, true, VALID_RECURSIVE);
+        scheduleVote(proof);
+
+        verifyNoInteractions(submissions);
+        assertEquals(0, delayedExecutor.pendingTasks());
+    }
+
+    @Test
+    void aggregateVoteTimerCannotCompleteLaterRecursiveVoteDecision() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(Duration.ofSeconds(5));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        final var aggregateProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var aggregateVote =
+                HistoryProofVote.newBuilder().proof(aggregateProof).build();
+        final var recursiveProof = recursiveProof();
+
+        scheduleVote(aggregateProof);
+        subject.observeProofVote(OTHER_NODE_ID, aggregateVote, true, NOT_RECURSIVE);
+        scheduleVote(recursiveProof);
+
+        assertEquals(2, delayedExecutor.pendingTasks());
+        delayedExecutor.runNext();
+        verify(submissions, never()).submitExplicitProofVote(anyLong(), any());
+
+        delayedExecutor.runNext();
+        verify(submissions).submitExplicitProofVote(CONSTRUCTION_ID, recursiveProof);
+    }
+
+    @Test
     void canceledConstructionSkipsMessagePublicationAfterOutputResolves() {
         final var manualExecutor = new ManualExecutor();
         subject = new WrapsHistoryProver(
@@ -900,7 +988,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -956,7 +1044,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         // Not ready on the first advance() (download still in flight); ready on the second.
-        given(historyLibrary.wrapsProverReady()).willReturn(false, true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(false, true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -1023,7 +1111,7 @@ class WrapsHistoryProverTest {
         // First call (publishIfNeeded early-exit guard): true -> skips early-exit.
         // Second call (inside outputFuture supplier): false -> NoopOutput.
         // Third call (next-round retry early-exit guard): true -> proceeds to publish.
-        given(historyLibrary.wrapsProverReady()).willReturn(true, false, true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true, false, true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -1064,6 +1152,51 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void postAggregationDefersWhenTheLedgerIdIsNotYetAvailable() {
+        // The library can be ready before the ledger id has been established at genesis. Proceeding then
+        // dereferenced a null ledgerId and killed the publication with an NPE; it must defer and retry.
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        // Library IS ready; only the ledger id is missing
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
+
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        assertSame(
+                WrapsPhase.POST_AGGREGATION,
+                getField("phaseNeedingWrapsReadinessRetry"),
+                "phase must stay flagged so the genesis proof is retried once the ledger id exists");
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
     void postAggregationKeepsRetryFlagAcrossMultipleStillNotReadyRounds() {
         // Covers the case where the next consensus round arrives but WRAPS is still
         // loading: isWrapsReadinessRetry=true at the top of publishIfNeeded clears the
@@ -1084,7 +1217,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         // Stays false across every advance() — exercises the retry loop while the library is still loading.
-        given(historyLibrary.wrapsProverReady()).willReturn(false);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(false);
 
         final var aggregatedSignatureProof = HistoryProof.newBuilder()
                 .chainOfTrustProof(ChainOfTrustProof.newBuilder()
@@ -1130,6 +1263,25 @@ class WrapsHistoryProverTest {
             fail(e);
             return null;
         }
+    }
+
+    private void scheduleVote(HistoryProof proof) {
+        try {
+            final var method = WrapsHistoryProver.class.getDeclaredMethod(
+                    "scheduleVoteWithJitter", long.class, TssConfig.class, HistoryProof.class);
+            method.setAccessible(true);
+            method.invoke(subject, CONSTRUCTION_ID, tssConfig, proof);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    private static HistoryProof recursiveProof() {
+        return HistoryProof.newBuilder()
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .build();
     }
 
     private static final class ManualExecutor implements Executor {

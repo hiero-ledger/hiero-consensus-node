@@ -31,6 +31,7 @@ source: paper §IV, Theorem 1           # the authority that makes this permanen
 verification: ConsensusEndToEndTest::testTotalOrder   # optional; how adherence is checked
 provenance: elicitation-2026-05-xx     # where this entry came from
 curated_by: Full Name (@github-handle) # the person responsible for this entry
+last_reviewed: TBD
 ---
 ```
 
@@ -65,6 +66,10 @@ Field discipline:
   believed with a strength. If there is genuine uncertainty about whether a
   property is permanent, that uncertainty itself means it belongs in
   `rules/` with a `confidence`, not here.
+- **`last_reviewed`** — the trailing key. `TBD` until the entry's
+  code-anchored claims have been reviewed against current code, then the date
+  of that review. Written only by the KB freshness checker's
+  `--mark-reviewed` — never by hand.
 
 ## Body
 
@@ -114,6 +119,7 @@ source: ...
 verification: ...
 provenance: ...
 curated_by: ...
+last_reviewed: TBD
 ---
 
 # INV-NNN — Title

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.domain;
 
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -22,8 +23,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 public record ParsedItem(TransactionBody itemBody, TransactionRecord itemRecord) {
     private static final FileID PROPERTIES_FILE_ID =
             FileID.newBuilder().setFileNum(121).build();
-    private static final FileID FEE_SCHEDULE_FILE_ID =
-            FileID.newBuilder().setFileNum(111).build();
 
     public ResponseCodeEnum status() {
         return itemRecord.getReceipt().getStatus();
@@ -55,8 +54,8 @@ public record ParsedItem(TransactionBody itemBody, TransactionRecord itemRecord)
         }
 
         final var status = itemRecord.getReceipt().getStatus();
-        return (status == SUCCESS || status == FEE_SCHEDULE_FILE_PART_UPLOADED)
+        return (status == SUCCESS || status == FEE_SCHEDULE_FILE_PART_UPLOADED || status == CONFIG_FILE_PART_UPLOADED)
                 && (isFileUpdate || isFileAppend)
-                && (PROPERTIES_FILE_ID.equals(fileID) || FEE_SCHEDULE_FILE_ID.equals(fileID));
+                && PROPERTIES_FILE_ID.equals(fileID);
     }
 }

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring.components;
 
-import static com.swirlds.component.framework.model.diagram.HyperlinkBuilder.platformCoreHyperlink;
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
+import static org.hiero.consensus.wiring.framework.model.diagram.HyperlinkBuilder.platformCoreHyperlink;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * A wiring object for distributing {@link RunningEventHashOverride}s
@@ -46,14 +46,5 @@ public record RunningEventHashOverrideWiring(
         inputWire.bind(runningHashUpdate -> runningHashUpdate);
 
         return wiring;
-    }
-
-    /**
-     * Update the running hash for all components that need it.
-     *
-     * @param runningHashUpdate the object containing necessary information to update the running hash
-     */
-    public void updateRunningHash(@NonNull final RunningEventHashOverride runningHashUpdate) {
-        runningHashUpdateInput.inject(runningHashUpdate);
     }
 }

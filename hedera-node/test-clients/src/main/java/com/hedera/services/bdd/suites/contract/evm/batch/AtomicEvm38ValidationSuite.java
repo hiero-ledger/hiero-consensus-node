@@ -40,6 +40,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -55,7 +56,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -299,7 +299,7 @@ class AtomicEvm38ValidationSuite {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
         final var expectedAccountHash =
-                ByteString.copyFrom(Hash.keccak256(Bytes.EMPTY).toArray());
+                ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(Bytes.EMPTY.toArrayUnsafe()));
         final var hashOf = "hashOf";
 
         final String account = "account";
@@ -341,7 +341,7 @@ class AtomicEvm38ValidationSuite {
                     final var contractCodeResult = spec.registry().getBytes("contractCodeHash");
                     final var contractBytecode = spec.registry().getBytes("contractBytecode");
                     final var expectedContractCodeHash = ByteString.copyFrom(
-                                    Hash.keccak256(Bytes.of(contractBytecode)).toArray())
+                                    MiscCryptoUtils.keccak256DigestOf(contractBytecode))
                             .toByteArray();
 
                     Assertions.assertEquals(expectedAccountHash, recordResult.getContractCallResult());
