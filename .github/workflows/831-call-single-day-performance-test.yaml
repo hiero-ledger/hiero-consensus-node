@@ -437,6 +437,9 @@ jobs:
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" block-node-values.yaml
 
+          BN_tag=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
+          sed -i -e "s@%BN_IMAGE_TAG%@${BN_tag}@g" block-node-values.yaml
+
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
