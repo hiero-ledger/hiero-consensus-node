@@ -22,7 +22,7 @@ on:
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "3"
-        description: "Test execution time options"
+        description: "Smoke run execution time"
         type: choice
         options:
           - "3"
@@ -59,8 +59,8 @@ on:
         type: string
       mdlt-length:
         required: false
-        default: ""
-        description: "MDLT production run length in minutes, launched after the smoke run. Blank uses default_mdlt_length from .github/chewie.yaml (432000s / 5 days)"
+        default: "7200"
+        description: "MDLT production run length in minutes, launched after the smoke run. Blank uses default_mdlt_length from .github/chewie.yaml (7200m / 5 days)"
         type: string
 
 defaults:
