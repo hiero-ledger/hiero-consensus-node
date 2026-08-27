@@ -188,7 +188,7 @@ jobs:
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -320,7 +320,7 @@ jobs:
       - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
-          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

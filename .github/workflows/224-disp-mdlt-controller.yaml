@@ -201,7 +201,7 @@ jobs:
       mdlt-length: ${{ fromJSON(needs.verify-citr-vars.outputs.mdlt-length) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
-      slack-report-webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+      slack-report-webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
