@@ -23,13 +23,15 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
@@ -38,6 +40,10 @@ jobs:
 
   prepare-tag-release:
     name: Prepare Release [Tag]
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
@@ -65,6 +71,10 @@ jobs:
 
   release-tag:
     name: Release [Tag]
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: ./.github/workflows/850-call-build-release-artifact.yaml
     needs:
       - extract-jdk-version
@@ -98,6 +108,10 @@ jobs:
 
   update-hedera-protobufs:
     name: Update Hedera Protobufs
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - prepare-tag-release
@@ -155,6 +169,10 @@ jobs:
 
   release-branch:
     name: Release [Branch]
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: ./.github/workflows/850-call-build-release-artifact.yaml
     needs:
       - extract-jdk-version
@@ -188,6 +206,10 @@ jobs:
 
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
@@ -227,6 +249,10 @@ jobs:
 
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
@@ -268,6 +294,10 @@ jobs:
 
   report-failures:
     name: Report Production Release Failures
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch

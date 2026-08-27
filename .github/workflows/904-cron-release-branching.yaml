@@ -10,7 +10,7 @@ defaults:
     shell: bash
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   GITHUB_CLI_VERSION: 2.21.2
@@ -21,6 +21,8 @@ env:
 jobs:
   check-trigger:
     name: Check Trigger Conditions
+    permissions:
+      contents: write
     runs-on: hl-cn-default-lin-sm
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     outputs:
@@ -65,6 +67,8 @@ jobs:
 
   check-branch:
     name: Check Branching Conditions
+    permissions:
+      contents: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - check-trigger
@@ -93,6 +97,8 @@ jobs:
 
   create-branch:
     name: Create Release Branch
+    permissions:
+      contents: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch
@@ -187,6 +193,8 @@ jobs:
 
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      contents: write
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
@@ -195,6 +203,8 @@ jobs:
 
   create-tag:
     name: Create Release Tag
+    permissions:
+      contents: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch

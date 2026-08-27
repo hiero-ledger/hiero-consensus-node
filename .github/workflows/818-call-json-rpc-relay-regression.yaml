@@ -49,11 +49,7 @@ defaults:
     shell: bash
 
 permissions:
-  checks: write
   contents: read
-  actions: write
-  statuses: write
-  id-token: write
 
 env:
   SOLO_CLUSTER_NAME: "solo-rpc-relay-e2e"
@@ -67,6 +63,12 @@ jobs:
   # Execute JSON-RPC Relay Regression Tests using specified version of hiero-consensus-node
   json-rpc-relay-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-rpc-relay-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -271,6 +273,12 @@ jobs:
 
   build-slack-payload:
     name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-rpc-relay-lin-sm
     needs:
       - json-rpc-relay-regression
@@ -303,6 +311,12 @@ jobs:
 
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-rpc-relay-lin-sm
     needs:
       - build-slack-payload

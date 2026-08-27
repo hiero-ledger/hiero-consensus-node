@@ -36,13 +36,15 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
   validate-input-version:
     name: Validate Input Version
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     outputs:
       release-identifier: ${{ steps.validate.outputs.release-identifier }}
@@ -120,6 +122,10 @@ jobs:
 
   generate-release-notes:
     name: Generate Release Notes File
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     needs:
       - validate-input-version
     runs-on: hl-cn-default-lin-sm
@@ -166,6 +172,10 @@ jobs:
 
   full-commit-history:
     name: Full Commit History
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     needs:
       - validate-input-version
     runs-on: hl-cn-default-lin-sm
@@ -189,6 +199,10 @@ jobs:
 
   create-github-release:
     name: Create Github Release
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     needs: generate-release-notes
     runs-on: hl-cn-default-lin-sm
     steps:

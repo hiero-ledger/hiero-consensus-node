@@ -9,11 +9,13 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      contents: read
+      security-events: write
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
@@ -22,6 +24,9 @@ jobs:
 
   snyk:
     name: Snyk Monitor
+    permissions:
+      contents: read
+      security-events: write
     needs:
       - extract-jdk-version
     runs-on: hl-cn-snyk-check-lin

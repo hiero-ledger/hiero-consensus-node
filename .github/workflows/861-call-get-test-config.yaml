@@ -35,6 +35,9 @@ on:
         description: "Memory request for Aux nodes in MB"
         value: ${{ jobs.get-test-config.outputs.aux-mem-request-mb }}
 
+permissions:
+  contents: read
+
 jobs:
   get-test-config:
     runs-on: hl-cn-chewie-lin-sm

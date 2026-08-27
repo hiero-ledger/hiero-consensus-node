@@ -105,13 +105,15 @@ env:
   SKOPEO_VERSION: v1.14.0
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
   validate:
     name: Validate
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-md
     # Repository-pinning holds regardless of the caller's trigger (pull_request,
     # pull_request_target, workflow_run, push) and of a fork being renamed — unlike
@@ -241,6 +243,10 @@ jobs:
 
   build-artifact:
     name: Build Artifact
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-md
     needs:
       - validate
@@ -393,6 +399,10 @@ jobs:
 
   local-node-images:
     name: Publish Local Node Images
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-lg
     needs:
       - validate
@@ -536,6 +546,10 @@ jobs:
 
   gcp-production-image:
     name: Publish Production Image
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: ./.github/workflows/852-call-publish-production-image.yaml
     needs:
       - validate
@@ -556,6 +570,10 @@ jobs:
 
   jfr-production-image:
     name: Publish Production Image
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: ./.github/workflows/852-call-publish-production-image.yaml
     needs:
       - validate
@@ -576,6 +594,10 @@ jobs:
 
   validate-production-image:
     name: Validate Production Image
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-md
     needs:
       - gcp-production-image
@@ -692,6 +714,10 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
@@ -904,6 +930,10 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     if: ${{ github.event.repository.private == false && needs.publish.outputs.create-release == 'true' }}
     uses: ./.github/workflows/853-call-create-github-release.yaml
     needs:
@@ -919,6 +949,10 @@ jobs:
 
   send-notifications:
     name: Send Release Notifications
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - validate

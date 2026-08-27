@@ -19,6 +19,9 @@ on:
         description: "Default timeout for chewie requests"
         value: ${{ jobs.get-chewie-props.outputs.request-timeout }}
 
+permissions:
+  contents: read
+
 jobs:
   get-chewie-props:
     runs-on: hl-cn-chewie-lin-sm

@@ -13,12 +13,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  issues: write
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 concurrency:
@@ -28,6 +22,14 @@ concurrency:
 jobs:
   detect-change-type:
     name: Detect Change Type
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     outputs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
@@ -52,6 +54,14 @@ jobs:
 
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
@@ -60,6 +70,14 @@ jobs:
 
   mats-pr-checks:
     name: MATS
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     needs:
       - detect-change-type
       - extract-jdk-version
@@ -91,6 +109,14 @@ jobs:
 
   workflow-unit-tests:
     name: Workflow File Tests
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     needs:
       - detect-change-type
     if: ${{ needs.detect-change-type.outputs.workflow-files-changed == 'true' }}
@@ -98,6 +124,14 @@ jobs:
 
   ci-complete:
     name: CI Complete
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type
@@ -130,6 +164,14 @@ jobs:
 
   report-summary:
     name: Report PR Check Summary
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type

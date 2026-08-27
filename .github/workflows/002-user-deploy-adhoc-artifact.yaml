@@ -34,13 +34,15 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.event.inputs.ref }}
@@ -49,6 +51,10 @@ jobs:
 
   release-adhoc:
     name: Release [Adhoc]
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     if: ${{ github.event_name == 'workflow_dispatch' }}
     needs:
       - extract-jdk-version

@@ -24,7 +24,6 @@ defaults:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}/wraps-proving-key
@@ -33,6 +32,9 @@ env:
 jobs:
   publish-wraps-proving-key-image:
     name: "Publish WRAPS Proving Key Image"
+    permissions:
+      contents: read
+      packages: write
     runs-on: hl-cn-default-lin-lg
     timeout-minutes: 60
     steps:

@@ -8,14 +8,16 @@ defaults:
     shell: bash
 
 permissions:
-  contents: write
-  id-token: write
-  actions: write
-  statuses: write
+  contents: read
 
 jobs:
   verify-tag:
     name: Verify Tag
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     runs-on: hl-cn-sdlt-lin-sm
     continue-on-error: true
     outputs:
@@ -55,6 +57,11 @@ jobs:
 
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
@@ -63,6 +70,11 @@ jobs:
 
   extract-citr-vars:
     name: Extract CITR Vars
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
       ref: ${{ github.ref }}
@@ -71,6 +83,11 @@ jobs:
 
   extract-chewie-props:
     name: Extract Chewie Properties
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
       ref: ${{ github.ref }}
@@ -79,6 +96,11 @@ jobs:
 
   verify-citr-vars:
     name: Verify CITR vars
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     needs:
       - extract-citr-vars
       - extract-chewie-props
@@ -116,6 +138,11 @@ jobs:
 
   run-single-day-longevity-test:
     name: Longevity Test
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     needs:
       - verify-tag
       - extract-jdk-version
@@ -143,6 +170,11 @@ jobs:
 
   tag-sdlt-result:
     name: Tag SDLT Result
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - run-single-day-longevity-test
@@ -191,6 +223,11 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
@@ -228,6 +265,11 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
@@ -277,6 +319,11 @@ jobs:
 
   report-failure:
     name: Report SDLT execution failure
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag

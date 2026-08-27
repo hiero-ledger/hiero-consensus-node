@@ -74,12 +74,14 @@ defaults:
     shell: bash
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   performance-test:
     name: ${{ inputs.custom-job-name || 'Run CITR Performance Test' }}
+    permissions:
+      contents: write
+      id-token: write
     runs-on: hl-cn-sdpt-lin-lg
 
     outputs:

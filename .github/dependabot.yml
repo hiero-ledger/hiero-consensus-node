@@ -21,3 +21,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+  - package-ecosystem: "docker"
+    directories:
+      - "/hedera-node/test-clients/validation-scenarios"
+      - "/hedera-node/yahcli"
+      - "/platform-sdk/consensus-otter-docker-app/src/testFixtures/docker"
+      - "/platform-sdk/consensus-sloth/src/testFixtures/docker"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10

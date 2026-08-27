@@ -53,11 +53,7 @@ defaults:
     shell: bash
 
 permissions:
-  checks: write
   contents: read
-  actions: write
-  statuses: write
-  id-token: write
 
 env:
   SOLO_CLUSTER_NAME: "solo-tck-e2e"
@@ -72,6 +68,12 @@ jobs:
   # Execute TCK Regression Tests using specified version of hiero-consensus-node
   tck-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-sdk-tck-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -381,6 +383,12 @@ jobs:
 
   build-slack-payload:
     name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-sdk-tck-lin-sm
     needs:
       - tck-regression
@@ -414,6 +422,12 @@ jobs:
 
   report-tck-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-sdk-tck-lin-sm
     needs:
       - build-slack-payload

@@ -119,11 +119,6 @@ on:
         value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 defaults:
@@ -133,6 +128,13 @@ defaults:
 jobs:
   commit-info:
     name: Get Commit Info
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
@@ -154,6 +156,13 @@ jobs:
 
   compile-and-spotless:
     name: "${{ inputs.custom-job-label }} Compile and Spotless"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     uses: ./.github/workflows/802-call-compile-and-spotless-check.yaml
     needs:
       - commit-info
@@ -168,6 +177,13 @@ jobs:
 
   dependency-check:
     name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-dependency-check == 'true' }}
     uses: ./.github/workflows/809-call-dependency-module-check.yaml
     needs:
@@ -183,6 +199,13 @@ jobs:
 
   mats-unit-tests:
     name: Unit Tests
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-unit-tests == 'true' }}
     uses: ./.github/workflows/803-call-execute-unit-tests.yaml
     needs:
@@ -201,6 +224,13 @@ jobs:
 
   mats-integration-tests:
     name: Integration Tests
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-integration-tests == 'true' }}
     uses: ./.github/workflows/804-call-execute-integration-tests.yaml
     needs:
@@ -218,6 +248,13 @@ jobs:
 
   mats-hapi-tests:
     name: HAPI Tests
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
     needs:
@@ -243,6 +280,13 @@ jobs:
 
   mats-otter-tests:
     name: Otter Tests
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-otter-tests == 'true' }}
     needs:
       - commit-info
@@ -261,6 +305,13 @@ jobs:
 
   mats-snyk-scan:
     name: Snyk Scan
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.repository.fork }}
     needs:
       - commit-info
@@ -278,6 +329,13 @@ jobs:
 
   mats-gradle-determinism:
     name: Gradle Determinism
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.repository.fork }}
     needs:
       - commit-info
@@ -294,6 +352,13 @@ jobs:
 
   mats-docker-determinism:
     name: Docker Determinism
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.repository.fork }}
     needs:
       - commit-info
@@ -310,6 +375,13 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

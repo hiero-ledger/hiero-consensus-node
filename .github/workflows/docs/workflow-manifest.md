@@ -39,6 +39,7 @@
 | # TEST HELPERS (600-699)                     |                                        |                                                       |                                                                   |
 | 600-flow-pull-request-checks.yaml            | 600: [FLOW] PR Checks                  | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |
 | 601-flow-pull-request-formatting.yaml        | 601: [FLOW] PR Formatting              | flow-pull-request-formatting.yaml                     | PR Formatting                                                     |
+| 602-flow-gradle-wrapper-check.yaml           | 602: [FLOW] Gradle Wrapper Check       |                                                       |                                                                   |
 |                                              |                                        |                                                       |                                                                   |
 | # AI HELPERS (700-799)                       |                                        |                                                       |                                                                   |
 | 700-flow-copilot-setup-steps.yaml            | 700: [FLOW] Copilot Setup Steps        | 700-flow-copilot-setup-steps.yaml                     | 700: [FLOW] Copilot Setup Steps                                   |

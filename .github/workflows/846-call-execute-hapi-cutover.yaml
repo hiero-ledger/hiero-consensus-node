@@ -47,11 +47,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 env:
@@ -63,6 +58,13 @@ env:
 jobs:
   hapi-tests-cutover:
     name: "HAPI Tests (Cutover & Wraps Download)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
     # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
     runs-on: hl-cn-hapi-wraps-lin-lg

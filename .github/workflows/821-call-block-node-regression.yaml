@@ -59,11 +59,7 @@ defaults:
     shell: bash
 
 permissions:
-  checks: write
   contents: read
-  actions: write
-  statuses: write
-  id-token: write
 
 env:
   SOLO_CLUSTER_NAME: "solo-block-node-e2e"
@@ -75,6 +71,12 @@ env:
 jobs:
   # Execute Block Node Regression Tests using specified version of hiero-consensus-node
   block-node-regression:
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
@@ -562,6 +564,12 @@ jobs:
 
   build-slack-payload:
     name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-bn-regression-lin-sm
     needs:
       - block-node-regression
@@ -594,6 +602,12 @@ jobs:
 
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    permissions:
+      checks: write
+      contents: read
+      actions: write
+      statuses: write
+      id-token: write
     runs-on: hl-cn-bn-regression-lin-sm
     needs:
       - build-slack-payload

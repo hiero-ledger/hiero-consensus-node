@@ -42,11 +42,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 env:
@@ -58,6 +53,13 @@ env:
 jobs:
   compile-and-spotless-check:
     name: "Compile and Spotless Check"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-compile-app-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

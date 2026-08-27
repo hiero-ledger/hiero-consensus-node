@@ -47,11 +47,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 env:
@@ -63,6 +58,13 @@ env:
 jobs:
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
