@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
+import static com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils.createDataSource;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Files;

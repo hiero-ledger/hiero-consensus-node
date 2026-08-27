@@ -59,6 +59,7 @@ public class WrapsHistoryProver implements HistoryProver {
     private static final Logger log = LogManager.getLogger(WrapsHistoryProver.class);
     public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
     public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
+    public static final String LEDGER_ID_NOT_READY_FAILURE_PREFIX = "Ledger id is not yet available";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -485,15 +486,27 @@ public class WrapsHistoryProver implements HistoryProver {
         // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading.
         final boolean needsWrapsForOutput =
                 phase == POST_AGGREGATION || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
-        if (needsWrapsForOutput && !historyLibrary.wrapsProverReady()) {
+        // The genesis proof also needs the ledger id, which is not established at the instant the library
+        // becomes ready; without this the phase proceeds and dereferences a null ledgerId.
+        final String notReadyReason;
+        if (!needsWrapsForOutput) {
+            notReadyReason = null;
+        } else if (!historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
+            notReadyReason = "WRAPS library is not ready";
+        } else if (phase == POST_AGGREGATION && ledgerId == null) {
+            notReadyReason = "ledger id is not yet available";
+        } else {
+            notReadyReason = null;
+        }
+        if (notReadyReason != null) {
             if (isWrapsReadinessRetry) {
-                log.debug(
-                        "Deferring {} output for construction #{}: WRAPS library is not ready", phase, constructionId);
+                log.debug("Deferring {} output for construction #{}: {}", phase, constructionId, notReadyReason);
             } else {
                 log.info(
-                        "Deferring {} output for construction #{}: WRAPS library is not ready (will retry each consensus round until ready)",
+                        "Deferring {} output for construction #{}: {} (will retry each consensus round until ready)",
                         phase,
-                        constructionId);
+                        constructionId,
+                        notReadyReason);
             }
             phaseNeedingWrapsReadinessRetry = phase;
             return;
@@ -579,7 +592,9 @@ public class WrapsHistoryProver implements HistoryProver {
                                                 scheduleVoteWithJitter(constructionId, tssConfig, proof);
                                             }
                                             case NoopOutput noopOutput -> {
-                                                if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())) {
+                                                if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())
+                                                        || LEDGER_ID_NOT_READY_FAILURE_PREFIX.equals(
+                                                                noopOutput.reason())) {
                                                     // Flag instead of clearing voteFuture inline; the outer accept()
                                                     // hasn't returned yet.
                                                     log.debug(
@@ -781,7 +796,7 @@ public class WrapsHistoryProver implements HistoryProver {
                             yield new AggregatePhaseOutput(
                                     signature, signers.stream().toList());
                         } else {
-                            if (!historyLibrary.wrapsProverReady()) {
+                            if (!historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
                                 yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                             }
                             final var isValid = historyLibrary.verifyAggregateSignature(
@@ -833,8 +848,11 @@ public class WrapsHistoryProver implements HistoryProver {
                         }
                     }
                     case POST_AGGREGATION -> {
-                        if (!historyLibrary.wrapsProverReady()) {
+                        if (!historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
                             yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
+                        }
+                        if (ledgerId == null) {
+                            yield new NoopOutput(LEDGER_ID_NOT_READY_FAILURE_PREFIX);
                         }
                         final var signature = requireNonNull(aggregatedSignatureProof)
                                 .chainOfTrustProofOrThrow()

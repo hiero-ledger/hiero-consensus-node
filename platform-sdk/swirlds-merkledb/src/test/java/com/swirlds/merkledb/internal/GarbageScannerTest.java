@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb;
+package com.swirlds.merkledb.internal;
 
 import static com.swirlds.merkledb.files.DataFileCommon.dataLocation;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
@@ -8,12 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

@@ -366,6 +366,7 @@ jobs:
 
       # node deployment
       - name: Solo Nodes deployment (BN/CN/MN)
+        timeout-minutes: 15
         run: |
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
