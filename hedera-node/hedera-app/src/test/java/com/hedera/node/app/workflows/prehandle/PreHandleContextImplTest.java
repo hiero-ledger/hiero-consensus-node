@@ -43,6 +43,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -149,17 +150,20 @@ class PreHandleContextImplTest implements Scenarios {
         assertThatThrownBy(() -> subject.requiredHollowAccounts().add(account))
                 .isInstanceOf(UnsupportedOperationException.class);
 
-        // A PreHandleResult built from those views (as PreHandleWorkflowImpl does) likewise exposes
-        // collections that reject post-construction mutation.
+        // Feeding raw, mutable sets (not the unmodifiable views above) proves PreHandleResult does the wrapping
+        // itself: the exposed collections still reject mutation...
+        final var rawRequiredKeys = new LinkedHashSet<>(subject.requiredNonPayerKeys());
+        final var rawOptionalKeys = new LinkedHashSet<>(subject.optionalNonPayerKeys());
+        final var rawHollowAccounts = new LinkedHashSet<>(subject.requiredHollowAccounts());
         final var result = new PreHandleResult(
                 PAYER,
                 payerKey,
                 SO_FAR_SO_GOOD,
                 OK,
                 null,
-                subject.requiredNonPayerKeys(),
-                subject.optionalNonPayerKeys(),
-                subject.requiredHollowAccounts(),
+                rawRequiredKeys,
+                rawOptionalKeys,
+                rawHollowAccounts,
                 Map.of(),
                 null,
                 0L);
@@ -169,6 +173,15 @@ class PreHandleContextImplTest implements Scenarios {
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> result.getHollowAccounts().add(account))
                 .isInstanceOf(UnsupportedOperationException.class);
+
+        // ...and that it snapshots them, so mutating the source sets after construction is not visible through
+        // the exposed collections.
+        rawRequiredKeys.add(payerKey);
+        rawOptionalKeys.add(payerKey);
+        rawHollowAccounts.add(account);
+        assertThat(result.getRequiredKeys()).doesNotContain(payerKey);
+        assertThat(result.getOptionalKeys()).doesNotContain(payerKey);
+        assertThat(result.getHollowAccounts()).doesNotContain(account);
     }
 
     @Nested
