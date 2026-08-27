@@ -176,7 +176,6 @@
 /.github/workflows/835-call-multi-day-longevity-test.yaml       @hiero-ledger/github-maintainers
 /.github/workflows/support/chewie/mdlt-config.json              @hiero-ledger/github-maintainers
 /.github/workflows/support/citr/collectMdltResults.sh           @hiero-ledger/github-maintainers
-/.github/workflows/support/citr/scpR.sh                         @hiero-ledger/github-maintainers
 /.github/workflows/templates/slack-mdlt-start.json.tpl          @hiero-ledger/github-maintainers
 /.github/workflows/templates/slack-mdlt-status.json.tpl         @hiero-ledger/github-maintainers
 
