@@ -37,6 +37,19 @@ env:
   BUILD_GREP_PATTERN: "build-*"
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   extract-citr-vars:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
