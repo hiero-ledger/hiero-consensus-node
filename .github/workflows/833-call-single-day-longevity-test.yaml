@@ -70,9 +70,7 @@ on:
         value: ${{ jobs.single-day-longevity-test-result.outputs.result }}
 
 permissions:
-  contents: write
-  id-token: write
-  actions: write
+  contents: read
 
 env:
   TIMEOUT_6H_LIMIT: 340
@@ -86,12 +84,20 @@ env:
 
 jobs:
   get-chewie-jwt:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
 
   get-sdlt-config:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     uses: ./.github/workflows/861-call-get-test-config.yaml
     with:
       test-type: "sdlt"
@@ -100,6 +106,10 @@ jobs:
       checkout-token: ${{ secrets.github-token }}
 
   validate-chewie-jwt:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     needs:
       - get-chewie-jwt
     uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
@@ -111,6 +121,10 @@ jobs:
       checkout-token: ${{ secrets.github-token }}
 
   acquire-kubernetes-resources:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
@@ -131,6 +145,10 @@ jobs:
       chewie-host: ${{ secrets.chewie-host }}
 
   print-allocation-details:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - acquire-kubernetes-resources
@@ -157,6 +175,10 @@ jobs:
 
   longevity-tests-start:
     name: Start
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     outputs:
@@ -536,6 +558,10 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
@@ -682,6 +708,10 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
@@ -848,6 +878,10 @@ jobs:
   # Send this output back to the caller workflow
   longevity-test-reconnect:
     name: Reconnect test
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
@@ -1014,6 +1048,10 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
@@ -1062,6 +1100,10 @@ jobs:
 
   longevity-report-failures:
     name: Report Failures
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-start
@@ -1109,6 +1151,10 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-to-slack:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-finish

@@ -80,12 +80,6 @@ on:
         description: "Execute the State Validator Uber JAR build job"
 
 permissions:
-  id-token: write
-  actions: write
-  issues: write
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 defaults:
@@ -95,6 +89,14 @@ defaults:
 jobs:
   extract-citr-vars:
     name: Extract CITR Vars
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
       ref: ${{ inputs.ref || github.ref }}
@@ -103,6 +105,14 @@ jobs:
 
   verify-citr-vars:
     name: Verify CITR vars
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     needs:
       - extract-citr-vars
     runs-on: hl-cn-default-lin-sm
@@ -132,6 +142,14 @@ jobs:
 
   compute-solo-ge-0440:
     name: Compute solo-ge-0440
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     needs:
       - extract-citr-vars
       - verify-citr-vars
@@ -141,6 +159,14 @@ jobs:
 
   parameters:
     name: Workflow Parameters
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - extract-citr-vars
@@ -191,6 +217,14 @@ jobs:
 
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -199,6 +233,14 @@ jobs:
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/816-call-build-publish-state-validator.yaml
     with:
@@ -207,6 +249,14 @@ jobs:
 
   xts-execution:
     name: Execute XTS
+    permissions:
+      id-token: write
+      actions: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     needs:
       - parameters
       - extract-jdk-version

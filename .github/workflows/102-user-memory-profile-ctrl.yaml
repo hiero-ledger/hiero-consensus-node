@@ -36,10 +36,7 @@ defaults:
     shell: bash
 
 permissions:
-  contents: write
-  id-token: write
-  actions: write
-  statuses: write
+  contents: read
 
 env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
@@ -48,6 +45,11 @@ env:
 jobs:
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
@@ -56,6 +58,11 @@ jobs:
 
   run-single-node-tests:
     name: Single node tests
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      statuses: write
     runs-on: hl-cn-mem-profiler-lin
     needs:
       - extract-jdk-version

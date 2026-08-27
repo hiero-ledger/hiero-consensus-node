@@ -155,13 +155,15 @@ defaults:
     working-directory: platform-sdk
 
 permissions:
-  id-token: write
-  checks: write
   contents: read
 
 jobs:
   jrs-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
+    permissions:
+      id-token: write
+      checks: write
+      contents: read
     runs-on: hl-cn-jrs-regression-lin-lg
     if: ${{ !github.event.repository.fork }}
     outputs:

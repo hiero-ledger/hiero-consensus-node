@@ -11,17 +11,19 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  issues: write
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 jobs:
   extract-jdk-version:
     name: Extract Java Version
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
@@ -30,6 +32,14 @@ jobs:
 
   mats-tests:
     name: MATS Tests
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     uses: ./.github/workflows/800-call-mats-tests.yaml
     needs:
       - extract-jdk-version
@@ -62,6 +72,14 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
@@ -106,6 +124,14 @@ jobs:
   # so it can classify the result into a category and send the appropriate Slack notification.
   report-status:
     name: Report MATS execution status
+    permissions:
+      id-token: write
+      actions: read
+      issues: write
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests

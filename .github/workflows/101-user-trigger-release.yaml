@@ -23,13 +23,15 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
   create-new-tag:
     name: Create New Tag
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     runs-on: hl-cn-default-lin-md
     outputs:
       version: ${{ steps.next-release.outputs.version }}
@@ -287,6 +289,10 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true && github.event.repository.private == false }}
     uses: ./.github/workflows/853-call-create-github-release.yaml
     needs:

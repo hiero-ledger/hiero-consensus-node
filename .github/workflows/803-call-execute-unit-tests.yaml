@@ -48,11 +48,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 env:
@@ -64,6 +59,13 @@ env:
 jobs:
   execute-unit-tests:
     name: "Unit Tests"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-unit-test-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

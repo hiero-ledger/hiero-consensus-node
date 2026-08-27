@@ -12,11 +12,13 @@ defaults:
     shell: bash
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   update-gs-state-variable:
     name: Update GS_STATE Variable
+    permissions:
+      contents: write
     runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner

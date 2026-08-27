@@ -23,13 +23,15 @@ defaults:
     shell: bash
 
 permissions:
-  statuses: write
   contents: read
-  pull-requests: read
 
 jobs:
   title-check:
     name: Title Check
+    permissions:
+      statuses: write
+      contents: read
+      pull-requests: read
     runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
@@ -44,6 +46,10 @@ jobs:
 
   assignee-check:
     name: Assignee Check
+    permissions:
+      statuses: write
+      contents: read
+      pull-requests: read
     runs-on: hl-cn-default-lin-sm
 
     steps:

@@ -17,9 +17,7 @@ defaults:
     shell: bash
 
 permissions:
-  actions: write
-  contents: write
-  statuses: write
+  contents: read
 
 env:
   XTS_CANDIDATE_TAG: "xts-candidate"
@@ -29,6 +27,10 @@ env:
 jobs:
   validate-input-ref:
     name: Validate Input Reference
+    permissions:
+      actions: write
+      contents: write
+      statuses: write
     runs-on: hl-cn-default-lin-sm
     outputs:
       commit-is-present: ${{ steps.validate-input.outputs.commit_on_dev }}
@@ -59,6 +61,10 @@ jobs:
 
   tag-for-xts:
     name: Tag for XTS promotion
+    permissions:
+      actions: write
+      contents: write
+      statuses: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - validate-input-ref
@@ -135,6 +141,10 @@ jobs:
 
   report-failures:
     name: Report Failures
+    permissions:
+      actions: write
+      contents: write
+      statuses: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - validate-input-ref

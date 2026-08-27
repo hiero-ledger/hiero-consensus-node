@@ -97,11 +97,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 env:
@@ -113,6 +108,13 @@ env:
 jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -235,6 +237,13 @@ jobs:
 
   hapi-tests-misc-records-crypto-and-serial:
     name: "HAPI Tests (Misc Records, Crypto & Misc Serial)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -339,6 +348,13 @@ jobs:
 
   hapi-tests-token-and-time-consuming:
     name: "HAPI Tests (Token & Time Consuming)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -441,6 +457,13 @@ jobs:
 
   hapi-tests-simple-fees-and-nd-reconnect:
     name: "HAPI Tests (Simple Fees & ND Reconnect)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -543,6 +566,13 @@ jobs:
 
   hapi-tests-smart-contracts-and-iss:
     name: "HAPI Tests (Smart Contracts & ISS)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -644,6 +674,13 @@ jobs:
 
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -728,6 +765,13 @@ jobs:
 
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
     runs-on: hl-cn-hapi-bn-lin-xl
     outputs:
@@ -810,6 +854,13 @@ jobs:
 
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
     runs-on: hl-cn-hapi-lin-xl
     outputs:
@@ -911,6 +962,13 @@ jobs:
 
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -995,6 +1053,13 @@ jobs:
 
   hapi-tests-wraps:
     name: "HAPI Tests (Wraps)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
     # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
     # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
@@ -1089,6 +1154,13 @@ jobs:
 
   hapi-tests-cutover:
     name: "HAPI Tests (Cutover & Wraps Download)"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
     # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
     # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
@@ -1198,6 +1270,13 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - hapi-tests-misc

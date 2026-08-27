@@ -75,9 +75,7 @@ on:
         value: ${{ jobs.single-day-performance-test-result.outputs.result }}
 
 permissions:
-  contents: write
-  id-token: write
-  actions: write
+  contents: read
 
 env:
   TIMEOUT_6H_LIMIT: 340
@@ -105,12 +103,20 @@ env:
 
 jobs:
   get-chewie-jwt:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
 
   get-sdpt-config:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     uses: ./.github/workflows/861-call-get-test-config.yaml
     with:
       test-type: "sdpt"
@@ -119,6 +125,10 @@ jobs:
       checkout-token: ${{ secrets.github-token }}
 
   validate-chewie-jwt:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     needs: get-chewie-jwt
     uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
@@ -129,6 +139,10 @@ jobs:
       checkout-token: ${{ secrets.github-token }}
 
   acquire-kubernetes-resources:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
@@ -149,6 +163,10 @@ jobs:
       chewie-host: ${{ secrets.chewie-host }}
 
   print-allocation-details:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-default-lin-sm
     needs:
       - acquire-kubernetes-resources
@@ -175,6 +193,10 @@ jobs:
 
   performance-tests-start:
     name: Start
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
@@ -768,6 +790,10 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
@@ -946,6 +972,10 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
@@ -1213,6 +1243,10 @@ jobs:
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-HCSLoadTest:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1232,6 +1266,10 @@ jobs:
       java-version: "${{ inputs.java-version }}"
 
   performance-CryptoTransferLoadTest:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1251,6 +1289,10 @@ jobs:
       java-version: "${{ inputs.java-version }}"
 
   performance-SmartContractLoadTest:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1270,6 +1312,10 @@ jobs:
       java-version: "${{ inputs.java-version }}"
 
   performance-HeliSwapLoadTest:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1290,6 +1336,10 @@ jobs:
 
   performance-post-test-validation:
     name: Consensus Node State Validator
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     runs-on: hl-cn-sdpt-lin-lg
     needs:
@@ -1404,6 +1454,10 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdpt-lin-lg
     if: ${{ !cancelled() }}
     needs:
@@ -1491,6 +1545,10 @@ jobs:
 
   performance-report-to-rootly:
     name: Report Failures to Rootly
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdpt-lin-sm
     needs:
       - acquire-kubernetes-resources
@@ -1555,6 +1613,10 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
     runs-on: hl-cn-sdpt-lin-sm
     needs:
       - performance-NftTransferLoadTest-report

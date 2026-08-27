@@ -61,11 +61,6 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
 env:
@@ -77,6 +72,13 @@ env:
 jobs:
   full-otter:
     name: "Full Otter Tests"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-otter-full-lin
     if: ${{ inputs.enable-full-otter-tests }}
     outputs:
@@ -146,6 +148,13 @@ jobs:
 
   fast-otter:
     name: "Fast Otter Tests"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-otter-fast-lin
     if: ${{ inputs.enable-fast-otter-tests }}
     outputs:
@@ -223,6 +232,13 @@ jobs:
 
   chaos-otter:
     name: "Chaos Otter Tests"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-otter-chaos-lin
     if: ${{ inputs.enable-chaos-otter-tests }}
     outputs:
@@ -300,6 +316,13 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
+    permissions:
+      id-token: write
+      actions: read
+      pull-requests: write
+      statuses: write
+      checks: write
+      contents: read
     runs-on: hl-cn-default-lin-sm
     needs:
       - full-otter
