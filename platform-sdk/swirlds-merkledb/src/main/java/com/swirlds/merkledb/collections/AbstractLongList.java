@@ -133,6 +133,9 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     protected final long reservedBufferSize;
 
+    /** Whether snapshot files are forced to disk before the writer returns. */
+    private final boolean forceToDisk;
+
     /**
      * Create a new long list with the specified capacity. Number of longs per chunk and
      * reserved buffer size are read from the provided configuration.
@@ -147,6 +150,7 @@ public abstract class AbstractLongList<C> implements LongList {
         // multiplyExact throws exception if we overflow and int
         memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
         this.reservedBufferSize = merkleDbConfig.longListReservedBufferSize();
+        this.forceToDisk = merkleDbConfig.longListSnapshotForceToDisk();
 
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
@@ -170,6 +174,7 @@ public abstract class AbstractLongList<C> implements LongList {
         // multiplyExact throws exception if we overflow and int
         memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
         this.reservedBufferSize = reservedBufferSize;
+        this.forceToDisk = true;
 
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
@@ -499,16 +504,16 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     @Override
     public void writeToFile(final Path file) throws IOException {
-        writeToFile(file, null, 1, true);
+        writeToFile(file, null, 1, forceToDisk);
     }
 
     /** {@inheritDoc} */
     @Override
     public void writeToFile(final Path file, final Executor executor, final int threadCount) throws IOException {
-        writeToFile(file, executor, threadCount, true);
+        writeToFile(file, executor, threadCount, forceToDisk);
     }
 
-    // Benchmark-only durability switch; both public write methods always force before returning.
+    // The isolated benchmark overrides the configured durability mode through this overload.
     void writeToFile(final Path file, final Executor executor, final int threadCount, final boolean forceToDisk)
             throws IOException {
         try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {

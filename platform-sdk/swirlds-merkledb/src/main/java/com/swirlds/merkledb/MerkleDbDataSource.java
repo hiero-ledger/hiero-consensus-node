@@ -893,13 +893,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>();
             InterruptedException snapshotInterrupted = null;
             try {
-                // Flush cached hash chunks to the hash chunk store
-                if (getLastLeafPath() > 0) {
-                    final long maxValidChunkId =
-                            VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
-                    final Stream<VirtualHashChunk> cacheChunksToFlush =
-                            hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
-                    writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
+                if (!merkleDbConfig.snapshotHashCacheFlushOverlap()) {
+                    flushCachedHashChunksForSnapshot();
                 }
 
                 final int threadsPerLongList = merkleDbConfig.longListSnapshotThreadsPerList();
@@ -913,38 +908,32 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                                         MERKLEDB_COMPONENT, "Snapshot index writer"))
                                 .buildFactory())) {
                     final CountDownLatch countDownLatch = new CountDownLatch(6);
-                    // write all data stores
-                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "idToDiskLocationHashChunks", () -> {
-                        idToDiskLocationHashChunks.writeToFile(
-                                snapshotDbPaths.idToDiskLocationHashChunksFile,
+                    runIndependentSnapshotTasks(
+                            snapshotDbPaths,
+                            longListSnapshotExecutor,
+                            threadsPerLongList,
+                            countDownLatch,
+                            snapshotFailure);
+                    boolean hashCacheFlushSucceeded = true;
+                    if (merkleDbConfig.snapshotHashCacheFlushOverlap()) {
+                        try {
+                            flushCachedHashChunksForSnapshot();
+                        } catch (final Throwable t) {
+                            hashCacheFlushSucceeded = false;
+                            snapshotFailure.set(t);
+                            // The two hash-dependent tasks are not submitted after a failed flush.
+                            countDownLatch.countDown();
+                            countDownLatch.countDown();
+                        }
+                    }
+                    if (hashCacheFlushSucceeded) {
+                        runHashSnapshotTasks(
+                                snapshotDbPaths,
                                 longListSnapshotExecutor,
-                                threadsPerLongList);
-                        return true;
-                    });
-                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "pathToDiskLocationLeafNodes", () -> {
-                        pathToDiskLocationLeafNodes.writeToFile(
-                                snapshotDbPaths.pathToDiskLocationLeafNodesFile,
-                                longListSnapshotExecutor,
-                                threadsPerLongList);
-                        return true;
-                    });
-                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "hashChunkStore", () -> {
-                        hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
-                        return true;
-                    });
-                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
-                        keyToPath.snapshot(
-                                snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, threadsPerLongList);
-                        return true;
-                    });
-                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyValueStore", () -> {
-                        keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
-                        return true;
-                    });
-                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "metadata", () -> {
-                        saveMetadata(snapshotDbPaths);
-                        return true;
-                    });
+                                threadsPerLongList,
+                                countDownLatch,
+                                snapshotFailure);
+                    }
                     awaitSnapshotTasks(countDownLatch);
                 }
             } catch (final InterruptedException e) {
@@ -1102,6 +1091,68 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while waiting for shutdown to finish.", e);
         }
+    }
+
+    /** Flush cached hash chunks that must be included in a snapshot. */
+    private void flushCachedHashChunksForSnapshot() throws IOException {
+        final long START = System.currentTimeMillis();
+        final int cachedHashChunkCount = hashChunkCache.size();
+        if (getLastLeafPath() > 0) {
+            final long maxValidChunkId = VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
+            final Stream<VirtualHashChunk> cacheChunksToFlush =
+                    hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
+            writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
+        }
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Snapshot flushed {} cached hash chunks in {} seconds",
+                tableName,
+                cachedHashChunkCount,
+                (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+    }
+
+    /** Start snapshot tasks that do not depend on the cached hash-chunk flush. */
+    private void runIndependentSnapshotTasks(
+            final MerkleDbPaths snapshotDbPaths,
+            final ExecutorService longListSnapshotExecutor,
+            final int threadsPerLongList,
+            final CountDownLatch countDownLatch,
+            final AtomicReference<Throwable> snapshotFailure) {
+        runWithSnapshotExecutor(countDownLatch, snapshotFailure, "pathToDiskLocationLeafNodes", () -> {
+            pathToDiskLocationLeafNodes.writeToFile(
+                    snapshotDbPaths.pathToDiskLocationLeafNodesFile, longListSnapshotExecutor, threadsPerLongList);
+            return true;
+        });
+        runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
+            keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, threadsPerLongList);
+            return true;
+        });
+        runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyValueStore", () -> {
+            keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
+            return true;
+        });
+        runWithSnapshotExecutor(countDownLatch, snapshotFailure, "metadata", () -> {
+            saveMetadata(snapshotDbPaths);
+            return true;
+        });
+    }
+
+    /** Start snapshot tasks after the cached hash-chunk flush has completed. */
+    private void runHashSnapshotTasks(
+            final MerkleDbPaths snapshotDbPaths,
+            final ExecutorService longListSnapshotExecutor,
+            final int threadsPerLongList,
+            final CountDownLatch countDownLatch,
+            final AtomicReference<Throwable> snapshotFailure) {
+        runWithSnapshotExecutor(countDownLatch, snapshotFailure, "idToDiskLocationHashChunks", () -> {
+            idToDiskLocationHashChunks.writeToFile(
+                    snapshotDbPaths.idToDiskLocationHashChunksFile, longListSnapshotExecutor, threadsPerLongList);
+            return true;
+        });
+        runWithSnapshotExecutor(countDownLatch, snapshotFailure, "hashChunkStore", () -> {
+            hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
+            return true;
+        });
     }
 
     /**

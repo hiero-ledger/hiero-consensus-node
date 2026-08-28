@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
@@ -46,6 +47,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -381,22 +383,27 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         }
     }
 
-    @Test
-    void snapshotPropagatesTaskFailure() throws IOException {
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("failed-snapshot");
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void snapshotPropagatesTaskFailure(final boolean overlapHashCacheFlush) throws IOException {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("failed-snapshot-" + overlapHashCacheFlush);
         Files.createDirectories(snapshotDir);
         Files.createFile(new MerkleDbPaths(snapshotDir).idToDiskLocationHashChunksFile);
 
         createAndApplyDataSource(
-                1_000, dataSource -> assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir)));
+                snapshotConfiguration(overlapHashCacheFlush),
+                "test",
+                1_000,
+                dataSource -> assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir)));
     }
 
-    @Test
-    void interruptedSnapshotFinishesTasksBeforeReturning() throws IOException {
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("interrupted-snapshot");
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void interruptedSnapshotFinishesTasksBeforeReturning(final boolean overlapHashCacheFlush) throws IOException {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("interrupted-snapshot-" + overlapHashCacheFlush);
         final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDir);
 
-        createAndApplyDataSource(1_000, dataSource -> {
+        createAndApplyDataSource(snapshotConfiguration(overlapHashCacheFlush), "test", 1_000, dataSource -> {
             Thread.currentThread().interrupt();
             try {
                 final IOException exception = assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir));
@@ -419,15 +426,34 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void parallelLongListSnapshotRestores(final boolean useDiskIndices) throws IOException {
+    @CsvSource({
+        "false, true, false",
+        "false, true, true",
+        "false, false, false",
+        "false, false, true",
+        "true, true, false",
+        "true, true, true",
+        "true, false, false",
+        "true, false, true"
+    })
+    void configuredSnapshotRestores(
+            final boolean useDiskIndices, final boolean forceToDisk, final boolean overlapHashCacheFlush)
+            throws IOException {
         final int count = 1_000;
-        final String tableName = "parallelLongListSnapshot-" + (useDiskIndices ? "disk" : "segment");
+        final String tableName = "configuredSnapshot-"
+                + (useDiskIndices ? "disk" : "segment")
+                + "-force-"
+                + forceToDisk
+                + "-overlap-"
+                + overlapHashCacheFlush;
         final Path snapshotDir = fileSystemManager.resolveNewTemp(tableName + "-SNAPSHOT");
         final var configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.HASH_CHUNK_CACHE_THRESHOLD, "1000")
                 .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "33")
                 .withValue(MerkleDbConfig_.LONG_LIST_SNAPSHOT_THREADS_PER_LIST, "16")
+                .withValue(MerkleDbConfig_.LONG_LIST_SNAPSHOT_FORCE_TO_DISK, Boolean.toString(forceToDisk))
+                .withValue(MerkleDbConfig_.SNAPSHOT_HASH_CACHE_FLUSH_OVERLAP, Boolean.toString(overlapHashCacheFlush))
                 .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "100000")
                 .withValue(MerkleDbConfig_.USE_DISK_INDICES, Boolean.toString(useDiskIndices))
                 .build();
@@ -455,6 +481,13 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         } finally {
             restored.close();
         }
+    }
+
+    private static Configuration snapshotConfiguration(final boolean overlapHashCacheFlush) {
+        return ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.SNAPSHOT_HASH_CACHE_FLUSH_OVERLAP, Boolean.toString(overlapHashCacheFlush))
+                .build();
     }
 
     @ParameterizedTest

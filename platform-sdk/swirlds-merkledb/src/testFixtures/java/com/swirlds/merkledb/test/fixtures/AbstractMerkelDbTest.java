@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.function.CheckedConsumer;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -97,8 +98,18 @@ public abstract class AbstractMerkelDbTest extends AbstractFileManagerAwareTest 
     protected void createAndApplyDataSource(
             String tableName, final int size, CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
             throws IOException {
+        createAndApplyDataSource(DEFAULT_CONFIGURATION, tableName, size, dataSourceConsumer);
+    }
+
+    protected void createAndApplyDataSource(
+            final Configuration configuration,
+            final String tableName,
+            final int size,
+            final CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
+            throws IOException {
         long openedDatabasesBefore = MerkleDbDataSource.getCountOfOpenDatabases();
-        final MerkleDbDataSource dataSource = createDataSource(tableName, size, false, false);
+        final MerkleDbDataSource dataSource =
+                MerkleDbTestUtils.createDataSource(configuration, fileSystemManager, tableName, size, false, false);
         try {
             dataSourceConsumer.accept(dataSource);
         } catch (Throwable e) {

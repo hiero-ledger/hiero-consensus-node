@@ -14,6 +14,7 @@ import com.swirlds.merkledb.MerkleDbPaths;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileUtils;
@@ -58,6 +60,9 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Param({"1", "2", "3", "6", "8", "16"})
     public int threadsPerLongList;
 
+    @Param({"FORCED", "UNFORCED", "FORCED_OVERLAP", "UNFORCED_OVERLAP"})
+    public SnapshotMode snapshotMode;
+
     private MerkleDbDataSource source;
     private Path snapshotDirectory;
     private int longsPerChunk;
@@ -75,6 +80,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
                 .withValue("benchmark.csvWriteFrequency", 0)
                 .withValue("merkleDb.useDiskIndices", useDiskIndices)
                 .withValue("merkleDb.longListSnapshotThreadsPerList", threadsPerLongList)
+                .withValue("merkleDb.longListSnapshotForceToDisk", snapshotMode.forceToDisk)
+                .withValue("merkleDb.snapshotHashCacheFlushOverlap", snapshotMode.overlapHashCacheFlush)
                 .withOrdinal(Integer.MAX_VALUE));
     }
 
@@ -92,6 +99,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             createFixtureIfNeeded(fixtureDirectory);
             source = (MerkleDbDataSource) dataSourceBuilder.build(TABLE_NAME, fixtureDirectory, false, false);
             validateSource();
+            populateHashChunkCache(merkleDbConfig);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -111,6 +119,9 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Override
     protected void onInvocationTearDown() throws Exception {
         try {
+            final long start = System.currentTimeMillis();
+            forceSnapshotFiles(snapshotDirectory);
+            logger.info("Forced snapshot files after return in {} ms", System.currentTimeMillis() - start);
             validateSnapshot();
         } finally {
             Utils.deleteRecursively(snapshotDirectory);
@@ -175,6 +186,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             FileUtils.executeAndRename(fixtureDirectory, temporaryFixtureDirectory, directory -> {
                 dataSourceBuilder.snapshot(directory, fixtureSource);
                 validateSnapshot(fixtureSource, directory);
+                forceSnapshotFiles(directory);
             });
         } finally {
             mapReference.get().release();
@@ -194,6 +206,30 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
                     + expectedFirstLeafPath
                     + "-"
                     + expectedLastLeafPath);
+        }
+    }
+
+    private void populateHashChunkCache(final MerkleDbConfig merkleDbConfig) throws IOException {
+        final long lastChunkId =
+                VirtualHashChunk.lastChunkIdForPaths(source.getLastLeafPath(), source.getHashChunkHeight());
+        final long cachedChunkCount = Math.min((long) merkleDbConfig.hashChunkCacheThreshold(), lastChunkId + 1);
+        for (long chunkId = 0; chunkId < cachedChunkCount; chunkId++) {
+            if (source.loadHashChunk(chunkId) == null) {
+                throw new IOException("Missing hash chunk " + chunkId);
+            }
+        }
+        logger.info("Loaded {} hash chunks into the snapshot source cache", cachedChunkCount);
+    }
+
+    private static void forceSnapshotFiles(final Path directory) throws IOException {
+        final List<Path> snapshotFiles;
+        try (final Stream<Path> files = Files.walk(directory)) {
+            snapshotFiles = files.filter(Files::isRegularFile).toList();
+        }
+        for (final Path file : snapshotFiles) {
+            try (final FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE)) {
+                channel.force(true);
+            }
         }
     }
 
@@ -284,6 +320,21 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             if (bytesRead < 0) {
                 throw new EOFException("Unexpected end of snapshot file");
             }
+        }
+    }
+
+    public enum SnapshotMode {
+        FORCED(true, false),
+        UNFORCED(false, false),
+        FORCED_OVERLAP(true, true),
+        UNFORCED_OVERLAP(false, true);
+
+        private final boolean forceToDisk;
+        private final boolean overlapHashCacheFlush;
+
+        SnapshotMode(final boolean forceToDisk, final boolean overlapHashCacheFlush) {
+            this.forceToDisk = forceToDisk;
+            this.overlapHashCacheFlush = overlapHashCacheFlush;
         }
     }
 }

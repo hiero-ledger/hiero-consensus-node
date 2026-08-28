@@ -81,6 +81,10 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      pointless runs when only a few small files exist.
  * @param longListSnapshotThreadsPerList
  *      Number of threads used to write each LongList snapshot file. One uses sequential per-list writing.
+ * @param longListSnapshotForceToDisk
+ *      Whether each LongList snapshot file is forced to disk before its writer returns.
+ * @param snapshotHashCacheFlushOverlap
+ *      Whether snapshot tasks that do not depend on the hash cache start while the cache is flushed.
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -111,7 +115,9 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
         @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
         @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount,
-        @Min(1) @ConfigProperty(defaultValue = "1") int longListSnapshotThreadsPerList) {
+        @Min(1) @ConfigProperty(defaultValue = "1") int longListSnapshotThreadsPerList,
+        @ConfigProperty(defaultValue = "true") boolean longListSnapshotForceToDisk,
+        @ConfigProperty(defaultValue = "false") boolean snapshotHashCacheFlushOverlap) {
 
     // spotless:on
 
