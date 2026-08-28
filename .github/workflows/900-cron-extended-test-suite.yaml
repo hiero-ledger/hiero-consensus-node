@@ -255,6 +255,25 @@ jobs:
           fi
           set -e
 
+          # XTS_COMMIT_BRANCH is now load-bearing: deploy-xts-optional-trigger dispatches 106 on
+          # it, and the workflow-dispatch API only accepts a branch or tag. git name-rev can hand
+          # back something that is not a dispatchable branch (a commit reachable only from a tag,
+          # or from a branch that has since been deleted), so check it and warn rather than fail -
+          # mandatory XTS does not depend on this value, only the optional dispatch does.
+          set +e
+          git show-ref --verify --quiet "refs/remotes/origin/${XTS_COMMIT_BRANCH}"
+          BRANCH_IS_DISPATCHABLE="${?}"
+          set -e
+          if [[ "${BRANCH_IS_DISPATCHABLE}" -ne 0 ]]; then
+            echo "::warning title=XTS candidate branch not dispatchable::Resolved branch '${XTS_COMMIT_BRANCH}' for commit ${XTS_COMMIT} does not exist as refs/remotes/origin/${XTS_COMMIT_BRANCH}. Mandatory XTS is unaffected, but the optional XTS dispatch will likely fail with 'No ref found for: ${XTS_COMMIT_BRANCH}'."
+            {
+              echo "### Optional XTS dispatch may fail"
+              echo ""
+              echo "Resolved branch \`${XTS_COMMIT_BRANCH}\` for commit \`${XTS_COMMIT}\` is not a remote branch."
+              echo "Mandatory XTS is unaffected; only the 106 dispatch depends on this value."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
           # Print branch debug info
           echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
           echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
