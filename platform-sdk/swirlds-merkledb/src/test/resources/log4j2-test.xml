@@ -25,7 +25,7 @@
 	</Appenders>
 	<Loggers>
 		<!-- to suppress `RuntimeException("testCompactionFailed")` -->
-		<Logger name="com.swirlds.merkledb.MerkleDbCompactionCoordinator" level="OFF"/>
+		<Logger name="com.swirlds.merkledb.internal.MerkleDbCompactionCoordinator" level="OFF"/>
 		<Root level="trace">
 			<AppenderRef ref="Console"/>
 		</Root>
