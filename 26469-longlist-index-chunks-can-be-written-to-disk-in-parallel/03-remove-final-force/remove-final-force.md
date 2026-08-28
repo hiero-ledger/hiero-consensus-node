@@ -2,8 +2,9 @@
 
 > **Status:** Focused and full-matrix Linux campaigns complete. Earlier
 > `writeToFile()` return is confirmed, and the investigation decision is to
-> include this change in the current PR. The effect on complete snapshot time
-> has not yet been measured, and the production path still needs to be updated.
+> include this change in the current PR. A production-shaped
+> `MerkleDbDataSource.snapshot()` campaign also confirmed an earlier complete
+> snapshot return.
 
 ## Question
 
@@ -153,6 +154,20 @@ The JMH auxiliary-counter summary adds the five iteration values together.
 The per-operation post-return values above were recomputed from its JSON
 `rawData`, where each value is expressed in nanoseconds.
 
+## Complete-snapshot confirmation
+
+The 100-million-leaf MerkleDB campaign measured forced and unforced snapshots
+in the same three reordered blocks. It covered Segment and Disk indices,
+`P={1,2,8}`, and both the serial and overlapping hash-cache schedules.
+
+Without hash-cache overlap, removing the force reduced complete-snapshot mean
+return time by 44.6-55.9% for Segment and 39.4-50.5% for Disk. With overlap
+already enabled, it still reduced the mean by 45.3-48.5% for Segment and
+29.4-42.0% for Disk. The improvement reproduced in every block.
+
+See the complete method and tables in
+[`hash-cache-pre-flush-overlap.md`](../04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md).
+
 ## Higher-repetition method
 
 | Parameter | Value |
@@ -195,8 +210,8 @@ separately in
 No additional LongList microbenchmark is needed to establish the earlier
 return. Production implementation should keep worker completion and channel
 close before publication, while documenting the changed error-reporting
-boundary. Its effect on complete snapshot time belongs in the final
-production-path comparison.
+boundary. A larger-state complete-snapshot confirmation remains for the final
+combined candidate, not to re-prove the no-force direction.
 
 ## Raw evidence
 

@@ -14,11 +14,11 @@ and raw evidence remain in the result documents linked below.
 
 | Area | Current conclusion |
 |---|---|
-| Parallel LongList writes | Implemented, correctness-tested, and measured with the isolated Linux LongList benchmark. The measurements show real gains, but no single higher thread count is best for every implementation and size. The configuration default remains one writer per LongList. |
+| Parallel LongList writes | Implemented, correctness-tested, and measured with isolated and complete-snapshot Linux benchmarks. The complete-snapshot candidate uses two writers per LongList; eight provided no further benefit. |
 | Writing the same bytes more efficiently | The prepared-memory control and follow-up diagnostics did not justify physical preallocation or direct I/O. |
-| Removing the final LongList force | Earlier `writeToFile()` return is established. The change is included in this PR. The complete-snapshot effect is not yet measured. |
+| Removing the final LongList force | Earlier `writeToFile()` return is established, and a 100-million-leaf campaign confirmed an earlier complete snapshot return. |
 | Compression | Still worth discussing because it could reduce storage traffic, but it changes the file format and adds CPU work. No experiment starts without team agreement. |
-| Hash-cache pre-flush overlap | Investigation in progress. It may shorten total snapshot time by starting independent tasks before the flush finishes. |
+| Hash-cache pre-flush overlap | The 100-million-leaf Linux gate passed in every configuration and reordered block. A larger-state confirmation remains before final defaults are selected. |
 
 The result documents are the source of truth for measurements. This report
 keeps only the evidence needed to understand each decision.
@@ -75,12 +75,12 @@ See:
 
 ### Branch decision
 
-The configurable parallel writer is a supported branch result. The default
-remains one writer per LongList because the measurements do not identify one
-higher value that is best across all cases. This preserves the previous
-writer-thread and buffer use and provides an immediate parallel-writer rollback
-on storage that does not benefit. It does not restore the final force selected
-for removal.
+The configurable parallel writer is a supported branch result. The isolated
+campaign did not identify one higher count that was best across all five
+implementations. In the complete-snapshot combined candidate, however, two
+writers had the lowest mean for both production index modes and eight did not
+improve it. Two writers therefore advance to the larger-state confirmation;
+one remains the immediate rollback.
 
 ## 3. Attempts to make the durable write itself faster
 
@@ -195,10 +195,11 @@ The focused comparison forced each unforced target immediately after
 1.0% of the ordinary forced path. This confirms that the faster return comes
 from moving storage work past the method boundary, not eliminating it.
 
-The earlier LongList return is strong and reproducible. Its effect on complete
-snapshot time still needs measurement because deferred writeback can overlap
-other snapshot work. Because the existing force does not provide
-whole-snapshot durability, this PR will remove the isolated final wait.
+The earlier LongList return is strong and reproducible. The complete-snapshot
+campaign confirmed the direction: without hash-cache overlap the reduction was
+39.4-55.9%, and with overlap enabled it was 29.4-48.5%, depending on index mode
+and writer count. Because the existing force does not provide whole-snapshot
+durability, the combined candidate removes the isolated final wait.
 
 See:
 
@@ -223,11 +224,9 @@ justified only if those measurements predict an end-to-end benefit.
 
 ## 6. Hash-cache pre-flush overlap
 
-This investigation is in progress.
-
 MerkleDb keeps frequently updated hashes in memory. Before starting its six
-snapshot tasks, `snapshot()` writes that cache to the hash store. The flush is
-currently serial with all snapshot tasks.
+snapshot tasks, the default schedule writes that cache to the hash store. The
+flush is serial with all snapshot tasks.
 
 Only the hash store and hash-index tasks depend on the flushed data. The other
 four tasks can start independently:
@@ -240,10 +239,8 @@ Proposed: [ independent snapshot tasks ............................ ]
                                 +--[ hash-store snapshot .......... ]
 ```
 
-The proposed schedule shortens total snapshot time only when the flush is
-significant and overlapping it does not create more contention than it saves.
-The experiment therefore starts by measuring the existing flush in a complete
-MerkleDb snapshot.
+The schedule shortens total snapshot time only when the flush is significant
+and overlapping it does not create more contention than it saves.
 
 The implementation must preserve three conditions:
 
@@ -252,25 +249,35 @@ The implementation must preserve three conditions:
    the snapshot waiting forever.
 3. The caller receives the same snapshot failure behavior as today.
 
-The result belongs in its own experiment document when the in-progress work
-produces measurements.
+The 100-million-leaf Linux campaign populated all 262,144 configured cache
+chunks and compared serial and overlapping schedules in the same three
+reordered blocks. Overlap reduced the mean by 28.3-48.3% with the final
+LongList force and by 23.9-33.3% without it. It won every tested configuration
+and every block.
+
+The unforced-overlap candidate with two writers per LongList reduced mean
+snapshot return time by 63.7% for Segment and 60.3% for Disk compared with the
+forced, serial-flush, one-writer baseline. See
+[`hash-cache-pre-flush-overlap.md`](04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md).
+
+At a larger state the leaf index grows while the configured cache threshold
+does not. The next confirmation therefore checks that the direction and the
+two-writer choice survive when LongList writing occupies more of the snapshot.
 
 ## 7. How the changes fit together
 
-Parallel LongList writing is the base branch change. The no-force campaigns
-already measured parallel writing and early return together across all writer
-counts.
-
-If pre-flush overlap succeeds, the complete-snapshot candidate becomes:
+The measured complete-snapshot candidate is:
 
 ```text
-writer count selected for the target storage
+two writers per LongList
     + no final LongList force
     + hash-cache pre-flush overlap
 ```
 
-That combination needs a complete-snapshot measurement because the operations
-may compete for CPU, memory bandwidth, file-cache capacity, and storage.
+That combination passed the 100-million-leaf gate for both index modes. It
+needs a larger-state confirmation before the configuration defaults are
+finalized because the balance between cache flushing and index writing changes
+with state size.
 
 Compression is not part of the current candidate. If the team approves it and
 its own measurements show a benefit, it can later be added to the same
@@ -314,15 +321,15 @@ current conclusions were reached.
 6. **No-force evaluation — complete.** Focused and complete Linux campaigns
    showed that omitting the final LongList force returns earlier while moving
    the remaining storage wait past `writeToFile()`.
-7. **No-force production change — included in this PR.** Update the production
-   LongList path while preserving worker completion and channel close before
-   snapshot publication.
-8. **Hash-cache pre-flush overlap — in progress.** Measure the existing flush
-   in a complete snapshot, then test the dependency-aware schedule only if the
-   measurement supports it.
+7. **No-force production path — implemented and measured.** The configurable
+   path preserves worker completion and channel close before snapshot
+   publication. Final default selection follows the larger-state confirmation.
+8. **Hash-cache pre-flush overlap — initial gate complete.** The
+   dependency-aware schedule won every 100-million-leaf configuration and
+   selected unforced overlap with two writers as the combined candidate.
 9. **Compression — team discussion.** Measure representative compression and
    load cost only if the team chooses to pursue the file-format change.
-10. **Final complete-snapshot comparison — after the in-progress work.** Compare
-   the selected candidate with the forced one-writer and serial-pre-flush
-   baseline on the same revision and fixture. Record the mean and slowest
-   observed snapshot times, then confirm the result on the second Linux device.
+10. **Larger-state complete-snapshot confirmation — next.** Compare the forced
+   one-writer, serial-flush baseline with unforced overlap at one and two
+   writers for both index modes. Record the mean and slowest observed snapshot
+   times before selecting production defaults.
