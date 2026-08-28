@@ -537,15 +537,15 @@ jobs:
 
       - name: Update BlockNodes
         run: |
-          ls "${{ github.workspace }}"/target_block_node
-          ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/
-          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
-          bnVersion=$(basename ${bnTar} | sed -e 's/[\.]tar//g')
-          echo "bnTar=$bnTar"
-          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
-          do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${bnTar} ${pod}:/tmp/BN.tar
-          done
+          #FIXME ls "${{ github.workspace }}"/target_block_node
+          #FIXME ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/
+          #FIXME bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
+          #FIXME bnVersion=$(basename ${bnTar} | sed -e 's/[\.]tar//g')
+          #FIXME echo "bnTar=$bnTar"
+          #FIXME  for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          #FIXME do
+          #FIXME   sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${bnTar} ${pod}:/tmp/BN.tar
+          #FIXME done
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
@@ -557,7 +557,7 @@ jobs:
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "mkdir -p /opt/hiero/block-node/application-state"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "set +e; mkdir -p /opt/hiero/block-node/application-state"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json \
               ${pod}:/opt/hiero/block-node/application-state/rsa-bootstrap-roster.json
           done
