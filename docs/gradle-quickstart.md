@@ -34,11 +34,10 @@ There are several Gradle tasks you can use. Most notably:
 
 You may run `./gradlew` (without arguments) for a detailed overview
 
-## Running a services instance or example apps
+## Running a services instance
 
 - `./gradlew :app:modrun` runs a services instance
 - `./gradlew :test-clients:runTestClient -PtestClient=com.hedera.services.bdd.suites.crypto.HelloWorldSpec`
-- `./gradlew :swirlds-platform-base-example:run` runs Platform-base Example App
 
 ## Using Gradle during Development
 
