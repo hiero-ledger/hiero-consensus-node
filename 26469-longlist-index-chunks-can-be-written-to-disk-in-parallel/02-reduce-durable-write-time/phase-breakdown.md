@@ -61,8 +61,10 @@ write calls. The completed follow-up found that 99.76–99.93% of the four
 slower implementations' additional non-force wall time is covered by at least
 one target write call, rather than forming a serial gap between calls. See
 [`write-path-diagnostic.md`](write-path-diagnostic.md). That result does not
-gate in physical preallocation or direct I/O. Removing the final force remains
-a separate planned experiment.
+support physical preallocation or direct I/O. The separate force-removal
+campaigns are complete: omitting the force returns earlier while moving the
+remaining storage wait beyond `writeToFile()`. See
+[`remove-final-force.md`](../03-remove-final-force/remove-final-force.md).
 
 ## Method and validation
 

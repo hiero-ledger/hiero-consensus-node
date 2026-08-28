@@ -1,7 +1,9 @@
 # Remove the final LongList force
 
-> **Status:** Focused and full-matrix Linux campaigns complete; performance
-> gate passed and production-semantics decision pending.
+> **Status:** Focused and full-matrix Linux campaigns complete. Earlier
+> `writeToFile()` return is confirmed, and the investigation decision is to
+> include this change in the current PR. The effect on complete snapshot time
+> has not yet been measured, and the production path still needs to be updated.
 
 ## Question
 
@@ -162,8 +164,9 @@ The per-operation post-return values above were recomputed from its JSON
 | Force modes | Forced and unforced |
 | Sampling | Three reordered blocks; one warmup and five measurements per cell |
 
-The existing public write methods remain forced. The benchmark alone can omit
-the final force through a package-private durability switch. After every
+At the time of this campaign, the public write methods remained forced. The
+benchmark alone could omit the final force through a package-private durability
+switch. After every
 unforced measurement, invocation teardown reopens and forces the target before
 verification and deletion. Teardown is outside the measured return time, so
 pending writes cannot leak into the next invocation.
@@ -174,21 +177,26 @@ prepared-memory FileChannel control is not part of this campaign.
 
 ## Decision
 
-The performance hypothesis is confirmed. The remaining question is whether
-returning and publishing the snapshot while this storage work remains pending
-is acceptable. Removing the force also moves any delayed writeback failure
-beyond the snapshot caller.
+Remove the isolated final LongList force in this PR. The earlier-return
+hypothesis is confirmed, and the current
+force does not make the signed-state snapshot durable as a whole. Removing it
+moves the remaining storage wait beyond `writeToFile()`'s return; it does not
+eliminate that work. A failure reported only by `force(true)` can no longer
+reach this snapshot call and may surface elsewhere later, or may not be
+reported through the snapshot operation.
 
-Every one of the 280 matching broad-matrix cells returned earlier without the
-force. At one billion leaves the reduction was 21.0-58.4%; at five billion
+The unforced mean was lower in all 280 matching broad-matrix cells. At one
+billion leaves the reduction was 21.0-58.4%; at five billion
 leaves it was 2.7-53.3%. The warm/cold `LongListDisk` comparison reached the
 same conclusion. Unforced parallel scaling relative to its own `P=1` is kept
 separately in
 [`linux-benchmark-results-without-force.md`](linux-benchmark-results-without-force.md).
 
-No additional LongList microbenchmark is needed to establish the performance
-effect. The remaining gate is a team decision: accept the changed durability
-and error-reporting boundary before any production implementation proceeds.
+No additional LongList microbenchmark is needed to establish the earlier
+return. Production implementation should keep worker completion and channel
+close before publication, while documenting the changed error-reporting
+boundary. Its effect on complete snapshot time belongs in the final
+production-path comparison.
 
 ## Raw evidence
 

@@ -1,21 +1,23 @@
-# Parallel LongList index-chunk snapshot writes
+# Parallel LongList writes and final-force removal
 
 > **Status:** Design record for the parallel chunk writer implemented on this
-> branch. Its performance conclusions and execution recommendations are
-> historical. Use
+> branch and the final-force removal selected for this PR. The production-path
+> force removal and its Javadocs are still pending. Experiment results and
+> current decisions are maintained separately.
+> Use
 > [`snapshot-optimization-report.md`](../snapshot-optimization-report.md) for
-> the current investigation plan.
+> the current investigation state.
 
 ---
 
 ## Summary
 
-MerkleDB snapshot index files should be written by several bounded workers using
-absolute file offsets. Each worker writes a disjoint range of `LongList` chunks,
-so output retains the version-3 layout while the target storage stack gets an
-opportunity to service multiple writes concurrently. Parallel output must be
-byte-identical to the one-argument writer for the normal stable snapshot shapes
-used by MerkleDB and exercised by the regression test.
+This branch adds configurable parallel writing for MerkleDB snapshot index
+files using absolute file offsets. Each worker writes a disjoint range of
+`LongList` chunks, so output retains the version-3 layout while the target
+storage stack gets an opportunity to service multiple writes concurrently.
+Parallel output is byte-identical to the one-argument writer for the normal
+stable snapshot shapes used by MerkleDB and exercised by the regression test.
 
 The implementation keeps the three existing top-level index tasks and gives
 each `LongList` an explicit configured thread count. At one thread per list, the
@@ -23,29 +25,33 @@ existing caller writes the complete list sequentially. Above one, the caller
 submits up to that many fixed contiguous range tasks to one snapshot-scoped bounded
 pool and waits for them; it does not also write a range. All five built-in
 `LongList` implementations retain their current source-copy loops and buffer
-strategies, so the measurements isolate the effect of issuing more
-concurrent positional writes.
+strategies. The implementation therefore holds those designs constant while
+changing the amount of concurrent source and target work. Later diagnostics
+confirmed that source representation and cache residency still affect the
+measured result.
 
-The completed development campaign compared `P={1,2,3,6,8,16}`. In a real
-50-million-leaf MerkleDB snapshot, `P=2` reduced mean Disk latency from 404.8
-to 279.7 ms, a 30.9% improvement. In the isolated benchmark it reduced the
-Disk mean from 2710.9 to 1730.4 ms, a 36.2% improvement. A higher-repetition
-Segment confirmation instead measured a 6.7% mean regression. `P=2` is
-therefore the sole candidate for representative Linux/NVMe confirmation
-because it is the smallest setting with strong Disk mean improvements in both
-campaigns, not because the development machine established a Segment win. The
-merged default remains `P=1` until that confirmation; no alternate scheduler
-or buffer experiment is currently justified. See
-[`macos-benchmark-results.md`](macos-benchmark-results.md).
+The completed Linux campaign confirms that parallel writing can improve all
+five implementations, although the size of the benefit and the best writer
+count vary by implementation and workload. The default remains one writer per
+LongList, while higher values are available as an explicit configuration
+choice. See
+[`linux-benchmark-results.md`](linux-benchmark-results.md).
+
+The no-force campaigns also confirm that the unforced mean was lower in all
+280 matched Linux configurations. The current force
+does not make the complete signed-state snapshot durable, so its removal is
+included in this PR. The remaining storage work is deferred rather than
+eliminated. See
+[`remove-final-force.md`](../03-remove-final-force/remove-final-force.md).
 
 |      Metadata      |                                                               Entities                                                                |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| Status             | Implemented; representative performance confirmation pending                                                                          |
+| Status             | Parallel writer implemented and measured; final-force removal selected for this PR and awaiting production-path implementation          |
 | Designer           | [@thenswan](https://github.com/thenswan)                                                                                              |
 | Functional impacts | MerkleDB and VirtualMap snapshot writing                                                                                              |
 | Related issue      | [#26469: LongList index chunks can be written to disk in parallel](https://github.com/hiero-ledger/hiero-consensus-node/issues/26469) |
 | Related work       | [#25820: Zero-downtime upgrade](https://github.com/hiero-ledger/hiero-consensus-node/issues/25820)                                    |
-| Last updated       | 2026-07-27                                                                                                                            |
+| Last updated       | 2026-08-28                                                                                                                            |
 
 ---
 
@@ -73,9 +79,9 @@ submits six top-level tasks to its cached snapshot executor. Three tasks write a
    [`HalfDiskHashMap.snapshot()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java).
 
 The three lists are therefore already written concurrently, but every list body
-is written sequentially. This matters when defining both the rollback behavior
-and the new thread limit: the present baseline is as many as three concurrent
-index writes, not one.
+is written sequentially. This matters when defining both the parallel-writer
+rollback and the new thread limit: the present baseline is as many as three
+concurrent index writes, not one.
 
 The other three top-level snapshot tasks write metadata and snapshot data-file
 collections. Data-file collection snapshots primarily flush metadata and create
@@ -84,8 +90,8 @@ hard links; they do not rewrite all stored data. See
 
 The implementation retains the existing top-level snapshot task structure.
 Each LongList caller synchronously joins its own range tasks before its
-top-level task completes, so a target is never forced or closed while one of
-its range writers is still active.
+top-level task completes, so a target is never closed while one of its range
+writers is still active.
 
 The implementation also closes a correctness hole at the existing top-level
 task boundary. `MerkleDbDataSource.snapshot()` records the first failure from
@@ -101,7 +107,9 @@ concurrent `close()` is outside this proposal.
 
 [`AbstractLongList.writeToFile()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java)
 creates a new file, writes the header, delegates body writing to the concrete
-implementation, and calls `FileChannel.force(true)`.
+implementation, calls `FileChannel.force(true)`, and closes the target. The
+selected change in this PR will keep the worker-completion and close boundaries
+but remove that isolated final force.
 
 The version-3 file consists of:
 
@@ -167,10 +175,13 @@ arbitrary concurrent callers.
   changes remain separate measured decisions.
 - Preserve today's three-list concurrency at one configured thread per list.
 - Ensure no range worker accesses a source or target after `writeToFile()`
-  returns by joining every range task before force and close.
+  returns by joining every range task before close.
 - Preserve the existing exception behavior where possible, while propagating a
   range task's write failure through the new `writeToFile()` call.
-- Provide a configuration rollback and enough measurement to choose a default.
+- Let `writeToFile()` return without the isolated final LongList force, while
+  preserving worker completion and target close before return.
+- Provide a parallel-writer rollback and enough measurement to choose a
+  default.
 
 ### Non-goals
 
@@ -180,6 +191,11 @@ arbitrary concurrent callers.
 - Replacing `FileChannel` with a native or asynchronous I/O stack.
 - Making the complete snapshot directory transactionally atomic. Failed
   snapshot-directory cleanup is broader than this optimization.
+- Providing a new whole-snapshot durability guarantee. That would require all
+  snapshot files and the published directory to participate in one end-to-end
+  synchronization protocol.
+- Claiming that removing the LongList force eliminates storage work or produces
+  the same percentage reduction in complete-snapshot time.
 - Adding duplicate ZDT timing instrumentation; the existing snapshot timing
   work is the measurement context for this change.
 
@@ -192,13 +208,17 @@ arbitrary concurrent callers.
 2. A file produced in parallel can be loaded by every compatible implementation.
 3. Worker ranges cover every body byte exactly once at its intended offset,
    with no gaps or overlaps.
-4. The target is forced only after every worker succeeds.
+4. On success, every worker finishes before the target channel closes and
+   `writeToFile()` returns.
 5. A worker failure is not reported as success, and all submitted tasks reach
    quiescence before `writeToFile()` returns.
 6. A top-level snapshot task failure or caller interruption is reported only
    after all six accepted snapshot tasks, including their LongList workers,
    quiesce. Concurrent data-source shutdown is outside the supported snapshot
    lifecycle.
+7. Both public `writeToFile()` paths close the target without the final force
+   after worker completion, and their Javadocs describe the changed return and
+   error-reporting boundary.
 
 ### Resource bounds
 
@@ -239,19 +259,18 @@ canonical body writer once for the complete list.
 1. A selected default above one must show a reproducible end-to-end snapshot
    wall-time improvement on representative Linux storage and must not cause a
    material regression in either production index mode.
-2. The completed development campaign fixes `P=2` as the only remaining
-   candidate: it improved the Disk mean by 30.9% in the real snapshot and
-   36.2% in isolation, while a higher-repetition Segment confirmation measured
-   a 6.7% mean regression. It is the smallest setting with strong Disk mean
-   improvements in both campaigns.
-3. Representative confirmation therefore compares only `P=1` and `P=2`; it is
-   not another parameter sweep.
-4. Until that confirmation succeeds, the merged default is `1` and `2` remains
-   an explicit deployment candidate.
+2. The corrected Linux campaign shows that higher writer counts can improve
+   every implementation, but the best count and the size of the gain vary by
+   implementation and workload.
+3. The default therefore remains `1`. Higher counts are explicit operational
+   choices for storage where measurements justify the additional resources.
+4. Removing the final LongList force must be described as an earlier
+   `writeToFile()` return, not as eliminated storage work or an already measured
+   complete-snapshot speedup.
 
-Issue #26469 does not specify a numeric performance target. A numeric merge
-gate, if desired, should be agreed after the baseline variance is measured
-rather than invented in this proposal.
+Issue #26469 does not specify a numeric performance target. The branch decision
+therefore uses the completed measurements together with the safe one-writer
+default rather than a threshold invented in this proposal.
 
 ## Design decisions
 
@@ -280,23 +299,23 @@ page-cache behavior, writeback, block scheduling, or the device may still
 serialize work. Representative end-to-end measurements remain the authority
 for performance.
 
-One channel is preferred because it preserves the current ownership and
-durability model, uses one descriptor, and permits a single `force(true)` after
-all writes.
+One channel is preferred because it preserves the current ownership model,
+uses one descriptor, and gives the coordinator one close boundary after all
+writes.
 
 #### Alternatives
 
 |              Alternative              |                                          Advantages                                          |                                                        Disadvantages                                                         |                           Decision                            |
 |---------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
-| One target channel, positional writes | Small change; one descriptor; one force; no shared-position lock on the pinned Unix provider | Filesystem/device completion may still serialize or regress                                                                  | **Selected**                                                  |
-| One target channel per worker         | May alter behavior on a future provider that serializes per channel                          | More descriptors and cleanup; less clear portable force semantics; no expected benefit on the pinned Unix provider           | Revisit only if profiling identifies a per-channel bottleneck |
+| One target channel, positional writes | Small change; one descriptor; one close boundary; no shared-position lock on the pinned Unix provider | Filesystem/device completion may still serialize or regress                                                             | **Selected**                                                  |
+| One target channel per worker         | May alter behavior on a provider that serializes per channel                                 | More descriptors and cleanup; no expected benefit on the pinned Unix provider                                                 | Not justified by the measurements                            |
 | `AsynchronousFileChannel`             | Explicit asynchronous API                                                                    | Unix provider commonly delegates blocking writes to an executor; harder partial-write, buffer-lifetime, and failure handling | Rejected                                                      |
 | Memory-map the target                 | Parallel memory copies and one mapped layout                                                 | Very large mappings, explicit unmapping/force concerns, larger behavior change                                               | Rejected                                                      |
 
 ### 2. Reuse the existing live bounds
 
-For `P>1`, preserve the current ordering: open the target and write the existing
-live header first. Derive the active chunk interval directly from
+For `P>1`, the implementation preserves the current ordering: it opens the
+target and writes the existing live header first. It derives the active chunk interval directly from
 `minValidIndex.get()` and `size()`, as the sequential writer does. Each assigned
 range uses those same accessors to clip its boundary indices and calculate its
 absolute target offset. Production snapshot paths stabilize the source, so the
@@ -365,19 +384,19 @@ requirement.
 
 A one-byte positional write at `expectedSize - 1` could establish the logical
 length before workers start; the final-range worker would overwrite that byte.
-It would not reserve physical storage or guarantee a speedup. Do not include it
-in this change. Evaluate it as an isolated benchmark variant only
-if initial evidence points to file growth as a limiter, and retain it only when
-representative environments show a stable benefit.
+It would not reserve physical storage or guarantee a speedup. The completed
+control and write-path diagnostic use the same growing-file path and did not
+identify file growth as a material limiter, so this historical option was
+closed without a prototype.
 
 #### Alternatives
 
 |             Alternative              |                         Advantages                          |                                                  Disadvantages                                                   |       Decision       |
 |--------------------------------------|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|----------------------|
 | Let positional workers grow the file | Smallest focused change; successful output is deterministic | Early size-changing writes may serialize                                                                         | **Selected**         |
-| One-byte logical extension           | Removes size changes from worker writes after setup         | Extra write; no physical reservation; failed output can still have the expected logical length; unproven benefit | Benchmark-gated only |
+| One-byte logical extension           | Removes size changes from worker writes after setup         | Extra write; no physical reservation; failed output can still have the expected logical length; unproven benefit | Closed by measurement |
 | Native `fallocate`                   | Can reserve physical space and fail early                   | Non-portable native dependency                                                                                   | Rejected             |
-| Write a temporary file and rename    | Stronger publication semantics                              | Broader naming, move, and durability behavior                                                                    | Possible follow-up   |
+| Write a temporary file and rename    | Stronger publication semantics                              | Broader naming, move, and durability behavior                                                                    | Outside this change  |
 
 ### 4. Configure total writer threads per LongList
 
@@ -399,8 +418,9 @@ LongList, not threads added to the existing callers:
 - The three lists are independent, so the snapshot can execute up to `3P`
   LongList range writers.
 
-Immediately before the existing snapshot tasks, construct one snapshot-scoped
-fixed platform-thread executor with capacity `3P`. Each `writeToFile()` joins
+Immediately before the existing snapshot tasks, `MerkleDbDataSource`
+constructs one snapshot-scoped fixed platform-thread executor with capacity
+`3P`. Each `writeToFile()` joins
 all of its range futures before returning, so the existing snapshot completion
 barrier also implies that no LongList worker is still using its source or
 target. The executor is closed after the snapshot tasks finish. At `P=1`, each
@@ -415,25 +435,19 @@ same saturated executor. MerkleDB therefore keeps the snapshot-scoped range
 executor separate from its existing `snapshotExecutor`. The pool has no static
 first-configuration-wins state and retains no idle threads between snapshots.
 
-The development campaign tested `P={1,2,3,6,8,16}`. `P=2` improved the
-real-snapshot Disk mean by 30.9% and its isolated mean by 36.2%. A
-higher-repetition Segment confirmation measured `P=2` 6.7% slower by mean, so
-no Segment improvement is claimed. `P=2` exposes up to six concurrent range
-bodies across the three lists and is the only setting carried into
-representative confirmation.
-
 At the default 8 MiB Disk chunk size, the current thread-local transfer strategy
 gives 48 participating workers a rough maximum of `48 * 8 MiB = 384 MiB` of
 LongList-owned transfer buffers at `P=16`, before JDK/kernel memory. This is not
 a total-process retention bound because other long-lived threads may already
-retain buffers in the static thread local. The selected `P=2` candidate reduces
-that rough per-snapshot maximum to `6 * 8 MiB = 48 MiB`.
+retain buffers in the static thread local. At `P=2`, the corresponding rough
+per-snapshot maximum is `6 * 8 MiB = 48 MiB`.
 
-| Threads per LongList | Index-writer ceiling |                                      Advantages                                      |                                      Disadvantages                                       |                  Role                   |
-|---------------------:|---------------------:|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|-----------------------------------------|
-|                  `1` |                    3 | Single-writer path; preserves prior three-list concurrency topology                  | Does not exercise parallel range writing                                                 | Required control and initial default    |
-|                  `2` |                    6 | Smallest parallel setting with strong Disk mean improvements in both local campaigns | Focused Segment mean was 6.7% slower; requires representative no-regression confirmation | Production candidate                    |
-|             `3`–`16` |                 9–48 | Tested the plateau and high-queue-depth hypothesis                                   | No cross-implementation advantage; more buffers, stacks, and contention                  | No further testing without new evidence |
+| Threads per LongList | Index-writer ceiling | Resource meaning |
+|---------------------:|---------------------:|---|
+|                  `1` |                    3 | Sequential path and production default |
+|                  `2` |                    6 | Small parallel setting |
+|                  `8` |                   24 | Commonly near the measured 1B plateau, with more buffers and stacks |
+|                 `16` |                   48 | Higher resource and contention ceiling |
 
 A fixed value is preferred over `availableProcessors()` or a CPU percentage.
 Storage queue depth, filesystem behavior, and device parallelism do not scale
@@ -441,16 +455,12 @@ reliably with reported CPU count, especially in containers.
 
 The bound is per `MerkleDbDataSource.snapshot()` invocation, not node-wide.
 Concurrent snapshots of several data sources can therefore create up to `3P`
-workers per snapshot. Production end-to-end testing must use the realistic
-number of concurrently snapshotted data sources; if that reveals
-cross-data-source contention, a node-owned pool becomes a follow-up design
-rather than silently changing this configuration's scope.
+workers per snapshot. This is deliberately not a node-wide bound.
 
 Each list submits at most `P` fixed ranges. Therefore one longer list cannot
 consume writer slots intended by this configuration for the other lists after
-its own tasks are running. If a fixed range gives one list a measured long tail,
-finer work units or a different scheduler are considered only after that
-evidence.
+its own tasks are running. The measurements did not establish a range tail that
+would justify finer work units or a different scheduler.
 
 #### Alternatives
 
@@ -472,12 +482,11 @@ Its loop bound does not establish a snapshot-owned I/O-thread budget, and the
 three lists would contend with unrelated common-pool work. It also gives weaker
 ownership and quiescence control for blocking channel I/O. Running that pattern
 inside a custom pool per list returns to the rejected three-pool design.
-Striped ownership itself remains a later benchmark-gated scheduling alternative,
-but it should use the same snapshot-owned pool if tested so pool ownership is
-not another changed variable.
+The measurements did not justify striped ownership, so the implementation
+retains contiguous ranges.
 
-Create these platform threads with the repository's `ThreadConfiguration` and
-a distinct LongList-snapshot name, matching nearby MerkleDB executor setup.
+The pool creates platform threads with the repository's `ThreadConfiguration`
+and a distinct LongList-snapshot name, matching nearby MerkleDB executor setup.
 
 ### 5. Partition into bounded contiguous ranges and join all range futures
 
@@ -488,10 +497,11 @@ count:
 rangeCount = min(P, activeChunkCount)
 ```
 
-Use quotient-and-remainder partitioning to create `rangeCount` contiguous,
-non-overlapping ranges whose chunk counts differ by at most one. Submit every
-range with `CompletableFuture.runAsync(...)`; the caller coordinates and joins
-but does not write an additional range.
+The implementation uses quotient-and-remainder partitioning to create
+`rangeCount` contiguous, non-overlapping ranges whose chunk counts differ by
+at most one. It submits every range with
+`CompletableFuture.runAsync(...)`; the caller coordinates and joins but does
+not write an additional range.
 
 In concrete terms, divide `activeChunkCount` by `rangeCount`. Every range gets
 the quotient, and the first `remainder` ranges get one additional chunk. For 10
@@ -500,8 +510,8 @@ chunks and 3 ranges, `10 / 3` gives quotient 3 and remainder 1, producing
 ranges stay adjacent in the target file, and their sizes differ by at most one
 chunk.
 
-The caller joins a single `CompletableFuture.allOf(...)` before `force(true)`
-and before the target channel closes. The coordinator also joins futures
+The caller joins a single `CompletableFuture.allOf(...)` before the target
+channel closes. The coordinator also joins futures
 already submitted if a later submission fails. A checked worker `IOException`
 is wrapped at the `CompletableFuture` boundary and unwrapped for the caller.
 This is the only new exception translation needed; the first implementation
@@ -520,7 +530,7 @@ rationale as a short inline comment near the partitioning code.
 | Fixed contiguous range tasks and `CompletableFuture.allOf()` | Small, bounded, deterministic, and local; configured threads have one meaning; `allOf().join()` gives a simple quiescence point | A coarse range cannot be split                                                         | **Selected**                                                |
 | One task per chunk                                           | Natural load balancing                                                                                                          | Up to 2,097,152 tasks/futures; unacceptable scheduler and memory overhead              | Rejected                                                    |
 | Striped/non-contiguous lanes                                 | Spreads each worker across the whole list                                                                                       | Weaker target locality; changes ordering without increasing the configured concurrency | Deferred; current measurements do not justify it            |
-| More bounded ranges or dynamic chunk/batch claiming          | Better tail balancing                                                                                                           | More atomic coordination and less locality/determinism                                 | Benchmark only if fixed ranges show measured tail imbalance |
+| More bounded ranges or dynamic chunk/batch claiming          | Better tail balancing                                                                                                           | More atomic coordination and less locality/determinism                                 | Not justified by the measurements                            |
 
 ### 6. Preserve current buffer and source-copy behavior
 
@@ -529,52 +539,71 @@ strategy. This is deliberate: replacing buffers at the same time would make it
 impossible to tell whether a result came from additional writes in flight or
 from different allocation, copying, and channel-call behavior.
 
-- **Heap:** retain the current 1 MiB direct staging buffer and index-by-index
+- **Heap:** retains the current 1 MiB direct staging buffer and index-by-index
   copy loop within each assigned range.
-- **OffHeap:** retain direct chunk views, the current zero-chunk buffer, and the
+- **OffHeap:** retains direct chunk views, the current zero-chunk buffer, and the
   existing slice/limit pattern within each assigned range.
-- **Segment:** retain independent views over the current `MemorySegment`
+- **Segment:** retains independent views over the current `MemorySegment`
   source, the same eagerly allocated chunk-sized heap zero buffer, and the
   existing per-chunk write shape within each assigned range.
-- **Disk:** keep the current chunk-sized heap
+- **Disk:** keeps the current chunk-sized heap
   `TRANSFER_BUFFER_THREAD_LOCAL`, positional source reads, and current
   per-chunk transfer shape; each participating thread naturally receives its
   own thread-local buffer.
-- **DiskSegment:** retain mapped segment views, the same eagerly allocated
+- **DiskSegment:** retains mapped segment views, the same eagerly allocated
   chunk-sized heap zero buffer, and the existing per-chunk write shape within
   each assigned range.
 
 These choices intentionally mean that adding workers can create one existing
 staging or zero buffer per participating range writer. With the default 8 MiB
-chunk, `P=16` can therefore make this cost visible. Record allocation, retained
-heap, and GC behavior alongside wall time; do not disguise it with a buffer
-redesign before answering the thread-count question.
+chunk, `P=16` can therefore make this cost visible. This resource growth is one
+reason the production default remains one writer.
 
 A bounded direct staging buffer (the earlier 1 MiB proposal) would change
 heap-versus-native allocation, buffer lifetime, copying through the JDK, and
 the number of source/target channel calls. Current measurements do not justify
-that separate change. Revisit it only if representative `P=2` measurements
-identify memory pressure or transfer behavior worth addressing. Likewise, do
-not add a configurable staging-size knob without evidence.
+that separate change or a configurable staging-size setting.
 
-### 7. Join range tasks before force and close
+### 7. Join range tasks before close
 
-Keep worker lifecycle handling local and small. Retain the range
-`CompletableFuture` instances and join `CompletableFuture.allOf(...)` before
-`force(true)`. The join is also reached when a later task submission fails, so
+Worker lifecycle handling remains local to the write. The implementation
+retains the range `CompletableFuture` instances and joins
+`CompletableFuture.allOf(...)` before the target channel closes. The join is
+also reached when a later task submission fails, so
 already-submitted workers cannot outlive the target channel.
 
-Do not cancel or interrupt worker I/O. A worker `IOException` is represented as
+The implementation does not cancel or interrupt worker I/O. A worker
+`IOException` is represented as
 an unchecked completion failure inside the lambda and converted back to
-`IOException` at the `writeToFile()` boundary. If any range fails, skip
-`force(true)` and let the normal try-with-resources close the target. As today,
-a failed write may leave an incomplete newly-created file; transactional
-publication and cleanup are separate concerns.
+`IOException` at the `writeToFile()` boundary. If any range fails, the normal
+try-with-resources path closes the target after the accepted workers finish. As
+today, a failed write may leave an incomplete newly-created file;
+transactional publication and cleanup are separate concerns.
 
 The LongList method intentionally does not introduce a multi-error ordering
 policy, manual suppression, or an explicit caller-interruption state machine.
 Those are broader robustness topics, not prerequisites for testing positional
 LongList writes.
+
+### 8. Close without the final LongList force
+
+After the pending production change, the successful path will close the target
+after all body writers finish and without calling `FileChannel.force(true)`.
+Closing completes the Java write calls, but Linux may continue writing cached
+file pages to storage after `writeToFile()` returns.
+
+The force selected for removal covers only the LongList index files. The other
+snapshot files and the published directory are not synchronized as one
+durability operation, so that wait does not make the complete snapshot durable.
+Removing it changes the local return and error boundary: a writeback error
+reported only by `force(true)` can no longer reach this snapshot call.
+
+This decision is supported by the forced/unforced Linux campaigns. The
+unforced mean was lower in all 280 matched configurations. When the
+focused benchmark forced the target immediately after return, the total time
+was within 1.0% of the forced path. The change therefore defers the remaining
+storage work; it does not eliminate it. The effect on complete snapshot time
+remains part of the final production-path comparison.
 
 ## Changes
 
@@ -602,16 +631,16 @@ lazy executor creates no range-worker thread.
 No worker pool is stored in a `LongList`, no static executor is introduced, and
 the caller-provided executor is never shut down by `LongList`.
 
-### LongList API for the experiment
+### LongList API
 
-Keep the existing method and its behavior:
+The existing method signature remains:
 
 ```java
 void writeToFile(Path file) throws IOException;
 ```
 
-Add an overload that accepts a caller-owned executor and the configured total
-writer-thread count for this LongList:
+The branch adds an overload that accepts a caller-owned executor and the
+configured total writer-thread count for this LongList:
 
 ```java
 void writeToFile(
@@ -628,10 +657,11 @@ executor.
 `AbstractLongList`, the only in-repository implementation of `LongList`,
 provides the common parallel path. External direct implementations must add the
 overload when recompiled; this source-compatibility cost is accepted for the
-retained API. For `threadCount == 1`, it delegates immediately to the existing
-method, preserving the prior functional and per-list scheduling behavior. The
-generalized body now uses positional writes, so `P=1` is not an exact
-performance comparison with the implementation on `main`.
+retained API. For `threadCount == 1`, it uses the sequential body path and
+submits no task, preserving the previous file bytes and per-list scheduling but
+not the force wait selected for removal. The generalized body now uses
+positional writes, so `P=1` is not an exact performance comparison with the
+implementation on `main`.
 
 The `threadCount` argument must reach `writeToFile()` because a generic
 `Executor` exposes neither its intended parallelism nor this list's task count.
@@ -649,15 +679,15 @@ The caller owns the executor lifecycle. MerkleDB keeps it private to the
 snapshot coordinator and terminates it only after the top-level snapshot work
 has completed.
 
-Add a corresponding `HalfDiskHashMap.snapshot(...)` overload so
-`MerkleDbDataSource` can pass the same range executor to its bucket index. The
+The corresponding `HalfDiskHashMap.snapshot(...)` overload lets
+`MerkleDbDataSource` pass the same range executor to its bucket index. The
 existing overload remains compatible and sequential per list.
 
-The overload's contract should state that it never shuts the executor down,
-joins its range tasks before return, and treats the count as total writer
-threads for this list. If the caller is itself running on a bounded executor,
-the supplied range executor must be distinct from it so parent tasks cannot
-saturate the pool while waiting for their own queued children.
+The overload's contract states that it never shuts the executor down, joins its
+range tasks before return, and treats the count as total writer threads for
+this list. A bounded caller executor and the supplied range executor must be
+distinct so parent tasks cannot saturate the pool while waiting for their own
+queued children.
 
 An internal snapshot-write context object could avoid two parameters and expose
 less executor policy, but it would add a new public type to an already exported
@@ -665,9 +695,9 @@ package. The direct overload is the smaller retained change.
 
 ### AbstractLongList structure
 
-Move common range calculation, bounded partitioning, task submission, joining,
-and force into `AbstractLongList`. Sequential and parallel paths call the same
-implementation-specific body hook, conceptually equivalent to:
+`AbstractLongList` contains the common range calculation, bounded partitioning,
+task submission, and joining. Sequential and parallel paths call the
+same implementation-specific body hook, conceptually equivalent to:
 
 ```java
 protected void writeLongsData(
@@ -688,7 +718,7 @@ capability check or orchestration branch.
 
 ### Configuration
 
-Add to
+The branch adds this property to
 [`MerkleDbConfig`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java):
 
 ```java
@@ -703,11 +733,9 @@ reuse `compactionThreads`, because the workloads have different tuning and
 lifecycle semantics.
 
 The implementation retains `1` as the default, preserving sequential behavior
-per list. The completed development campaign selected `2`, raising the
-aggregate ceiling from three to six writers, as the only candidate for
-representative confirmation. Change the merged default only when
-representative test/production-like evidence supports it; the development
-result alone does not flip the default.
+per list. Higher values raise the aggregate ceiling from three writers to
+`3P` and are explicit storage-specific choices. The corrected Linux campaign
+does not establish one higher value as the universal default.
 
 The implementation adds no arbitrary upper-bound validation. The benchmark
 campaign used explicit bounded values; it does not justify a production
@@ -715,8 +743,8 @@ annotation that claims a maximum.
 
 Adding a component to the public `MerkleDbConfig` record changes its canonical
 constructor descriptor. Configuration-framework consumers remain property
-compatible, but direct constructor callers must be recompiled; update the two
-such calls currently in `MerkleDbCompactionCoordinatorTest`. This proposal does
+compatible, and the two direct constructor calls in
+`MerkleDbCompactionCoordinatorTest` were updated. This proposal does
 not add a duplicate legacy constructor with the record's full parameter list:
 the current
 [`ConfigDataFactory`](../../platform-sdk/swirlds-config-impl/src/main/java/com/swirlds/config/impl/internal/ConfigDataFactory.java)
@@ -737,22 +765,23 @@ acceptance test.
 
 ### Javadocs and implementation comments
 
-Document the retained API and scheduler where callers or maintainers need the
-contract:
+The parallel-writer API and scheduler documentation covers the items below.
+The pending force-removal edit must also update the `writeToFile()` return and
+error boundary:
 
-- update `LongList.writeToFile()` and its overload with executor ownership,
+- `LongList.writeToFile()` and its overload: executor ownership,
   separation from a bounded caller executor, per-list thread/task bounds,
   coordinator-only caller behavior for `P>1`, synchronous quiescence, failure,
   and weak concurrent-mutation semantics;
-- update `AbstractLongList` and the retained concrete implementations where
+- `AbstractLongList` and the retained concrete implementations where
   method-level documentation describes implementation-specific source copying;
-- document the corresponding `HalfDiskHashMap.snapshot()` overload;
-- document the new `MerkleDbConfig` option, its threads-per-list meaning, and
-  the functional and scheduling rollback at `1`;
-- correct its stale `snapshotExecutor` comment from “at most 7” to the six
+- the corresponding `HalfDiskHashMap.snapshot()` overload;
+- the new `MerkleDbConfig` option, its threads-per-list meaning, and
+  the writer-scheduling and staging-buffer rollback at `1`;
+- the corrected `snapshotExecutor` comment, which now describes the six
   top-level tasks, noting that the bounded LongList workers use a separate
   snapshot-scoped pool; and
-- retain one focused inline comment that contiguous ranges preserve target
+- one focused inline comment explaining that contiguous ranges preserve target
   locality.
 
 ### Metrics and logging
@@ -761,178 +790,97 @@ No new permanent metric is required. Existing
 per-task trace logs and overall snapshot timing provide the high-level result,
 and the ZDT measurement work supplies broader startup/shutdown context.
 
-Measurements remain in benchmark output rather than production logging. Add
-trace output only if operational evidence identifies a need; it must not log
-once per chunk.
+Measurements remain in benchmark output rather than production logging. The
+branch adds no per-chunk trace output.
 
-## Test plan
+## Test coverage
 
-### Minimal gate before performance measurements
+The branch adds focused coverage for the new successful and failure paths
+while reusing the existing snapshot/restore suites:
 
-The prototype adds only enough coverage to trust successful-path benchmark
-output, while reusing the existing snapshot/restore suites:
-
-- add one parameterized case for all five built-in implementations that writes
+- one parameterized case for all five built-in implementations writes
   the same stable source through the one-argument sequential writer and
-  `P=16`, requires `Files.mismatch()` to return `-1`, asserts exact expected
+  `P=16`, requires `Files.mismatch()` to return `-1`, asserts the exact
   size, and reopens through value assertions;
-- make both boundaries partial and populated, and deliberately leave one
-  complete interior chunk absent. This exercises boundary clipping and zero
-  filling in the shared implementation-specific copy loop;
-- prove that `P=1` invokes no executor task and remains byte-identical to the
-  one-argument writer;
-- prove that the permitted `minValidIndex >= size` state remains header-only
-  and byte-identical instead of entering parallel partitioning;
-- use one controlled range writer and latches to prove that a worker
-  `IOException` reaches the caller only after the other submitted range tasks
-  have quiesced;
-- reuse the existing MerkleDB snapshot/reopen path once in each production
+- both boundaries are partial and populated, with one complete interior chunk
+  deliberately absent. This exercises boundary clipping and zero filling in
+  the shared implementation-specific copy loop;
+- a `P=1` test verifies that no executor task is submitted and output remains
+  byte-identical to the one-argument writer;
+- the permitted `minValidIndex >= size` state remains header-only and
+  byte-identical instead of entering parallel partitioning;
+- a controlled range writer and latches verify that a worker `IOException`
+  reaches the caller only after the other submitted range tasks quiesce;
+- the existing MerkleDB snapshot/reopen path runs once in each production
   index mode (`LongListSegment` and `LongListDisk`) with `P>1`;
-- pre-create one snapshot target file and verify that the corresponding
-  top-level task's `IOException` reaches the snapshot caller; and
-- pre-interrupt a snapshot caller and verify that the method preserves the
+- a pre-created snapshot target verifies that the corresponding top-level
+  task's `IOException` reaches the snapshot caller; and
+- a pre-interrupted snapshot caller verifies that the method preserves the
   interrupt, reports `IOException`, and leaves all six expected outputs present
   after return.
 
-These checks guard the regressions that would invalidate timings: wrong bytes,
-wrong length, unreadable output, broken integration, hidden unfinished work, or
-ordinary worker failure. They do not attempt to prove kernel/device overlap or
-turn unrelated invalid-state and concurrent-mutation behavior into this PR's
-scope.
+These checks cover the regressions that would invalidate timings: wrong bytes,
+wrong length, unreadable output, broken integration, hidden unfinished work,
+or ordinary worker failure. They do not attempt to prove kernel/device overlap
+or cover unrelated invalid-state and concurrent-mutation behavior.
 
-No separate overlap-only test or RuntimeException/Error matrix is proposed.
-The controlled IOException test covers the new failure boundary and the
-essential quiescence guarantee together. Broader checks should be added only if
-the selected implementation changes in a way that creates a new regression
-risk.
+The focused `IOException` test covers the parallel worker-failure boundary and
+the essential quiescence guarantee together. An overlap-only test and a
+separate `RuntimeException`/`Error` matrix are outside this focused change.
 
-### Performance and default-selection plan
+### Performance evidence
 
-Inspection found that adding snapshot parameters and lifecycle to the existing
-[`LongListBenchmark`](../../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListBenchmark.java)
-would contaminate its legacy get/put parameter matrix and shared state. In
-particular, its current setup does not establish the valid range needed by a
-snapshot, and adding per-list thread-count parameters at class scope would
-multiply unrelated cases. A focused
+The focused
 [`LongListSnapshotBenchmark`](../../platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java)
-is therefore selected as the isolated diagnostic. This is a result of codebase
-inspection, not an expansion into a general benchmark framework.
+isolates all five implementations without multiplying the unrelated get/put
+matrix in the older `LongListBenchmark`.
 
-Two focused benchmarks now cover the required layers:
+The corrected Linux campaign used four leaf counts, three chunk sizes, and
+multiple writer counts. At one billion leaves and the default chunk size, the
+best measured reductions ranged from 3.8% for Segment to 13.1% for Heap; Disk
+improved by 8.1%. At five billion leaves, several gains were smaller. No one
+higher writer count was best across every implementation and workload.
 
-1. `LongListSnapshotBenchmark` isolates all five implementations. The completed
-   campaign wrote one billion longs per invocation at
-   `P={1,2,3,6,8,16}`. Heap and Disk benefited, while OffHeap, Segment, and
-   DiskSegment did not show a credible isolated win.
-2. [`MerkleDbSnapshotBenchmark`](../../platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/MerkleDbSnapshotBenchmark.java)
-   times the real `MerkleDbDataSourceBuilder.snapshot()` path for Segment and
-   Disk. Its completed 50-million-leaf campaign also forced the three
-   diagnostic implementations through a temporary setup-only loader, using
-   the same fixture and thread matrix for all five. Disk improved materially
-   at every parallel setting by mean. A focused Segment `P=1/2` confirmation
-   measured `P=2` 6.7% slower by mean and supersedes the broad matrix's
-   apparent 13.3% Segment mean improvement. The temporary loader was removed
-   after measurement.
+The benchmark protocol, complete tables, caveats, environment, and raw
+evidence are recorded in
+[`linux-benchmark-results.md`](linux-benchmark-results.md).
 
-The earlier synthetic three-index benchmark has been removed because the real
-snapshot benchmark now covers its intended decision surface. Detailed results,
-workload sizes, caveats, and raw-artifact locations are in
-[`macos-benchmark-results.md`](macos-benchmark-results.md).
-
-For every timed campaign:
-
-- use fresh targets on the device being measured and include `force(true)`;
-- record the resolved target directory and its actual filesystem/mount. The
-  isolated benchmark uses `java.io.tmpdir`; the real snapshot benchmark uses
-  `benchmark.benchmarkData/MerkleDbSnapshotBenchmark/tmp`. Place each on the
-  intended device when measuring storage rather than merely smoke-testing the
-  harness;
-- validate output and clean up outside the timed region;
-- use the one-argument writer reached by `P=1` as the successful-path
-  LongList control; it invokes the canonical positional body writer once
-  without submitting range work;
-- interleave or randomize thread counts with repeated `P=1` controls on the
-  same host instead of running all baselines first;
-- compare the arithmetic mean of all measurements within one host and retain
-  the individual block means as variability context; do not pool absolute
-  times from unlike machines; and
-- record JDK, kernel, filesystem, mount options, storage model, free space,
-  source cache policy, and relevant concurrent snapshot load. Hold cache policy
-  and workload size constant within each comparison, and predeclare workload
-  sizes before collecting decision data.
-
-Use three evidence tiers to avoid overfitting:
-
-|                             Environment                             |                               Purpose                               |                                                Decision weight                                                 |
-|---------------------------------------------------------------------|---------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| Development machine                                                 | Correctness and selection of a single representative-host candidate | Completed; retained `P=2` from strong Disk mean gains, with a focused 6.7% Segment mean regression to validate |
-| Repeatable representative Linux performance/test host               | Production-shaped direct `P=1/2` comparison across both index modes | Required before changing the default                                                                           |
-| A separate production-like Linux filesystem/storage, when available | Confirm `P=1/2` under realistic deployment conditions               | Final confirmation                                                                                             |
-
-Choose the smallest per-list thread count on a broad, repeatable performance
-plateau across representative environments and large end-to-end snapshots. Do
-not tune to the single fastest datapoint. If representative environments
-materially disagree, prefer the safer lower value or `1` and retain explicit
-operational tuning. Establish any numeric improvement/regression margin only
-after the pilot reveals measurement variance.
-
-No optional refinement is currently benchmark-gated in. Striped ownership,
-finer ranges, buffer changes, pre-extension, and multiple channels remain
-follow-ups only if representative `P=2` measurements identify their specific
-bottleneck.
+The resulting parallel-writer setting is deliberately simple: one writer
+remains the default and preserves the previous writer-thread and buffer use.
+Operators can select a higher count when measurements on their storage justify
+it.
 
 ## Risks and mitigations
 
-|                              Risk                               |                                                                   Mitigation                                                                   |
-|-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| Storage serializes or is slower with concurrent writes          | Compare per representative environment; choose a conservative plateau; configurable one-thread rollback                                        |
-| Existing per-writer buffers multiply with writers               | Preserve them to isolate the scheduling change; benchmark bounded staging only if representative `P=2` measurements make memory a real concern |
-| Millions of chunks create scheduler pressure                    | At most `P` ranges and `P` tasks per list                                                                                                      |
-| Initial EOF growth reduces overlap                              | Measure first; benchmark pre-extension only if evidence identifies growth as a limiter                                                         |
-| Disk mappings or Segment arenas change during copy              | Retain the existing stable-source snapshot/close sequencing and weak public mutation contract                                                  |
-| Range workers from the three lists contend                      | Use one `3P` snapshot-scoped bound and benchmark whole snapshots; consider finer work only if queueing creates a measured tail                 |
-| A dominant list has a final slow coarse range                   | Balanced contiguous ranges first; add finer bounded work only after measured tail imbalance                                                    |
-| Concurrent data-source snapshots multiply the per-snapshot pool | Include realistic concurrency in representative tests; consider node ownership only if observed                                                |
-| Executor nesting causes starvation                              | Use a dedicated range pool separate from the outer snapshot executor                                                                           |
-| Added public overload is misused                                | Existing one-argument API remains available; explicit caller-ownership Javadoc                                                                 |
+| Risk | How it is handled |
+|---|---|
+| Without the final `force(true)`, a LongList file can be published before Linux writes every cached page to storage. A writeback error reported only by that force will no longer reach this snapshot call. | This is an accepted behavior change in this PR. All range writes still finish and the channel closes before snapshot publication. The current force covers only LongList files; a whole-snapshot durability guarantee would require a separate end-to-end protocol. Update the `writeToFile()` contract to state the new return and error boundary. |
+| Removing the force makes `writeToFile()` return earlier but does not remove the remaining storage work. Deferred writeback can overlap or contend with later snapshot work. | The unforced mean was lower in all 280 matched Linux configurations. In the focused run, adding an immediate post-return force brought total time within 1.0% of the forced path. Describe this as earlier return, not higher durable throughput or a measured complete-snapshot speedup. |
+| A higher writer count can be slower or use more resources, depending on the LongList implementation, list size, storage, and `LongListDisk` source-cache state. | Keep one writer per LongList as the default and parallel-writer rollback. The Linux matrix found gains but no universal higher count, and the Disk diagnostic confirmed that source-cache state changes the size of the gain. Higher counts remain an explicit environment-specific setting. |
+| Parallel writers add threads and per-worker buffers. Concurrent snapshots of different data sources multiply this cost. | The snapshot-scoped range pool has at most `3P` threads and at most `3P` submitted tasks; `P=1` submits no range work. Each list still uses one target channel. If all three lists have at least `P` active ranges and each range allocates an 8 MiB full-chunk buffer, the rough per-snapshot buffer total is 48 MiB at `P=2` and 384 MiB at `P=16`, before JDK and kernel memory. Heap uses a 1 MiB buffer instead. |
+| A bad range boundary, worker failure, or interruption could produce an invalid file or let work continue after return. | Workers use disjoint absolute offsets and all accepted work is joined before channel close. The outer snapshot waits for all six accepted top-level tasks. Tests cover byte-identical output and reopening for all five implementations, both production index modes, worker I/O failure and quiescence, top-level failure, and caller interruption. |
 
-## Implementation and delivery plan
+## Implementation status
 
-All required implementation changes remain on this branch; there are no
-prerequisite PRs.
+There are no prerequisite PRs. The parallel writer is implemented; the
+production-path final-force removal remains to be applied in this PR.
 
-1. **Implementation — complete.** Add the snapshot-scoped shared pool,
-   positional writes, and fixed contiguous ranges while retaining every
-   implementation's source loop and buffers.
-2. **Correctness gate — complete.** Cover byte identity, exact length,
-   reopen/value correctness for all five implementations, both production
-   modes, worker failure/quiescence, and top-level snapshot failure and
-   interruption.
-3. **Development measurement — complete.** Run the one-billion-long isolated
-   campaign and the real 50-million-leaf snapshot campaign at
-   `P={1,2,3,6,8,16}`.
-4. **Candidate selection — complete.** Retain contiguous ranges and carry
-   `P=2` into representative testing as the smallest setting with strong Disk
-   mean gains in both campaigns. The focused local Segment mean was 6.7%
-   slower; do not pursue the higher-thread, striped, buffering, pre-extension,
-   or multiple-channel alternatives without new evidence.
-5. **Polish — complete on this branch.** Keep the focused tests and two useful
-   benchmarks, remove the superseded synthetic topology benchmark, and update
-   API/configuration documentation.
-6. **Representative confirmation — pending externally.** Compare only `P=1`
-   and `P=2` on representative Linux/NVMe storage in both production modes.
-   Change the merged default only after Segment shows no material mean
-   regression; retain `1` as the operational rollback.
-
-## Decisions deferred to measurement
-
-The local campaign resolved the scheduler, API scope, and sole candidate. Only
-two empirical decisions remain:
-
-1. whether representative Linux/NVMe results confirm `P=2` without regressing
-   Segment or Disk; and
-2. whether that evidence is sufficient to change the merged default from `1`
-   to `2`.
+1. **Parallel-writer implementation complete.** The branch adds the
+   snapshot-scoped shared pool, positional writes, and fixed contiguous ranges
+   while retaining each implementation's source loop and buffers.
+2. **Parallel-writer correctness coverage complete.** Tests cover byte
+   identity, exact length, restoration for all five implementations, both
+   production modes, worker failure and quiescence, and top-level snapshot
+   failure and interruption.
+3. **Representative LongList measurement complete.** The corrected Linux
+   campaign covers all five implementations through five billion leaves with
+   equal comparative sampling.
+4. **Production setting selected.** The feature is configurable and the
+   default remains one writer per LongList. Higher counts are an explicit
+   storage-specific choice.
+5. **Final-force decision complete; implementation pending.** Focused and
+   broad Linux campaigns support removing the isolated force. The production
+   path and its Javadocs still need the selected return and error boundary.
 
 ## References
 
