@@ -23,11 +23,6 @@ on:
         description: "Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.5."
         required: false
         type: string
-      block-node-ref:
-        description: "hiero-block-node ref to checkout. Only used for the serverStatus/proto sources consumed by the grpcurl diagnostics; the deployed Block Node chart version is pinned inside the scenario script. Defaults to the tag matching that chart."
-        required: false
-        type: string
-        default: "v0.41.0"
     outputs:
       failure-mode:
         description: "Failure Mode"
@@ -78,7 +73,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/hiero-block-node
-          ref: ${{ inputs.block-node-ref }}
+          # Pinned rather than caller-supplied: this checks out an external repository and the
+          # job holds a writable Gradle cache, so a caller-influenced ref is a cache-poisoning
+          # vector (CodeQL actions/cache-poisoning/poisonable-step, alert #135). The deployed
+          # Block Node chart version is pinned inside the scenario script, and these sources are
+          # only used for the grpcurl serverStatus/proto diagnostics, so this must track it.
+          ref: v0.41.0
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}
