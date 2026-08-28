@@ -1,36 +1,40 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Isolated reproducer for the 0.76 -> 0.77 (BLOCKS-only cutover, real TSS signatures) upgrade that
-# corresponds to step 11 of solo-e2e-block-stream-cutover.sh. The full cutover script takes 30+
-# minutes and walks the whole 0.73 -> 0.77 chain before reaching the 0.77 cutover; this script
-# deploys directly at the published 0.76 release tag and goes straight to the transition we care
-# about.
+# Isolated reproducer for the BLOCKS-only / real-TSS cutover that corresponds to step 11 of
+# solo-e2e-block-stream-cutover.sh. The full cutover script takes 30+ minutes and walks the whole
+# 0.73 -> 0.77 chain before reaching the cutover; this script deploys directly at a published 0.77
+# release tag and goes straight to the transition we care about.
 #
-#   1. Deploy a CN network directly at the published v0.76.0-rc.1 release tag with
+# What is under test is the CONFIG cutover — dual-write + mock TSS signatures becoming BLOCKS-only
+# + real TSS signatures, with a Block Node verifying across the transition and the mirror importer
+# switching from record streams to the BN. The version delta is the vehicle for doing that in place
+# via `solo consensus network upgrade`, not the subject.
+#
+#   1. Deploy a CN network directly at the published v0.77.0-rc.9 release tag with
 #      resources/0.76/application.properties, enabling TSS with tss.forceMockSignatures=true (the
-#      0.76 "dual-write, mock signatures" state). The WRAPS env is injected before the JVMs start
-#      so all nodes initialize the WRAPS library in lockstep at genesis. (Now that a 0.76 tag
-#      exists there's no need to deploy 0.75 first and upgrade into 0.76.)
-#   2. Deploy a mirror node + explorer UI on the 0.76 network (importer reads RECORD streams from
-#      MinIO, which the CN writes in 0.76 / streamMode=BOTH).
-#   3. Deploy a Block Node (v0.35.0) mid-chain; it verifies the mock-sig (RSA WRB) blocks streamed
-#      by the CN through the RSA bootstrap roster.
-#   4. Seed the Block Node with the network's TSS ledger id (published during 0.76) so it can
-#      verify the real-TSS-signed blocks produced after the cutover.
+#      pre-cutover "dual-write, mock signatures" state; the file is named for the release that
+#      introduced that config, not for the tag deployed here). The WRAPS env is injected before the
+#      JVMs start so all nodes initialize the WRAPS library in lockstep at genesis.
+#   2. Deploy a mirror node + explorer UI on that network (importer reads RECORD streams from
+#      MinIO, which the CN writes while streamMode=BOTH).
+#   3. Deploy a Block Node (v0.41.0-rc1) mid-chain; it verifies the mock-sig (RSA WRB) blocks
+#      streamed by the CN through the RSA bootstrap roster.
+#   4. Seed the Block Node with the network's TSS ledger id, as canonical TssData JSON in its
+#      application-state volume, so it can verify the real-TSS-signed blocks produced after the
+#      cutover.
 #   5. Upgrade in place to the local build with resources/0.77/application.properties — BLOCKS-only
 #      (streamMode=BLOCKS, writerMode=GRPC), real TSS signatures (tss.forceMockSignatures=false),
-#      state proofs on — and simultaneously upgrade the Block Node to v0.41.0-rc1. WRAPS env +
-#      on-disk artifacts carry forward from step 1 (no re-injection, matching the main script's
-#      run_077_upgrade). The mirror importer is then switched to read the post-cutover blocks from
-#      the Block Node.
+#      state proofs on. WRAPS env + on-disk artifacts carry forward from step 1 (no re-injection,
+#      matching the main script's run_077_upgrade). The mirror importer is then switched to read the
+#      post-cutover blocks from the Block Node.
 #
-# The Block Node upgrade in step 5 is not cosmetic: the block root the CN builds became a fixed
+# Why the baseline is a 0.77 tag rather than 0.76: the block root the CN builds became a fixed
 # 16-slot merkle tree (#26918), and only BN v0.41.0-rc1+ feeds 16 leaves to its Merkle Mountain Top
-# hasher (hiero-block-node #3378). A v0.40.x-or-older BN rejects every block a post-cutover CN
-# produces with EndOfStream/BAD_BLOCK_PROOF, which saturates the CN block buffer and wedges the
-# handle thread on backpressure. The BN stays at v0.35.0 up to the cutover because the pre-cutover
-# 0.76 blocks are built the old way.
+# hasher (hiero-block-node #3378). A pre-#26918 CN and a v0.41 BN cannot interoperate in either
+# direction, and the BN cannot be upgraded mid-run to bridge the gap (see BLOCK_NODE_CHART_VERSION),
+# so both sides of the cutover must already carry #26918. release/0.78 pins its own cutover the
+# same way for the same reason.
 #
 # Verifications after the 0.77 cutover:
 #   - local-build version on all consensus nodes
@@ -56,10 +60,20 @@ SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
-# We deploy the network directly at the published 0.76 release tag (genesis at 0.76 with TSS +
-# WRAPS, mock signatures), then upgrade to the local 0.77 build for the focused cutover test.
-# Now that a 0.76 release tag exists, there's no need to deploy 0.75 first and upgrade into 0.76.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.76.0-rc.1}"
+# We deploy the network directly at a published 0.77 release tag (genesis with TSS + WRAPS, mock
+# signatures, dual-write — the pre-cutover baseline), then upgrade to the local 0.77 build for the
+# focused cutover test. The baseline is NOT a 0.76 tag: the Block Node is pinned at v0.41.0-rc1 for
+# the whole run (see BLOCK_NODE_CHART_VERSION), and a v0.41 BN rejects the old-format block roots a
+# 0.76 CN produces, so both sides of the upgrade must already carry #26918.
+#
+# v0.77.0-rc.9 IS the #26918 commit and is the first 0.77 tag with the fixed 16-slot block root
+# tree. Do NOT raise this to v0.77.0-rc.10: rc.10 is the release/0.77 head, which would make the
+# baseline and the upgrade target the same commit and turn the cutover into a no-op.
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.77.0-rc.9}"
+# major.minor of whatever tag is actually deployed ("v0.77.0-rc.9" -> "0.77"), used to assert the
+# baseline image on the consensus nodes. Derived rather than hardcoded so an overridden
+# DEPLOY_RELEASE_TAG cannot silently disagree with the expectation.
+DEPLOY_RELEASE_MINOR="$(echo "${DEPLOY_RELEASE_TAG}" | sed -E 's/^v//; s/^([0-9]+\.[0-9]+).*/\1/')"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
@@ -107,11 +121,15 @@ MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-# v0.35.0 verifies the pre-cutover 0.76 blocks (old block root hashing); v0.41.0-rc1 is the floor
-# for the fixed 16-slot block root tree the local 0.77 build produces (#26918 / hiero-block-node
-# #3378), so the BN is upgraded in lockstep with the CN in upgrade_to_local_077.
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0}"
-BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0-rc1}"
+# v0.41.0-rc1 is the floor for the fixed 16-slot block root tree (#26918 / hiero-block-node #3378)
+# and is pinned for the whole run. It is deliberately NOT upgraded mid-scenario from an older BN:
+# the chart renamed this component's volume and moved its mount between v0.35 and v0.41
+# (verification-storage:/opt/hiero/block-node/verification -> application-state-storage:
+# /opt/hiero/block-node/application-state), so an in-place `helm upgrade` provisions a fresh, empty
+# PVC and orphans the old one — discarding the seeded TSS ledger id and the all-previous-blocks
+# hasher snapshot, after which the BN cannot verify anything. Pinning one version is what
+# release/0.78 does for the same reason.
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.41.0-rc1}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -150,9 +168,9 @@ RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
 BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-cutover-values.yaml"
 LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
 LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
-BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-parameters.bin"
+BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-bootstrap-roster.json"
 BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
-BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/verification/tss-parameters.bin}"
+BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-bootstrap-roster.json}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 MIRROR_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/mirror-node-block-cutover-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
@@ -302,7 +320,7 @@ verify_local_build_on_consensus_nodes() {
 }
 
 # Verifies each consensus node runs a release whose Implementation-Version contains the expected
-# substring (e.g. "0.76"). Used for the 0.76 step, which upgrades to a published release image
+# substring (e.g. "0.77"). Used for the baseline step, which deploys a published release image
 # rather than the local build, so the local-build version check does not apply.
 verify_release_version_on_consensus_nodes() {
   local expected_substr="$1"
@@ -778,15 +796,15 @@ blockNode:
           mkdir -p /archive-pvc/archive-data && \\
           chown 2000:2000 /archive-pvc/archive-data && \\
           chmod 700 /archive-pvc/archive-data && \\
-          chown 2000:2000 /verification-pvc && \\
-          chmod 700 /verification-pvc
+          chown 2000:2000 /application-state-pvc && \\
+          chmod 700 /application-state-pvc
       volumeMounts:
         - name: live-storage
           mountPath: /live-pvc
         - name: archive-storage
           mountPath: /archive-pvc
-        - name: verification-storage
-          mountPath: /verification-pvc
+        - name: application-state-storage
+          mountPath: /application-state-pvc
     - name: seed-rsa-bootstrap-roster
       image: busybox
       command:
@@ -841,20 +859,19 @@ validate_block_node_repo() {
     echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH} (needed for the serverStatus proto)" >&2
     return 1
   fi
-  # The checkout must be >= v0.39 even though the BN starts at v0.35.0: grpcurl needs the field in
-  # the proto to surface it after the cutover upgrade. Querying a v0.35 BN with the newer proto is
-  # safe -- the field simply comes back absent, which bn_effective_next_expected_from_status handles.
+  # The checkout must be >= v0.39: grpcurl only surfaces next_expected_block if the field is in the
+  # proto it was handed, and that is the field this script polls the Block Node on.
   if [[ ! -f "${status_proto}" ]] || ! grep -q 'next_expected_block' "${status_proto}"; then
     echo "BLOCK_NODE_REPO_PATH must provide the v0.39+ serverStatus proto with next_expected_block: ${status_proto}" >&2
     return 1
   fi
 }
 
-# The BN's persisted-store position, normalised across the versions this script spans.
-# lastAvailableBlock lags the BN's persistence pipeline on v0.39+, so nextExpectedBlock is the
-# reliable signal -- but BN < v0.39 has no such field, v0.39+ reports uint64 max for it when no
-# publisher stream is attached, and lastAvailableBlock is itself uint64 max on an empty store.
-# In the first two cases lastAvailableBlock + 1 is the equivalent position.
+# The BN's persisted-store position. lastAvailableBlock lags the BN's persistence pipeline on
+# v0.39+, so nextExpectedBlock is the reliable signal -- but v0.39+ reports uint64 max for it when
+# no publisher stream is attached, and lastAvailableBlock is itself uint64 max on an empty store.
+# Falls back to lastAvailableBlock + 1, which also keeps this working if BLOCK_NODE_CHART_VERSION
+# is overridden to a pre-v0.39 build that has no next_expected_block field at all.
 bn_effective_next_expected_from_status() {
   local raw="$1" next_expected="" last_available=""
   next_expected="$(echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
@@ -952,6 +969,9 @@ write_ledger_id_extractor() {
 # SPDX-License-Identifier: Apache-2.0
 import sys
 import gzip
+import base64
+import json
+import os
 
 
 def read_varint(buf, pos):
@@ -1013,9 +1033,41 @@ def extract_from_block(data):
     return None
 
 
+def tss_data_json(pub, block_number):
+    ledger_id = find_field(pub, 1)
+    wraps_key = find_field(pub, 2)
+    contributions = []
+    for fnum, wtype, val in iter_fields(pub):
+        if fnum != 3 or wtype != 2:
+            continue
+        node_id = 0
+        weight = 0
+        history_key = b""
+        for cnum, ctype, cval in iter_fields(val):
+            if cnum == 1 and ctype == 0:
+                node_id = cval
+            elif cnum == 2 and ctype == 0:
+                weight = cval
+            elif cnum == 3 and ctype == 2:
+                history_key = cval
+        contributions.append({
+            "nodeId": str(node_id),
+            "weight": str(weight),
+            "schnorrPublicKey": base64.b64encode(history_key).decode("ascii"),
+        })
+    if not ledger_id or not wraps_key or not contributions:
+        raise ValueError("LedgerIdPublication is missing ledger id, WRAPS key, or node contributions")
+    return {
+        "ledgerId": base64.b64encode(ledger_id).decode("ascii"),
+        "wrapsVerificationKey": base64.b64encode(wraps_key).decode("ascii"),
+        "currentRoster": {"rosterEntries": contributions},
+        "validFromBlock": str(block_number),
+    }
+
+
 def main():
     if len(sys.argv) < 3:
-        sys.stderr.write("usage: extract.py <out.bin> <blockFile.blk[.gz]> [...]\n")
+        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz]> [...]\n")
         sys.exit(2)
     out = sys.argv[1]
     for path in sys.argv[2:]:
@@ -1025,9 +1077,10 @@ def main():
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
             pub = extract_from_block(data)
             if pub is not None:
-                with open(out, "wb") as o:
-                    o.write(pub)
-                print("FOUND ledgerIdPublication in %s -> wrote %d bytes to %s" % (path, len(pub), out))
+                block_number = int(os.path.basename(path).split(".", 1)[0])
+                with open(out, "w", encoding="utf-8") as o:
+                    json.dump(tss_data_json(pub, block_number), o, separators=(",", ":"))
+                print("FOUND ledgerIdPublication in %s -> wrote canonical TssData JSON to %s" % (path, out))
                 return
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("skip %s: %s\n" % (path, e))
@@ -1090,9 +1143,9 @@ seed_block_node_tss_parameters() {
   write_ledger_id_extractor
   rm -f "${BN_TSS_PARAMS_LOCAL}"
   if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed: no LedgerIdPublication found in block stream (was it published during 0.76?)" >&2; return 1
+    echo "seed: no LedgerIdPublication found in block stream (was it published during the pre-cutover phase?)" >&2; return 1
   fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted tss-parameters.bin is empty" >&2; return 1; }
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted TssData JSON is empty" >&2; return 1; }
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   log "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
@@ -1100,7 +1153,7 @@ seed_block_node_tss_parameters() {
   # Tar-free push (kubectl cp needs tar in the target container): stream the file into the
   # pod's cat via stdin.
   if ! kubectl -n "${SOLO_NAMESPACE}" exec -i "${bn_pod}" -- sh -lc "cat > '${BN_TSS_PARAMS_CONTAINER_PATH}'" < "${BN_TSS_PARAMS_LOCAL}"; then
-    echo "seed: streaming tss-parameters into ${bn_pod} failed" >&2; return 1
+    echo "seed: streaming TssData JSON into ${bn_pod} failed" >&2; return 1
   fi
   # Mark the roll instant (UTC, CN-log timestamp format): wait_for_block_node_caught_up must only
   # trust comms-log lines written after this, or a stale pre-roll line passes its gate vacuously.
@@ -1119,7 +1172,8 @@ seed_block_node_tss_parameters() {
   if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- sh -lc "test -s '${BN_TSS_PARAMS_CONTAINER_PATH}'" >/dev/null 2>&1; then
     echo "seed: ${BN_TSS_PARAMS_CONTAINER_PATH} missing or empty in ${bn_pod} after roll" >&2; return 1
   fi
-  # Confirmation: the BN logs "Loaded TSS parameters from file" during init. `kubectl logs` can
+  # Confirmation: the active v0.39 block-verification plugin logs a successful application-state
+  # TSS update during init. `kubectl logs` can
   # briefly return a transitioning container right after the roll, so poll generously. An explicit
   # parse/load failure is fatal; but if we merely never observe the marker (a logs-cutover race)
   # while the file is present and the pod is Ready, continue with a warning —
@@ -1129,18 +1183,18 @@ seed_block_node_tss_parameters() {
   local bn_logs=""
   while (( SECONDS < deadline )); do
     bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
-    if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
-      log "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
+    if grep -q "Successfully updated TSS data" <<<"${bn_logs}"; then
+      log "Block Node loaded seeded TSS application state — ready to verify real-TSS blocks"
       return 0
     fi
-    if grep -qiE "failed to (load|parse|read).*tss|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
+    if grep -qiE "Failed to read TssData file|Failed to update TSS data in verification|invalid TssData|TssData.*(error|corrupt)" <<<"${bn_logs}"; then
       echo "seed: BN reported a TSS parameters load failure:" >&2
       grep -iE "tss" <<<"${bn_logs}" | tail -5 >&2
       return 1
     fi
     sleep 3
   done
-  log "WARN seed: did not observe 'Loaded TSS parameters from file' in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
+  log "WARN seed: did not observe a successful TSS application-state update in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing — post-cutover BN verification will gate this"
   return 0
 }
 
@@ -1306,9 +1360,9 @@ setup_cluster_prereqs() {
     --quiet-mode
 }
 
-# Deploy the network directly at the 0.76 release tag (genesis: TSS + WRAPS enabled, mock
-# signatures). Now that a published 0.76 tag exists we no longer deploy 0.75 first and upgrade
-# into 0.76 — this is the prerequisite state the 0.77 cutover upgrades from.
+# Deploy the network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock
+# signatures, dual-write) — the prerequisite state the 0.77 cutover upgrades from. The tag is a 0.77
+# rc rather than a 0.76 one so its block roots match what the pinned v0.41 Block Node expects.
 deploy_076() {
   log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock signatures)"
 
@@ -1344,7 +1398,7 @@ deploy_076() {
 
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  verify_release_version_on_consensus_nodes "0.76"
+  verify_release_version_on_consensus_nodes "${DEPLOY_RELEASE_MINOR}"
 }
 
 # Verify the genesis 0.76 WRAPS ceremony completed: nudge consensus to advance rounds (the ceremony
@@ -1534,7 +1588,7 @@ update_mirror_node_for_block_cutover() {
 }
 
 upgrade_to_local_077() {
-  log "=== 0.77 cutover: upgrade to local build with 0.77 properties (BLOCKS-only, real TSS signatures, state proofs) + upgrade BN to ${BLOCK_NODE_UPGRADE_VERSION} ==="
+  log "=== 0.77 cutover: upgrade to local build with 0.77 properties (BLOCKS-only, real TSS signatures, state proofs) ==="
 
   local upgrade_cmd=(
     solo consensus network upgrade
@@ -1546,25 +1600,6 @@ upgrade_to_local_077() {
     --force
   )
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
-
-  # The BN is upgraded straight after the CN, not before: `consensus network upgrade` freezes and
-  # restarts the nodes, so the CN emits nothing while it runs. Upgrading the BN here narrows the
-  # window in which a post-cutover CN (16-slot block root tree) streams to a pre-v0.41 BN down to
-  # the BN's own StatefulSet roll.
-  log "--- 0.77 step: upgrade Block Node ${BLOCK_NODE_ID} to ${BLOCK_NODE_UPGRADE_VERSION} ---"
-  solo block node upgrade \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --id "${BLOCK_NODE_ID}" \
-    --upgrade-version "${BLOCK_NODE_UPGRADE_VERSION}" \
-    --quiet-mode
-  # Same StatefulSet race seed_block_node_tss_parameters documents: an in-place `block node upgrade`
-  # rolls the StatefulSet, and `wait --for=condition=ready pod/<name>` matches the OLD pod -- still
-  # Ready while it terminates -- so it returns before the upgraded pod exists. Block on the rollout
-  # first, then confirm the recreated pod.
-  kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" \
-    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
-  kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" \
-    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
 
   log "--- 0.77 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
   wait_for_consensus_pods_ready 600
@@ -1625,7 +1660,7 @@ deploy_mirror_and_explorer || log "WARN: mirror/explorer deployment incomplete; 
 
 # Deploy the BN now (on the 0.76 genesis network) so it verifies the mock-sig (RSA WRB) blocks
 # via the bootstrap roster before the 0.77 cutover.
-log "=== Deploying Block Node ${BLOCK_NODE_ID} ${BLOCK_NODE_CHART_VERSION} (will verify mock-sig blocks, then seeded for real-TSS and upgraded to ${BLOCK_NODE_UPGRADE_VERSION} at the cutover) ==="
+log "=== Deploying Block Node ${BLOCK_NODE_ID} ${BLOCK_NODE_CHART_VERSION} (will verify mock-sig blocks, then seeded for real-TSS) ==="
 deploy_block_node
 verify_block_node_has_blocks 180
 
@@ -1650,5 +1685,5 @@ log "--- 0.77 BN check: confirm Block Node verifies + persists the real-TSS post
 verify_block_node_persists_post_cutover 300
 
 log "PASS: 0.76 (TSS, mock sigs) -> 0.77 (BLOCKS-only cutover, real TSS signatures) upgrade completed and replayed cleanly"
-log "PASS: Block Node (${BLOCK_NODE_UPGRADE_VERSION}) verified the real-TSS-signed post-cutover blocks after TSS ledger-id seeding"
+log "PASS: Block Node (${BLOCK_NODE_CHART_VERSION}) verified the real-TSS-signed post-cutover blocks after TSS ledger-id seeding"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
