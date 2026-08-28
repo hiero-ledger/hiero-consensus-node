@@ -481,22 +481,6 @@ jobs:
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id}}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
 
-          #FIXME: try if already mounted in image
-          if [ 0 -eq 1 ]
-          then
-          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
-          do
-           #create PVC values.yaml from template
-           for pvc_name in application-state-storage archive-storage logging-storage live-storage plugins-storage
-           do
-             sed -e "s@%NODE_ID%@${i}@g" -e "s@%PVC_NAME%@${pvc_name}@g" "${{ github.workspace }}"/.github/workflows/support/citr/block-node-pvc.yaml > block-node-pvc_${pvc_name}_${i}.yaml
-             echo "kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml"
-             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml
-           done
-           sleep 10
-          done
-          fi
-
           bnindex=1
           BNNODE=$(grep "${bnindex}:" firstNode.txt | awk -F : '{print $2}')
 
@@ -537,15 +521,6 @@ jobs:
 
       - name: Update BlockNodes
         run: |
-          #FIXME ls "${{ github.workspace }}"/target_block_node
-          #FIXME ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/
-          #FIXME bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
-          #FIXME bnVersion=$(basename ${bnTar} | sed -e 's/[\.]tar//g')
-          #FIXME echo "bnTar=$bnTar"
-          #FIXME  for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
-          #FIXME do
-          #FIXME   sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${bnTar} ${pod}:/tmp/BN.tar
-          #FIXME done
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
@@ -567,13 +542,11 @@ jobs:
           for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
-            #FIXME sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; tar xf /tmp/BN.tar --overwrite"
           done
 
       - name: Start BlockNodes
         run: |
-          #FIXME bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
-          #FIXME bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
+
           for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
