@@ -61,6 +61,10 @@ on:
         type: string
         description: "The solo version to use for the regression panels"
         default: "latest"
+      cutover-solo-version:
+        type: string
+        description: "The Solo version to use for the 0.76 to 0.77 cutover panel"
+        required: true
       mirror-node-version:
         type: string
         description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
@@ -453,7 +457,7 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       custom-job-name: "${{ inputs.custom-job-label }} Solo 0.76 -> 0.77 Cutover"
-      solo-version: "${{ inputs.solo-version }}"
+      solo-version: "${{ inputs.cutover-solo-version }}"
       java-version: "${{ inputs.java-version }}"
 
   set-failure-mode:

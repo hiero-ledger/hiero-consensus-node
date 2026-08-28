@@ -14,21 +14,29 @@
 #      exists there's no need to deploy 0.75 first and upgrade into 0.76.)
 #   2. Deploy a mirror node + explorer UI on the 0.76 network (importer reads RECORD streams from
 #      MinIO, which the CN writes in 0.76 / streamMode=BOTH).
-#   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks streamed by the CN
-#      through the RSA bootstrap roster.
+#   3. Deploy a Block Node (v0.35.0) mid-chain; it verifies the mock-sig (RSA WRB) blocks streamed
+#      by the CN through the RSA bootstrap roster.
 #   4. Seed the Block Node with the network's TSS ledger id (published during 0.76) so it can
 #      verify the real-TSS-signed blocks produced after the cutover.
 #   5. Upgrade in place to the local build with resources/0.77/application.properties — BLOCKS-only
 #      (streamMode=BLOCKS, writerMode=GRPC), real TSS signatures (tss.forceMockSignatures=false),
-#      state proofs on. WRAPS env + on-disk artifacts carry forward from step 1 (no re-injection,
-#      matching the main script's run_077_upgrade). The mirror importer is then switched to read the
-#      post-cutover blocks from the Block Node.
+#      state proofs on — and simultaneously upgrade the Block Node to v0.41.0-rc1. WRAPS env +
+#      on-disk artifacts carry forward from step 1 (no re-injection, matching the main script's
+#      run_077_upgrade). The mirror importer is then switched to read the post-cutover blocks from
+#      the Block Node.
+#
+# The Block Node upgrade in step 5 is not cosmetic: the block root the CN builds became a fixed
+# 16-slot merkle tree (#26918), and only BN v0.41.0-rc1+ feeds 16 leaves to its Merkle Mountain Top
+# hasher (hiero-block-node #3378). A v0.40.x-or-older BN rejects every block a post-cutover CN
+# produces with EndOfStream/BAD_BLOCK_PROOF, which saturates the CN block buffer and wedges the
+# handle thread on backpressure. The BN stays at v0.35.0 up to the cutover because the pre-cutover
+# 0.76 blocks are built the old way.
 #
 # Verifications after the 0.77 cutover:
 #   - local-build version on all consensus nodes
 #   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node verifies + persists the real-TSS-signed post-cutover blocks (lastAvailableBlock
-#     advances)
+#   - Block Node (v0.41.0-rc1) verifies + persists the real-TSS-signed post-cutover blocks
+#     (nextExpectedBlock advances)
 #   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. The cutover itself comes up
 #     ACTIVE; the SELF_ISS only surfaced when a node restarted (e.g. OOMKilled) and replayed events
 #     past the cutover round. This forced-restart check is OFF by default (happy path) — enable the
@@ -93,13 +101,17 @@ NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
 # --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
 # The reproducer deploys a Block Node before the 0.76 step, seeds it with the network's TSS
-# ledger id before the 0.77 cutover, and asserts the BN verifies + persists the real-TSS-signed
-# post-cutover blocks.
+# ledger id before the 0.77 cutover, upgrades it alongside the CN at the cutover, and asserts the
+# upgraded BN verifies + persists the real-TSS-signed post-cutover blocks.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
+# v0.35.0 verifies the pre-cutover 0.76 blocks (old block root hashing); v0.41.0-rc1 is the floor
+# for the fixed 16-slot block root tree the local 0.77 build produces (#26918 / hiero-block-node
+# #3378), so the BN is upgraded in lockstep with the CN in upgrade_to_local_077.
 BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0}"
+BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0-rc1}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -128,7 +140,7 @@ EXPLORER_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME:-hiero-explorer-1
 SOLO_MIRROR_DEPLOY_TIMEOUT_SECS="${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS:-900}"
 SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
 
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.162.0-rc1}"
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-076-to-077.XXXXXX")"
@@ -824,13 +836,42 @@ deploy_block_node() {
 }
 
 validate_block_node_repo() {
+  local status_proto="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto/block-node/api/node_service.proto"
   if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
     echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH} (needed for the serverStatus proto)" >&2
     return 1
   fi
+  # The checkout must be >= v0.39 even though the BN starts at v0.35.0: grpcurl needs the field in
+  # the proto to surface it after the cutover upgrade. Querying a v0.35 BN with the newer proto is
+  # safe -- the field simply comes back absent, which bn_effective_next_expected_from_status handles.
+  if [[ ! -f "${status_proto}" ]] || ! grep -q 'next_expected_block' "${status_proto}"; then
+    echo "BLOCK_NODE_REPO_PATH must provide the v0.39+ serverStatus proto with next_expected_block: ${status_proto}" >&2
+    return 1
+  fi
 }
 
-# Poll BN serverStatus until lastAvailableBlock > 0, proving CN is streaming into it.
+# The BN's persisted-store position, normalised across the versions this script spans.
+# lastAvailableBlock lags the BN's persistence pipeline on v0.39+, so nextExpectedBlock is the
+# reliable signal -- but BN < v0.39 has no such field, v0.39+ reports uint64 max for it when no
+# publisher stream is attached, and lastAvailableBlock is itself uint64 max on an empty store.
+# In the first two cases lastAvailableBlock + 1 is the equivalent position.
+bn_effective_next_expected_from_status() {
+  local raw="$1" next_expected="" last_available=""
+  next_expected="$(echo "${raw}" | jq -r '.nextExpectedBlock // empty' 2>/dev/null || true)"
+  if [[ -n "${next_expected}" && "${next_expected}" != "18446744073709551615" ]]; then
+    echo "${next_expected}"
+    return
+  fi
+  last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
+  if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" != "18446744073709551615" ]]; then
+    echo $((last_available + 1))
+    return
+  fi
+  echo ""
+}
+
+# Poll BN serverStatus until the effective nextExpectedBlock > 1 (BN holds >= block 1), proving the
+# CN is streaming into it.
 verify_block_node_has_blocks() {
   local timeout_secs="${1:-120}"
   local svc="block-node-${BLOCK_NODE_ID}"
@@ -860,21 +901,21 @@ verify_block_node_has_blocks() {
     return 1
   fi
 
-  local deadline=$((SECONDS + timeout_secs)) last_available="" raw=""
-  log "Polling ${svc} serverStatus for lastAvailableBlock > 0 (up to ${timeout_secs}s)"
+  local deadline=$((SECONDS + timeout_secs)) next_expected="" raw=""
+  log "Polling ${svc} serverStatus for nextExpectedBlock > 1 (up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
-    last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
-    if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" -gt 0 ]]; then
-      log "verify_block_node_has_blocks: lastAvailableBlock=${last_available} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
+    next_expected="$(bn_effective_next_expected_from_status "${raw}")"
+    if [[ "${next_expected}" =~ ^[0-9]+$ && "${next_expected}" -gt 1 ]]; then
+      log "verify_block_node_has_blocks: effective nextExpectedBlock=${next_expected} (reported=$(echo "${raw}" | jq -r '.nextExpectedBlock // "?"'), lastAvailableBlock=$(echo "${raw}" | jq -r '.lastAvailableBlock // "?"'), firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 5
   done
-  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
+  echo "BN ${svc} did not report nextExpectedBlock > 1 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
   echo "  --- last grpcurl stderr (serverStatus) ---" >&2
   cat "${grpc_err}" >&2 2>/dev/null || true
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
@@ -1104,10 +1145,12 @@ seed_block_node_tss_parameters() {
 }
 
 # After the 0.77 cutover, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.lastAvailableBlock twice over a window and requires it to advance —
-# if the BN were rejecting the real-TSS blocks (the pre-seed failure mode), it would be
-# stuck and lastAvailableBlock would not move. Also surfaces any recent 'Verification
-# failed' log lines on failure for diagnosis.
+# Reads the effective serverStatus.nextExpectedBlock twice over a window and requires it to advance
+# — if the BN were rejecting the post-cutover blocks (the pre-seed failure mode, and the failure
+# mode of a BN too old for the 16-slot block root tree), it would be stuck and the position would
+# not move. nextExpectedBlock is the live publisher position, bumped as the BN receives/verifies
+# each block; unlike lastAvailableBlock it does not lag behind persistence. Also surfaces any recent
+# 'Verification failed' log lines on failure for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
   local bn_pod="block-node-${BLOCK_NODE_ID}-0"
@@ -1119,12 +1162,12 @@ verify_block_node_persists_post_cutover() {
   local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
   local proto_file="block-node/api/node_service.proto"
 
-  read_bn_last_available() {
+  read_bn_next_expected() {
     local raw
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
+    bn_effective_next_expected_from_status "${raw}"
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -1135,20 +1178,20 @@ verify_block_node_persists_post_cutover() {
   wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 || { kill "${pf_pid}" >/dev/null 2>&1 || true; echo "post-cutover: BN port-forward failed" >&2; return 1; }
 
   local baseline="" current=""
-  baseline="$(read_bn_last_available)"
+  baseline="$(read_bn_next_expected)"
   [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=0
-  log "Asserting BN persists post-cutover blocks (baseline lastAvailableBlock=${baseline}; must climb within ${timeout_secs}s)"
+  log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline}; must climb within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
     sleep 10
-    current="$(read_bn_last_available)"
+    current="$(read_bn_next_expected)"
     if [[ "${current}" =~ ^[0-9]+$ && "${current}" -gt "${baseline}" ]]; then
-      log "verify_block_node_persists_post_cutover: lastAvailableBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
+      log "verify_block_node_persists_post_cutover: nextExpectedBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
     fi
   done
-  echo "post-cutover: BN lastAvailableBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
+  echo "post-cutover: BN nextExpectedBlock stuck at ${baseline} for ${timeout_secs}s — BN is NOT verifying the real-TSS blocks" >&2
   echo "  recent BN verification failures:" >&2
   kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" --since=10m 2>/dev/null | grep -E "Verification failed for block=" | tail -5 >&2 || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
@@ -1173,12 +1216,12 @@ wait_for_block_node_caught_up() {
   local cn_pod="network-${NODE_ALIASES%%,*}-0"
   local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
 
-  read_bn_last_available() {
+  read_bn_next_expected() {
     local raw
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true
+    bn_effective_next_expected_from_status "${raw}"
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -1204,24 +1247,24 @@ wait_for_block_node_caught_up() {
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
-    cur="$(read_bn_last_available)"
+    cur="$(read_bn_next_expected)"
     cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
       "awk -v ts='${BN_SEED_ROLL_UTC:-}' 'ts == \"\" || \$0 >= ts' '${comms_log}' 2>/dev/null \
         | grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' | tail -1" 2>/dev/null || true)"
     case "${cn_view}" in
       *"available for streaming (wantedBlock"*)
-        log "Block Node is caught up — CN reports it in-range for streaming (BN lastAvailableBlock=${cur:-?}); safe to cut over"
+        log "Block Node is caught up — CN reports it in-range for streaming (BN nextExpectedBlock=${cur:-?}); safe to cut over"
         kill "${pf_pid}" >/dev/null 2>&1 || true
         return 0
         ;;
     esac
     if [[ "${cur}" =~ ^[0-9]+$ && "${cur}" != "${prev}" ]]; then
-      log "  BN lastAvailableBlock=${cur} (CN view: ${cn_view:-pending})"
+      log "  BN nextExpectedBlock=${cur} (CN view: ${cn_view:-pending})"
       prev="${cur}"
     fi
     sleep 5
   done
-  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN lastAvailableBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
+  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN nextExpectedBlock=${prev:-?}); the 0.77 cutover may orphan blocks — consider seeding during the freeze" >&2
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
 }
@@ -1491,7 +1534,7 @@ update_mirror_node_for_block_cutover() {
 }
 
 upgrade_to_local_077() {
-  log "=== 0.77 cutover: upgrade to local build with 0.77 properties (BLOCKS-only, real TSS signatures, state proofs) ==="
+  log "=== 0.77 cutover: upgrade to local build with 0.77 properties (BLOCKS-only, real TSS signatures, state proofs) + upgrade BN to ${BLOCK_NODE_UPGRADE_VERSION} ==="
 
   local upgrade_cmd=(
     solo consensus network upgrade
@@ -1503,6 +1546,25 @@ upgrade_to_local_077() {
     --force
   )
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
+
+  # The BN is upgraded straight after the CN, not before: `consensus network upgrade` freezes and
+  # restarts the nodes, so the CN emits nothing while it runs. Upgrading the BN here narrows the
+  # window in which a post-cutover CN (16-slot block root tree) streams to a pre-v0.41 BN down to
+  # the BN's own StatefulSet roll.
+  log "--- 0.77 step: upgrade Block Node ${BLOCK_NODE_ID} to ${BLOCK_NODE_UPGRADE_VERSION} ---"
+  solo block node upgrade \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --id "${BLOCK_NODE_ID}" \
+    --upgrade-version "${BLOCK_NODE_UPGRADE_VERSION}" \
+    --quiet-mode
+  # Same StatefulSet race seed_block_node_tss_parameters documents: an in-place `block node upgrade`
+  # rolls the StatefulSet, and `wait --for=condition=ready pod/<name>` matches the OLD pod -- still
+  # Ready while it terminates -- so it returns before the upgraded pod exists. Block on the rollout
+  # first, then confirm the recreated pod.
+  kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" \
+    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
+  kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" \
+    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
 
   log "--- 0.77 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
   wait_for_consensus_pods_ready 600
@@ -1563,7 +1625,7 @@ deploy_mirror_and_explorer || log "WARN: mirror/explorer deployment incomplete; 
 
 # Deploy the BN now (on the 0.76 genesis network) so it verifies the mock-sig (RSA WRB) blocks
 # via the bootstrap roster before the 0.77 cutover.
-log "=== Deploying Block Node ${BLOCK_NODE_ID} (will verify mock-sig blocks, then seeded for real-TSS) ==="
+log "=== Deploying Block Node ${BLOCK_NODE_ID} ${BLOCK_NODE_CHART_VERSION} (will verify mock-sig blocks, then seeded for real-TSS and upgraded to ${BLOCK_NODE_UPGRADE_VERSION} at the cutover) ==="
 deploy_block_node
 verify_block_node_has_blocks 180
 
@@ -1588,5 +1650,5 @@ log "--- 0.77 BN check: confirm Block Node verifies + persists the real-TSS post
 verify_block_node_persists_post_cutover 300
 
 log "PASS: 0.76 (TSS, mock sigs) -> 0.77 (BLOCKS-only cutover, real TSS signatures) upgrade completed and replayed cleanly"
-log "PASS: Block Node verified the real-TSS-signed post-cutover blocks after TSS ledger-id seeding"
+log "PASS: Block Node (${BLOCK_NODE_UPGRADE_VERSION}) verified the real-TSS-signed post-cutover blocks after TSS ledger-id seeding"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"

@@ -98,6 +98,18 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    # The 076-to-077 cutover job reads cutover-solo-version from here: it upgrades the Block Node
+    # to v0.41.0-rc1 mid-scenario, and Block Node >= v0.41.0 requires Solo >= v0.84.0 -- newer than
+    # the Solo the other scenarios install. Kept unconditional: a gated job resolves to "skipped",
+    # and a skipped need skips its dependents.
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
@@ -647,6 +659,7 @@ jobs:
     name: "Solo 0.76 -> 0.77 BLOCKS Cutover"
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ inputs.scenario == '076-to-077-cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -681,8 +694,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind

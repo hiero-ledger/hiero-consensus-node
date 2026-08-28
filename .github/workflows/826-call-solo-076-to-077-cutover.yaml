@@ -12,8 +12,8 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The Solo version to install (if not specified, 0.79.0 will be used)."
-        required: false
+        description: "The Solo version to install for this cutover (Block Node >= v0.41.0 requires Solo >= v0.84.0)."
+        required: true
         type: string
       java-version:
         description: "Java JDK Version:"
@@ -24,10 +24,10 @@ on:
         required: false
         type: string
       block-node-ref:
-        description: "hiero-block-node ref to checkout. Only used for the serverStatus/proto sources consumed by the grpcurl diagnostics; the deployed Block Node chart version is pinned inside the scenario script. Defaults to the tag matching that chart."
+        description: "hiero-block-node ref to checkout. Only used for the serverStatus/proto sources consumed by the grpcurl diagnostics; the deployed Block Node chart versions are pinned inside the scenario script. Must be >= v0.39 so the proto carries next_expected_block. Defaults to the tag the scenario upgrades the Block Node to."
         required: false
         type: string
-        default: "v0.35.0"
+        default: "v0.41.0-rc1"
     outputs:
       failure-mode:
         description: "Failure Mode"
@@ -85,7 +85,7 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version || '0.79.0' }}
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
           npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
@@ -152,8 +152,16 @@ jobs:
           kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
           kubectl get svc -A > "${OUT_DIR}/kubectl-services.txt" 2>&1
           kubectl get events -A --sort-by=.lastTimestamp > "${OUT_DIR}/kubectl-events.txt" 2>&1
+          # The block node is rolled mid-scenario (`block node upgrade`), so a plain `logs`
+          # returns nothing when the failure lands while the pod is still initializing. Capture the
+          # previous container's logs and the pod description too, otherwise a block node rejection
+          # (e.g. EndOfStream BAD_BLOCK_PROOF seen by the CN) cannot be attributed to a cause.
           kubectl -n "${SOLO_NAMESPACE}" logs "pod/block-node-1-0" --all-containers --tail=-1 \
             > "${OUT_DIR}/block-node-1-0.log" 2>&1
+          kubectl -n "${SOLO_NAMESPACE}" logs "pod/block-node-1-0" --all-containers --previous --tail=-1 \
+            > "${OUT_DIR}/block-node-1-0.previous.log" 2>&1
+          kubectl -n "${SOLO_NAMESPACE}" describe pod "block-node-1-0" \
+            > "${OUT_DIR}/block-node-1-0.describe.txt" 2>&1
 
           for node in node1 node2 node3 node4; do
             pod="network-${node}-0"

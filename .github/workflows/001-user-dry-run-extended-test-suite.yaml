@@ -111,6 +111,7 @@ jobs:
         id: check-outputs
         run: |
           if [[ "${{ needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.cutover-solo-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
@@ -210,6 +211,7 @@ jobs:
       ref: ${{ inputs.ref }}
       branch-name: ${{ inputs.branch-name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
+      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}

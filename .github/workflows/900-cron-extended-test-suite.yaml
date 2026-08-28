@@ -61,6 +61,7 @@ jobs:
         id: check-outputs
         run: |
           if [[ "${{ needs.extract-citr-vars.outputs.citr-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.cutover-solo-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}" == "" || \
@@ -341,6 +342,7 @@ jobs:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
+      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (main):"
@@ -389,6 +391,7 @@ jobs:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
+      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (Optional):"
