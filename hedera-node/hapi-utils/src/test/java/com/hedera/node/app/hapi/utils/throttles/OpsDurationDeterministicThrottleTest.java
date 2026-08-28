@@ -66,6 +66,26 @@ final class OpsDurationDeterministicThrottleTest {
     }
 
     @Test
+    void restoringSnapshotWithNegativeUsageClampsToZero() {
+        final var now = Instant.ofEpochSecond(1);
+        // A corrupt snapshot could carry a negative used value; it must clamp to 0 rather than
+        // propagating the bucket's IllegalArgumentException out of the state-restore path.
+        final var corruptSnapshot = new ThrottleUsageSnapshot(-1000, new Timestamp(now.getEpochSecond(), 0));
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        assertDoesNotThrow(() -> subject.resetUsageTo(corruptSnapshot));
+        assertEquals(0, subject.used());
+        assertEquals(100, subject.capacityFree(now));
+    }
+
+    @Test
+    void useCapacityThrowsWhenTimelineMovesBackward() {
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        subject.useCapacity(Instant.ofEpochSecond(2), 10);
+        // A decision time earlier than the last one means the throttle timeline moved backward
+        assertThrows(IllegalArgumentException.class, () -> subject.useCapacity(Instant.ofEpochSecond(1), 10));
+    }
+
+    @Test
     void capacityFreeWhenDecisionTimeIsNullWorks() {
         final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 1);
         assertEquals(100, subject.capacityFree(Instant.ofEpochSecond(1)));
