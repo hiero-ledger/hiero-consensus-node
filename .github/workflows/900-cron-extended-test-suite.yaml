@@ -391,18 +391,19 @@ jobs:
       # Dispatched fire-and-forget: the optional panels do not gate promotion, and this run is
       # deliberately not awaited.
       #
-      # Dispatch on the candidate COMMIT, not on a branch name. The dispatched run reads 106's
-      # definition from whatever ref it is given, so a branch name would run the branch tip's
-      # version of the workflow against an older candidate -- and once XTS runs on release
-      # branches, dispatching on `main` would run the wrong definition entirely. The commit is
-      # also always resolvable here, whereas the xts-candidate tag has already been deleted by
-      # fetch-xts-candidate.
+      # `ref` must be a BRANCH, not a commit SHA. The action's README claims a SHA is accepted,
+      # but the underlying workflow-dispatches API rejects one outright:
+      #   Error: No ref found for: 1e68d40ad1a113da0c832da1bb54af3486947e8b
+      # Use the branch the candidate actually lives on rather than a hardcoded `main`, so this
+      # keeps working once XTS runs on release branches. The exact candidate commit is still
+      # pinned -- it is handed to 106 as the `ref` input, which 106 checks out. The xts-candidate
+      # tag is not an option either; fetch-xts-candidate has already deleted it by this point.
       - name: "Trigger 106: [DISP] XTS Optional Tests"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/106-disp-xts-optional-tests.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          ref: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}",
