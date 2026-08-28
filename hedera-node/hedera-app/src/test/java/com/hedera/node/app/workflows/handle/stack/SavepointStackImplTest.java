@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1109,6 +1113,191 @@ class SavepointStackImplTest extends StateTestBase {
             assertThat(stack.rootStates(FOOD_SERVICE)).has(content(newData));
             assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(newData));
             assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(newData));
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests for attributing ids to synthetic records dispatched inside an atomic batch")
+    class AtomicBatchIdentityTests {
+        private static final TransactionID BATCH_ID = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        private static final TransactionID INNER_A_ID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                .transactionValidStart(new Timestamp(1_234_500L, 1))
+                .build();
+        private static final TransactionID INNER_B_ID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                .transactionValidStart(new Timestamp(1_234_501L, 2))
+                .build();
+
+        @Test
+        @DisplayName("a preceding dispatch flushed out of an inner transaction's savepoint keeps that inner's identity")
+        void lateFlushedPrecedingKeepsItsOwnBatchInnerIdentity() {
+            final var stack = batchRootStack();
+
+            // Inner A is a contract call that lazy-creates an account; as the EVM does, it opens a savepoint
+            // before dispatching, so the synthetic creation is only flushed when the EVM transaction commits,
+            // landing *after* inner A in the root sink
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            innerA.createSavepoint();
+            final var creation = precedingDispatchIn(innerA);
+            innerA.commit();
+            innerA.commitFullStack();
+
+            // Inner B is an unrelated transfer that happens to follow inner A
+            batchInnerStackIn(stack, INNER_B_ID).commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_A_ID.copyBuilder().nonce(1).build(),
+                            INNER_B_ID);
+            assertThat(creation.transactionID())
+                    .isEqualTo(INNER_A_ID.copyBuilder().nonce(1).build());
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch flushed ahead of its inner transaction keeps that inner's identity")
+        void earlyFlushedPrecedingKeepsItsOwnBatchInnerIdentity() {
+            final var stack = batchRootStack();
+
+            // Inner A is a transfer that auto-creates an aliased receiver; with no intervening savepoint the
+            // synthetic creation is flushed *ahead* of inner A in the root sink
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            precedingDispatchIn(innerA);
+            innerA.commitFullStack();
+
+            batchInnerStackIn(stack, INNER_B_ID).commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(BATCH_ID, INNER_A_ID.copyBuilder().nonce(1).build(), INNER_A_ID, INNER_B_ID);
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch in the last inner transaction keeps that inner's identity")
+        void precedingInLastBatchInnerKeepsThatInnerIdentity() {
+            final var stack = batchRootStack();
+
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            innerB.createSavepoint();
+            precedingDispatchIn(innerB);
+            innerB.commit();
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_B_ID,
+                            INNER_B_ID.copyBuilder().nonce(1).build());
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch is not confused by a child record of an earlier inner transaction")
+        void precedingIsUnaffectedByChildOfEarlierBatchInner() {
+            final var stack = batchRootStack();
+
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            initialized(innerA.createRemovableChildBuilder());
+            innerA.commitFullStack();
+
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            innerB.createSavepoint();
+            precedingDispatchIn(innerB);
+            innerB.commit();
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_A_ID.copyBuilder().nonce(1).build(),
+                            INNER_B_ID,
+                            INNER_B_ID.copyBuilder().nonce(2).build());
+        }
+
+        @Test
+        @DisplayName("a child record dispatched inside an inner transaction keeps that inner's identity")
+        void childKeepsItsOwnBatchInnerIdentity() {
+            final var stack = batchRootStack();
+
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            initialized(innerB.createRemovableChildBuilder());
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_B_ID,
+                            INNER_B_ID.copyBuilder().nonce(1).build());
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch of the batch itself keeps the batch's identity")
+        void precedingOutsideAnyBatchInnerKeepsTheBatchIdentity() {
+            final var stack = batchRootStack();
+
+            // For example, completing a hollow account that is paying for the batch itself
+            precedingDispatchIn(stack);
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(BATCH_ID.copyBuilder().nonce(1).build(), BATCH_ID, INNER_A_ID);
+        }
+
+        private SavepointStackImpl batchRootStack() {
+            final var stack = SavepointStackImpl.newRootStack(
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    StreamMode.RECORDS,
+                    TraceDataSizeLimiter.NO_LIMIT);
+            initialized(stack.getBaseBuilder(StreamBuilder.class))
+                    .functionality(ATOMIC_BATCH)
+                    .transactionID(BATCH_ID);
+            return stack;
+        }
+
+        private SavepointStackImpl batchInnerStackIn(final SavepointStackImpl root, final TransactionID innerTxnId) {
+            final var innerStack = SavepointStackImpl.newChildStack(
+                    root, REVERSIBLE, BATCH_INNER, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+            initialized(innerStack.getBaseBuilder(StreamBuilder.class)).transactionID(innerTxnId);
+            return innerStack;
+        }
+
+        /**
+         * Dispatches a synthetic setup transaction in the given stack, as a lazy account creation does; note it is
+         * given no transaction id of its own, so one must be assigned when the user transaction is built.
+         */
+        private StreamBuilder precedingDispatchIn(final SavepointStackImpl parentStack) {
+            final var precedingStack = SavepointStackImpl.newChildStack(
+                    parentStack, REMOVABLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+            final var builder = initialized(precedingStack.getBaseBuilder(StreamBuilder.class));
+            precedingStack.commitFullStack();
+            return builder;
+        }
+
+        private List<TransactionID> idsFrom(final SavepointStackImpl stack) {
+            final List<TransactionRecord> records = new ArrayList<>();
+            stack.buildHandleOutput(
+                            Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()), ExchangeRateSet.DEFAULT)
+                    .recordSourceOrThrow()
+                    .forEachTxnRecord(records::add);
+            return records.stream().map(TransactionRecord::transactionIDOrThrow).toList();
         }
     }
 
