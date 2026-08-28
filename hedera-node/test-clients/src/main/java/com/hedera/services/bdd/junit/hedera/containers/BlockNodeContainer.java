@@ -11,12 +11,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryIteratorException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.NonNull;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -32,7 +35,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final int GRPC_PORT = 40840;
     private static final String MAVEN_CENTRAL_BASE_URL = "https://repo1.maven.org/maven2";
     private static final String HIER0_BLOCK_NODE_GROUP_PATH = "org/hiero/block-node";
-    private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/node";
+    private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/application-state";
     private static final String RSA_BOOTSTRAP_FILE_NAME = "rsa-bootstrap-roster.json";
     private static final Object PLUGINS_LOCK = new Object();
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
@@ -44,7 +47,9 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             "block-access-service",
             "server-status",
             "stream-publisher",
-            "stream-subscriber");
+            "stream-subscriber",
+            "roster-bootstrap-rsa",
+            "roster-bootstrap-tss");
     private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.ofEntries(
             Map.entry(
                     "spotbugs-annotations-4.9.8.jar",
@@ -87,14 +92,17 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * @param rsaBootstrapJson JSON content for the RSA bootstrap roster file, or {@code null} to skip
      */
     private BlockNodeContainer(
-            DockerImageName dockerImageName, final long blockNodeId, final int port, final String rsaBootstrapJson) {
+            final DockerImageName dockerImageName,
+            final long blockNodeId,
+            final int port,
+            final String rsaBootstrapJson) {
         super(dockerImageName);
 
         final Path pluginsDir = ensurePluginsAvailable();
         this.withFileSystemBind(pluginsDir.toString(), pluginsDirInContainer(), BindMode.READ_ONLY);
 
         if (rsaBootstrapJson != null) {
-            final Path stateDir = prepareStateDir(rsaBootstrapJson);
+            final Path stateDir = prepareStateDir(blockNodeId, rsaBootstrapJson);
             this.withFileSystemBind(stateDir.toString(), STATE_DIR_IN_CONTAINER, BindMode.READ_WRITE);
         }
 
@@ -171,29 +179,72 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * The file is written as {@value RSA_BOOTSTRAP_FILE_NAME} so the block node app picks it up
      * from its default {@code app.state.rsaBootstrapFilePath} without any config override.
      */
-    private static Path prepareStateDir(final String rsaBootstrapJson) {
+    private static Path prepareStateDir(final long blockNodeId, final String rsaBootstrapJson) {
         synchronized (PLUGINS_LOCK) {
             final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
-            final Path stateDir;
-            if (scopeRoot == null) {
-                stateDir = Path.of("build", "block-node", BLOCK_NODE_VERSION, "node")
-                        .toAbsolutePath()
-                        .normalize();
-            } else {
-                stateDir = scopeRoot
-                        .resolve("block-node")
-                        .resolve(BLOCK_NODE_VERSION)
-                        .resolve("node")
-                        .toAbsolutePath()
-                        .normalize();
-            }
+            final Path stateDir = getStateDir(blockNodeId, scopeRoot);
             try {
                 Files.createDirectories(stateDir);
+                // Clear only this node's own dir (never a running peer's); also drops a prior
+                // test's stale tss-parameters.bin and dodges AccessDenied from the non-root writer.
+                deleteDirectoryContents(stateDir);
                 Files.writeString(stateDir.resolve(RSA_BOOTSTRAP_FILE_NAME), rsaBootstrapJson);
             } catch (final IOException e) {
                 throw new RuntimeException("Failed to write RSA bootstrap file to " + stateDir, e);
             }
+            // Let the block node's non-root user persist runtime state (e.g. tss-parameters.bin) so
+            // it survives an in-test container restart; no-op on non-POSIX hosts.
+            try {
+                Files.setPosixFilePermissions(stateDir, PosixFilePermissions.fromString("rwxrwxrwx"));
+            } catch (final UnsupportedOperationException | IOException ignored) {
+                // Docker-based block node tests only run on POSIX filesystems
+            }
             return stateDir;
+        }
+    }
+
+    private static @NonNull Path getStateDir(final long blockNodeId, final Path scopeRoot) {
+        final String nodeDir = "node-" + blockNodeId;
+        final Path stateDir;
+        if (scopeRoot == null) {
+            stateDir = Path.of("build", "block-node", BLOCK_NODE_VERSION, nodeDir)
+                    .toAbsolutePath()
+                    .normalize();
+        } else {
+            stateDir = scopeRoot
+                    .resolve("block-node")
+                    .resolve(BLOCK_NODE_VERSION)
+                    .resolve(nodeDir)
+                    .toAbsolutePath()
+                    .normalize();
+        }
+        return stateDir;
+    }
+
+    /**
+     * Best-effort recursive removal of a directory's contents (the directory itself is kept). The
+     * block node runs as a non-root user and may leave files this process cannot overwrite; since
+     * we own the directory we can still unlink them. Per-entry failures are ignored so a leftover
+     * entry never aborts container setup.
+     */
+    private static void deleteDirectoryContents(final Path dir) {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.newDirectoryStream(dir)) {
+            for (final Path entry : stream) {
+                try {
+                    if (Files.isDirectory(entry)) {
+                        deleteDirectoryContents(entry);
+                    }
+                    Files.deleteIfExists(entry);
+                } catch (final IOException ignored) {
+                    // best-effort per entry
+                }
+            }
+        } catch (final IOException | DirectoryIteratorException ignored) {
+            // best-effort: could not list or iterate the directory (DirectoryIteratorException
+            // wraps an IOException thrown while advancing the stream) — never abort setup
         }
     }
 

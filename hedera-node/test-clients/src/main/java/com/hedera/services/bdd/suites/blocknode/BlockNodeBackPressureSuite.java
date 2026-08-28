@@ -261,7 +261,7 @@ public class BlockNodeBackPressureSuite {
                                 time::get,
                                 Duration.ofMinutes(2),
                                 Duration.ofMinutes(2),
-                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.")),
+                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(60), PlatformStatus.ACTIVE),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
