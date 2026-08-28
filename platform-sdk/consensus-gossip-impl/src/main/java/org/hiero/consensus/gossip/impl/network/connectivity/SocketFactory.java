@@ -20,7 +20,6 @@ import org.hiero.consensus.model.node.NodeId;
  * Creates, binds and connects server and client sockets
  */
 public interface SocketFactory {
-
     /** The IPv4 address to listen all interface: [0.0.0.0]. */
     byte[] ALL_INTERFACES = new byte[] {0, 0, 0, 0};
 
@@ -76,6 +75,7 @@ public interface SocketFactory {
         serverSocket.bind(endpoint); // try to grab a port on this computer
         // do NOT do clientSocket.setSendBufferSize or clientSocket.setReceiveBufferSize
         // because it causes a major bug in certain situations
+
         serverSocket.setSoTimeout(socketConfig.timeoutServerAcceptConnect());
     }
 
@@ -103,9 +103,6 @@ public interface SocketFactory {
             // set the IP_TOS option
             clientSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
-        final int reconnectBufferBytes = 1 << 20; // 1MiB
-        clientSocket.setReceiveBufferSize(reconnectBufferBytes);
-        clientSocket.setSendBufferSize(reconnectBufferBytes);
 
         clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
         clientSocket.setTcpNoDelay(socketConfig.tcpNoDelay());

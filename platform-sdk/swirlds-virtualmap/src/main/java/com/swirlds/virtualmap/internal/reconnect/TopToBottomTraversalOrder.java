@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -119,15 +118,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
          */
         final Queue<Long> internals = new ConcurrentLinkedQueue<>();
 
-        // ── Observability (mutated only from the view's synchronized block) ──
-
-        /** Number of PATH_NOT_AVAILABLE_YET returns caused by hasDirtyParent failure */
-        int leafStallCount;
-        /** Accumulated wall-clock nanoseconds spent in stall state */
-        long chunkStallNanos;
-        /** Timestamp of the current stall episode start, or 0 if not stalling */
-        long stallStartNanos;
-
         /**
          * Creates a fully-initialized chunk state with its initial internals already seeded.
          *
@@ -206,30 +196,27 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     private volatile long lastPoppedChunkRightmost = -1;
 
     /**
-     * Set to {@code true} when the current chunk's leaf phase is stalled (parent status
-     * unknown), {@code false} when a leaf is successfully sent or a chunk transition occurs.
-     * Read by {@link #getNextInternalPathToSend()} (outside the view's sync block) to gate
-     * access to pre-fetched chunks' internals: pre-fetch internals are only returned while
-     * the current chunk is stalled, ensuring that current-chunk leaves take priority over
-     * pre-fetch work once the stall resolves. Races are benign — a stale {@code true} sends
-     * one extra pre-fetch internal; a stale {@code false} skips one, caught on the next call.
+     * Set to {@code true} when the current chunk's leaf phase stalls (parent status unknown);
+     * cleared to {@code false} only inside {@link #getNextLeafPathToSend()}, when a leaf becomes
+     * sendable or the chunk completes.
+     *
+     * <p>Read by {@link #getNextInternalPathToSend()} to gate access to pre-fetched chunks'
+     * internals. The current chunk's own internals (including dirty drill-down) always have
+     * priority; pre-fetched chunks' internals are returned only while this flag is {@code true}.
+     *
+     * <p>Priority is soft, not immediate: the sender exhausts {@link #getNextInternalPathToSend()}
+     * before it calls {@link #getNextLeafPathToSend()}, and only the latter clears this flag. So
+     * once the current chunk's own internals are drained, the sender returns <em>every</em>
+     * pre-fetched internal currently queued before the next leaf call clears the flag — not just
+     * one. Current-chunk leaves therefore regain priority only after that queued pre-fetch backlog
+     * drains. Leaf FIFO order is unaffected (leaves are still produced in ascending order); internal
+     * send order is unconstrained, so this is a throughput/latency trade-off, not a correctness issue.
+     *
+     * <p>Concurrency: a stale {@code true} lets the sender drain the queued pre-fetch internals
+     * before the flag clears; a stale {@code false} skips pre-fetch for one internal check and is
+     * re-set on the next {@link #getNextLeafPathToSend()}. Both are benign.
      */
     private volatile boolean currentChunkStalled = false;
-
-    // ── Observability (mutated only from the view's synchronized block) ──
-
-    /** Number of chunks that have finished processing (promoted or finalized) */
-    private int completedChunks;
-    /** Accumulated stall nanoseconds across all completed chunks */
-    private long totalStallNanos;
-    /** Accumulated nanoseconds where stalls occurred with all pre-fetch queues empty */
-    private long totalPrefetchExhaustedNanos;
-    /** Timestamp when pre-fetch exhaustion began, or 0 if not currently exhausted */
-    private long prefetchExhaustedSince;
-    /** Peak number of pre-fetched chunks observed during the traversal */
-    private int maxLookaheadReached;
-    /** Guard to ensure the end-of-traversal summary is logged exactly once */
-    private boolean traversalComplete;
 
     @Override
     public void start(
@@ -263,7 +250,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     /**
      * Finds the active chunk whose subtree contains the given internal path.
      *
-     * @return  if no active chunk owns the path
+     * @param path an internal node path; its rank must be greater than {@code chunkRootRank}
+     * @return the owning {@link ChunkState}, or {@code null} if no active chunk owns the path
+     *         (its chunk was already completed and popped — a benign race with in-flight responses)
+     * @throws IllegalStateException if {@code path} is at or above the chunk root rank
      */
     @Nullable
     private ChunkState findOwningChunk(final long path) {
@@ -340,8 +330,13 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return MerklePathUtils.INVALID_PATH;
         }
-        // Current chunk's internals always have highest priority — these are
-        // drill-down children that help resolve the current chunk's leaf stall.
+        // The current chunk's own internals are always sent first, regardless of currentChunkStalled.
+        // This is not just stall handling: on chunk entry (and right after promotion) the flag is false
+        // but no leaf can yet be classified clean/dirty — the chunk's seeded internals must go out and be
+        // answered before getNextLeafPathToSend can make progress. This queue also carries dirty
+        // drill-down children (added by nodeReceived), which confirm the next band of leaves and so must
+        // precede leaf sends to keep the pipeline full. Sending leaves ahead of these would force an
+        // unnecessary stall per chunk.
         final ChunkState current = activeChunks.peekFirst();
         if (current != null) {
             final Long internal = current.internals.poll();
@@ -349,9 +344,12 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 return internal;
             }
         }
-        // Pre-fetched chunks' internals: only returned while the current chunk's
-        // leaf phase is stalled. Once the stall resolves (a leaf becomes sendable),
-        // currentChunkStalled is cleared, and pre-fetch internals yield to leaves.
+        // Pre-fetched chunks' internals: returned only while the current chunk's leaf phase is
+        // stalled. The flag is cleared only in getNextLeafPathToSend(), and the sender exhausts this
+        // method before calling that one — so once the current chunk's own internals are drained,
+        // every queued pre-fetch internal is returned before the next leaf call clears the flag, not
+        // just one. Current-chunk leaves regain priority only after that backlog drains. Harmless:
+        // internal send order is unconstrained and leaf FIFO order is unaffected.`
         if (!currentChunkStalled) {
             return MerklePathUtils.INVALID_PATH;
         }
@@ -368,22 +366,16 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     @Override
     public long getNextLeafPathToSend() {
         long leafPath = currentLeafPath.get();
+        if (leafPath > lastLeafPath) {
+            // Processing is over, this method must return INVALID_PATH
+            return MerklePathUtils.INVALID_PATH;
+        }
         if (simpleMode) {
-            // Simple mode iterates over all leaves and terminates on its own — it has no
-            // chunks and nothing to finalize, so it must never reach finalizeTraversal.
-            if (leafPath > lastLeafPath) {
-                return MerklePathUtils.INVALID_PATH;
-            }
             currentLeafPath.set(leafPath + 1);
             return leafPath;
         }
-        if (leafPath > lastLeafPath) {
-            // Processing is over, this method must return INVALID_PATH
-            finalizeTraversal(activeChunks.peekFirst());
-            return MerklePathUtils.INVALID_PATH;
-        }
         if ((leafPath < oldFirstLeafPath) || (leafPath > oldLastLeafPath)) {
-            // Processing leaves before or after the old path range, all known to be dirty
+            // Leaves before or after the old path range are all known to be dirty
             currentLeafPath.set(leafPath + 1);
             return leafPath;
         }
@@ -392,44 +384,32 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         // Skip all clean leaf paths starting from the current path
         leafPath = skipCleanPaths(chunk, leafPath);
         if (leafPath == MerklePathUtils.INVALID_PATH) {
-            // All remaining leaves in the current chunk are clean — the chunk is finished,
-            // whether it is the last chunk (finalize below) or not (promote below). Pop it
-            // now, for both paths, and advance the popped-rightmost watermark so that any
-            // late in-flight internal responses for this chunk are recognized as stale by
-            // findOwningChunk rather than routed into finalized state.
+            // The current chunk is finished because skipCleanPaths skipped all its remaining
+            // leaves as clean (INVALID_PATH) — it completes WITHOUT sending those leaves and
+            // WITHOUT waiting on the internals that would have classified them, so this chunk's
+            // seeded/drill-down internal requests may still be unanswered and in flight. (This is
+            // the all-clean-skip completion; a chunk that finishes by sending its last leaf has,
+            // by contrast, already received that leaf's governing internal responses.) Pop the
+            // chunk now — for both the last-chunk (return) and promote paths — and advance the
+            // popped-rightmost watermark, so a late in-flight internal response for this chunk is
+            // recognized as stale by findOwningChunk (returns null → discarded) rather than
+            // triggering its "no owning chunk" IllegalStateException. Response reordering under
+            // load makes such late arrivals routine, not exceptional.
             activeChunks.pollFirst();
             //noinspection NonAtomicOperationOnVolatileField
             lastPoppedChunkRightmost = Math.max(lastPoppedChunkRightmost, chunk.chunkLastLeafPath);
 
             leafPath = chunk.chunkLastLeafPath + 1;
             if (leafPath > lastLeafPath) {
-                // This was the last chunk. Advance currentLeafPath past the end so any
-                // subsequent call terminates at the top-of-method guard (the deque is now
-                // empty), then finalize.
+                // This was the last chunk. Advance past the end so the next call terminates at the
+                // top-of-method guard (the deque is now empty).
                 currentLeafPath.set(leafPath);
-                finalizeTraversal(chunk);
                 return MerklePathUtils.INVALID_PATH;
             }
-            // Finalize stall timing and accumulate totals for the completing chunk
+            // Current chunk complete; its leaf stall (if any) is over.
             currentChunkStalled = false;
-            endStallIfActive(chunk);
-            completedChunks++;
-            totalStallNanos += chunk.chunkStallNanos;
-            // Pre-fetched chunks remaining in the deque (the current chunk is already popped).
-            final int prefetchDepthAtPromotion = activeChunks.size();
-            logger.debug(
-                    RECONNECT.getMarker(),
-                    "Chunk promoted: root={} leafStallCount={} prefetchDepthAtPromotion={} "
-                            + "chunkStallNanos={} memCleanPaths={} memSomeDirtyPaths={} memInternals={}",
-                    chunk.chunkRootPath,
-                    chunk.leafStallCount,
-                    prefetchDepthAtPromotion,
-                    chunk.chunkStallNanos,
-                    chunk.cleanPaths.size(),
-                    chunk.someDirtyPaths.size(),
-                    chunk.internals.size());
             if (activeChunks.isEmpty()) {
-                // No pre-fetched chunk available, compute the next one.
+                // No pre-fetched chunk available — compute the next one.
                 final ChunkState next = computeNextChunk(chunk);
                 assert next != null : "computeNextChunk returned null despite leafPath <= lastLeafPath";
                 activeChunks.addLast(next);
@@ -438,112 +418,19 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to internal nodes of the new chunk
             return PATH_NOT_AVAILABLE_YET;
         }
-        // OK, leafPath is not clean. It can be either dirty (if one of its parents is
-        // in someDirtyPaths) or not known
+        // leafPath is not clean: either dirty (a parent is in someDirtyPaths) or unknown.
         if (!hasDirtyParentWithinRankStep(chunk, leafPath)) {
-            // Neither clean, nor dirty. Parent status unknown — stall.
+            // Neither clean nor dirty. Parent status unknown — stall, and seed the next chunk's
+            // internals so the wire stays busy while we wait for the current chunk's responses.
             currentChunkStalled = true;
-            chunk.leafStallCount++;
-            if (chunk.stallStartNanos == 0) {
-                chunk.stallStartNanos = System.nanoTime();
-            }
-            // Seed the next chunk's internals if pre-fetch depth allows, so the
-            // wire stays busy while we wait for the current chunk's responses.
-            seedPrefetchChunkIfAllowed();
-            // Track pre-fetch exhaustion: stalling with no pre-fetch work available
-            updatePrefetchExhaustionTracking();
+            seedNextPrefetchChunk();
             currentLeafPath.set(leafPath);
             return PATH_NOT_AVAILABLE_YET;
         }
         // Leaf has a dirty parent — send it. End any active stall.
         currentChunkStalled = false;
-        endStallIfActive(chunk);
         currentLeafPath.set(leafPath + 1);
         return leafPath;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Observability helpers
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * If the given chunk is in a stall, finalizes the stall duration and clears the
-     * stall state. Also finalizes any active pre-fetch exhaustion tracking.
-     */
-    private void endStallIfActive(final ChunkState chunk) {
-        if (chunk.stallStartNanos != 0) {
-            chunk.chunkStallNanos += System.nanoTime() - chunk.stallStartNanos;
-            chunk.stallStartNanos = 0;
-        }
-        if (prefetchExhaustedSince != 0) {
-            totalPrefetchExhaustedNanos += System.nanoTime() - prefetchExhaustedSince;
-            prefetchExhaustedSince = 0;
-        }
-    }
-
-    /**
-     * Checks whether pre-fetch is exhausted (all pre-fetched chunks' internal queues
-     * are empty) and updates the exhaustion duration tracking accordingly.
-     */
-    private void updatePrefetchExhaustionTracking() {
-        final boolean exhausted = isPrefetchExhausted();
-        if (exhausted && prefetchExhaustedSince == 0) {
-            prefetchExhaustedSince = System.nanoTime();
-        } else if (!exhausted && prefetchExhaustedSince != 0) {
-            totalPrefetchExhaustedNanos += System.nanoTime() - prefetchExhaustedSince;
-            prefetchExhaustedSince = 0;
-        }
-    }
-
-    /**
-     * Returns {@code true} if at least one pre-fetched chunk exists but all of their
-     * internal queues are empty. Returns {@code false} if there are no pre-fetched
-     * chunks (exhaustion is not meaningful without pre-fetch) or if any pre-fetched
-     * chunk still has internals to send.
-     */
-    private boolean isPrefetchExhausted() {
-        if (activeChunks.size() <= 1) {
-            return false;
-        }
-        boolean first = true;
-        for (final ChunkState cs : activeChunks) {
-            if (first) {
-                first = false;
-                continue; // skip the current chunk (head)
-            }
-            if (!cs.internals.isEmpty()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Finalizes observability for the traversal and logs the end-of-traversal summary.
-     * Called when the traversal is complete (no more leaves to send). Guarded to run
-     * at most once.
-     */
-    private void finalizeTraversal(final ChunkState lastChunk) {
-        assert !simpleMode
-                : "finalizeTraversal must not be called in simple mode — simple mode "
-                        + "has no chunks and terminates without finalizing";
-        if (traversalComplete) {
-            return;
-        }
-        traversalComplete = true;
-        if (lastChunk != null) {
-            endStallIfActive(lastChunk);
-            completedChunks++;
-            totalStallNanos += lastChunk.chunkStallNanos;
-        }
-        logger.info(
-                RECONNECT.getMarker(),
-                "Traversal complete: chunks={} totalStallMs={} prefetchExhaustedMs={} "
-                        + "maxLookahead={} configuredDepth={}",
-                completedChunks,
-                TimeUnit.NANOSECONDS.toMillis(totalStallNanos),
-                TimeUnit.NANOSECONDS.toMillis(totalPrefetchExhaustedNanos),
-                maxLookaheadReached);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -592,35 +479,28 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     }
 
     /**
-     * Seeds at most one pre-fetch chunk at the tail of the deque, if the configured
-     * pre-fetch depth allows and there are more chunks to process within the old leaf range.
+     * Seeds one pre-fetch chunk at the tail of the deque, if there are more chunks to process within
+     * the old leaf range and the next chunk does not cross the rank-change boundary.
      *
-     * <p>At most one chunk is seeded per invocation. Seeding a chunk allocates a
-     * {@link ChunkState}, computes geometry, and inserts its initial internals into the
-     * internals queue. The number of seed entries is {@code 2^(chunkHeight/2)}, so it grows
-     * exponentially with chunk height — at the default height it is on the order of a few
-     * thousand, but a taller chunk seeds proportionally more — and that work is done under
-     * the view's sync lock. Seeding multiple chunks in one call would hold the lock for a
-     * multiple of that duration, blocking other threads waiting to call
-     * {@code getNextLeafPathToSend}. Additionally, by the time a second pre-fetched chunk is
-     * needed, the current chunk's stall may have already resolved, making the second
-     * pre-fetch unnecessary. Sender threads cycle back through the send loop quickly;
-     * subsequent stalls will seed subsequent chunks if conditions still warrant it.
+     * <p>At most one chunk is seeded per invocation: seeding allocates a {@link ChunkState} and
+     * inserts its initial internals ({@code 2^(chunkHeight/2)} entries) under the view's sync lock, so
+     * seeding several at once would hold that lock proportionally longer and block other senders.
+     * Sender threads cycle back quickly, so a subsequent stall seeds the subsequent chunk if still
+     * warranted. Pre-fetch is unbounded — sustained stalls grow the deque one chunk per stall.
      *
-     * <p>Two pre-fetch-specific gates apply here that promotion does not need:
+     * <p>Two gates apply here that promotion does not need:
      * <ul>
-     *   <li>The next chunk's leaves must not be entirely past {@code oldLastLeafPath} —
-     *       such leaves are sent immediately as dirty without internal queries, so
-     *       pre-fetching their internals would waste bandwidth.</li>
-     *   <li>The next chunk must not cross the rank-change boundary (see
-     *       {@link #crossesRankBoundary}) — seeding across it would place two chunks with
-     *       the same root path in the deque and misroute responses.</li>
+     *   <li>The next chunk's leaves must not be entirely past {@code oldLastLeafPath} — such leaves are
+     *       sent immediately as dirty without internal queries, so pre-fetching their internals would
+     *       waste bandwidth.</li>
+     *   <li>The next chunk must not cross the rank-change boundary (see {@link #crossesRankBoundary}) —
+     *       seeding across it would place two chunks with the same root path in the deque and misroute
+     *       responses.</li>
      * </ul>
      */
-    private void seedPrefetchChunkIfAllowed() {
+    private void seedNextPrefetchChunk() {
         final ChunkState lastInDeque = activeChunks.peekLast();
         assert lastInDeque != null : "activeChunks must not be empty when seeding pre-fetch";
-        // Pre-fetch-specific gates (promotion does not need these — see javadoc).
         if (lastInDeque.chunkLastLeafPath + 1 > oldLastLeafPath) {
             return;
         }
@@ -630,10 +510,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         final ChunkState prefetched = computeNextChunk(lastInDeque);
         if (prefetched != null) {
             activeChunks.addLast(prefetched);
-            final int depth = activeChunks.size() - 1;
-            if (depth > maxLookaheadReached) {
-                maxLookaheadReached = depth;
-            }
         }
     }
 

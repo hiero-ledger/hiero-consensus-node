@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.sync;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
@@ -13,7 +15,11 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
@@ -24,6 +30,8 @@ import org.hiero.base.crypto.Hash;
  * Responses from teacher should be handled via {@link #responseReceived(PullVirtualTreeResponse)}.
  */
 public final class LearnerTreeExchanger {
+
+    private static final Logger logger = LogManager.getLogger(LearnerTreeExchanger.class);
 
     /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
@@ -150,8 +158,37 @@ public final class LearnerTreeExchanger {
         if (!isLeafOnTeacher(responsePath)) {
             handleResponse(response);
         } else {
+            // Eager, order-independent store: stale-key tracking + leaf store, done in parallel on this
+            // receiver the moment the leaf arrives. Only the ordered hash-feed (supplyDirtyLeaf, on the
+            // applier) is deferred. nodeReceived is a no-op for leaf paths, so it is not needed here.
+            if (!response.isClean() && teacherMetadata.getLastLeafPath() > 0) {
+                final VirtualLeafBytes<?> leaf = response.leafData();
+                assert leaf != null && leaf.path() == responsePath;
+                vmapLearner.storeDirtyLeaf(leaf);
+            }
+            // The ordered hash-feed is performed by the dedicated applier thread (see applierLoop),
+            // which drains this map in anticipatedLeafPaths FIFO order. Receiver threads stay free to
+            // keep draining the socket instead of blocking on a long contiguous-backlog drain.
             responses.put(responsePath, response);
-            // Handle responses in the same order as the corresponding requests were sent to the teacher
+        }
+    }
+
+    /**
+     * Dedicated, single-threaded loop that feeds leaf responses to the hasher in
+     * {@link #anticipatedLeafPaths} FIFO order. Exactly one thread (this one) ever drains the FIFO,
+     * so leaf apply remains single-threaded — identical to the previous inline behaviour, just
+     * relocated off the receiver threads so a long contiguous-backlog drain can no longer block a
+     * receiver from reading the socket (which would stall the TCP window and throttle the teacher).
+     *
+     * @param receiveTasksDone latch counted down as each receiver task finishes; when it reaches zero
+     *                         no further responses will arrive, so once the FIFO is drained the loop exits
+     */
+    void applierLoop(final CountDownLatch receiveTasksDone) {
+        // Exit on interrupt: if any sibling task fails, StandardWorkGroup.shutdownNow() interrupts
+        // this thread. LockSupport.parkNanos returns (leaving the interrupt flag set) on interrupt, so
+        // this loop condition then tears the applier down and lets workGroup.close()/join() complete.
+        while (!Thread.currentThread().isInterrupted()) {
+            boolean drainedAny = false;
             while (true) {
                 final Long nextExpectedPath = anticipatedLeafPaths.peek();
                 if (nextExpectedPath == null) {
@@ -159,10 +196,30 @@ public final class LearnerTreeExchanger {
                 }
                 final PullVirtualTreeResponse r = responses.remove(nextExpectedPath);
                 if (r == null) {
-                    break;
+                    break; // FIFO head not yet received
                 }
                 handleResponse(r);
                 anticipatedLeafPaths.remove();
+                drainedAny = true;
+            }
+            if (!drainedAny) {
+                // When every receiver task has finished, no more responses will ever arrive. Each
+                // receiver publishes into the concurrent `responses` map before it counts the latch
+                // down, so once the count is zero every received leaf is already in the map; if the
+                // FIFO head is still missing here it genuinely never arrived (a protocol error) and we
+                // exit rather than hang. lastLeafSent additionally guards against an early exit before
+                // any leaf request has been sent.
+                if (lastLeafSent.get() && receiveTasksDone.getCount() == 0) {
+                    if (!anticipatedLeafPaths.isEmpty()) {
+                        logger.error(
+                                RECONNECT.getMarker(),
+                                "Applier exiting with {} undrained leaf path(s); head={}",
+                                anticipatedLeafPaths.size(),
+                                anticipatedLeafPaths.peek());
+                    }
+                    break;
+                }
+                LockSupport.parkNanos(50_000L); // head in flight; nothing to drain this pass
             }
         }
     }
@@ -184,7 +241,10 @@ public final class LearnerTreeExchanger {
                 final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
+                // The store (stale-key tracking + updateLeaf) already ran eagerly in responseReceived.
+                // Here, on the applier in FIFO order, do only the ordered hash-feed. May block if
+                // hashing is slower than ingest.
+                vmapLearner.supplyDirtyLeaf(leaf);
             }
             stats.incrementLeafData(isClean);
         } else {

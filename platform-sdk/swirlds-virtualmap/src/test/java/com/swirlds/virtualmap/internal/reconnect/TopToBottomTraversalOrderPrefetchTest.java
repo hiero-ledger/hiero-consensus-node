@@ -171,55 +171,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6a — Regression with depth=0
+    //  Pre-fetch trigger
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6a — Regression: depth=0 matches baseline behavior")
-    class RegressionTests {
-
-        @Test
-        @DisplayName("All-dirty tree completes correctly with depth=0")
-        void allDirtyWithDepthZero() {
-            final var order = new TopToBottomTraversalOrder();
-            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
-
-            final List<Long> leaves = driveAllDirty(order);
-
-            assertEquals(CHUNK_LAST - CHUNK_FIRST + 1, leaves.size());
-            assertEquals(CHUNK_FIRST, leaves.get(0));
-            assertEquals(CHUNK_LAST, leaves.get(leaves.size() - 1));
-        }
-
-        @Test
-        @DisplayName("All-clean tree completes correctly with depth=0")
-        void allCleanWithDepthZero() {
-            final var order = new TopToBottomTraversalOrder();
-            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
-
-            final List<Long> leaves = driveAllClean(order);
-            assertTrue(leaves.isEmpty(), "No leaves must be sent when tree is all clean");
-        }
-
-        @Test
-        @DisplayName("Stall with depth=0 does not seed any pre-fetch chunk")
-        void noPreFetchWithDepthZero() throws Exception {
-            final var order = new TopToBottomTraversalOrder();
-            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
-
-            triggerStall(order);
-
-            assertEquals(
-                    1, getActiveChunks(order).size(), "Deque must have exactly one chunk (no pre-fetch) with depth=0");
-        }
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // 6b — Pre-fetch trigger
-    // ═════════════════════════════════════════════════════════════════════════
-
-    @Nested
-    @DisplayName("6b — Pre-fetch trigger on stall")
+    @DisplayName("Pre-fetch trigger on stall")
     class PrefetchTriggerTests {
 
         @Test
@@ -259,11 +215,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6c — Internal priority
+    // Internal priority
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6c — Current chunk internals have priority over pre-fetch")
+    @DisplayName("Current chunk internals have priority over pre-fetch")
     class InternalPriorityTests {
 
         @Test
@@ -290,11 +246,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6d — nodeReceived routing
+    // nodeReceived routing
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6d — nodeReceived routes to the correct chunk")
+    @DisplayName("nodeReceived routes to the correct chunk")
     class NodeReceivedRoutingTests {
 
         @Test
@@ -327,11 +283,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6g — Chunk promotion with pre-fetch
+    // Chunk promotion with pre-fetch
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6g — Promotion uses pre-fetched chunk")
+    @DisplayName("Promotion uses pre-fetched chunk")
     class PromotionWithPrefetchTests {
 
         @Test
@@ -368,36 +324,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6h — Depth bounding
+    // One-chunk-per-call invariant
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6h — Depth bounding")
-    class DepthBoundingTests {
-
-        @Test
-        @DisplayName("Depth=1 limits deque to at most 2 entries")
-        void depthOneLimitsDequeSizeToTwo() throws Exception {
-            final var order = new TopToBottomTraversalOrder();
-            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
-
-            // Stall once → seeds pre-fetch
-            triggerStall(order);
-            assertEquals(2, getActiveChunks(order).size());
-
-            // Stall again → depth limit reached, no additional pre-fetch
-            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
-            assertEquals(
-                    2, getActiveChunks(order).size(), "Second stall must not increase deque size beyond depth limit");
-        }
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // 6i — One-chunk-per-call invariant
-    // ═════════════════════════════════════════════════════════════════════════
-
-    @Nested
-    @DisplayName("6i — At most one chunk seeded per call")
+    @DisplayName("At most one chunk seeded per call")
     class OneChunkPerCallTests {
 
         @Test
@@ -423,11 +354,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6l — Pre-fetch past end of tree (no-op)
+    // Pre-fetch past end of tree (no-op)
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6l — No pre-fetch when current chunk is the last")
+    @DisplayName("No pre-fetch when current chunk is the last")
     class PrefetchPastEndTests {
 
         @Test
@@ -456,11 +387,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6m — Pre-fetch past old range (no-op)
+    // Pre-fetch past old range (no-op)
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6m — No pre-fetch when next chunk is past old range")
+    @DisplayName("No pre-fetch when next chunk is past old range")
     class PrefetchPastOldRangeTests {
 
         @Test
@@ -481,11 +412,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6n — Promotion at end of tree
+    // Promotion at end of tree
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6n — Termination when last chunk completes")
+    @DisplayName("Termination when last chunk completes")
     class TerminationTests {
 
         @Test
@@ -503,11 +434,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6p — Simple mode with pre-fetch enabled
+    // Simple mode with pre-fetch enabled
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6p — Simple mode ignores pre-fetch")
+    @DisplayName("Simple mode ignores pre-fetch")
     class SimpleModeTests {
 
         @Test
@@ -541,11 +472,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6j — Unbounded mode
+    // Unbounded mode
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6j — Unbounded pre-fetch depth")
+    @DisplayName("Unbounded pre-fetch depth")
     class UnboundedModeTests {
 
         @Test
@@ -570,11 +501,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6q — Before-old-range with pre-fetch
+    // Before-old-range with pre-fetch
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6q — Before-old-range leaves don't trigger pre-fetch")
+    @DisplayName("Before-old-range leaves don't trigger pre-fetch")
     class BeforeOldRangeTests {
 
         @Test
@@ -605,11 +536,11 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6s — End-to-end with pre-fetch benefit
+    // End-to-end with pre-fetch benefit
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6s — End-to-end: pre-fetch correctness on multi-chunk tree")
+    @DisplayName("End-to-end: pre-fetch correctness on multi-chunk tree")
     class EndToEndTests {
 
         // Moderate multi-chunk tree: firstLeafPath=100_000 (rank 17),
@@ -641,30 +572,14 @@ class TopToBottomTraversalOrderPrefetchTest {
             final List<Long> leaves = driveAllClean(order);
             assertTrue(leaves.isEmpty(), "No leaves sent in all-clean tree");
         }
-
-        @Test
-        @DisplayName("maxLookaheadReached is 0 under the synchronous driver (no stalls)")
-        void maxLookaheadTracked() throws Exception {
-            final var order = new TopToBottomTraversalOrder();
-            order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
-
-            driveAllDirtyStreaming(order, E2E_FIRST, E2E_LAST);
-
-            // The synchronous driver drains all internals before checking leaves, so
-            // stalls never occur and pre-fetch is never triggered.
-            assertEquals(
-                    0,
-                    getMaxLookaheadReached(order),
-                    "Synchronous driver doesn't trigger stalls, so maxLookahead should be 0");
-        }
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6k — Rank-change boundary: no pre-fetch across the boundary
+    // Rank-change boundary: no pre-fetch across the boundary
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("6k — Rank-change boundary blocks pre-fetch")
+    @DisplayName("Rank-change boundary blocks pre-fetch")
     class RankChangeBoundaryTests {
 
         // Mixed-rank tree: firstLeafPath=1100 (rank 10), lastLeafPath=2200 (rank 11)
