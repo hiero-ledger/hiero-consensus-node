@@ -12,6 +12,7 @@ import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbPaths;
 import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -54,10 +55,10 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     private static final String TABLE_NAME = "state";
     private static final String BUCKET_INDEX_FILE_NAME = TABLE_NAME + "_objectkeytopath_bucket_index.ll";
 
-    @Param({"false", "true"})
-    public boolean useDiskIndices;
+    @Param({"SEGMENT", "DISK", "HEAP", "OFF_HEAP", "DISK_SEGMENT"})
+    public LongListImplementation longListImplementation;
 
-    @Param({"1", "2", "3", "6", "8", "16"})
+    @Param({"1", "2", "8", "16", "32"})
     public int threadsPerLongList;
 
     @Param({"FORCED", "UNFORCED", "FORCED_OVERLAP", "UNFORCED_OVERLAP"})
@@ -78,7 +79,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         configurationBuilder.withSource(new SimpleConfigSource()
                 .withValue("benchmark.saveDataDirectory", true)
                 .withValue("benchmark.csvWriteFrequency", 0)
-                .withValue("merkleDb.useDiskIndices", useDiskIndices)
                 .withValue("merkleDb.longListSnapshotThreadsPerList", threadsPerLongList)
                 .withValue("merkleDb.longListSnapshotForceToDisk", snapshotMode.forceToDisk)
                 .withValue("merkleDb.snapshotHashCacheFlushOverlap", snapshotMode.overlapHashCacheFlush)
@@ -90,8 +90,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         super.onTrialSetup();
 
         final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
-        dataSourceBuilder =
-                new MerkleDbDataSourceBuilder(configuration, fileSystemManager, merkleDbConfig.initialCapacity());
+        dataSourceBuilder = new MerkleDbDataSourceBuilder(
+                configuration, fileSystemManager, merkleDbConfig.initialCapacity(), longListImplementation);
         longsPerChunk = merkleDbConfig.longListChunkSize();
 
         try {

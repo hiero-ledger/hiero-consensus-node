@@ -9,6 +9,7 @@ import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -19,6 +20,13 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListDisk;
+import com.swirlds.merkledb.collections.LongListDiskSegment;
+import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListImplementation;
+import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
@@ -478,6 +486,59 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         final MerkleDbDataSource restored = restoreDataSource(merkleDbConfig, snapshotDir, tableName, false);
         try {
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(TestType.long_fixed, restored, i, i));
+        } finally {
+            restored.close();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(LongListImplementation.class)
+    void explicitlySelectedLongListImplementationRestores(final LongListImplementation longListImplementation)
+            throws IOException {
+        final int count = 1_000;
+        final String tableName = "selected-" + longListImplementation;
+        final Path snapshotDir = fileSystemManager.resolveNewTemp(tableName + "-SNAPSHOT");
+        final var configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.HASH_CHUNK_CACHE_THRESHOLD, "1000")
+                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "33")
+                .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "100000")
+                .build();
+
+        final var sourceBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, count);
+        final MerkleDbDataSource source = (MerkleDbDataSource) sourceBuilder.build(tableName, null, false, false);
+        try {
+            source.saveRecords(
+                    count - 1,
+                    count * 2 - 2,
+                    createHashChunkStream(count - 1, count * 2 - 2, i -> i, source.getHashChunkHeight()),
+                    IntStream.range(count - 1, count * 2 - 1)
+                            .mapToObj(i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
+                    Stream.empty(),
+                    false);
+            sourceBuilder.snapshot(snapshotDir, source);
+        } finally {
+            source.close();
+        }
+
+        final var selectedBuilder =
+                new MerkleDbDataSourceBuilder(configuration, fileSystemManager, count, longListImplementation);
+        final MerkleDbDataSource restored =
+                (MerkleDbDataSource) selectedBuilder.build(tableName, snapshotDir, false, false);
+        try {
+            final Class<? extends LongList> expectedClass =
+                    switch (longListImplementation) {
+                        case HEAP -> LongListHeap.class;
+                        case OFF_HEAP -> LongListOffHeap.class;
+                        case SEGMENT -> LongListSegment.class;
+                        case DISK -> LongListDisk.class;
+                        case DISK_SEGMENT -> LongListDiskSegment.class;
+                    };
+            assertInstanceOf(expectedClass, restored.getIdToDiskLocationHashChunks());
+            assertInstanceOf(expectedClass, restored.getPathToDiskLocationLeafNodes());
+            assertInstanceOf(expectedClass, restored.getKeyToPath().getBucketIndexToBucketLocation());
+            assertLeaf(TestType.long_fixed, restored, count - 1, count - 1);
+            assertLeaf(TestType.long_fixed, restored, count * 2 - 2, count * 2 - 2);
         } finally {
             restored.close();
         }

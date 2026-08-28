@@ -10,8 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.Snapshotable;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListDisk;
-import com.swirlds.merkledb.collections.LongListSegment;
+import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
@@ -172,7 +171,30 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
             throws IOException {
+        this(
+                config,
+                fileSystemManager,
+                initialCapacity,
+                storeDir,
+                storeName,
+                legacyStoreName,
+                preferDiskBasedIndex ? LongListImplementation.DISK : LongListImplementation.SEGMENT);
+    }
+
+    /**
+     * Construct a new HalfDiskHashMap using the requested LongList implementation for its bucket index.
+     */
+    public HalfDiskHashMap(
+            final @NonNull MerkleDbConfig config,
+            final @NonNull FileSystemManager fileSystemManager,
+            final long initialCapacity,
+            final @NonNull Path storeDir,
+            final String storeName,
+            final String legacyStoreName,
+            final @NonNull LongListImplementation longListImplementation)
+            throws IOException {
         requireNonNull(config);
+        requireNonNull(longListImplementation);
         initFlushingPool(config);
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
@@ -223,15 +245,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // load or rebuild index
             final boolean forceIndexRebuilding = config.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
-                bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, bucketIndexCapacity, config, fileSystemManager)
-                        : new LongListSegment(indexFile, bucketIndexCapacity, config);
+                bucketIndexToBucketLocation =
+                        longListImplementation.load(indexFile, bucketIndexCapacity, config, fileSystemManager);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
-                bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(bucketIndexCapacity, config, fileSystemManager)
-                        : new LongListSegment(bucketIndexCapacity, config);
+                bucketIndexToBucketLocation =
+                        longListImplementation.create(bucketIndexCapacity, config, fileSystemManager);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
                     bucket.readFrom(bucketData);
@@ -248,9 +268,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
             setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
             // create new index
-            bucketIndexToBucketLocation = preferDiskBasedIndex
-                    ? new LongListDisk(bucketIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(bucketIndexCapacity, config);
+            bucketIndexToBucketLocation = longListImplementation.create(bucketIndexCapacity, config, fileSystemManager);
             // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;
             logger.info(

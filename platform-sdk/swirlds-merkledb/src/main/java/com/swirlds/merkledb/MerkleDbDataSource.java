@@ -18,8 +18,7 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListDisk;
-import com.swirlds.merkledb.collections.LongListSegment;
+import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
@@ -231,7 +230,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean compactionEnabled,
             final boolean offlineUse)
             throws IOException {
-        this(storageDir, config, fileSystemManager, tableName, 0, compactionEnabled, offlineUse);
+        this(storageDir, config, fileSystemManager, tableName, 0, compactionEnabled, offlineUse, null);
     }
 
     /**
@@ -260,10 +259,36 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean compactionEnabled,
             final boolean diskBasedIndices)
             throws IOException {
+        this(
+                storageDir,
+                config,
+                fileSystemManager,
+                tableName,
+                initialCapacity,
+                compactionEnabled,
+                diskBasedIndices,
+                null);
+    }
+
+    MerkleDbDataSource(
+            final Path storageDir,
+            final MerkleDbConfig config,
+            final FileSystemManager fileSystemManager,
+            final String tableName,
+            final long initialCapacity,
+            final boolean compactionEnabled,
+            final boolean diskBasedIndices,
+            @Nullable final LongListImplementation requestedLongListImplementation)
+            throws IOException {
         this.tableName = tableName;
         this.merkleDbConfig = config;
 
-        this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
+        final LongListImplementation longListImplementation = requestedLongListImplementation == null
+                ? (diskBasedIndices || merkleDbConfig.useDiskIndices()
+                        ? LongListImplementation.DISK
+                        : LongListImplementation.SEGMENT)
+                : requestedLongListImplementation;
+        this.preferDiskBasedIndices = longListImplementation.isDiskBased();
         this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
 
         // create thread group with label
@@ -339,13 +364,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Hash chunk disk location index (chunk ID to disk location)
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
-            idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager)
-                    : new LongListSegment(idToHashChunksFile, hashIndexCapacity, merkleDbConfig);
+            idToDiskLocationHashChunks = longListImplementation.load(
+                    idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager);
         } else {
-            idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(hashIndexCapacity, merkleDbConfig, fileSystemManager)
-                    : new LongListSegment(hashIndexCapacity, merkleDbConfig);
+            idToDiskLocationHashChunks =
+                    longListImplementation.create(hashIndexCapacity, merkleDbConfig, fileSystemManager);
         }
 
         // Hash chunk store (hash chunks)
@@ -384,13 +407,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // KV disk location index (path to disk location)
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
         if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
+            pathToDiskLocationLeafNodes =
+                    longListImplementation.load(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager);
         } else {
-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(kvIndexCapacity, config);
+            pathToDiskLocationLeafNodes = longListImplementation.create(kvIndexCapacity, config, fileSystemManager);
         }
 
         // Leaves store (leaf nodes)
@@ -431,7 +451,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 dbPaths.keyToPathDirectory,
                 tableName + "_objectkeytopath",
                 null,
-                preferDiskBasedIndices);
+                longListImplementation);
         keyToPath.printStats();
         // Repair keyToPath based on pathToKeyValue data, if requested and not disk based indices
         if (!preferDiskBasedIndices) {
