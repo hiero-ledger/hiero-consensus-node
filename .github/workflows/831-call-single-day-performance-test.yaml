@@ -472,6 +472,8 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
 
+          export BLOCK_NODE_VERSION="${{ inputs.bnref }}"
+
           mv block-node-values.yaml block-node-values.yaml.orig
 
           #dedicate top-3 nodes for BN

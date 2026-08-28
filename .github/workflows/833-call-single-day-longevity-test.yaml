@@ -451,6 +451,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
+          export BLOCK_NODE_VERSION="${{ inputs.bnref }}"
 
           mv block-node-values.yaml block-node-values.yaml.orig
 
