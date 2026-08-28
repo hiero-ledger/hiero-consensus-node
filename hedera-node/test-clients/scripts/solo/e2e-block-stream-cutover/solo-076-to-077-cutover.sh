@@ -95,6 +95,10 @@ APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/applicati
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
+# Paired with the artifacts path: ProcessUtils sets TSS_LIB_WRAPS_SWAP_FILE whenever
+# TSS_LIB_WRAPS_ARTIFACTS_PATH is set, and the Nova/rayon prover spills here instead of
+# growing its off-heap peak (the other half of the WRAPS_NUM_CORES cap below).
+WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/wraps-alloc-swap.bin}"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
@@ -254,7 +258,10 @@ inject_wraps_env_into_statefulsets() {
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
+  local -a wraps_env_args=(
+    "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
+    "TSS_LIB_WRAPS_SWAP_FILE=${WRAPS_SWAP_FILE_CONTAINER_PATH}"
+  )
   if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
     wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
   fi
@@ -502,7 +509,7 @@ verify_wraps_on_consensus_nodes() {
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
   expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  log "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  log "Verifying WRAPS runtime on each consensus node (expecting >=${expected_wraps} self-downloaded artifact files at ${wraps_dir} + proof construction, up to ${timeout_secs}s/node; the in-JVM env var is logged as a best-effort diagnostic only)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -516,9 +523,12 @@ verify_wraps_on_consensus_nodes() {
         echo "  ${pod}: WRAPS reported a runtime failure (check ${HAPI_PATH}/output/hgcaa.log)" >&2
         return 1
       fi
+      # found_env is a best-effort diagnostic: the /proc/<pid>/environ probe false-negatives on
+      # nodes that provably have the env set and are building proofs, so gate on the artifacts and
+      # let the authoritative proof-in-log check below decide.
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
+      if [[ "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -526,11 +536,11 @@ verify_wraps_on_consensus_nodes() {
     done
 
     if ! ${ready_for_proof}; then
-      echo "  ${pod}: timed out waiting for WRAPS env+artifacts (env='${found_env:-unset}' wanted '${wraps_dir}'; artifacts=${found_wraps:-0}/${expected_wraps})" >&2
+      echo "  ${pod}: timed out waiting for >=${expected_wraps} WRAPS artifacts in ${wraps_dir} (artifacts=${found_wraps:-0}/${expected_wraps}; env='${found_env:-unset}' [best-effort diagnostic])" >&2
       return 1
     fi
 
-    echo "  ${pod}: env + ${found_wraps} artifacts OK; waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
+    echo "  ${pod}: ${found_wraps} WRAPS artifacts present (env='${found_env:-unset}' [best-effort diagnostic]); waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
     local progress_tick=0
     while (( SECONDS < deadline )); do
       if wraps_failure_present_in_log "${pod}"; then
