@@ -77,9 +77,9 @@ Segment, and an explicitly enabled Disk source is normally loaded, accessed,
 and scanned rather than deliberately evicted. Fully cold residency remains a
 memory-pressure sensitivity case.
 
-The experiments have not yet established the production thread count, the
-effect on a complete Linux MerkleDB snapshot, or the benefit and safety of
-removing `force(true)`.
+The experiments have not yet established the production thread count or the
+effect on a complete Linux MerkleDB snapshot. The benefit of removing
+`force(true)` is established; its production safety is not.
 
 ## 2. Questions the experiments must answer
 
@@ -94,11 +94,12 @@ removing `force(true)`.
    implementations currently selected by `MerkleDbDataSource` at `P=1` and
    `P=2`. Keep the change only if its end-to-end result justifies it without a
    material regression in the other mode.
-3. **How much time could removing `force(true)` actually save?**
-   Time the body writes and `force(true)` separately, then compare forced and
-   unforced runs without making one trial pay for another trial's pending disk
-   work. Consider removing the force only if the saving is material and the
-   saved-state durability and recovery contract allows it.
+3. **How much time could removing `force(true)` actually save? — Performance
+   answered; production semantics pending.** Every broad-matrix cell returned
+   earlier without the force. The reduction was 21.0-58.4% at one billion
+   leaves and 2.7-53.3% at five billion leaves. The skipped wait reappeared in
+   the post-return force, so the team must still decide whether the changed
+   saved-state durability and error-reporting boundary is acceptable.
 4. **Would writing fewer bytes justify a file-format change?**
    This is a team-discussion idea, not a scheduled experiment. If the team
    agrees to investigate it, measure compression ratio, CPU cost, and read cost
@@ -290,13 +291,12 @@ timed interval. Keep the forced result as the reference for the device work
 that still occurs after an unforced call returns.
 
 The focused Linux campaign passed the performance gate: unforced writes
-returned 22-30% earlier at `P=1` and 43-58% earlier at `P=8`. Forcing each
-target immediately after return accounted for virtually the complete saving,
-so this moves storage waiting rather than removing it. The next experiment
-repeats the complete equal-sample Linux baseline without the final force to
-measure how state size, chunk size, parallelism, implementation, and Disk
-source residency affect the early-return path. See
-[`remove-final-force.md`](03-remove-final-force/remove-final-force.md).
+returned 22-30% earlier at `P=1` and 43-58% earlier at `P=8`. The complete
+equal-sample follow-up reproduced an earlier return in all 280 matching cells
+across state sizes, chunk sizes, implementations, and writer counts. Forcing
+each target immediately after return accounted for the storage work that was
+moved beyond `writeToFile()`. See
+[`linux-benchmark-results-without-force.md`](03-remove-final-force/linux-benchmark-results-without-force.md).
 
 ## 6. Way 3 — combine only measured wins
 
@@ -560,12 +560,11 @@ document, and verify its calculations and conclusions.
    the same file growth and buffered target path, neither physical
    preallocation nor direct I/O was gated in. No Way-1 production experiment
    proceeds.~~
-6. **Establish the complete unforced baseline.** The focused campaign is
-   complete and its early-return benefit is material. Repeat the forced
-   baseline's equal-sample broad matrix and `LongListDisk` cache diagnostic
-   with `forceToDisk=false`, then directly compare matching forced and
-   unforced cells. Do not repeat the Segment/Disk-only supplemental check. See
-   [`linux-benchmark-results-without-force.md`](03-remove-final-force/linux-benchmark-results-without-force.md).
+6. ~~**Establish the complete unforced baseline.** The equal-sample broad
+   matrix and `LongListDisk` cache diagnostic are complete with
+   `forceToDisk=false`. All 280 matching broad-matrix cells returned earlier;
+   the post-return force retained the deferred storage work. See
+   [`linux-benchmark-results-without-force.md`](03-remove-final-force/linux-benchmark-results-without-force.md).~~
 7. **Take compression and hash-cache pre-flush overlap to the team.** Neither
    experiment proceeds without approval. If approved, each retains its own
    measurement gate: representative ratio and load-cost evidence before a
