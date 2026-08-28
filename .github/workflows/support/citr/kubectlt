@@ -2,17 +2,17 @@
 KBCTL=$(which kubectl.orig)
 
 timeout="10m"
-if [[ "$KUBECTL_TIMEOUT" != "" ]]
+if [ "$KUBECTL_TIMEOUT" != "" ]
 then
   timeout=${KUBECTL_TIMEOUT}
 fi
 
 timeout --signal=KILL --preserve-status --foreground ${timeout} ${KBCTL} "$@" >/tmp/stdout.$$ 2>/tmp/stderr.$$
 result=$?
-if [[ ${result} -ne 137 ]]
+if [ ${result} -ne 137 ]
 then
   grep -E 'Internal error occurred|context deadline exceeded' /tmp/stdout.$$ /tmp/stderr.$$ >/dev/null
-  if [[ $? -eq 0 ]]
+  if [ $? -eq 0 ]
   then
     sleep 30
     rm -f /tmp/stdout.$$ /tmp/stderr.$$
