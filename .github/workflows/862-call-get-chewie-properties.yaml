@@ -18,15 +18,20 @@ on:
       request-timeout:
         description: "Default timeout for chewie requests"
         value: ${{ jobs.get-chewie-props.outputs.request-timeout }}
+      mdlt-length:
+        description: "Default MDLT production run length in seconds"
+        value: ${{ jobs.get-chewie-props.outputs.mdlt-length }}
 
 jobs:
   get-chewie-props:
     runs-on: hl-cn-chewie-lin-sm
     env:
       DEFAULT_RQST_DURATION: 3600
+      DEFAULT_MDLT_LENGTH: 432000
     outputs:
       request-duration: ${{ steps.get-chewie-props.outputs.request-duration }}
       request-timeout: ${{ steps.get-chewie-props.outputs.request-timeout }}
+      mdlt-length: ${{ steps.get-chewie-props.outputs.mdlt-length }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
@@ -57,8 +62,16 @@ jobs:
             REQUEST_TIMEOUT=300  # Fallback to default value
           fi
 
+          # MDLT production run length, in seconds (converted to minutes by the calling controller).
+          MDLT_LENGTH=$(yq e '.default_mdlt_length' "${PROPERTIES_FILE}")
+          if [[ -z "${MDLT_LENGTH}" ]] || [[ "${MDLT_LENGTH}" == "null" ]]; then
+            echo "::error::Failed to read default_mdlt_length from ${PROPERTIES_FILE}"
+            MDLT_LENGTH=${DEFAULT_MDLT_LENGTH}  # Fallback to default value
+          fi
+
           # set outputs
           echo "::group::Chewie Properties Values"
           echo "request-duration=${REQUEST_DURATION}" | tee -a "${GITHUB_OUTPUT}"
           echo "request-timeout=${REQUEST_TIMEOUT}" | tee -a "${GITHUB_OUTPUT}"
+          echo "mdlt-length=${MDLT_LENGTH}" | tee -a "${GITHUB_OUTPUT}"
           echo "::endgroup::"
