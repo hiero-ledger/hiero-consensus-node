@@ -64,6 +64,7 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
                 if (requestBytes == null) {
                     break;
                 }
+
                 final PullVirtualTreeRequest request =
                         PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
@@ -71,6 +72,7 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
                 if (request.path() < 0) {
                     throw new IllegalStateException("Invalid path received from learner: " + request.path());
                 }
+                final long t1 = System.nanoTime();
 
                 final long path = request.path();
                 final Hash learnerHash = request.hash();
@@ -86,9 +88,15 @@ public class TeacherPullVirtualTreeReceiveTask implements Runnable {
                         (!isClean && teacherView.isLeaf(path)) ? teacherView.findLeafRecord(path) : null;
                 final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();
                 final long lastLeafPath = teacherView.getMetadata().getLastLeafPath();
+                final long t2 = System.nanoTime();
+
                 final PullVirtualTreeResponse response =
                         new PullVirtualTreeResponse(path, isClean, firstLeafPath, lastLeafPath, leafData);
-                out.sendAsync(serializeMessage(response));
+                final long t3 = System.nanoTime();
+                final byte[] serialized = serializeMessage(response);
+                final long t4 = System.nanoTime();
+                out.sendAsync(serialized);
+                final long t5 = System.nanoTime();
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);

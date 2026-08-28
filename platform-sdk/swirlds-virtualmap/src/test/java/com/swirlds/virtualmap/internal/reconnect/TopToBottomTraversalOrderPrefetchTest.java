@@ -181,7 +181,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("All-dirty tree completes correctly with depth=0")
         void allDirtyWithDepthZero() {
-            final var order = new TopToBottomTraversalOrder(0);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             final List<Long> leaves = driveAllDirty(order);
@@ -194,7 +194,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("All-clean tree completes correctly with depth=0")
         void allCleanWithDepthZero() {
-            final var order = new TopToBottomTraversalOrder(0);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             final List<Long> leaves = driveAllClean(order);
@@ -204,7 +204,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Stall with depth=0 does not seed any pre-fetch chunk")
         void noPreFetchWithDepthZero() throws Exception {
-            final var order = new TopToBottomTraversalOrder(0);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             triggerStall(order);
@@ -225,7 +225,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Stall seeds a second ChunkState in the deque")
         void stallSeedsPrefetchChunk() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             triggerStall(order);
@@ -241,7 +241,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Pre-fetched chunk's internals are for chunk 2 (paths 47–62)")
         void prefetchedChunkHasCorrectInternals() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall
@@ -269,7 +269,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Current chunk drill-down internals polled before pre-fetch internals")
         void currentChunkInternalsPriority() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 initial internals, feed one as dirty to trigger drill-down
@@ -300,7 +300,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Responses for chunk 2 internals route to chunk 2's state")
         void prefetchResponseRoutedCorrectly() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2
@@ -337,7 +337,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Completing chunk 1 promotes pre-fetched chunk 2 without recomputing")
         void promotionUsesPrefetchedChunk() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2 pre-fetch
@@ -378,7 +378,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Depth=1 limits deque to at most 2 entries")
         void depthOneLimitsDequeSizeToTwo() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Stall once → seeds pre-fetch
@@ -406,7 +406,7 @@ class TopToBottomTraversalOrderPrefetchTest {
             // Use the large tree for multiple chunks
             final long first = 100_000_000L;
             final long last = 200_000_000L;
-            final var order = new TopToBottomTraversalOrder(5);
+            final var order = new TopToBottomTraversalOrder();
             order.start(first, last, first, last);
 
             // First stall
@@ -435,7 +435,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         void noPreFetchInSingleChunkTree() throws Exception {
             // In the CHUNK_FIRST/CHUNK_LAST tree, there are exactly 2 chunks.
             // Use a tree where chunk 2 is the last chunk. Stall inside chunk 2.
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Complete chunk 1 quickly (all clean) to reach chunk 2
@@ -468,7 +468,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         void noPreFetchPastOldRange() throws Exception {
             // Set old range to cover only chunk 1's leaves (1023–1534).
             // Chunk 2's leaves (1535–2046) are past oldLastLeafPath=1534.
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, 1534L, CHUNK_FIRST, CHUNK_LAST);
 
             // Stall in chunk 1
@@ -491,7 +491,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Completing the last chunk returns INVALID_PATH")
         void lastChunkReturnsInvalidPath() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             final List<Long> leaves = driveAllDirty(order);
@@ -513,7 +513,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Simple mode tree with depth=1: no chunks, all leaves sent in order")
         void simpleModeNoChunks() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(SIMPLE_FIRST, SIMPLE_LAST, SIMPLE_FIRST, SIMPLE_LAST);
 
             // activeChunks must be empty in simple mode
@@ -533,7 +533,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Simple mode: getNextInternalPathToSend always returns INVALID_PATH")
         void simpleModeNoInternals() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(SIMPLE_FIRST, SIMPLE_LAST, SIMPLE_FIRST, SIMPLE_LAST);
 
             assertEquals(INVALID_PATH, order.getNextInternalPathToSend());
@@ -551,7 +551,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Unbounded depth: all-dirty completes correctly")
         void unboundedAllDirtyCompletes() {
-            final var order = new TopToBottomTraversalOrder(-1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             final List<Long> leaves = driveAllDirty(order);
@@ -561,7 +561,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Unbounded depth: all-clean completes correctly")
         void unboundedAllCleanCompletes() {
-            final var order = new TopToBottomTraversalOrder(-1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             final List<Long> leaves = driveAllClean(order);
@@ -581,7 +581,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @DisplayName("Leaves before old range sent immediately, no internals or pre-fetch")
         void beforeOldRangeNoInternals() throws Exception {
             // Teacher range wider than learner's old range: leaves before old range are dirty
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(1100L, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Leaves 1023–1099 are before oldFirstLeafPath=1100, sent immediately
@@ -623,7 +623,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Multi-chunk tree completes correctly with depth=1 (all dirty)")
         void multiChunkAllDirtyWithPrefetch() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
 
             // Streaming verifier checks count, first, last, and strict ascending order
@@ -635,7 +635,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Multi-chunk tree completes correctly with all-clean and depth=1")
         void multiChunkAllCleanWithPrefetch() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
 
             final List<Long> leaves = driveAllClean(order);
@@ -645,7 +645,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("maxLookaheadReached is 0 under the synchronous driver (no stalls)")
         void maxLookaheadTracked() throws Exception {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
 
             driveAllDirtyStreaming(order, E2E_FIRST, E2E_LAST);
@@ -680,7 +680,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Depth=2 does not pre-fetch across the rank-change boundary (no duplicate roots)")
         void noPrefetchAcrossRankChangeBoundary() throws Exception {
-            final var order = new TopToBottomTraversalOrder(2);
+            final var order = new TopToBottomTraversalOrder();
             order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
 
             // Stall in chunk A to trigger pre-fetch
@@ -711,7 +711,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Mixed-rank tree with depth=2 completes correctly despite boundary block")
         void mixedRankTreeCompletesWithPrefetch() {
-            final var order = new TopToBottomTraversalOrder(2);
+            final var order = new TopToBottomTraversalOrder();
             order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
 
             final List<Long> leaves = driveAllDirty(order);
@@ -727,7 +727,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Unbounded depth also blocks at rank-change boundary")
         void unboundedBlocksAtRankChange() throws Exception {
-            final var order = new TopToBottomTraversalOrder(-1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
 
             // Stall repeatedly to try to seed as many chunks as possible
@@ -757,7 +757,7 @@ class TopToBottomTraversalOrderPrefetchTest {
             // Drive to completion and verify chunk C's leaves are handled.
             // Leaves 2047–2200 are in chunk C (post-boundary, root=1, rank=11).
             // These must be sent despite C never being pre-fetched.
-            final var order = new TopToBottomTraversalOrder(2);
+            final var order = new TopToBottomTraversalOrder();
             order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
 
             final List<Long> leaves = driveAllDirty(order);
@@ -781,7 +781,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Pre-fetch internals are returned while current chunk is stalled")
         void prefetchInternalsAvailableDuringStall() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2
@@ -802,7 +802,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Pre-fetch internals blocked after stall resolves, even though queue is non-empty")
         void prefetchInternalsBlockedAfterStallResolves() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2
@@ -843,7 +843,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Pre-fetch internals resume when current chunk stalls again")
         void prefetchInternalsResumeOnNextStall() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2
@@ -876,7 +876,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Current chunk's own drill-down internals returned regardless of stall flag")
         void currentChunkDrillDownAlwaysReturned() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2
@@ -905,7 +905,7 @@ class TopToBottomTraversalOrderPrefetchTest {
         @Test
         @DisplayName("Flag cleared on chunk promotion — new chunk starts unstalled")
         void flagClearedOnPromotion() {
-            final var order = new TopToBottomTraversalOrder(1);
+            final var order = new TopToBottomTraversalOrder();
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             // Drain chunk 1 internals, stall to seed chunk 2
