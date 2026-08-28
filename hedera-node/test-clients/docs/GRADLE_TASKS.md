@@ -42,6 +42,7 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |
 | `hapiTestBlockNodeCommunication` | `BLOCK_NODE`                                  | `testSubprocess`           | default               |
 | `hapiTestMisc`                   | everything outside the area tags (see source) | `testSubprocessConcurrent` | default               |
+| `hapiTestGenesisSubProcess`      | `GENESIS_SUBPROCESS`                          | `testSubprocess`           | default               |
 | `hapiTestMiscSerial`             | `<miscTags>&SERIAL`                           | `testSubprocess`           | default               |
 | `hapiTestMiscRecords`            | misc + records mode                           | `testSubprocessConcurrent` | default               |
 | `hapiTestMiscRecordsSerial`      | misc + records mode + SERIAL                  | `testSubprocess`           | default               |
