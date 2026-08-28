@@ -3,6 +3,8 @@ package com.hedera.node.app.hapi.utils.throttles;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -10,11 +12,11 @@ final class OpsDurationDeterministicThrottleTest {
     private static final long ONE_SECOND_IN_NANOSECONDS = 1_000_000_000;
 
     @Test
-    void instantaneousPercentUsedWhenOverfilled() {
+    void instantaneousPercentUsedIsCappedAtFullWhenOverConsuming() {
         final var now = Instant.ofEpochSecond(1);
         final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 500, 10);
         subject.useCapacity(now, 1000);
-        assertEquals(200, subject.instantaneousPercentUsed());
+        assertEquals(100, subject.instantaneousPercentUsed());
     }
 
     @Test
@@ -35,20 +37,32 @@ final class OpsDurationDeterministicThrottleTest {
     }
 
     @Test
-    void canTakeAndRestoreUsageSnapshotsWhenOverfilled() {
+    void canTakeAndRestoreUsageSnapshotsWhenOverConsuming() {
         final var now = Instant.ofEpochSecond(1);
         final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
         subject.useCapacity(now, 1000);
         assertEquals(0, subject.capacityFree(now));
-        assertEquals(1000, subject.capacityUsed(0L));
+        assertEquals(100, subject.capacityUsed(0L));
         assertEquals(100, subject.capacity());
 
         final var snapshot = subject.usageSnapshot();
         final var restored = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
         restored.resetUsageTo(snapshot);
         assertEquals(0, restored.capacityFree(now));
-        assertEquals(1000, restored.capacityUsed(0L));
+        assertEquals(100, restored.capacityUsed(0L));
         assertEquals(100, restored.capacity());
+    }
+
+    @Test
+    void restoringSnapshotWithUsageAboveCapacityClampsInsteadOfThrowing() {
+        final var now = Instant.ofEpochSecond(1);
+        // A snapshot persisted by an earlier version (whose bucket could overfill), or taken
+        // under a larger configured capacity, may record more usage than this bucket can hold
+        final var overfilledSnapshot = new ThrottleUsageSnapshot(1000, new Timestamp(now.getEpochSecond(), 0));
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        assertDoesNotThrow(() -> subject.resetUsageTo(overfilledSnapshot));
+        assertEquals(100, subject.used());
+        assertEquals(0, subject.capacityFree(now));
     }
 
     @Test
@@ -75,7 +89,7 @@ final class OpsDurationDeterministicThrottleTest {
     }
 
     @Test
-    void bucketCanOverfillAndLeaksAppropriately() {
+    void bucketClampsAtCapacityAndLeaksAppropriately() {
         final var capacity = 1_000_000;
         final var leakPerSecond = 500;
         final var capacityToUse = capacity * 2;
@@ -83,16 +97,13 @@ final class OpsDurationDeterministicThrottleTest {
         final var subject = new OpsDurationDeterministicThrottle("OpsDuration", capacity, leakPerSecond);
 
         assertDoesNotThrow(() -> subject.useCapacity(Instant.ofEpochSecond(1), capacityToUse));
-        assertEquals(capacityToUse, subject.used());
+        assertEquals(capacity, subject.used());
 
         // "preview" the capacity used
-        assertEquals(capacityToUse - leakPerSecond, subject.capacityUsed(ONE_SECOND_IN_NANOSECONDS));
+        assertEquals(capacity - leakPerSecond, subject.capacityUsed(ONE_SECOND_IN_NANOSECONDS));
 
         // "preview" the capacity free
         final var secondsToLeakAllCapacity = (capacity / leakPerSecond) + 1;
-        // leak the overfill amount
-        assertEquals(0, subject.capacityFree(Instant.ofEpochSecond(secondsToLeakAllCapacity)));
-        // leak the remainder
-        assertEquals(capacity, subject.capacityFree(Instant.ofEpochSecond(2 * secondsToLeakAllCapacity)));
+        assertEquals(capacity, subject.capacityFree(Instant.ofEpochSecond(secondsToLeakAllCapacity)));
     }
 }

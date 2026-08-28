@@ -234,7 +234,8 @@ public class ThrottleAccumulator {
     /**
      * Consumes a given amount of ops duration units from the throttle's capacity.
      * Takes into account the amount leaked from the bucket up to the provided time.
-     * If the amount to consume is greater than the available amount then overfills the bucket without an error.
+     * If the amount to consume is greater than the available amount then consumption is capped at the
+     * remaining capacity without an error.
      */
     public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume, @NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
