@@ -38,6 +38,27 @@ image:
   repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
   tag: "%BN_IMAGE_TAG%"
 
+plugins:
+  names: "backfill,block-access-service,block-verification,blocks-file-historic,blocks-file-recent,facility-messaging,health,roster-bootstrap-rsa,roster-bootstrap-tss,server-status,stream-publisher,stream-subscriber"
+  # image for resolving and downloading the above plugins, should have java 21+ and maven
+  mavenImage: "maven:3-eclipse-temurin-25-alpine"
+  # Third-party plugins with full Maven coordinates (groupId:artifactId:version).
+  # These are resolved alongside official plugins via the configured repositories.
+  thirdParty: []
+  # thirdParty:
+  #   - "com.example:my-custom-plugin:1.0.0"
+  # Maven repositories used to resolve plugins.
+  # Override this list in your values to add custom or private repositories.
+  repositories:
+    - id: besu-maven
+      url: https://artifacts.hashgraph.io/artifactory/hyperledger-besu-maven-external/
+    - id: central
+      url: https://repo1.maven.org/maven2
+    - id: sonatype-snapshots
+      url: https://central.sonatype.com/repository/maven-snapshots
+      snapshots: true
+  # To add plugins not available in Maven (e.g. via curl or copy), use blockNode.initContainers below.
+
 blockNode:
   # if blank will use same as AppVersion of chart.
   version: ""
@@ -75,7 +96,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "archive-storage-block-node-%NODE_ID%-0"
+      existingClaim: "archive-storage-block-node-%NODE_ID%-0"
     logging:
       create: false
       # name of the volume within the statefulset
@@ -85,7 +106,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "logging-storage-block-node-%NODE_ID%-0"
+      existingClaim: "logging-storage-block-node-%NODE_ID%-0"
     live:
       create: false
       # name of the volume within the statefulset
@@ -98,7 +119,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "live-storage-block-node-%NODE_ID%-0"
+      existingClaim: "live-storage-block-node-%NODE_ID%-0"
     application-state:
       create: false
       # name of the volume within the statefulset
@@ -108,7 +129,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
+      existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
     plugins:
       create: false
       # name of the volume within the statefulset
@@ -117,7 +138,7 @@ blockNode:
       # Optionally add a storage class name if needed
       # storageClass: "your-storage-class"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
+      existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
 
   health:
     readiness:
