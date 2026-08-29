@@ -318,14 +318,14 @@ public class TestHashgraphInfo {
         appendEvents(line, searchOrder);
         appendEvents(line, updateResults.consensusEvents());
 
-        //output Instant[] timecon
+        // output Instant[] timecon
         line.append(",").append(updateResults.consensusEvents().length);
         for (EventInfo event : updateResults.consensusEvents()) {
             line.append(",").append(event.getTimeCon().getEpochSecond());
             line.append(",").append(event.getTimeCon().getNano());
         }
 
-        //output long[] gen
+        // output long[] gen
         line.append(",").append(updateResults.consensusEvents().length);
         for (EventInfo event : updateResults.consensusEvents()) {
             line.append(",").append(event.getGen());
@@ -378,7 +378,7 @@ public class TestHashgraphInfo {
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
     static void writeLogFile(String outputFilename) throws IOException {
-        final int MAX_NUM_NODES = 199; //0-99 are honest, 100-199 are malicious
+        final int MAX_NUM_NODES = 199; // 0-99 are honest, 100-199 are malicious
         final int NUM_NODES = 7;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);

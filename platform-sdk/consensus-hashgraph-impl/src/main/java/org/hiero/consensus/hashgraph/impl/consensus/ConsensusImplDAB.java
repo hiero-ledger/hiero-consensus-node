@@ -24,11 +24,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.LongStream;
@@ -485,8 +483,10 @@ public class ConsensusImplDAB implements Consensus {
             if (lastConsensusTime == null) {
                 // if this is the first round ever, and there are no events (which is usually the case)
                 // we take the median of all the judge created times
-                final List<Instant> judgeTimes =
-                        judgeImpls.stream().map(EventImpl::getTimeCreated).sorted().toList();
+                final List<Instant> judgeTimes = judgeImpls.stream()
+                        .map(EventImpl::getTimeCreated)
+                        .sorted()
+                        .toList();
                 lastConsensusTime = judgeTimes.get(judgeTimes.size() / 2);
             } else {
                 // if we have reached consensus before, we simply increase the lastConsensusTime by the min amount
