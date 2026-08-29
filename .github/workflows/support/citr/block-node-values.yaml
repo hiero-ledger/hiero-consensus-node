@@ -75,7 +75,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "archive-storage-block-node-%NODE_ID%-0"
+      existingClaim: "archive-storage-block-node-%NODE_ID%-0"
     logging:
       create: false
       # name of the volume within the statefulset
@@ -85,7 +85,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "logging-storage-block-node-%NODE_ID%-0"
+      existingClaim: "logging-storage-block-node-%NODE_ID%-0"
     live:
       create: false
       # name of the volume within the statefulset
@@ -98,7 +98,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "live-storage-block-node-%NODE_ID%-0"
+      existingClaim: "live-storage-block-node-%NODE_ID%-0"
     application-state:
       create: false
       # name of the volume within the statefulset
@@ -108,7 +108,7 @@ blockNode:
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
+      existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
     plugins:
       create: false
       # name of the volume within the statefulset
@@ -117,7 +117,7 @@ blockNode:
       # Optionally add a storage class name if needed
       # storageClass: "your-storage-class"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      #FIXME existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
+      existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
 
   health:
     readiness:
