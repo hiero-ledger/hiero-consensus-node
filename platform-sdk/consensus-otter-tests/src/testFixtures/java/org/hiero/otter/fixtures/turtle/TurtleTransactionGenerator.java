@@ -13,11 +13,11 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
+import org.hiero.otter.fixtures.internal.simulator.SimulatedNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
- * A transaction generator for the {@link SimulatorNetwork}.
+ * A transaction generator for the {@link SimulatedNetwork}.
  *
  * <p>This class implements the {@link TransactionGenerator} interface and generates transactions at a fixed rate
  * to be submitted to the active nodes in the Simulator network.

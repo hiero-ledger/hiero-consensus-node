@@ -34,7 +34,7 @@ import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetwork;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -50,7 +50,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
-    private final SimulatedNetwork network;
+    private final SimulatedNetworkConnectivity networkConnectivity;
     private final NodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
@@ -64,7 +64,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
      * @param timeManager the time manager
      * @param selfId the ID of this node
      * @param keysAndCerts the keys and certificates of this node
-     * @param network the simulated network
+     * @param networkConnectivity the simulated network connectivity
      * @param networkConfiguration the network configuration
      * @param consensusRoundPool the consensus round pool that collects and deduplicates consensus rounds
      */
@@ -73,24 +73,26 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetwork network,
+            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
-        this.network = requireNonNull(network);
-        this.network.addNode(selfId, this::onEventReceived);
+        this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.networkConnectivity.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
     }
 
-    private void onEventReceived(@NonNull final PlatformEvent event) {
+    private boolean onEventReceived(@NonNull final PlatformEvent event) {
         if (wiring != null) {
             wiring.receivedGossipEventsInputWire().put(event);
+            return true;
         }
+        return false;
     }
 
     /**
@@ -124,8 +126,16 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.sentGossipEventsOutputWire()
-                .solderTo("EventSubmitter_" + selfId, "event", event -> network.submitEvent(selfId, event));
+        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
+            // Self-created events have no sender until now; the network identifies the source by this field
+            event.setSenderId(selfId);
+            networkConnectivity.submitEvent(event);
+        });
+        wiring.eventWindowOutputWire()
+                .solderTo(
+                        "EventWindowSubmitter_" + selfId,
+                        "event window",
+                        eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
         wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
