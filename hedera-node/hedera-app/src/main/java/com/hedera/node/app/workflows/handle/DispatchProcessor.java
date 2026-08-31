@@ -8,8 +8,11 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
@@ -240,15 +243,39 @@ public class DispatchProcessor {
     }
 
     /**
+     * The inner due-diligence response codes that depend on mutable ledger state — the payer's existence or its
+     * balance — which can change between a batch's submission and consensus by any means (an earlier inner, a
+     * separate transaction, and so on). The submitting node's only checkpoint for these is ingest; a failure that
+     * surfaces only at consensus is not attributable to the node, so it must not be charged. See #26615.
+     */
+    private static final Set<ResponseCodeEnum> STATE_DEPENDENT_DUE_DILIGENCE_CODES =
+            EnumSet.of(PAYER_ACCOUNT_NOT_FOUND, PAYER_ACCOUNT_DELETED, INSUFFICIENT_PAYER_BALANCE);
+
+    /**
      * Charges the creator for the network fee. This will be called when there is a due diligence failure.
      *
      * @param dispatch   the dispatch to be processed
      * @param validation the validation of the charging scenario
      */
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
-        dispatch.streamBuilder().status(validation.errorStatusOrThrow());
-        // If the transaction is a batch inner transaction, we don't charge the creator
+        final var errorStatus = validation.errorStatusOrThrow();
+        dispatch.streamBuilder().status(errorStatus);
         if (dispatch.category() == BATCH_INNER) {
+            // State-dependent failures the node could not have foreseen at ingest (e.g. an inner payer removed,
+            // or drained below the network fee, after submission) leave the node uncharged.
+            if (STATE_DEPENDENT_DUE_DILIGENCE_CODES.contains(errorStatus)) {
+                return;
+            }
+            // The node should have rejected the batch at ingest, so charge it the inner's network fee, as a top-level
+            // due-diligence failure would. Route the charge through the (recorded) fee-charging context rather than
+            // the fee accumulator so it is captured by the batch's rollback-and-replay and survives the batch failing;
+            // a direct fee-accumulator charge would be discarded with the inner's savepoint. See #26615.
+            dispatch.feeChargingOrElse(appFeeCharging)
+                    .customized(dispatch)
+                    .charge(
+                            dispatch.creatorInfo().accountId(),
+                            new Fees(0, dispatch.fees().networkFee(), 0),
+                            null);
             return;
         }
         dispatch.feeAccumulator()
