@@ -137,9 +137,9 @@ Startup-time OS health probes; values exceeded at startup produce warning logs b
 
 Module: `base-crypto`. Source: [CryptoConfig.java](../../base-crypto/src/main/java/org/hiero/base/crypto/config/CryptoConfig.java).
 
-|   ID    |            Key            |  Type  |  Default   |                                         Effect                                         | Range | Fragility |
-|---------|---------------------------|--------|------------|----------------------------------------------------------------------------------------|-------|-----------|
-| TUN-050 | `crypto.keystorePassword` | String | `password` | Password protecting the PKCS12 key stores that hold node RSA public/private key pairs. |       | —         |
+|   ID    |            Key            |  Type  | Default |                                                                                           Effect                                                                                           | Range | Fragility |
+|---------|---------------------------|--------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-050 | `crypto.keystorePassword` | String | `""`    | Password protecting the PKCS12 key stores that hold node RSA public/private key pairs. Intentionally no usable default; node key loading and gossip TLS fail fast if it is not configured. |       | —         |
 
 ## BasicCommonConfig (no prefix)
 
