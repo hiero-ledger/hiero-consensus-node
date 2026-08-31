@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.node.internal.network.BlockNodeTlsConfig;
 import com.hedera.node.internal.network.HelidonGrpcConfig;
 import com.hedera.node.internal.network.HelidonHttpConfig;
 import java.time.Duration;
@@ -268,5 +269,100 @@ class BlockNodeConfigurationTest {
         assertThat(clientHttpConfig.ping()).hasValue(true);
         assertThat(clientHttpConfig.pingTimeout()).hasValue(Duration.ofSeconds(3));
         assertThat(clientHttpConfig.priorKnowledge()).hasValue(true);
+
+        // No TLS blocks were declared, so both endpoints stay plaintext
+        assertThat(config.streamingTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
+        assertThat(config.serviceTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
+    }
+
+    @Test
+    void testTlsDefaultsToDisabled() {
+        final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
+                .address("localhost")
+                .streamingPort(8080)
+                .servicePort(8081)
+                .priority(0)
+                .messageSizeSoftLimitBytes(1_000)
+                .messageSizeHardLimitBytes(2_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .build();
+
+        assertThat(config.streamingTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
+        assertThat(config.serviceTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
+    }
+
+    @Test
+    void testFromBlockNodeConfig_tlsOnPublishApiOnly() {
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .servicePort(8080)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder()
+                        .enabled(true)
+                        .certificateSha256("a".repeat(64))
+                        .build())
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.streamingTls().enabled()).isTrue();
+        assertThat(config.streamingTls().certificateSha256()).hasSize(32);
+        assertThat(config.serviceTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
+    }
+
+    @Test
+    void testFromBlockNodeConfig_tlsOnAllApis() {
+        final BlockNodeTlsConfig tls =
+                BlockNodeTlsConfig.newBuilder().enabled(true).build();
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .servicePort(8444)
+                .priority(0)
+                .streamingTls(tls)
+                .serviceTls(tls)
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.streamingTls().enabled()).isTrue();
+        assertThat(config.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testFromBlockNodeConfig_invalidTlsIsRejected() {
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder()
+                        .enabled(false)
+                        .certificateSha256("a".repeat(64))
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not be specified for an endpoint that does not use TLS");
+    }
+
+    @Test
+    void testTlsParticipatesInEqualityAndToString() {
+        final BlockNodeConfig.Builder base = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .servicePort(8444)
+                .priority(0);
+        final BlockNodeConfiguration plaintext = BlockNodeConfiguration.from(base.build(), 36L * 1024 * 1024);
+        final BlockNodeConfiguration secured = BlockNodeConfiguration.from(
+                base.streamingTls(BlockNodeTlsConfig.newBuilder().enabled(true).build())
+                        .build(),
+                36L * 1024 * 1024);
+
+        assertThat(secured).isNotEqualTo(plaintext);
+        assertThat(secured.hashCode()).isNotEqualTo(plaintext.hashCode());
+        assertThat(secured.toString()).contains("streamingTls=", "serviceTls=");
     }
 }

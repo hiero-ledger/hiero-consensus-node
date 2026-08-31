@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeTlsConfiguration;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
@@ -54,8 +55,10 @@ public class BlockNodeClientFactory {
     }
 
     /**
-     * Create a new PBJ gRPC client using the specified configuration.
+     * Create a new PBJ gRPC client using the specified configuration. Each block node API is secured independently,
+     * so the TLS settings (and therefore the URI scheme) are selected per client type.
      *
+     * @param clientType the block node API this client will call
      * @param config the block node configuration to use
      * @param timeout the timeout to use
      * @return a new {@link PbjGrpcClient} instance
@@ -68,19 +71,26 @@ public class BlockNodeClientFactory {
         requireNonNull(timeout, "timeout is required");
         requireNonNull(clientType, "client type is required");
 
-        final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig pbjConfig =
-                new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
-        final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
-        final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
         final int port =
                 switch (clientType) {
                     case STREAMING -> config.streamingPort();
                     case SERVICE -> config.servicePort();
                 };
+        final BlockNodeTlsConfiguration tlsConfig =
+                switch (clientType) {
+                    case STREAMING -> config.streamingTls();
+                    case SERVICE -> config.serviceTls();
+                };
+
+        final Tls tls = tlsConfig.toTls();
+        final String scheme = tls.enabled() ? "https" : "http";
+        final PbjGrpcClientConfig pbjConfig =
+                new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
+        final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
+        final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
 
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + config.address() + ":" + port)
+                .baseUri(scheme + "://" + config.address() + ":" + port)
                 .tls(tls)
                 .addProtocolConfig(httpConfig)
                 .addProtocolConfig(grpcConfig)

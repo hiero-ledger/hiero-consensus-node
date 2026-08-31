@@ -44,11 +44,21 @@ public class BlockNodeConfiguration {
      * Custom Helidon client gRPC configuration.
      */
     private final BlockNodeHelidonGrpcConfiguration clientGrpcConfig;
+    /**
+     * TLS configuration for the streaming endpoint.
+     */
+    private final BlockNodeTlsConfiguration streamingTls;
+    /**
+     * TLS configuration for the service endpoint.
+     */
+    private final BlockNodeTlsConfiguration serviceTls;
 
     private BlockNodeConfiguration(final Builder builder) {
         requireNonNull(builder.address, "Address must be specified");
         clientHttpConfig = requireNonNull(builder.clientHttpConfig, "Client HTTP config must be specified");
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
+        streamingTls = requireNonNull(builder.streamingTls, "Streaming TLS config must be specified");
+        serviceTls = requireNonNull(builder.serviceTls, "Service TLS config must be specified");
         // default the service port to the streaming port
         final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
         priority = builder.priority;
@@ -119,6 +129,14 @@ public class BlockNodeConfiguration {
         return clientGrpcConfig;
     }
 
+    public @NonNull BlockNodeTlsConfiguration streamingTls() {
+        return streamingTls;
+    }
+
+    public @NonNull BlockNodeTlsConfiguration serviceTls() {
+        return serviceTls;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (o == null || getClass() != o.getClass()) {
@@ -131,7 +149,9 @@ public class BlockNodeConfiguration {
                 && Objects.equals(streamingEndpoint, that.streamingEndpoint)
                 && Objects.equals(serviceEndpoint, that.serviceEndpoint)
                 && Objects.equals(clientHttpConfig, that.clientHttpConfig)
-                && Objects.equals(clientGrpcConfig, that.clientGrpcConfig);
+                && Objects.equals(clientGrpcConfig, that.clientGrpcConfig)
+                && Objects.equals(streamingTls, that.streamingTls)
+                && Objects.equals(serviceTls, that.serviceTls);
     }
 
     @Override
@@ -143,7 +163,9 @@ public class BlockNodeConfiguration {
                 messageSizeSoftLimitBytes,
                 messageSizeHardLimitBytes,
                 clientHttpConfig,
-                clientGrpcConfig);
+                clientGrpcConfig,
+                streamingTls,
+                serviceTls);
     }
 
     @Override
@@ -155,7 +177,9 @@ public class BlockNodeConfiguration {
                 + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
                 + messageSizeHardLimitBytes + ", clientHttpConfig="
                 + clientHttpConfig + ", clientGrpcConfig="
-                + clientGrpcConfig + '}';
+                + clientGrpcConfig + ", streamingTls="
+                + streamingTls + ", serviceTls="
+                + serviceTls + '}';
     }
 
     public static @NonNull BlockNodeConfiguration from(
@@ -172,6 +196,8 @@ public class BlockNodeConfiguration {
         b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes));
         b.clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(config.clientGrpcConfig()));
         b.clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(config.clientHttpConfig()));
+        b.streamingTls(BlockNodeTlsConfiguration.from(config.streamingTls()));
+        b.serviceTls(BlockNodeTlsConfiguration.from(config.serviceTls()));
 
         return b.build();
     }
@@ -189,6 +215,8 @@ public class BlockNodeConfiguration {
         private long messageSizeHardLimitBytes;
         private BlockNodeHelidonGrpcConfiguration clientGrpcConfig;
         private BlockNodeHelidonHttpConfiguration clientHttpConfig;
+        private BlockNodeTlsConfiguration streamingTls = BlockNodeTlsConfiguration.DISABLED;
+        private BlockNodeTlsConfiguration serviceTls = BlockNodeTlsConfiguration.DISABLED;
 
         private Builder() {
             // no-op
@@ -231,6 +259,16 @@ public class BlockNodeConfiguration {
 
         public @NonNull Builder clientGrpcConfig(@NonNull final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
             this.clientGrpcConfig = clientGrpcConfig;
+            return this;
+        }
+
+        public @NonNull Builder streamingTls(@NonNull final BlockNodeTlsConfiguration streamingTls) {
+            this.streamingTls = streamingTls;
+            return this;
+        }
+
+        public @NonNull Builder serviceTls(@NonNull final BlockNodeTlsConfiguration serviceTls) {
+            this.serviceTls = serviceTls;
             return this;
         }
 

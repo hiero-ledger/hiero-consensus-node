@@ -133,6 +133,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     targetBlockNodeNetwork
                             .getBlockNodeHighLatencyById()
                             .put(blockNodeConfig.nodeId(), blockNodeConfig.highLatency());
+                    targetBlockNodeNetwork
+                            .getBlockNodeTlsModeById()
+                            .put(blockNodeConfig.nodeId(), blockNodeConfig.tls());
                 }
 
                 for (final SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {
