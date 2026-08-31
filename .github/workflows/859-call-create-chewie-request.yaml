@@ -159,7 +159,7 @@ jobs:
             -n ${{ github.run_number }} \
             -t ${{ github.run_attempt }} \
             -o "${{ github.repository_owner }}" \
-            -r "${{ github.repository }}" \
+            -r "${{ github.event.repository.name }}" \
             -j "${{ github.job }}" \
             -e ${REQUEST_TIMEOUT}
           )
