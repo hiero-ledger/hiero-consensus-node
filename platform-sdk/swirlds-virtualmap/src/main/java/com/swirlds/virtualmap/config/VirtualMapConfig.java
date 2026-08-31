@@ -64,6 +64,7 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,
+        @Min(0) @Max(200) @ConfigProperty(defaultValue = "100") double percentFlushGarbageThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @Min(1) @ConfigProperty(defaultValue = "37748736") int valueParseMaxSizeBytes,

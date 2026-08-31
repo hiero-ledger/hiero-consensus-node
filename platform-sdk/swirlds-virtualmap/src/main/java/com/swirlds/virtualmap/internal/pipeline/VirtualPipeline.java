@@ -418,9 +418,7 @@ public class VirtualPipeline {
         if (copy.isFlushed()) {
             throw new IllegalStateException("copy is already flushed");
         }
-        if (!copy.isHashed()) {
-            hashCopy(copy);
-        }
+        assert copy.isHashed();
         copy.flush();
     }
 
@@ -445,20 +443,14 @@ public class VirtualPipeline {
      */
     private void merge(final PipelineListNode<VirtualRoot> node) {
         final VirtualRoot copy = node.getValue();
-
         if (copy.isMerged()) {
             throw new IllegalStateException("copy is already merged");
         }
-
-        if (!copy.isHashed()) {
-            hashCopy(copy);
-        }
-
+        assert copy.isHashed();
         final VirtualRoot next = node.getNext().getValue();
         if (!next.isHashed()) {
             hashCopy(next);
         }
-
         copy.merge();
     }
 
@@ -480,13 +472,16 @@ public class VirtualPipeline {
                 // Does isDestroy() make isImmutable() check above obsolete?
                 break;
             }
+            if (!copy.isHashed()) {
+                hashCopy(copy);
+            }
             if (shouldBeFlushed(copy)) {
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
                 copies.remove(next);
             } else if (canBeMerged(next)) {
                 assert !copy.isMerged();
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
                 merge(next);
                 copies.remove(next);
             } else {
