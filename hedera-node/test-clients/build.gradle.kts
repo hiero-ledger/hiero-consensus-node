@@ -534,7 +534,7 @@ fun TaskContainer.registerHapiTest(
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
                             (ciTagExpression.contains("ISS") ||
-                                    ciTagExpression.contains("ISS_GRPC") ||
+                                ciTagExpression.contains("ISS_GRPC") ||
                                 ciTagExpression.contains("BLOCK_NODE"))
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
