@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -10,6 +18,7 @@ import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,9 +37,14 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -45,9 +59,12 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeFeeManager;
@@ -76,11 +93,15 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import com.swirlds.state.test.fixtures.MapWritableKVState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -90,6 +111,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -309,6 +331,78 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void postUpgradeRemovesRetiredFeeScheduleFileFromState() {
+        final var retiredFileId = FileID.newBuilder().fileNum(111L).build();
+        final var simpleFeesFileId = FileID.newBuilder().fileNum(113L).build();
+        final var counts =
+                new AtomicReference<>(EntityCounts.newBuilder().numFiles(2).build());
+
+        final var entityIdStates = MapWritableStates.builder()
+                .state(new FunctionWritableSingletonState<>(
+                        ENTITY_ID_STATE_ID, "ENTITY_ID", () -> EntityNumber.DEFAULT, n -> {}))
+                .state(new FunctionWritableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, "ENTITY_COUNTS", counts::get, counts::set))
+                .state(new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        "HIGHEST_NODE_ID",
+                        () -> com.hedera.hapi.platform.state.NodeId.DEFAULT,
+                        n -> {}))
+                .build();
+        final var tokenStates = MapWritableStates.builder()
+                .state(MapWritableKVState.builder(STAKING_INFOS_STATE_ID, "STAKING_INFOS")
+                        .build())
+                .state(new FunctionWritableSingletonState<>(
+                        STAKING_NETWORK_REWARDS_STATE_ID,
+                        "STAKING_NETWORK_REWARDS",
+                        () -> NetworkStakingRewards.DEFAULT,
+                        n -> {}))
+                .build();
+        final var nodeStates = MapWritableStates.builder()
+                .state(MapWritableKVState.builder(NODES_STATE_ID, "NODES").build())
+                .build();
+        final var fileStates = MapWritableStates.builder()
+                .state(MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, "FILES")
+                        .value(
+                                retiredFileId,
+                                File.newBuilder().fileId(retiredFileId).build())
+                        .value(
+                                simpleFeesFileId,
+                                File.newBuilder().fileId(simpleFeesFileId).build())
+                        .build())
+                .build();
+        given(state.getWritableStates(TokenService.NAME)).willReturn(tokenStates);
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        given(state.getWritableStates(AddressBookService.NAME)).willReturn(nodeStates);
+        given(state.getWritableStates(FileService.NAME)).willReturn(fileStates);
+        given(blockStreamManager.pendingWork()).willReturn(POST_UPGRADE_WORK);
+
+        // Same event scaffolding as writeEventHeaderWithNoParentEvents, but carrying one transaction
+        // so the workflow reaches the post-upgrade branch of handlePlatformTransaction()
+        final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
+        txn.setConsensusTimestamp(NOW);
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator())
+                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final var files = fileStates.<FileID, File>get(FILES_STATE_ID);
+        assertNull(files.get(retiredFileId), "retired fee schedule file must be removed from state");
+        assertNotNull(files.get(simpleFeesFileId), "unrelated system files must survive");
+        assertEquals(1, counts.get().numFiles(), "file entity counter must be decremented");
     }
 
     @Test

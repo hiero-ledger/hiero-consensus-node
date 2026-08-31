@@ -488,14 +488,6 @@ public class HapiSpecSetup {
         return props.getLong("fee.schedule.fetch.fee");
     }
 
-    public FileID feeScheduleId() {
-        return props.getFile("fee.schedule.id");
-    }
-
-    public String feeScheduleName() {
-        return props.get("fee.schedule.name");
-    }
-
     public AccountID simpleFeesScheduleControl() {
         return props.getAccount("simplefees.schedule.controlAccount.id");
     }

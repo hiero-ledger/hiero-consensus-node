@@ -23,7 +23,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
           - "075-to-076-tss"
-          - "077-to-078-cutover"
+          - "078-to-079-cutover"
           - "e2e-backpressure"
       cluster-target:
         description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
@@ -63,8 +63,8 @@ on:
         required: false
         type: string
         default: ""
-      cutover-077-to-078-starting-tag:
-        description: "[077-to-078-cutover] Consensus-node release tag for the initial 0.77 network deploy. The 0.78 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.77.0-rc.3."
+      cutover-078-to-079-starting-tag:
+        description: "[078-to-079-cutover] Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.5."
         required: false
         type: string
         default: ""
@@ -106,7 +106,7 @@ jobs:
   extract-citr-vars:
     name: Extract CITR Vars
     # Runs for every scenario. Non-cutover jobs read adhoc-solo-version from it as the default
-    # Solo version when the solo-version input is left blank; the 077-to-078 cutover job reads
+    # Solo version when the solo-version input is left blank; the 078-to-079 cutover job reads
     # cutover-solo-version. It must stay unconditional: a gated job would be "skipped", and a
     # skipped need skips its dependents, so gating it would skip every non-cutover scenario.
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
@@ -693,16 +693,16 @@ jobs:
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
-  solo-077-to-078-cutover:
-    name: "Solo 0.77 -> 0.78 BLOCKS Cutover"
+  solo-078-to-079-cutover:
+    name: "Solo 0.78 -> 0.79 BLOCKS Cutover"
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ inputs.scenario == '077-to-078-cutover' }}
+    if: ${{ inputs.scenario == '078-to-079-cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     env:
-      SOLO_CLUSTER_NAME: "cutover-077-to-078"
+      SOLO_CLUSTER_NAME: "cutover-078-to-079"
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -773,25 +773,25 @@ jobs:
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
-        # The 0.77 cutover always upgrades to the local build, so a build is always required.
+        # The 0.79 cutover always upgrades to the local build, so a build is always required.
         run: ${GRADLE_EXEC} assemble
 
-      - name: Run 0.77 -> 0.78 BLOCKS Cutover Scenario
+      - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
         run: |
           set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-077-to-078-cutover.sh"
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.cutover-077-to-078-starting-tag || 'v0.77.0-rc.3' }}" \
-            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/077-to-078-cutover-script.log"
+              DEPLOY_RELEASE_TAG="${{ inputs.cutover-078-to-079-starting-tag || 'v0.78.0-rc.5' }}" \
+            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
         run: |
           set +e
-          OUT_DIR="${RUNNER_TEMP}/077-to-078-cutover-diagnostics"
+          OUT_DIR="${RUNNER_TEMP}/078-to-079-cutover-diagnostics"
           mkdir -p "${OUT_DIR}"
 
           kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
@@ -823,14 +823,14 @@ jobs:
             done
           fi
 
-      - name: Upload 077-to-078 Cutover Failure Artifacts
+      - name: Upload 078-to-079 Cutover Failure Artifacts
         if: ${{ !cancelled() && failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: 077-to-078-Cutover-Failure-Artifacts
+          name: 078-to-079-Cutover-Failure-Artifacts
           path: |
-            ${{ runner.temp }}/077-to-078-cutover-script.log
-            ${{ runner.temp }}/077-to-078-cutover-diagnostics/**
+            ${{ runner.temp }}/078-to-079-cutover-script.log
+            ${{ runner.temp }}/078-to-079-cutover-diagnostics/**
             hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
           if-no-files-found: warn
           retention-days: 7

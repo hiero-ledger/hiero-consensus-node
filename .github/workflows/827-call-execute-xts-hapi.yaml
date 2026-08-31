@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "827: [CALL] Exec XTS HAPI Suites"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-wraps:
+        description: "HAPI WRAPS Testing Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-cutover:
+        description: "HAPI Cutover & Wraps Download Testing Enabled"
+        type: string
+        required: false
+        default: "false"
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+jobs:
+  hapi-tests-bn-comms:
+    uses: ./.github/workflows/844-call-execute-hapi-bn-communication.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-wraps:
+    if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
+    uses: ./.github/workflows/845-call-execute-hapi-wraps.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-cutover:
+    if: ${{ inputs.enable-hapi-tests-cutover == 'true' }}
+    uses: ./.github/workflows/846-call-execute-hapi-cutover.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - hapi-tests-bn-comms
+      - hapi-tests-wraps
+      - hapi-tests-cutover
+    if: ${{ always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.hapi-tests-bn-comms.result }}
+            ${{ needs.hapi-tests-wraps.result }}
+            ${{ needs.hapi-tests-cutover.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-wraps.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-cutover.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            hapi-tests-bn-comms
+            hapi-tests-wraps
+            hapi-tests-cutover
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
