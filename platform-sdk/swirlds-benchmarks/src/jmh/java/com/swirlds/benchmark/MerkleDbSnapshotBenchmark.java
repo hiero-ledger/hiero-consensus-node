@@ -183,6 +183,13 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             mapReference.set(flushMap(mapReference.get()));
             final MerkleDbDataSource fixtureSource =
                     (MerkleDbDataSource) mapReference.get().getDataSource();
+            // Finish compaction before comparing saved index locations with the live source.
+            logger.info("Waiting for fixture compactions to finish...");
+            final long compactionStart = System.currentTimeMillis();
+            fixtureSource.awaitForCurrentCompactionsToComplete(0);
+            fixtureSource.stopAndDisableBackgroundCompaction();
+            logger.info("Finished fixture compactions in {} ms", System.currentTimeMillis() - compactionStart);
+
             FileUtils.executeAndRename(fixtureDirectory, temporaryFixtureDirectory, directory -> {
                 dataSourceBuilder.snapshot(directory, fixtureSource);
                 validateSnapshot(fixtureSource, directory);
