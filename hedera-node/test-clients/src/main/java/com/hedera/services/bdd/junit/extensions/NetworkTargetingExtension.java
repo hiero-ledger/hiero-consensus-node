@@ -46,6 +46,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -79,6 +80,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {
         hapiTestMethodOf(extensionContext).ifPresent(method -> {
             if (isAnnotated(method, GenesisHapiTest.class)) {
+                assertNoSharedEmbeddedNetwork(method);
                 final var targetNetwork =
                         new EmbeddedNetwork(method.getName().toUpperCase(), method.getName(), CONCURRENT);
                 final var a = method.getAnnotation(GenesisHapiTest.class);
@@ -87,6 +89,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 targetNetwork.startWith(bootstrapOverrides);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else if (isAnnotated(method, RestartHapiTest.class)) {
+                assertNoSharedEmbeddedNetwork(method);
                 final var targetNetwork =
                         new EmbeddedNetwork(method.getName().toUpperCase(), method.getName(), REPEATABLE);
                 final var a = method.getAnnotation(RestartHapiTest.class);
@@ -267,6 +270,22 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 HapiSpec.PROPERTIES_TO_PRESERVE.remove();
             }
         });
+    }
+
+    /**
+     * Fails fast if a shared embedded network is already running, since starting a per-method network
+     * would then leave two embedded Hedera instances live in this JVM. A shared subprocess network is
+     * fine, as its nodes run in their own processes.
+     *
+     * @param method the test method about to build a per-method network
+     */
+    private static void assertNoSharedEmbeddedNetwork(@NonNull final Method method) {
+        if (SHARED_NETWORK.get() instanceof EmbeddedNetwork) {
+            throw new IllegalStateException("Cannot build a per-method network for '" + method.getName()
+                    + "' while a shared embedded network is running; classes with @GenesisHapiTest or"
+                    + " @RestartHapiTest methods must be annotated @Order(Integer.MIN_VALUE) so they run"
+                    + " before any shared network exists");
+        }
     }
 
     /**

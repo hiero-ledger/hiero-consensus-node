@@ -80,7 +80,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class Hip1313EnabledTest {
-    static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     static final double CRYPTO_CREATE_BASE_FEE = 0.05;
     static final int CRYPTO_CREATE_HV_TPS = 800;
     static final int LINEAR_CRYPTO_CREATE_MAX_MULTIPLIER = 200_000;
@@ -110,13 +110,13 @@ public class Hip1313EnabledTest {
             Map.entry(5000, 80000L),
             Map.entry(10000, 100000L)));
 
-    static final double SCHEDULE_CREATE_BASE_FEE = 0.01;
+    private static final double SCHEDULE_CREATE_BASE_FEE = 0.01;
     static final int SCHEDULE_CREATE_HV_TPS = 1300;
     static final int TOPIC_CREATE_HV_TPS = 800;
     static final double TOPIC_CREATE_BASE_FEE = 0.01;
-    static final double MULTIPLIER_TOLERANCE = 0.05;
+    private static final double MULTIPLIER_TOLERANCE = 0.05;
     static final long ONE_X_MULTIPLIER = 1000L;
-    static final long FOUR_X_MULTIPLIER = 4000L;
+    private static final long FOUR_X_MULTIPLIER = 4000L;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -516,7 +516,7 @@ public class Hip1313EnabledTest {
         return interpolatePiecewiseLinear(asPiecewiseLinearCurve(map), utilizationBasisPoints);
     }
 
-    static PiecewiseLinearCurve asPiecewiseLinearCurve(final NavigableMap<Integer, Long> map) {
+    private static PiecewiseLinearCurve asPiecewiseLinearCurve(final NavigableMap<Integer, Long> map) {
         final var points = map.entrySet().stream()
                 .map(entry -> PiecewiseLinearPoint.newBuilder()
                         .utilizationBasisPoints(entry.getKey())
@@ -664,7 +664,7 @@ public class Hip1313EnabledTest {
         }
     }
 
-    static ObjectNode findCryptoCreateHighVolumeRates(@NonNull final JsonNode root) {
+    private static ObjectNode findCryptoCreateHighVolumeRates(@NonNull final JsonNode root) {
         for (final var service : root.path("services")) {
             for (final var scheduleEntry : service.path("schedule")) {
                 if ("CryptoCreate".equals(scheduleEntry.path("name").asText())) {
