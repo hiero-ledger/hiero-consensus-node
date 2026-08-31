@@ -1017,19 +1017,9 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var kvStateChanges = immediateStateChangeListener.getKvStateChanges();
-            if (!kvStateChanges.isEmpty()) {
-                blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(now, new ArrayList<>(kvStateChanges)))
-                        .build());
-            }
+            blockStreamManager.writeStateChanges(immediateStateChangeListener.takeKvStateChanges());
             if (includeSingletons) {
-                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
-                if (!singletonChanges.isEmpty()) {
-                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                            .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
-                            .build());
-                }
+                blockStreamManager.writeStateChanges(boundaryStateChangeListener.allStateChanges());
             }
         }
     }

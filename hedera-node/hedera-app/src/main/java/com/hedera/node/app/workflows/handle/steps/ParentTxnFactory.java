@@ -34,6 +34,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
@@ -81,6 +82,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -114,6 +116,25 @@ public class ParentTxnFactory {
     private final TransactionChecker transactionChecker;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
     private final NodeFeeAccumulator nodeFeeAccumulator;
+    /**
+     * Handle is single-threaded. One root stack is reset in place so {@code WritableStatesStack}
+     * adapters survive across sequential parent dispatches.
+     */
+    @Nullable
+    private SavepointStackImpl reusableRootStack;
+    /**
+     * Factories and stores wrap the reusable root stack. Dropped when a new stack is constructed.
+     */
+    @Nullable
+    private SavepointStackImpl storesBoundTo;
+
+    @Nullable
+    private WritableEntityIdStoreImpl reusableEntityIdStore;
+
+    private final Map<String, WritableStoreFactory> reusableWritableFactories = new HashMap<>();
+
+    @Nullable
+    private ServiceApiFactory reusableServiceApiFactory;
 
     @Inject
     public ParentTxnFactory(
@@ -215,11 +236,8 @@ public class ParentTxnFactory {
         if (creatorInfo == null || txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
         }
-        final var tokenContext = new TokenContextImpl(
-                config,
-                stack,
-                consensusNow,
-                new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
+        final var tokenContext =
+                new TokenContextImpl(config, stack, consensusNow, writableStoreFactoryFor(stack, TokenService.NAME));
         return new ParentTxn(
                 txnInfo.functionality(),
                 consensusNow,
@@ -263,8 +281,8 @@ public class ParentTxnFactory {
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
                 preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
-        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
-        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
+        final var tokenContext =
+                new TokenContextImpl(config, stack, consensusNow, writableStoreFactoryFor(stack, TokenService.NAME));
         return new ParentTxn(
                 functionality,
                 consensusNow,
@@ -358,13 +376,13 @@ public class ParentTxnFactory {
         final var consensusNow = parentTxn.consensusNow();
         final var creatorInfo = parentTxn.creatorInfo();
         final var tokenContextImpl = parentTxn.tokenContextImpl();
-        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = entityIdStoreFor(stack);
 
         final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
-                new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
+                writableStoreFactoryFor(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()));
+        final var serviceApiFactory = serviceApiFactoryFor(stack, config);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
@@ -452,14 +470,74 @@ public class ParentTxnFactory {
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         final var contractsConfig = config.getConfigData(ContractsConfig.class);
-        return SavepointStackImpl.newRootStack(
+        final int maxBefore = consensusConfig.handleMaxPrecedingRecords();
+        final int maxAfter = consensusConfig.handleMaxFollowingRecords();
+        final var mode = blockStreamConfig.streamMode();
+        final int maxTraceBytes = contractsConfig.maxSerializedTraceDataBytes();
+        if (reusableRootStack != null
+                && reusableRootStack.resetForNextUserTxn(
+                        state,
+                        maxBefore,
+                        maxAfter,
+                        boundaryStateChangeListener,
+                        immediateStateChangeListener,
+                        mode,
+                        maxTraceBytes)) {
+            return reusableRootStack;
+        }
+        dropReusableStores();
+        reusableRootStack = SavepointStackImpl.newRootStack(
                 state,
-                consensusConfig.handleMaxPrecedingRecords(),
-                consensusConfig.handleMaxFollowingRecords(),
+                maxBefore,
+                maxAfter,
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
-                blockStreamConfig.streamMode(),
-                contractsConfig.maxSerializedTraceDataBytes());
+                mode,
+                maxTraceBytes);
+        return reusableRootStack;
+    }
+
+    private void dropReusableStores() {
+        reusableEntityIdStore = null;
+        reusableWritableFactories.clear();
+        reusableServiceApiFactory = null;
+        storesBoundTo = null;
+    }
+
+    private void bindStoresTo(@NonNull final SavepointStackImpl stack) {
+        if (storesBoundTo != stack) {
+            dropReusableStores();
+            storesBoundTo = stack;
+        }
+    }
+
+    private WritableEntityIdStoreImpl entityIdStoreFor(@NonNull final SavepointStackImpl stack) {
+        bindStoresTo(stack);
+        if (reusableEntityIdStore == null) {
+            reusableEntityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
+        }
+        return reusableEntityIdStore;
+    }
+
+    private WritableStoreFactory writableStoreFactoryFor(
+            @NonNull final SavepointStackImpl stack, @NonNull final String serviceName) {
+        bindStoresTo(stack);
+        final var cached = reusableWritableFactories.get(serviceName);
+        if (cached != null) {
+            return cached;
+        }
+        final var created = new WritableStoreFactory(stack, serviceName, entityIdStoreFor(stack));
+        reusableWritableFactories.put(serviceName, created);
+        return created;
+    }
+
+    private ServiceApiFactory serviceApiFactoryFor(
+            @NonNull final SavepointStackImpl stack, @NonNull final Configuration config) {
+        bindStoresTo(stack);
+        if (reusableServiceApiFactory == null) {
+            reusableServiceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
+        }
+        return reusableServiceApiFactory;
     }
 
     /**

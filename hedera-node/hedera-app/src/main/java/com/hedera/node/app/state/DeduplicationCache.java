@@ -25,9 +25,33 @@ public interface DeduplicationCache {
     void add(@NonNull TransactionID transactionID);
 
     /**
+     * Atomically records {@code transactionID} if it is still within the valid-start window and not
+     * already present.
+     *
+     * @param transactionID The transaction ID to add
+     * @return {@code true} if the ID was newly added
+     */
+    default boolean putIfAbsent(@NonNull TransactionID transactionID) {
+        if (contains(transactionID)) {
+            return false;
+        }
+        add(transactionID);
+        return true;
+    }
+
+    /**
+     * Removes a transaction ID previously added. Used when platform submit rejects after a successful claim.
+     *
+     * @param transactionID The transaction ID to remove
+     */
+    default void remove(@NonNull TransactionID transactionID) {
+        // Optional; implementations that claim IDs before platform submit should override.
+    }
+
+    /**
      * Gets whether the cache contains the given transaction ID.
      *
-     * @param transactionID The transaction ID to add to the cache.
+     * @param transactionID The transaction ID to look up
      * @return {@code true} if the transaction ID is in the cache
      */
     boolean contains(@NonNull TransactionID transactionID);

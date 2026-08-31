@@ -38,9 +38,9 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -53,7 +53,9 @@ import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
+import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
+import com.hedera.node.app.signature.impl.CompletedSignatureVerificationFuture;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -84,6 +86,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
@@ -129,6 +132,13 @@ public final class IngestChecker {
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
+    private static final class CachedFactory {
+        private State state;
+        private ReadableStoreFactoryImpl factory;
+    }
+
+    private final ThreadLocal<CachedFactory> factoryCache = ThreadLocal.withInitial(CachedFactory::new);
+
     /**
      * The result of running all checks.
      */
@@ -136,7 +146,13 @@ public final class IngestChecker {
         @Nullable
         private TransactionInfo txnInfo;
 
-        private List<ThrottleUsage> throttleUsages = new ArrayList<>();
+        private final List<ThrottleUsage> throttleUsages = new ArrayList<>(2);
+
+        @Nullable
+        private Key verifiedPayerKey;
+
+        @Nullable
+        private Map<Key, SignatureVerificationFuture> payerResults;
 
         public @NonNull TransactionInfo txnInfoOrThrow() {
             return requireNonNull(txnInfo);
@@ -151,7 +167,34 @@ public final class IngestChecker {
         }
 
         public void setThrottleUsages(@Nullable List<ThrottleUsage> throttleUsages) {
-            this.throttleUsages = throttleUsages;
+            this.throttleUsages.clear();
+            if (throttleUsages != null && throttleUsages != this.throttleUsages) {
+                this.throttleUsages.addAll(throttleUsages);
+            }
+        }
+
+        @Nullable
+        public Key verifiedPayerKey() {
+            return verifiedPayerKey;
+        }
+
+        @Nullable
+        public Map<Key, SignatureVerificationFuture> payerResults() {
+            return payerResults;
+        }
+
+        void setPayerVerification(
+                @Nullable final Key verifiedPayerKey,
+                @Nullable final Map<Key, SignatureVerificationFuture> payerResults) {
+            this.verifiedPayerKey = verifiedPayerKey;
+            this.payerResults = payerResults;
+        }
+
+        public void reset() {
+            txnInfo = null;
+            throttleUsages.clear();
+            verifiedPayerKey = null;
+            payerResults = null;
         }
     }
 
@@ -245,10 +288,10 @@ public final class IngestChecker {
     }
 
     /**
-     * Runs all the ingest checks on a {@link Transaction}
+     * Runs all the ingest checks on a transaction
      *
      * @param state the {@link State} to use
-     * @param serializedTransaction the {@link Transaction} to check
+     * @param serializedTransaction the serialized transaction to check
      * @param configuration the {@link Configuration} to use
      * @param result the {@link Result} to populate with the results of the checks
      * @throws PreCheckException if a check fails
@@ -320,7 +363,7 @@ public final class IngestChecker {
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var storeFactory = factoryFor(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerAccountId = payer.accountIdOrThrow();
 
@@ -339,7 +382,7 @@ public final class IngestChecker {
         }
 
         // 6. Verify payer's signatures
-        verifyAccountSignature(txInfo, payer, configuration);
+        verifyAccountSignature(txInfo, payer, configuration, result);
 
         // 7. Check payer solvency
         final var numSigs = txInfo.signatureMap().sigPair().size();
@@ -548,9 +591,32 @@ public final class IngestChecker {
             @NonNull final Account account,
             @NonNull final Configuration configuration)
             throws PreCheckException {
+        verifyAccountSignature(txInfo, account, configuration, null);
+    }
+
+    private void verifyAccountSignature(
+            @NonNull final TransactionInfo txInfo,
+            @NonNull final Account account,
+            @NonNull final Configuration configuration,
+            @Nullable final Result result)
+            throws PreCheckException {
         final var payerKey = account.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var sigPairs = txInfo.signatureMap().sigPair();
+
+        if (!isHollow(account) && payerKey != null && payerKey.hasEd25519()) {
+            final var match = findEd25519Match(payerKey, sigPairs);
+            if (match == null
+                    || !signatureVerifier.verifyEd25519(
+                            txInfo.signedBytes(), payerKey.ed25519OrThrow(), match.ed25519OrThrow())) {
+                throw new PreCheckException(INVALID_SIGNATURE);
+            }
+            if (result != null) {
+                result.setPayerVerification(
+                        payerKey, Map.of(payerKey, new CompletedSignatureVerificationFuture(payerKey, null, true)));
+            }
+            return;
+        }
 
         // Expand the signatures
         final var expandedSigs = new HashSet<ExpandedSignaturePair>();
@@ -582,5 +648,31 @@ public final class IngestChecker {
         if (keyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }
+        if (result != null && !isHollow(account)) {
+            result.setPayerVerification(payerKey, results);
+        }
+    }
+
+    @Nullable
+    private static SignaturePair findEd25519Match(@NonNull final Key key, @NonNull final List<SignaturePair> pairs) {
+        final var keyBytes = key.ed25519OrThrow();
+        for (final var pair : pairs) {
+            if (pair.signature().kind() == SignaturePair.SignatureOneOfType.ED25519
+                    && pair.pubKeyPrefix().length() <= 32
+                    && keyBytes.matchesPrefix(pair.pubKeyPrefix())) {
+                return pair;
+            }
+        }
+        return null;
+    }
+
+    @NonNull
+    private ReadableStoreFactoryImpl factoryFor(@NonNull final State state) {
+        final var cached = factoryCache.get();
+        if (cached.state != state) {
+            cached.state = state;
+            cached.factory = new ReadableStoreFactoryImpl(state);
+        }
+        return cached.factory;
     }
 }

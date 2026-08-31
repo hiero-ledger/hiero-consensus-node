@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -250,6 +251,26 @@ public class BlockStreamBuilderTest {
         final var txnBlockItem = blockItems.getFirst();
         assertTrue(txnBlockItem.hasSignedTransaction());
         assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
+    }
+
+    @Test
+    void resetForNextUserTxnClearsTxnScopedFieldsAndDetachesStateChanges() {
+        final var firstChanges = List.of(StateChange.DEFAULT);
+        final var builder = createBaseBuilder()
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .stateChanges(firstChanges);
+        final var previousStateChanges = builder.getStateChanges();
+
+        builder.resetForNextUserTxn();
+
+        assertThat(builder.status()).isEqualTo(ResponseCodeEnum.OK);
+        assertThat(builder.transactionID()).isNull();
+        assertThat(builder.functionality()).isNull();
+        assertThat(builder.getStateChanges()).isEmpty();
+        assertThat(builder.getStateChanges()).isNotSameAs(previousStateChanges);
+        assertThat(previousStateChanges).containsExactlyElementsOf(firstChanges);
+        assertThat(builder.transactionFee()).isZero();
+        assertThat(builder.getPaidStakingRewards()).isEmpty();
     }
 
     @Test

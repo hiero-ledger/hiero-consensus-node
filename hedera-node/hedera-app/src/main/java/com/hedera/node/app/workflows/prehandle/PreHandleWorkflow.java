@@ -112,6 +112,10 @@ public interface PreHandleWorkflow {
         // and add their results to the outer transaction's pre-handle result
         if (result.txInfo() != null && isAtomicBatch(result.txInfo()) && result.status() == SO_FAR_SO_GOOD) {
             final var innerTxns = result.txInfo().txBody().atomicBatchOrThrow().transactions();
+            // Reused handle-path results already include inner pre-handle; do not append again
+            if (result.innerResults() != null && result.innerResults().size() == innerTxns.size()) {
+                return result;
+            }
             var useInnerResults = maybeReusableResult != null
                     && maybeReusableResult.innerResults() != null
                     && !maybeReusableResult.innerResults().isEmpty();

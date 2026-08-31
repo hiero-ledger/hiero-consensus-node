@@ -64,6 +64,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -131,6 +132,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * @param from The other state to fast-copy from. Cannot be null.
      */
     protected VirtualMapStateImpl(@NonNull final VirtualMapStateImpl from) {
+        from.flushPendingWrites();
         this.virtualMap = from.virtualMap.copy();
         this.metrics = from.metrics;
         this.listeners.addAll(from.listeners);
@@ -184,6 +186,16 @@ public class VirtualMapStateImpl implements VirtualMapState {
     @NonNull
     VirtualMapStateImpl copy() {
         return new VirtualMapStateImpl(this);
+    }
+
+    /**
+     * Pushes handle-buffered writable mutations into the {@link VirtualMap} so a subsequent
+     * {@link VirtualMap#copy()} sees every committed user transaction.
+     */
+    private void flushPendingWrites() {
+        for (final var writableStates : writableStatesMap.values()) {
+            writableStates.flushToVirtualMap();
+        }
     }
 
     /**
@@ -515,6 +527,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
          * @param stateId the state ID
          */
         public void copyAndReleaseVirtualMap(final int stateId) {
+            VirtualMapStateImpl.this.flushPendingWrites();
             final var md = stateMetadata.get(stateId);
             final var mutableCopy = virtualMap.copy();
             mutableCopy.registerMetrics(metrics);
@@ -592,16 +605,33 @@ public class VirtualMapStateImpl implements VirtualMapState {
         }
 
         @Override
+        public boolean requiresImmediateCommit() {
+            return false;
+        }
+
+        @Override
         public void commit() {
             // Ensure all commits always happen in lexicographic order by state ID
-            kvInstances.keySet().stream().sorted().forEach(stateId -> ((WritableKVStateBase) kvInstances.get(stateId))
-                    .commit());
-            singletonInstances.keySet().stream()
-                    .sorted()
-                    .forEach(stateId -> ((WritableSingletonStateBase) singletonInstances.get(stateId)).commit());
-            queueInstances.keySet().stream()
-                    .sorted()
-                    .forEach(stateId -> ((WritableQueueStateBase) queueInstances.get(stateId)).commit());
+            commitInStateIdOrder(kvInstances, state -> ((WritableKVStateBase) state).commit());
+            commitInStateIdOrder(singletonInstances, state -> ((WritableSingletonStateBase) state).commit());
+            commitInStateIdOrder(queueInstances, state -> ((WritableQueueStateBase) state).commit());
+            readableStatesMap.remove(serviceName);
+        }
+
+        @Override
+        public void commitSingleton(final int stateId) {
+            ((WritableSingletonStateBase<?>) getSingleton(stateId)).commit();
+            readableStatesMap.remove(serviceName);
+        }
+
+        /**
+         * Flushes buffered mutations into {@link VirtualMap} without firing commit listeners.
+         * Listeners already ran when the handle wrap applied each transaction's changes.
+         */
+        void flushToVirtualMap() {
+            commitInStateIdOrder(kvInstances, state -> ((WritableKVStateBase) state).flushToDataSource());
+            commitInStateIdOrder(singletonInstances, state -> ((WritableSingletonStateBase) state).flushToDataSource());
+            commitInStateIdOrder(queueInstances, state -> ((WritableQueueStateBase) state).flushToDataSource());
             readableStatesMap.remove(serviceName);
         }
 
@@ -656,6 +686,27 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     listener.mapDeleteChange(stateId, key);
                 }
             });
+        }
+    }
+
+    private static <T> void commitInStateIdOrder(
+            @NonNull final Map<Integer, T> instances, @NonNull final java.util.function.Consumer<T> commit) {
+        final int n = instances.size();
+        if (n == 0) {
+            return;
+        }
+        if (n == 1) {
+            commit.accept(instances.values().iterator().next());
+            return;
+        }
+        final int[] ids = new int[n];
+        int i = 0;
+        for (final int id : instances.keySet()) {
+            ids[i++] = id;
+        }
+        Arrays.sort(ids);
+        for (final int id : ids) {
+            commit.accept(instances.get(id));
         }
     }
 

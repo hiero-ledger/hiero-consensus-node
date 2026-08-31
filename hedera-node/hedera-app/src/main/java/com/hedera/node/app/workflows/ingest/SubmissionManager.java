@@ -110,54 +110,39 @@ public class SubmissionManager {
         requireNonNull(txBody);
         requireNonNull(serializedSignedTx);
 
-        // This method is not called at a super high rate, so synchronizing here is perfectly fine. We need to check
-        // for containment and then do a bunch of logic that might throw an exception before doing the `add` and we
-        // want to be REALLY SURE that we're not submitting duplicate transactions to the network.
-        synchronized (submittedTxns) {
-            // If we have already submitted this transaction, then fail. Note that both of these calls will throw if
-            // the transaction is malformed. This should NEVER happen, because the transaction was already checked
-            // before we got here. But if it ever does happen, for any reason, we want it to happen BEFORE we submit,
-            // and BEFORE we record the transaction as a duplicate.
-            final var txId = txBody.transactionIDOrThrow();
-            if (submittedTxns.contains(txId)) {
-                throw new PreCheckException(DUPLICATE_TRANSACTION);
-            }
+        final var txId = txBody.transactionIDOrThrow();
+        if (!submittedTxns.putIfAbsent(txId)) {
+            throw new PreCheckException(DUPLICATE_TRANSACTION);
+        }
 
-            // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
-            // or while the system is being shut down. In any event, the user will receive an error code indicating
-            // that the transaction was not submitted and they can retry.
+        final boolean success;
+        if (priority) {
+            transactionPool.submitPriorityTransaction(serializedSignedTx);
+            success = true;
+        } else {
+            success = transactionPool.submitApplicationTransaction(serializedSignedTx);
+        }
+        if (!success) {
+            submittedTxns.remove(txId);
+            platformTxnRejections.cycle();
+            throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
+        }
 
-            final boolean success;
-            if (priority) {
-                transactionPool.submitPriorityTransaction(serializedSignedTx);
-                success = true;
-            } else {
-                success = transactionPool.submitApplicationTransaction(serializedSignedTx);
-            }
-            if (success) {
-                submittedTxns.add(txId);
-
-                if (txBody.hasAtomicBatch()
-                        && !txBody.atomicBatchOrThrow().transactions().isEmpty()) {
-                    final var transactions = txBody.atomicBatchOrThrow().transactions();
-                    for (final Bytes buffer : transactions) {
-                        try {
-                            final var signedTransaction =
-                                    SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
-                            final var body = TransactionBody.PROTOBUF.parseStrict(
-                                    signedTransaction.bodyBytes().toReadableSequentialData());
-                            final var innerTxnId = body.transactionIDOrThrow();
-                            submittedTxns.add(innerTxnId);
-                        } catch (ParseException e) {
-                            // This should never happen. All inner batch transactions should be validated by the
-                            // IngestChecker before they get submitted here.
-                            throw new PreCheckException(INVALID_TRANSACTION);
-                        }
-                    }
+        if (txBody.hasAtomicBatch()
+                && !txBody.atomicBatchOrThrow().transactions().isEmpty()) {
+            final var transactions = txBody.atomicBatchOrThrow().transactions();
+            for (final Bytes buffer : transactions) {
+                try {
+                    final var signedTransaction =
+                            SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
+                    final var body = TransactionBody.PROTOBUF.parseStrict(
+                            signedTransaction.bodyBytes().toReadableSequentialData());
+                    submittedTxns.add(body.transactionIDOrThrow());
+                } catch (ParseException e) {
+                    // This should never happen. All inner batch transactions should be validated by the
+                    // IngestChecker before they get submitted here.
+                    throw new PreCheckException(INVALID_TRANSACTION);
                 }
-            } else {
-                platformTxnRejections.cycle();
-                throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
         }
     }

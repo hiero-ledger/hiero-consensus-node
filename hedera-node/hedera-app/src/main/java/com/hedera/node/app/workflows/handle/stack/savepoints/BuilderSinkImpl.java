@@ -118,6 +118,12 @@ public class BuilderSinkImpl implements BuilderSink {
     }
 
     @Override
+    public void reset() {
+        precedingBuilders.clear();
+        followingBuilders.clear();
+    }
+
+    @Override
     public void addPrecedingOrThrow(@NonNull final StreamBuilder builder) {
         requireNonNull(builder);
         if (precedingCapacity() == 0) {

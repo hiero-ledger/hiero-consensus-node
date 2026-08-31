@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -32,6 +33,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
+import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
@@ -264,8 +267,10 @@ class SavepointStackImplTest extends StateTestBase {
         assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(BASE_DATA));
         assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
         assertThat(stack.rootStates(FOOD_SERVICE)).has(content(BASE_DATA));
-        assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(BASE_DATA));
-        assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
+        assertThat(stack.getReadableStates(FOOD_SERVICE)).isSameAs(stack.getReadableStates(FOOD_SERVICE));
+        assertThat(stack.getWritableStates(FOOD_SERVICE)).isSameAs(stack.getWritableStates(FOOD_SERVICE));
+        final var writable = stack.getWritableStates(FOOD_SERVICE);
+        assertThat(writable.get(FRUIT_STATE_ID)).isSameAs(writable.get(FRUIT_STATE_ID));
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -997,6 +1002,208 @@ class SavepointStackImplTest extends StateTestBase {
             assertThat(stack.rootStates(FOOD_SERVICE)).has(content(newData));
             assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(newData));
             assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(newData));
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests for resetting a root stack for the next user transaction")
+    class ResetForNextUserTxnTests {
+        @Test
+        void resetKeepsStateAdaptersAndIsolatesUncommittedMutations() {
+            final var stack = newRootStack(3, 50, streamMode);
+            final var writableStates = stack.getWritableStates(FOOD_SERVICE);
+            final var readableStates = stack.getReadableStates(FOOD_SERVICE);
+            final var fruit = writableStates.get(FRUIT_STATE_ID);
+            final var wrap = stack.peek().state();
+            final var firstBuilder = stack.getBaseBuilder(StreamBuilder.class);
+            firstBuilder
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(PAYER_ID)
+                            .transactionValidStart(VALID_START)
+                            .build())
+                    .status(SUCCESS);
+            fruit.put(A_KEY, ACAI);
+
+            assertThat(stack.resetForNextUserTxn(
+                            baseState,
+                            3,
+                            50,
+                            roundStateChangeListener,
+                            immediateStateChangeListener,
+                            streamMode,
+                            TraceDataSizeLimiter.NO_LIMIT))
+                    .isTrue();
+
+            assertThat(stack.depth()).isOne();
+            assertThat(stack.peek().state()).isSameAs(wrap);
+            assertThat(stack.getWritableStates(FOOD_SERVICE)).isSameAs(writableStates);
+            assertThat(stack.getReadableStates(FOOD_SERVICE)).isSameAs(readableStates);
+            assertThat(writableStates.get(FRUIT_STATE_ID)).isSameAs(fruit);
+            assertThat(stack.getBaseBuilder(StreamBuilder.class)).isSameAs(firstBuilder);
+            assertThat(firstBuilder.status()).isEqualTo(OK);
+            assertThat(firstBuilder.transactionID()).isNull();
+            assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(BASE_DATA));
+            assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
+            assertThat(baseState.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
+        }
+
+        @Test
+        void resetAfterCommitKeepsCommittedStateAndDropsPriorBuilders() {
+            final var firstId = TransactionID.newBuilder()
+                    .accountID(PAYER_ID)
+                    .transactionValidStart(VALID_START)
+                    .build();
+            final var stack = newRootStack(3, 50, StreamMode.RECORDS);
+            stack.getBaseBuilder(StreamBuilder.class)
+                    .transactionID(firstId)
+                    .signedTx(SignedTransaction.DEFAULT)
+                    .status(SUCCESS)
+                    .exchangeRate(ExchangeRateSet.DEFAULT);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.commitFullStack();
+            stack.buildHandleOutput(
+                    Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()),
+                    ExchangeRateSet.DEFAULT,
+                    BLOCK_NUMBER);
+
+            assertThat(stack.resetForNextUserTxn(
+                            baseState,
+                            3,
+                            50,
+                            roundStateChangeListener,
+                            immediateStateChangeListener,
+                            StreamMode.RECORDS,
+                            TraceDataSizeLimiter.NO_LIMIT))
+                    .isTrue();
+
+            final var committed = new HashMap<>(BASE_DATA);
+            committed.put(A_KEY, ACAI);
+            assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(committed));
+            assertThat(stack.rootHasPrecedingCapacity()).isTrue();
+
+            final var secondId = TransactionID.newBuilder()
+                    .accountID(PAYER_ID)
+                    .transactionValidStart(new Timestamp(2_345_678L, 0))
+                    .build();
+            stack.getBaseBuilder(StreamBuilder.class)
+                    .transactionID(secondId)
+                    .signedTx(SignedTransaction.DEFAULT)
+                    .status(SUCCESS)
+                    .exchangeRate(ExchangeRateSet.DEFAULT);
+            stack.commitFullStack();
+            final var handleOutput = stack.buildHandleOutput(
+                    Instant.ofEpochSecond(2_345_678L, 0), ExchangeRateSet.DEFAULT, BLOCK_NUMBER);
+            final var records = new java.util.ArrayList<com.hedera.hapi.node.transaction.TransactionRecord>();
+            handleOutput.recordSourceOrThrow().forEachTxnRecord(records::add);
+
+            assertThat(records)
+                    .singleElement()
+                    .extracting(com.hedera.hapi.node.transaction.TransactionRecord::transactionID)
+                    .isEqualTo(secondId);
+        }
+
+        @Test
+        void getOriginalValueSeesSoftCommittedModsNotRootReadable() {
+            final var writableKv =
+                    new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA));
+            final var writableStates = new MapWritableStates(Map.of(FRUIT_STATE_ID, writableKv)) {
+                @Override
+                public boolean requiresImmediateCommit() {
+                    return false;
+                }
+            };
+            final var readableStates = MapReadableStates.builder()
+                    .state(new MapReadableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA)))
+                    .build();
+            when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
+            when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
+
+            final var stack = newRootStack(3, 50, streamMode);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.commitFullStack();
+
+            assertThat(stack.resetForNextUserTxn(
+                            baseState,
+                            3,
+                            50,
+                            roundStateChangeListener,
+                            immediateStateChangeListener,
+                            streamMode,
+                            TraceDataSizeLimiter.NO_LIMIT))
+                    .isTrue();
+
+            final var fruit = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
+            assertThat(fruit.getOriginalValue(A_KEY)).isEqualTo(ACAI);
+            assertThat(stack.rootStates(FOOD_SERVICE).get(FRUIT_STATE_ID).get(A_KEY))
+                    .isEqualTo(APPLE);
+
+            fruit.put(A_KEY, APPLE);
+            assertThat(fruit.getOriginalValue(A_KEY)).isEqualTo(ACAI);
+            assertThat(fruit.get(A_KEY)).isEqualTo(APPLE);
+        }
+
+        @Test
+        void resetRestoresPresetIdCapacity() {
+            final var vanillaBaseId = TransactionID.newBuilder()
+                    .accountID(PAYER_ID)
+                    .transactionValidStart(VALID_START)
+                    .build();
+            final var stack = newRootStack(3, 50, StreamMode.BOTH);
+            stack.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
+            stack.nextPresetTxnId(true);
+
+            assertThat(stack.resetForNextUserTxn(
+                            baseState,
+                            3,
+                            50,
+                            roundStateChangeListener,
+                            immediateStateChangeListener,
+                            StreamMode.BOTH,
+                            TraceDataSizeLimiter.NO_LIMIT))
+                    .isTrue();
+
+            stack.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
+            assertThat(stack.nextPresetTxnId(false))
+                    .isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
+        }
+
+        @Test
+        void resetRejectedForChildStackOrChangedBuilderLimits() {
+            final var root = newRootStack(3, 50, streamMode);
+            final var child = SavepointStackImpl.newChildStack(
+                    root, REVERSIBLE, HandleContext.TransactionCategory.CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+            final var originalBuilder = root.getBaseBuilder(StreamBuilder.class);
+
+            assertThat(child.resetForNextUserTxn(
+                            baseState,
+                            3,
+                            50,
+                            roundStateChangeListener,
+                            immediateStateChangeListener,
+                            streamMode,
+                            TraceDataSizeLimiter.NO_LIMIT))
+                    .isFalse();
+            assertThat(root.resetForNextUserTxn(
+                            baseState,
+                            4,
+                            50,
+                            roundStateChangeListener,
+                            immediateStateChangeListener,
+                            streamMode,
+                            TraceDataSizeLimiter.NO_LIMIT))
+                    .isFalse();
+            assertThat(root.getBaseBuilder(StreamBuilder.class)).isSameAs(originalBuilder);
+        }
+
+        private SavepointStackImpl newRootStack(final int maxBefore, final int maxAfter, final StreamMode mode) {
+            return SavepointStackImpl.newRootStack(
+                    baseState,
+                    maxBefore,
+                    maxAfter,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    mode,
+                    TraceDataSizeLimiter.NO_LIMIT);
         }
     }
 

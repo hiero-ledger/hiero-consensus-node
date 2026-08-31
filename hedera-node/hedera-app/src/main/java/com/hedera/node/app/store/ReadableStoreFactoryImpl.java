@@ -166,6 +166,8 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
     }
 
     private final State state;
+    private final Map<Class<?>, Object> storeCache = new HashMap<>();
+    private ReadableEntityIdStoreImpl entityIdStore;
 
     /**
      * Constructor of {@code ReadableStoreFactoryImpl}
@@ -189,16 +191,22 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
     @Override
     public <C> C readableStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
+        final var cached = storeCache.get(storeInterface);
+        if (cached != null) {
+            return storeInterface.cast(cached);
+        }
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null) {
             final var readableStates = state.getReadableStates(entry.name);
-            final var readableEntityIdStore =
-                    new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
-            final var store = entry.createFrom(readableStates, readableEntityIdStore);
+            if (entityIdStore == null) {
+                entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+            }
+            final var store = entry.createFrom(readableStates, entityIdStore);
             if (!storeInterface.isInstance(store)) {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
             }
+            storeCache.put(storeInterface, store);
             return storeInterface.cast(store);
         }
         throw new IllegalArgumentException("No store of class " + storeInterface + " is available");

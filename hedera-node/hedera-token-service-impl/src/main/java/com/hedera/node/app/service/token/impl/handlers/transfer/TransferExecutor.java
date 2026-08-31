@@ -17,6 +17,7 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -159,6 +161,22 @@ public class TransferExecutor extends BaseTokenHandler {
     }
 
     /**
+     * HBAR-only transfers have no token custom fees to assess. Still run assessment when this
+     * dispatch is paying a transaction-fixed custom fee.
+     */
+    private static boolean needsCustomFeeAssessment(
+            @NonNull final CryptoTransferTransactionBody op, @NonNull final TransferContextImpl transferContext) {
+        if (!op.tokenTransfers().isEmpty()) {
+            return true;
+        }
+        return transferContext
+                .getHandleContext()
+                .dispatchMetadata()
+                .getMetadata(TRANSACTION_FIXED_FEE, FixedCustomFee.class)
+                .isPresent();
+    }
+
+    /**
      * Execute crypto transfer transaction.
      *
      * @param txn transaction body
@@ -178,7 +196,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // Replace all aliases in the transaction body with its account ids; use in all further steps
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
-        if (!skipCustomFee) {
+        if (!skipCustomFee && needsCustomFeeAssessment(replacedOp, transferContext)) {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
         final boolean hasHooks = HookUtils.hasHookExecutions(replacedOp);

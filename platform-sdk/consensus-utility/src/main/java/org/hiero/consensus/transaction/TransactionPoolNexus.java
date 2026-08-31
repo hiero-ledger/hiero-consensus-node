@@ -9,11 +9,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
@@ -37,18 +39,16 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * A list of timestamped transactions created by this node waiting to be put into a self-event.
      */
-    private final Queue<TimestampedTransaction> bufferedTransactions = new LinkedList<>();
+    private final Queue<TimestampedTransaction> bufferedTransactions = new ConcurrentLinkedQueue<>();
 
     /**
      * A list of high-priority timestamped transactions created by this node waiting to be put into a self-event.
      * Transactions in this queue are always inserted into an event before transactions waiting in {@link #bufferedTransactions}.
      */
-    private final Queue<TimestampedTransaction> priorityBufferedTransactions = new LinkedList<>();
+    private final Queue<TimestampedTransaction> priorityBufferedTransactions = new ConcurrentLinkedQueue<>();
 
-    /**
-     * The number of buffered signature transactions waiting to be put into events.
-     */
-    private int bufferedSignatureTransactionCount = 0;
+    private final AtomicInteger bufferedTransactionCount = new AtomicInteger();
+    private final AtomicInteger priorityBufferedTransactionCount = new AtomicInteger();
 
     /**
      * The maximum number of bytes of transactions that can be put in an event.
@@ -74,12 +74,12 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * The current status of the platform.
      */
-    private PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
+    private volatile PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
 
     /**
      * Whether the platform is currently in a healthy state.
      */
-    private boolean healthy = true;
+    private volatile boolean healthy = true;
 
     /**
      * Time source for timestamping transactions.
@@ -126,7 +126,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * @param appTransaction the transaction to submit
      * @return true if the transaction passed all validity checks and was accepted by the consumer
      */
-    public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
+    public boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
         if (!healthy || platformStatus != PlatformStatus.ACTIVE) {
             return false;
         }
@@ -149,7 +149,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *
      * @param transaction the transaction to submit
      */
-    public synchronized void submitPriorityTransaction(@NonNull final Bytes transaction) {
+    public void submitPriorityTransaction(@NonNull final Bytes transaction) {
         submitTransaction(transaction, true);
     }
 
@@ -163,30 +163,28 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *                    functionalities.
      * @return true if successful
      */
-    private synchronized boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
+    private boolean submitTransaction(@NonNull final Bytes transaction, final boolean priority) {
         Objects.requireNonNull(transaction);
 
         // Always submit system transactions. If it's not a system transaction, then only submit it if we
         // don't violate queue size capacity restrictions.
         if (!priority
-                && (bufferedTransactions.size() + priorityBufferedTransactions.size()) > throttleTransactionQueueSize) {
+                && (bufferedTransactionCount.get() + priorityBufferedTransactionCount.get())
+                        > throttleTransactionQueueSize) {
             transactionPoolMetrics.recordRejectedAppTransaction();
             return false;
-        }
-
-        if (priority) {
-            bufferedSignatureTransactionCount++;
-            transactionPoolMetrics.recordSubmittedPlatformTransaction();
-        } else {
-            transactionPoolMetrics.recordAcceptedAppTransaction();
         }
 
         final TimestampedTransaction timestampedTransaction = new TimestampedTransaction(transaction, time.instant());
 
         if (priority) {
             priorityBufferedTransactions.add(timestampedTransaction);
+            priorityBufferedTransactionCount.incrementAndGet();
+            transactionPoolMetrics.recordSubmittedPlatformTransaction();
         } else {
             bufferedTransactions.add(timestampedTransaction);
+            bufferedTransactionCount.incrementAndGet();
+            transactionPoolMetrics.recordAcceptedAppTransaction();
         }
 
         return true;
@@ -197,7 +195,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *
      * @param platformStatus the new platform status
      */
-    public synchronized void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+    public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         if (platformStatus == PlatformStatus.BEHIND) {
             clear();
@@ -219,15 +217,22 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             return null;
         }
 
-        if (!priorityBufferedTransactions.isEmpty()
-                && priorityBufferedTransactions.peek().transaction().length() <= maxSize) {
-            bufferedSignatureTransactionCount--;
-            return priorityBufferedTransactions.poll();
+        final TimestampedTransaction priorityHead = priorityBufferedTransactions.peek();
+        if (priorityHead != null && priorityHead.transaction().length() <= maxSize) {
+            final TimestampedTransaction polled = priorityBufferedTransactions.poll();
+            if (polled != null) {
+                priorityBufferedTransactionCount.updateAndGet(count -> Math.max(0, count - 1));
+                return polled;
+            }
         }
 
-        if (!bufferedTransactions.isEmpty()
-                && bufferedTransactions.peek().transaction().length() <= maxSize) {
-            return bufferedTransactions.poll();
+        final TimestampedTransaction bufferedHead = bufferedTransactions.peek();
+        if (bufferedHead != null && bufferedHead.transaction().length() <= maxSize) {
+            final TimestampedTransaction polled = bufferedTransactions.poll();
+            if (polled != null) {
+                bufferedTransactionCount.updateAndGet(count -> Math.max(0, count - 1));
+                return polled;
+            }
         }
 
         return null;
@@ -239,13 +244,13 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     @NonNull
     @Override
-    public synchronized List<TimestampedTransaction> getTransactionsForEvent() {
+    public List<TimestampedTransaction> getTransactionsForEvent() {
         // Early return due to no transactions waiting
         if (bufferedTransactions.isEmpty() && priorityBufferedTransactions.isEmpty()) {
             return Collections.emptyList();
         }
 
-        final List<TimestampedTransaction> selectedTrans = new LinkedList<>();
+        final List<TimestampedTransaction> selectedTrans = new ArrayList<>();
         long currEventSize = 0;
 
         while (true) {
@@ -268,8 +273,8 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *
      * @return true if there are any buffered signature transactions
      */
-    public synchronized boolean hasBufferedSignatureTransactions() {
-        return bufferedSignatureTransactionCount > 0;
+    public boolean hasBufferedSignatureTransactions() {
+        return priorityBufferedTransactionCount.get() > 0;
     }
 
     /**
@@ -277,8 +282,8 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *
      * @return the number of transactions
      */
-    private synchronized int getBufferedTransactionCount() {
-        return bufferedTransactions.size();
+    private int getBufferedTransactionCount() {
+        return bufferedTransactionCount.get();
     }
 
     /**
@@ -286,8 +291,8 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *
      * @return the number of transactions
      */
-    private synchronized int getPriorityBufferedTransactionCount() {
-        return priorityBufferedTransactions.size();
+    private int getPriorityBufferedTransactionCount() {
+        return priorityBufferedTransactionCount.get();
     }
 
     /**
@@ -296,16 +301,17 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *
      * @param duration the amount of time that the system has been in an unhealthy state
      */
-    public synchronized void reportUnhealthyDuration(@NonNull final Duration duration) {
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {
         healthy = isLessThan(duration, maximumPermissibleUnhealthyDuration);
     }
 
     /**
      * Clear all the transactions
      */
-    synchronized void clear() {
+    void clear() {
         bufferedTransactions.clear();
         priorityBufferedTransactions.clear();
-        bufferedSignatureTransactionCount = 0;
+        bufferedTransactionCount.set(0);
+        priorityBufferedTransactionCount.set(0);
     }
 }

@@ -203,11 +203,12 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                 .getConfigData(HederaConfig.class)
                 .activeProfile();
 
-        // Start the plain-port server
+        // Bind all IPv4 interfaces so a remote NLG client can reach HAPI on the LAN IP.
         logger.info("Starting gRPC server on port {}", port);
-        var nettyBuilder = builderFor(port, nettyConfig, profile, false);
-        plainServer = startServerWithRetry(services, nettyBuilder, startRetries, startRetryIntervalMs);
-        logger.info("gRPC server listening on port {}", plainServer.getPort());
+        final var bind = new InetSocketAddress("0.0.0.0", port);
+        plainServer = startServerWithRetry(
+                services, builderFor(bind, nettyConfig, profile), startRetries, startRetryIntervalMs);
+        logger.info("gRPC server listening on {}", bind);
 
         // Try to start the server listening on the tls port. If this doesn't start, then we just keep going. We should
         // rethink whether we want to have two ports per consensus node like this. We do expose both via the proxies,
@@ -216,7 +217,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         try {
             final var tlsPort = grpcConfig.tlsPort();
             logger.info("Starting TLS gRPC server on port {}", tlsPort);
-            nettyBuilder = builderFor(tlsPort, nettyConfig, profile, false);
+            var nettyBuilder = builderFor(new InetSocketAddress("0.0.0.0", tlsPort), nettyConfig, profile);
             configureTls(nettyBuilder, nettyConfig);
             tlsServer = startServerWithRetry(services, nettyBuilder, startRetries, startRetryIntervalMs);
             logger.info("TLS gRPC server listening on port {}", tlsServer.getPort());
@@ -229,7 +230,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             try {
                 final var nodeOperatorPort = grpcConfig.nodeOperatorPort();
                 logger.info("Starting node operator gRPC server on port {}", nodeOperatorPort);
-                nettyBuilder = builderFor(nodeOperatorPort, nettyConfig, profile, true);
+                final var nettyBuilder =
+                        builderFor(new InetSocketAddress("localhost", nodeOperatorPort), nettyConfig, profile);
                 nodeOperatorServer =
                         startServerWithRetry(nodeOperatorServices, nettyBuilder, startRetries, startRetryIntervalMs);
                 logger.info("Node operator gRPC server listening on port {}", nodeOperatorServer.getPort());
@@ -342,13 +344,12 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * Utility for setting up various shared configuration settings for all servers
      */
     private NettyServerBuilder builderFor(
-            final int port,
+            @NonNull final InetSocketAddress bindAddress,
             @NonNull final NettyConfig config,
-            @NonNull final Profile activeProfile,
-            boolean localHostOnly) {
+            @NonNull final Profile activeProfile) {
         NettyServerBuilder builder = null;
         try {
-            builder = withConfigForActiveProfile(getInitialServerBuilder(port, localHostOnly), config, activeProfile)
+            builder = withConfigForActiveProfile(getInitialServerBuilder(bindAddress), config, activeProfile)
                     .channelType(EpollServerSocketChannel.class)
                     .bossEventLoopGroup(new EpollEventLoopGroup(config.bossThreads()))
                     .workerEventLoopGroup(new EpollEventLoopGroup(config.workerThreads()));
@@ -357,7 +358,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         } catch (final UnsatisfiedLinkError | NoClassDefFoundError ignored) {
             // If we can't use Epoll, then just use NIO
             logger.info("Epoll not available, using NIO");
-            builder = withConfigForActiveProfile(getInitialServerBuilder(port, localHostOnly), config, activeProfile);
+            builder = withConfigForActiveProfile(getInitialServerBuilder(bindAddress), config, activeProfile);
         } catch (final Exception unexpected) {
             logger.info("Unexpected exception initializing Netty", unexpected);
         }
@@ -370,12 +371,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         return builder;
     }
 
-    private static @NonNull NettyServerBuilder getInitialServerBuilder(int port, boolean localHostOnly) {
-        if (localHostOnly) {
-            return NettyServerBuilder.forAddress(new InetSocketAddress("localhost", port));
-        }
-
-        return NettyServerBuilder.forPort(port);
+    private static @NonNull NettyServerBuilder getInitialServerBuilder(@NonNull final InetSocketAddress bindAddress) {
+        return NettyServerBuilder.forAddress(bindAddress);
     }
 
     private NettyServerBuilder withConfigForActiveProfile(

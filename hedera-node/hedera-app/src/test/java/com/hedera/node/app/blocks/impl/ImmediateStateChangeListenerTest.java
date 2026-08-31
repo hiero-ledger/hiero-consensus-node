@@ -84,6 +84,51 @@ class ImmediateStateChangeListenerTest {
 
         List<StateChange> stateChanges = listener.getStateChanges();
         assertEquals(1, stateChanges.size());
+        assertEquals(listener.getKvStateChanges(), stateChanges);
+    }
+
+    @Test
+    void getStateChangesReturnsQueueWhenKvEmpty() {
+        listener.queuePushChange(STATE_ID, PROTO_BYTES);
+
+        assertEquals(listener.getQueueStateChanges(), listener.getStateChanges());
+        assertEquals(1, listener.getStateChanges().size());
+    }
+
+    @Test
+    void getStateChangesCombinesKvAndQueueWithoutAllocatingWhenReused() {
+        listener.mapUpdateChange(STATE_ID, KEY, VALUE);
+        listener.queuePushChange(STATE_ID, PROTO_BYTES);
+
+        final var first = listener.getStateChanges();
+        assertEquals(2, first.size());
+        final var second = listener.getStateChanges();
+        assertEquals(first, second);
+        assertEquals(2, second.size());
+    }
+
+    @Test
+    void takeKvStateChangesDetachesListFromLaterMutations() {
+        listener.mapUpdateChange(STATE_ID, KEY, VALUE);
+        final var taken = listener.takeKvStateChanges();
+        assertEquals(1, taken.size());
+        assertTrue(listener.getKvStateChanges().isEmpty());
+
+        listener.mapUpdateChange(STATE_ID, KEY, VALUE);
+        assertEquals(1, taken.size());
+        assertEquals(1, listener.getKvStateChanges().size());
+    }
+
+    @Test
+    void takeQueueStateChangesDetachesListFromLaterMutations() {
+        listener.queuePushChange(STATE_ID, PROTO_BYTES);
+        final var taken = listener.takeQueueStateChanges();
+        assertEquals(1, taken.size());
+        assertTrue(listener.getQueueStateChanges().isEmpty());
+
+        listener.queuePopChange(STATE_ID);
+        assertEquals(1, taken.size());
+        assertEquals(1, listener.getQueueStateChanges().size());
     }
 
     @Test

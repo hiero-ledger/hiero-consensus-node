@@ -965,6 +965,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
+    public void writeStateChanges(@NonNull final List<StateChange> changes) {
+        requireNonNull(changes);
+        if (fatalShutdownRequested || changes.isEmpty()) {
+            return;
+        }
+        writeItem(BlockItem.newBuilder()
+                .stateChanges(new StateChanges(lastUsedTime, changes))
+                .build());
+    }
+
+    @Override
     public @Nullable Bytes prngSeed() {
         // After catastrophic failure the worker has been released and the stream is stopped; there is no seed to give.
         if (fatalShutdownRequested) {

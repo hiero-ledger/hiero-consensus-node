@@ -4,7 +4,7 @@ package com.swirlds.config.impl.internal;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -38,7 +38,7 @@ class ConfigDataService implements ConfigLifecycle {
 
     ConfigDataService(@NonNull final Configuration configuration, @NonNull final ConverterService converterService) {
         this.configDataFactory = new ConfigDataFactory(configuration, converterService);
-        configDataCache = new HashMap<>();
+        configDataCache = new IdentityHashMap<>();
         registeredTypes = new ConcurrentLinkedQueue<>();
     }
 
@@ -92,10 +92,11 @@ class ConfigDataService implements ConfigLifecycle {
     <T extends Record> T getConfigData(@NonNull final Class<T> type) {
         Objects.requireNonNull(type, "type must not be null");
         throwIfNotInitialized();
-        if (!configDataCache.containsKey(type)) {
+        final Record data = configDataCache.get(type);
+        if (data == null) {
             throw new IllegalArgumentException("No config data record available of type '" + type + "'");
         }
-        return (T) configDataCache.get(type);
+        return (T) data;
     }
 
     /**

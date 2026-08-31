@@ -3,6 +3,7 @@ package com.swirlds.state.spi;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import java.util.Objects;
 
 /**
  * An implementation of {@link WritableQueueState} that delegates to another {@link WritableQueueState} as
@@ -13,7 +14,7 @@ import java.util.Iterator;
  */
 public class WrappedWritableQueueState<E> extends WritableQueueStateBase<E> {
 
-    private final WritableQueueState<E> delegate;
+    private WritableQueueState<E> delegate;
 
     /**
      * Create a new instance that will treat the given {@code delegate} as the backend data source.
@@ -25,17 +26,34 @@ public class WrappedWritableQueueState<E> extends WritableQueueStateBase<E> {
      */
     public WrappedWritableQueueState(@NonNull final WritableQueueState<E> delegate) {
         super(delegate.getStateId(), null);
-        this.delegate = delegate;
+        this.delegate = Objects.requireNonNull(delegate);
+    }
+
+    /**
+     * Points this wrapper at a new backend and clears buffered reads and writes. Used when the
+     * wrapper is reused across sequential handle dispatches.
+     *
+     * @param newDelegate the backend to read from and commit to
+     */
+    public void retarget(@NonNull final WritableQueueState<E> newDelegate) {
+        this.delegate = Objects.requireNonNull(newDelegate);
+        reset();
     }
 
     @Override
     protected void addToDataSource(@NonNull final E element) {
         delegate.add(element);
+        if (delegate instanceof WritableQueueStateBase<E> backend) {
+            backend.notifyQueuePush(element);
+        }
     }
 
     @Override
     protected void removeFromDataSource() {
         delegate.poll();
+        if (delegate instanceof WritableQueueStateBase<?> backend) {
+            backend.notifyQueuePop();
+        }
     }
 
     @NonNull

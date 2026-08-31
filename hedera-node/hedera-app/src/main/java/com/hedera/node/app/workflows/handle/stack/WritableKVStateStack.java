@@ -68,11 +68,13 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     @Nullable
     @Override
     public V getOriginalValue(@NonNull K key) {
-        return (V) writableStatesStack.getRoot().get(stateId).get(key);
+        // The current savepoint's original, not merkle readable / VirtualMap. Root readable
+        // ignores merkle write buffers, so a wrap-only commit would make the next txn see
+        // genesis originals (FAIL_INVALID / reused entity ids).
+        return getCurrent().getOriginalValue(key);
     }
 
     /**

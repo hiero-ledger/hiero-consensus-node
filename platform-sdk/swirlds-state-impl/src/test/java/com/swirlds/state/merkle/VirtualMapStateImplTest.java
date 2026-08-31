@@ -562,6 +562,29 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             countryState.put(ESTONIA);
             assertThat(countryState.get()).isEqualTo(ESTONIA);
         }
+
+        @Test
+        @DisplayName("commitSingleton flushes only that singleton")
+        void commitSingletonLeavesKvBuffered() {
+            virtualMapState.initializeState(fruitMetadata);
+            virtualMapState.initializeState(countryMetadata);
+            final var writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+            writable.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            writable.getSingleton(COUNTRY_STATE_ID).put(ESTONIA);
+            ((CommittableWritableStates) writable).commitSingleton(COUNTRY_STATE_ID);
+
+            assertThat(virtualMapState
+                            .getReadableStates(FIRST_SERVICE)
+                            .getSingleton(COUNTRY_STATE_ID)
+                            .get())
+                    .isEqualTo(ESTONIA);
+            assertThat(virtualMapState
+                            .getReadableStates(FIRST_SERVICE)
+                            .get(FRUIT_STATE_ID)
+                            .get(A_KEY))
+                    .isEqualTo(APPLE);
+            assertThat(writable.get(FRUIT_STATE_ID).get(A_KEY)).isEqualTo(ACAI);
+        }
     }
 
     @Nested
@@ -603,6 +626,25 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             assertThatThrownBy(() -> virtualMapState.getWritableStates(FRUIT_STATE_KEY))
                     .isInstanceOf(MutabilityException.class);
             stateRootCopy.release();
+        }
+
+        @Test
+        @DisplayName("copy() flushes uncommitted writable mutations into the VirtualMap")
+        void copyFlushesPendingWritableMutations() {
+            setupFruitVirtualMap();
+            virtualMapState.initializeState(fruitMetadata);
+            final var writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+            writable.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+
+            final var copy = virtualMapState.copy();
+            assertThat(virtualMapState
+                            .getReadableStates(FIRST_SERVICE)
+                            .get(FRUIT_STATE_ID)
+                            .get(A_KEY))
+                    .isEqualTo(ACAI);
+            assertThat(copy.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID).get(A_KEY))
+                    .isEqualTo(ACAI);
+            copy.release();
         }
     }
 

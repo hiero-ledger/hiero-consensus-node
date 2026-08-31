@@ -267,9 +267,10 @@ public class BlockStreamBuilder
 
     // --- Fields used to build the TransactionResult ---
     /**
-     * The builder for the transaction result.
+     * The builder for the transaction result. Replaced on {@link #resetForNextUserTxn()} so
+     * a reused root builder does not leak timestamps, multipliers, or schedule refs.
      */
-    private final TransactionResult.Builder transactionResultBuilder = TransactionResult.newBuilder();
+    private TransactionResult.Builder transactionResultBuilder = TransactionResult.newBuilder();
     /**
      * The final status of handling the transaction.
      */
@@ -427,9 +428,10 @@ public class BlockStreamBuilder
 
     // --- Fields used to build the StateChanges items ---
     /**
-     * The state changes resulting from the transaction.
+     * The state changes resulting from the transaction. Replaced (not cleared) on
+     * {@link #resetForNextUserTxn()} so in-flight block items keep the previous list.
      */
-    private final List<StateChange> stateChanges = new ArrayList<>();
+    private List<StateChange> stateChanges = new ArrayList<>();
 
     // --- Fields used to communicate between handler logic and the HandleWorkflow ---
     /**
@@ -499,6 +501,69 @@ public class BlockStreamBuilder
         this.customizer = requireNonNull(customizer);
         this.category = requireNonNull(category);
         this.traceDataSizeLimiter = requireNonNull(traceDataSizeLimiter);
+    }
+
+    /**
+     * Restores txn-scoped fields to construction defaults. Replaces collections that may still
+     * be referenced by in-flight {@link BlockItem}s instead of clearing them in place.
+     */
+    @Override
+    public void resetForNextUserTxn() {
+        signedTx = null;
+        serializedSignedTx = null;
+        functionality = null;
+        translationContextExchangeRates = null;
+        memo = null;
+        transactionId = null;
+        serialNumbers = new LinkedList<>();
+        newTotalSupply = 0L;
+        nodeId = 0L;
+        registeredNodeId = 0L;
+        fileId = null;
+        topicId = null;
+        tokenId = null;
+        accountId = null;
+        contractId = null;
+        sequenceNumber = 0L;
+        runningHash = Bytes.EMPTY;
+        runningHashVersion = 0L;
+        pendingAirdropRecords = emptyList();
+        evmAddress = Bytes.EMPTY;
+        transactionResultBuilder = TransactionResult.newBuilder();
+        status = OK;
+        consensusNow = null;
+        transferList = TransferList.DEFAULT;
+        tokenTransferLists = new LinkedList<>();
+        assessedCustomFees = new LinkedList<>();
+        paidStakingRewards = new LinkedList<>();
+        automaticTokenAssociations.clear();
+        nextHookId = null;
+        blockNumber = null;
+        contractOpType = null;
+        evmTransactionResult = null;
+        senderNonce = null;
+        changedNonceInfos = null;
+        createdContractIds = null;
+        logs = null;
+        slotUsages = null;
+        contractSlotUsagesTraceDataSize = 0;
+        contractActions = null;
+        contractActionsTraceDataSize = 0;
+        initcode = null;
+        estimatedContractBytecodeSize = 0L;
+        ethereumHash = Bytes.EMPTY;
+        createsOrDeletesSchedule = false;
+        scheduledTransactionId = null;
+        utilPrngOutputItem = null;
+        scheduleId = null;
+        logicallyIdentical = null;
+        stateChanges = new ArrayList<>();
+        explicitRewardReceiverIds = null;
+        deletedAccountBeneficiaries.clear();
+        transactionFee = 0L;
+        isContractCreate = false;
+        deltaStorageSlotsUpdated = 0;
+        traceDataSizeLimiter.reset();
     }
 
     /**

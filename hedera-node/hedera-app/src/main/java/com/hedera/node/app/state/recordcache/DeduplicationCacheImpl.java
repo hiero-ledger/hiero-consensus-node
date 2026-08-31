@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.recordcache;
 
-import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
-import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.hapi.util.HapiUtils.minus;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
-import java.util.Comparator;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -25,19 +19,15 @@ import javax.inject.Singleton;
 @Singleton
 public final class DeduplicationCacheImpl implements DeduplicationCache {
     /**
-     * The {@link TransactionID}s that this node has already submitted to the platform, sorted by transaction start
-     * time, such that earlier start times come first.
+     * Live transaction IDs this node has submitted or seen, for O(1) containment.
      * <p>
      * Note that an ID with scheduled set is different from the same ID without scheduled set.
      * In fact, an ID with scheduled set will always match the ID of the ScheduleCreate transaction that created
      * the schedule, except scheduled is set.
      */
-    private final Set<TransactionID> submittedTxns =
-            new ConcurrentSkipListSet<>(Comparator.<TransactionID, Timestamp>comparing(
-                            txnId -> txnId.transactionValidStartOrElse(Timestamp.DEFAULT), TIMESTAMP_COMPARATOR)
-                    .thenComparing(txnId -> txnId.accountIDOrElse(AccountID.DEFAULT), ACCOUNT_ID_COMPARATOR)
-                    .thenComparing(TransactionID::scheduled)
-                    .thenComparing(TransactionID::nonce));
+    private final ConcurrentHashMap<TransactionID, Boolean> submittedTxns = new ConcurrentHashMap<>();
+    /** IDs grouped by valid-start second so expiry can drop a bucket instead of walking the whole set. */
+    private final ConcurrentHashMap<Long, Set<TransactionID>> byValidStartSecond = new ConcurrentHashMap<>();
 
     /** Used for looking up the max transaction duration window. */
     private final ConfigProvider configProvider;
@@ -46,6 +36,10 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
      * window that the ingest workflow will be using to screen transactions.
      */
     private final InstantSource instantSource;
+
+    private final AtomicLong cachedNowSecond = new AtomicLong(Long.MIN_VALUE);
+    private final AtomicLong cachedEarliestSecond = new AtomicLong(Long.MIN_VALUE);
+    private final AtomicLong lastPruneEarliestSecond = new AtomicLong(Long.MIN_VALUE);
 
     /** Constructs a new {@link DeduplicationCacheImpl}. */
     @Inject
@@ -58,61 +52,97 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
     /** {@inheritDoc} */
     @Override
     public void add(@NonNull final TransactionID transactionID) {
-        // We don't want to use another thread to prune the set, so we will take the opportunity here to do so.
-        // Remember that at this point we have passed through all the throttles, so this method is only called
-        // at most 10,000 / (Number of nodes) times per second, which is not a lot.
-        final var epochSeconds = approxEarliestValidStartSecond();
-        removeTransactionsOlderThan(epochSeconds);
+        putIfAbsent(transactionID);
+    }
 
-        // If the transaction is within the max transaction duration window, then add it to the set.
-        if (transactionID.transactionValidStartOrThrow().seconds() >= epochSeconds) {
-            submittedTxns.add(transactionID);
+    /** {@inheritDoc} */
+    @Override
+    public boolean putIfAbsent(@NonNull final TransactionID transactionID) {
+        requireNonNull(transactionID);
+        final var earliest = approxEarliestValidStartSecond();
+        maybePrune(earliest);
+        final var validStart = transactionID.transactionValidStartOrThrow().seconds();
+        if (validStart < earliest) {
+            return false;
+        }
+        if (submittedTxns.putIfAbsent(transactionID, Boolean.TRUE) != null) {
+            return false;
+        }
+        byValidStartSecond
+                .computeIfAbsent(validStart, second -> ConcurrentHashMap.newKeySet())
+                .add(transactionID);
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void remove(@NonNull final TransactionID transactionID) {
+        requireNonNull(transactionID);
+        if (submittedTxns.remove(transactionID) == null) {
+            return;
+        }
+        final var bucket = byValidStartSecond.get(
+                transactionID.transactionValidStartOrThrow().seconds());
+        if (bucket != null) {
+            bucket.remove(transactionID);
         }
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean contains(@NonNull final TransactionID transactionID) {
-        // We will prune the set here as well. By pruning before looking up, we are sure that we only return true
-        // if the transactionID is still valid
-        final var epochSeconds = approxEarliestValidStartSecond();
-        removeTransactionsOlderThan(epochSeconds);
-        return submittedTxns.contains(transactionID);
+        requireNonNull(transactionID);
+        final var earliest = approxEarliestValidStartSecond();
+        maybePrune(earliest);
+        if (transactionID.transactionValidStartOrThrow().seconds() < earliest) {
+            return false;
+        }
+        return submittedTxns.containsKey(transactionID);
     }
 
     /** {@inheritDoc} */
     @Override
     public void clear() {
         submittedTxns.clear();
+        byValidStartSecond.clear();
+        cachedNowSecond.set(Long.MIN_VALUE);
+        cachedEarliestSecond.set(Long.MIN_VALUE);
+        lastPruneEarliestSecond.set(Long.MIN_VALUE);
     }
 
     /**
-     * Gets the earliest valid start timestamp that is still within the max transaction duration window based on
-     * wall-clock time.
+     * Gets the earliest valid start second that is still within the max transaction duration window based on
+     * wall-clock time. Refreshes at most once per wall-clock second.
      */
     private long approxEarliestValidStartSecond() {
-        // Compute the earliest valid start timestamp that is still within the max transaction duration window.
-        final var now = asTimestamp(instantSource.instant());
+        final var nowSecond = instantSource.instant().getEpochSecond();
+        if (nowSecond == cachedNowSecond.get()) {
+            return cachedEarliestSecond.get();
+        }
         final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-        final var earliestValidState = minus(now, config.transactionMaxValidDuration());
-        return earliestValidState.seconds();
+        final var earliest = nowSecond - config.transactionMaxValidDuration();
+        cachedNowSecond.set(nowSecond);
+        cachedEarliestSecond.set(earliest);
+        return earliest;
     }
 
     /**
-     * Removes all expired {@link TransactionID}s from the cache. This method is not threadsafe and should only be
-     * called from within a block synchronized on {@link #submittedTxns}.
-     *
-     * @param earliestEpochSecond The earliest epoch second that should be kept in the cache.
+     * Drops expired second-buckets. Only one thread performs the walk per new earliest second.
      */
-    private void removeTransactionsOlderThan(final long earliestEpochSecond) {
-        final var itr = submittedTxns.iterator();
-        while (itr.hasNext()) {
-            final var txId = itr.next();
-            if (txId.transactionValidStartOrThrow().seconds() < earliestEpochSecond) {
-                itr.remove();
-            } else {
-                return;
-            }
+    private void maybePrune(final long earliestEpochSecond) {
+        final var last = lastPruneEarliestSecond.get();
+        if (earliestEpochSecond <= last) {
+            return;
         }
+        if (!lastPruneEarliestSecond.compareAndSet(last, earliestEpochSecond)) {
+            return;
+        }
+        byValidStartSecond.forEach((second, ids) -> {
+            if (second < earliestEpochSecond && byValidStartSecond.remove(second, ids)) {
+                for (final var id : ids) {
+                    submittedTxns.remove(id);
+                }
+            }
+        });
     }
 }

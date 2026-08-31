@@ -51,6 +51,11 @@ import java.util.List;
 public class CommonPbjConverters {
     public static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
+    private static final HederaFunctionality[] PBJ_FUNCTIONS = HederaFunctionality.values();
+    private static final com.hederahashgraph.api.proto.java.HederaFunctionality[] PROTO_FUNCTIONS =
+            com.hederahashgraph.api.proto.java.HederaFunctionality.values();
+    private static final ResponseCodeEnum[] PBJ_RESPONSE_CODES = ResponseCodeEnum.values();
+
     public static @NonNull com.hederahashgraph.api.proto.java.Query fromPbj(@NonNull Query query) {
         requireNonNull(query);
         try {
@@ -291,13 +296,12 @@ public class CommonPbjConverters {
 
     public static @NonNull HederaFunctionality toPbj(
             @NonNull com.hederahashgraph.api.proto.java.HederaFunctionality function) {
-        return HederaFunctionality.values()[requireNonNull(function).ordinal()];
+        return PBJ_FUNCTIONS[requireNonNull(function).ordinal()];
     }
 
     public static @NonNull com.hederahashgraph.api.proto.java.HederaFunctionality fromPbj(
             @NonNull final HederaFunctionality function) {
-        return com.hederahashgraph.api.proto.java.HederaFunctionality.values()[
-                requireNonNull(function).ordinal()];
+        return PROTO_FUNCTIONS[requireNonNull(function).ordinal()];
     }
 
     public static @NonNull SubType toPbj(@NonNull com.hederahashgraph.api.proto.java.SubType subType) {
@@ -317,7 +321,7 @@ public class CommonPbjConverters {
     }
 
     public static @NonNull ResponseCodeEnum toPbj(@NonNull com.hederahashgraph.api.proto.java.ResponseCodeEnum code) {
-        return ResponseCodeEnum.values()[requireNonNull(code).ordinal()];
+        return PBJ_RESPONSE_CODES[requireNonNull(code).ordinal()];
     }
 
     public static @NonNull com.hederahashgraph.api.proto.java.ContractID fromPbj(final @NonNull ContractID contractID) {

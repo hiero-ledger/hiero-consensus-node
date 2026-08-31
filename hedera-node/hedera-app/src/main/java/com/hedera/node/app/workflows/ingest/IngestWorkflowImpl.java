@@ -32,11 +32,19 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
     private static final Logger logger = LogManager.getLogger(IngestWorkflowImpl.class);
 
+    private static final TransactionResponse OK_ZERO_COST = TransactionResponse.newBuilder()
+            .nodeTransactionPrecheckCode(OK)
+            .cost(0L)
+            .build();
+
+    private static final ThreadLocal<IngestChecker.Result> RESULTS = ThreadLocal.withInitial(IngestChecker.Result::new);
+
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
     private final IngestChecker ingestChecker;
     private final SubmissionManager submissionManager;
     private final TxPipelineTracker txPipelineTracker;
     private final ConfigProvider configProvider;
+    private final IngestHandoffCache ingestHandoffCache;
     private final boolean quiescenceEnabled;
 
     /**
@@ -53,12 +61,14 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             @NonNull final IngestChecker ingestChecker,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final TxPipelineTracker txPipelineTracker,
-            @NonNull final ConfigProvider configProvider) {
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final IngestHandoffCache ingestHandoffCache) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.ingestChecker = requireNonNull(ingestChecker);
         this.submissionManager = requireNonNull(submissionManager);
         this.txPipelineTracker = requireNonNull(txPipelineTracker);
         this.configProvider = requireNonNull(configProvider);
+        this.ingestHandoffCache = requireNonNull(ingestHandoffCache);
         this.quiescenceEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(QuiescenceConfig.class)
@@ -70,6 +80,8 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
         requireNonNull(requestBuffer);
         requireNonNull(responseBuffer);
 
+        final var checkerResult = RESULTS.get();
+        checkerResult.reset();
         try {
             if (quiescenceEnabled) {
                 txPipelineTracker.incrementPreFlight();
@@ -77,8 +89,6 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             ResponseCodeEnum result = OK;
             long estimatedFee = 0L;
 
-            // Track any throttle capacity used so we can reclaim it if we don't actually submit to consensus
-            final var checkerResult = new IngestChecker.Result();
             // Grab (and reference count) the state, so we have a consistent view of things
             try (final var wrappedState = stateAccessor.get()) {
                 // 0. Node state pre-checks
@@ -92,6 +102,13 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                 // 7. Submit to platform with priority=false vs network consensus and TSS txs
                 final var txInfo = checkerResult.txnInfoOrThrow();
                 submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow(), false);
+                ingestHandoffCache.put(
+                        txInfo.serializedSignedTxOrThrow(),
+                        new IngestHandoff(
+                                txInfo,
+                                checkerResult.verifiedPayerKey(),
+                                checkerResult.payerResults(),
+                                configuration.getVersion()));
                 if (quiescenceEnabled) {
                     txPipelineTracker.incrementInFlight();
                 }
@@ -116,20 +133,24 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                 checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
             }
 
-            // 8. Return PreCheck code and estimated fee
-            final var transactionResponse = TransactionResponse.newBuilder()
-                    .nodeTransactionPrecheckCode(result)
-                    .cost(estimatedFee)
-                    .build();
-
             try {
-                TransactionResponse.PROTOBUF.write(transactionResponse, responseBuffer);
+                if (result == OK && estimatedFee == 0L) {
+                    TransactionResponse.PROTOBUF.write(OK_ZERO_COST, responseBuffer);
+                } else {
+                    TransactionResponse.PROTOBUF.write(
+                            TransactionResponse.newBuilder()
+                                    .nodeTransactionPrecheckCode(result)
+                                    .cost(estimatedFee)
+                                    .build(),
+                            responseBuffer);
+                }
             } catch (IOException ex) {
                 // It may be that the response couldn't be written because the response buffer was
                 // too small, which would be an internal server error.
                 throw new UncheckedIOException("Failed to write bytes to response buffer", ex);
             }
         } finally {
+            checkerResult.reset();
             if (quiescenceEnabled) {
                 txPipelineTracker.decrementPreFlight();
             }

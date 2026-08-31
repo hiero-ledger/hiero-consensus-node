@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
@@ -104,5 +105,20 @@ public class RecordStreamBuilderTest {
         assertThat(record.contractCreateResult().logInfo()).isEmpty();
         assertThat(record.contractCreateResult().bloom()).isEqualTo(Bytes.EMPTY);
         assertThat(record.contractCreateResult().createdContractIDs()).isEmpty();
+    }
+
+    @Test
+    void resetForNextUserTxnClearsTxnScopedFields() {
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(SIGNED_TX)
+                .transactionID(TransactionID.DEFAULT)
+                .status(SUCCESS)
+                .transactionFee(42L);
+
+        builder.resetForNextUserTxn();
+
+        assertThat(builder.transactionID()).isNull();
+        assertThat(builder.status()).isEqualTo(OK);
+        assertThat(builder.transactionFee()).isZero();
     }
 }

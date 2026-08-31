@@ -35,6 +35,8 @@ import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.ingest.IngestHandoff;
+import com.hedera.node.app.workflows.ingest.IngestHandoffCache;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -43,6 +45,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +92,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
      * Used for registering notice of transactionIDs seen by this node
      */
     private final DeduplicationCache deduplicationCache;
+    /** Ingest parse/verify results for transactions this node already accepted. */
+    private final IngestHandoffCache ingestHandoffCache;
 
     /**
      * Creates a new instance of {@code PreHandleWorkflowImpl}.
@@ -106,13 +111,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final SignatureVerifier signatureVerifier,
             @NonNull final SignatureExpander signatureExpander,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final DeduplicationCache deduplicationCache) {
+            @NonNull final DeduplicationCache deduplicationCache,
+            @NonNull final IngestHandoffCache ingestHandoffCache) {
         this.dispatcher = requireNonNull(dispatcher);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.signatureExpander = requireNonNull(signatureExpander);
         this.configProvider = requireNonNull(configProvider);
         this.deduplicationCache = requireNonNull(deduplicationCache);
+        this.ingestHandoffCache = requireNonNull(ingestHandoffCache);
     }
 
     /**
@@ -169,17 +176,28 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             previousResult = null;
         }
 
+        // Handle re-enters here via getCurrentPreHandleResult. If ingest/prehandle already
+        // produced a successful result, skip parse/pure-checks/key expansion and only confirm
+        // the payer still exists (it can be deleted between pre-handle and consensus).
+        if (previousResult != null && canReuseSuccessfulPreHandle(previousResult, creatorInfo, innerTransaction)) {
+            return reuseOrFailIfPayerGone(previousResult, creatorInfo, accountStore);
+        }
+
+        final var ingestHandoff = previousResult == null ? ingestHandoffCache.take(serializedSignedTx) : null;
+
         // 1. Parse the Transaction and check the syntax
         final TransactionInfo txInfo;
         try {
             // Transaction info is a pure function of the transaction, so we can
-            // always reuse it from a prior result
+            // always reuse it from a prior result or from ingest on this node
             final int maxBytes = configProvider
                     .getConfiguration()
                     .getConfigData(HederaConfig.class)
                     .nodeTransactionMaxBytes();
-            if (previousResult == null) {
+            if (previousResult == null && ingestHandoff == null) {
                 txInfo = transactionChecker.parseSignedAndCheck(serializedSignedTx, maxBytes);
+            } else if (ingestHandoff != null) {
+                txInfo = ingestHandoff.txInfo();
             } else {
                 txInfo = previousResult.txInfo();
             }
@@ -229,8 +247,9 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             transactionChecker.checkParsed(txInfo);
             transactionChecker.checkTransactionSize(txInfo);
 
-            // No reason to do this twice, since every transaction passed to handle is first given to pre-handle
-            if (previousResult == null) {
+            // No reason to do this twice, since every transaction passed to handle is first given to pre-handle.
+            // Ingest already claimed the ID when this node accepted the transaction.
+            if (previousResult == null && ingestHandoff == null) {
                 // Also register this txID as having been seen (we don't actually do deduplication in the
                 // pre-handle because deduplication needs to be done deterministically, but we will keep
                 // track of the fact that we have seen this transaction ID, so we can give proper results
@@ -267,7 +286,14 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
         // 4. Expand and verify signatures
         return expandAndVerifySignatures(
-                txInfo, payer, payerAccount, storeFactory, previousResult, innerTransaction, creatorInfo);
+                txInfo,
+                payer,
+                payerAccount,
+                storeFactory,
+                previousResult,
+                ingestHandoff,
+                innerTransaction,
+                creatorInfo);
     }
 
     /**
@@ -286,6 +312,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             final Account payerAccount,
             final ReadableStoreFactory storeFactory,
             @Nullable final PreHandleResult previousResult,
+            @Nullable final IngestHandoff ingestHandoff,
             @NonNull final InnerTransaction innerTransaction,
             @NonNull final NodeInfo creatorInfo) {
         // 1a. Create the PreHandleContext. This will get reused across several calls to the transaction handlers
@@ -335,14 +362,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // In that case, the payer will end up paying for the transaction. So we still need to do the signature
             // verifications that we have determined so far.
             logger.debug("Transaction failed pre-check", preCheck);
-            final var results =
-                    verifySignatures(txInfo, context, VerifyOnlyPayerKey.YES, payerIsHollow, previousResult);
+            final var results = verifySignatures(
+                    txInfo, context, VerifyOnlyPayerKey.YES, payerIsHollow, previousResult, ingestHandoff);
             return preHandleFailure(
                     payer, payerKey, preCheck.responseCode(), txInfo, Set.of(), Set.of(), Set.of(), results);
         }
 
         // 3. Get the verification results
-        final var results = verifySignatures(txInfo, context, VerifyOnlyPayerKey.NO, payerIsHollow, previousResult);
+        final var results =
+                verifySignatures(txInfo, context, VerifyOnlyPayerKey.NO, payerIsHollow, previousResult, ingestHandoff);
 
         // 4. Create and return TransactionMetadata
         return new PreHandleResult(
@@ -392,10 +420,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final PreHandleContext context,
             @NonNull final VerifyOnlyPayerKey onlyPayerKey,
             @NonNull final PayerIsHollow payerIsHollow,
-            @Nullable final PreHandleResult previousResult) {
+            @Nullable final PreHandleResult previousResult,
+            @Nullable final IngestHandoff ingestHandoff) {
         // Maybe we can reuse the previous result's verification results
         if (previousResult != null && previousResult.hasReusableVerificationResultsFor(context)) {
             return previousResult.verificationResults();
+        }
+        final var handoffResults = reusableIngestPayerResults(ingestHandoff, context);
+        if (handoffResults != null && onlyPayerKey == VerifyOnlyPayerKey.YES && payerIsHollow == PayerIsHollow.NO) {
+            return handoffResults;
         }
         // If not, bootstrap the expanded signature pairs by grabbing all prefixes that are "full" keys already
         final var originals = txInfo.signatureMap().sigPair();
@@ -411,7 +444,32 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             signatureExpander.expand(context.requiredNonPayerKeys(), originals, expanded);
             signatureExpander.expand(context.optionalNonPayerKeys(), originals, expanded);
         }
+        if (handoffResults != null && payerIsHollow == PayerIsHollow.NO) {
+            expanded.removeIf(pair -> handoffResults.containsKey(pair.key()));
+            if (expanded.isEmpty()) {
+                return handoffResults;
+            }
+            final var remaining = signatureVerifier.verify(txInfo.signedBytes(), expanded);
+            if (remaining.isEmpty()) {
+                return handoffResults;
+            }
+            final var merged = new HashMap<>(handoffResults);
+            merged.putAll(remaining);
+            return merged;
+        }
         return signatureVerifier.verify(txInfo.signedBytes(), expanded);
+    }
+
+    @Nullable
+    private static Map<Key, SignatureVerificationFuture> reusableIngestPayerResults(
+            @Nullable final IngestHandoff ingestHandoff, @NonNull final PreHandleContext context) {
+        if (ingestHandoff == null
+                || ingestHandoff.payerResults() == null
+                || ingestHandoff.verifiedPayerKey() == null
+                || !ingestHandoff.verifiedPayerKey().equals(context.payerKey())) {
+            return null;
+        }
+        return ingestHandoff.payerResults();
     }
 
     private boolean wasComputedWithCurrentNodeConfiguration(@Nullable PreHandleResult previousResult) {
@@ -419,5 +477,50 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         return previousResult == null
                 || previousResult.configVersion()
                         == configProvider.getConfiguration().getVersion();
+    }
+
+    /**
+     * True when ingest/pre-handle already expanded keys and verified signatures for this transaction
+     * under the current config, so handle can skip repeating that work.
+     */
+    private static boolean canReuseSuccessfulPreHandle(
+            @NonNull final PreHandleResult previousResult,
+            @Nullable final NodeInfo creatorInfo,
+            @NonNull final InnerTransaction innerTransaction) {
+        if (previousResult.status() != SO_FAR_SO_GOOD
+                || previousResult.txInfo() == null
+                || previousResult.payer() == null
+                || creatorInfo == null) {
+            return false;
+        }
+        final var txInfo = previousResult.txInfo();
+        if (txInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
+            return false;
+        }
+        return innerTransaction == InnerTransaction.YES
+                || creatorInfo.accountId().equals(txInfo.txBody().nodeAccountID());
+    }
+
+    @NonNull
+    private PreHandleResult reuseOrFailIfPayerGone(
+            @NonNull final PreHandleResult previousResult,
+            @NonNull final NodeInfo creatorInfo,
+            @NonNull final ReadableAccountStore accountStore) {
+        final var payerAccount = accountStore.getAccountById(previousResult.payer());
+        if (payerAccount == null) {
+            return nodeDueDiligenceFailure(
+                    creatorInfo.accountId(),
+                    PAYER_ACCOUNT_NOT_FOUND,
+                    previousResult.txInfo(),
+                    configProvider.getConfiguration().getVersion());
+        }
+        if (payerAccount.deleted()) {
+            return nodeDueDiligenceFailure(
+                    creatorInfo.accountId(),
+                    PAYER_ACCOUNT_DELETED,
+                    previousResult.txInfo(),
+                    configProvider.getConfiguration().getVersion());
+        }
+        return previousResult;
     }
 }

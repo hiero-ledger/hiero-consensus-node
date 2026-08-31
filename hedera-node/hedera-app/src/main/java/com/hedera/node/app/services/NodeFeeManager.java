@@ -32,6 +32,9 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -398,10 +401,25 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         // We don't update the lastNodeFeeDistributionTime because it is updated only once we distribute fees
         nodePaymentsState.put(
                 currentPayments.copyBuilder().payments(updatedPayments).build());
-        ((CommittableWritableStates) writableTokenState).commit();
+        // Only the NODE_PAYMENTS singleton. Soft-commit leaves account KV in merkle buffers
+        // until VirtualMap.copy(); a full TokenService commit would putLeaf every dirty account.
+        commitSingletonOnly(writableTokenState, nodePaymentsState);
         log.debug("Committed node payments state with {}", updatedPayments);
 
         // Clear the in-memory node fees map
         resetNodeFees();
+    }
+
+    /**
+     * Flushes one singleton without committing TokenService KV buffers.
+     */
+    static void commitSingletonOnly(
+            @NonNull final WritableStates states, @NonNull final WritableSingletonState<?> singleton) {
+        if (singleton instanceof WritableSingletonStateBase<?> base) {
+            base.commit();
+        }
+        if (states instanceof CommittableWritableStates committable) {
+            committable.commitSingleton(singleton.getStateId());
+        }
     }
 }

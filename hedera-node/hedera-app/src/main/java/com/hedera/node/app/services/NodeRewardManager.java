@@ -318,7 +318,7 @@ public class NodeRewardManager {
                 .numRoundsInStakingPeriod(roundsThisStakingPeriod)
                 .nodeFeesCollected(newNodeFeesCollected)
                 .build());
-        ((CommittableWritableStates) writableTokenState).commit();
+        NodeFeeManager.commitSingletonOnly(writableTokenState, nodeRewardsState);
     }
 
     /**

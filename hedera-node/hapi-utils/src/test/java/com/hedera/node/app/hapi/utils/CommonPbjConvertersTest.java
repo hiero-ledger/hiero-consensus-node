@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -66,5 +67,13 @@ class CommonPbjConvertersTest {
                 pbjTxBody.transactionIDOrThrow().transactionValidStartOrThrow().seconds());
         assertEquals(1_000_000L, pbjTxBody.transactionFee());
         assertEquals("test-memo", pbjTxBody.memo());
+    }
+
+    @Test
+    void hederaFunctionalityUsesCachedEnumArrays() {
+        final var proto = com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+        final var pbj = toPbj(proto);
+        assertEquals(HederaFunctionality.CRYPTO_TRANSFER, pbj);
+        assertEquals(proto, CommonPbjConverters.fromPbj(pbj));
     }
 }

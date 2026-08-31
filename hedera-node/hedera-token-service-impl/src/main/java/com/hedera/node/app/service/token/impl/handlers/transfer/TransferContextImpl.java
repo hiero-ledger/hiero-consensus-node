@@ -38,6 +38,10 @@ public class TransferContextImpl implements TransferContext {
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
     private final List<ItemizedAssessedFee> itemizedAssessedFees = new ArrayList<>();
+
+    @Nullable
+    private List<AssessedCustomFee> assessedCustomFeesView;
+
     private CryptoTransferTransactionBody syntheticBody = null;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
     private final boolean highVolume;
@@ -162,13 +166,19 @@ public class TransferContextImpl implements TransferContext {
 
     public void addToAssessedCustomFee(ItemizedAssessedFee assessedCustomFee) {
         itemizedAssessedFees.add(assessedCustomFee);
+        assessedCustomFeesView = null;
     }
 
     @Override
     public List<AssessedCustomFee> getAssessedCustomFees() {
-        return new ArrayList<>(itemizedAssessedFees.stream()
-                .map(ItemizedAssessedFee::assessedCustomFee)
-                .toList());
+        if (assessedCustomFeesView == null) {
+            final List<AssessedCustomFee> view = new ArrayList<>(itemizedAssessedFees.size());
+            for (int i = 0, n = itemizedAssessedFees.size(); i < n; i++) {
+                view.add(itemizedAssessedFees.get(i).assessedCustomFee());
+            }
+            assessedCustomFeesView = view;
+        }
+        return assessedCustomFeesView;
     }
 
     @Override

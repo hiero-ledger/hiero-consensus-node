@@ -176,6 +176,19 @@ tasks.register<JavaExec>("run") {
             nodeWorkingDir.get().dir("data/lib").asFileTree
     mainModule = "com.hedera.node.app"
 
+    // Pin the node heap (not Gradle workers) so G1 is not resizing under NLG.
+    // 16g matches the serial CT baseline; 12g is too small. Override with -PnodeHeap.
+    val heap = providers.gradleProperty("nodeHeap").orElse("16g").get()
+    jvmArgs(
+        "-Xms$heap",
+        "-Xmx$heap",
+        "-XX:+AlwaysPreTouch",
+        "-Dio.netty.leakDetection.level=DISABLED",
+        // macOS Java dual-stacks 0.0.0.0 as tcp46, which accepts TCP on the LAN IP then
+        // closes HTTP/2. Force IPv4 so remote NLG can use 192.168.0.118:50211.
+        "-Djava.net.preferIPv4Stack=true",
+    )
+
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
 }

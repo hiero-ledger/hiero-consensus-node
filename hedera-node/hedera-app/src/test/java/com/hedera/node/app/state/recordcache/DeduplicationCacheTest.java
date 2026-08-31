@@ -124,19 +124,8 @@ final class DeduplicationCacheTest {
         // When we add them to the cache
         txIds.forEach(cache::add);
 
-        // Then they are added in order
-        assertThat(internalSet())
-                .containsExactly(
-                        txIds.get(2),
-                        txIds.get(6),
-                        txIds.get(8),
-                        txIds.get(3),
-                        txIds.get(5),
-                        txIds.get(9),
-                        txIds.get(1),
-                        txIds.get(0),
-                        txIds.get(7),
-                        txIds.get(4));
+        // Then they are all present (order is not significant after the skip-list rewrite)
+        assertThat(internalSet()).containsExactlyInAnyOrderElementsOf(txIds);
     }
 
     @Test
@@ -149,7 +138,7 @@ final class DeduplicationCacheTest {
                         .seconds(now.getEpochSecond() - MAX_TXN_DURATION - 1)
                         .build())
                 .build();
-        internalSet().add(txId);
+        sneakIn(txId);
 
         // When we add a new transaction ID that is in the right time window
         final var txId2 = TransactionID.newBuilder()
@@ -173,7 +162,7 @@ final class DeduplicationCacheTest {
                         .seconds(now.getEpochSecond() - MAX_TXN_DURATION - 1)
                         .build())
                 .build();
-        internalSet().add(txId);
+        sneakIn(txId);
 
         // When we check to see if it is in the cache
         final var result = cache.contains(txId);
@@ -181,6 +170,25 @@ final class DeduplicationCacheTest {
         // Then we find that the expired transaction ID is gone
         assertThat(result).isFalse();
         assertThat(internalSet()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("putIfAbsent claims an ID once and remove releases it")
+    void putIfAbsentThenRemove() {
+        final var now = Instant.now();
+        final var txId = TransactionID.newBuilder()
+                .transactionValidStart(Timestamp.newBuilder()
+                        .seconds(now.getEpochSecond() + MAX_TXN_DURATION / 2)
+                        .build())
+                .build();
+
+        assertThat(cache.putIfAbsent(txId)).isTrue();
+        assertThat(cache.putIfAbsent(txId)).isFalse();
+        assertThat(cache.contains(txId)).isTrue();
+
+        cache.remove(txId);
+        assertThat(cache.contains(txId)).isFalse();
+        assertThat(cache.putIfAbsent(txId)).isTrue();
     }
 
     @Test
@@ -214,7 +222,28 @@ final class DeduplicationCacheTest {
             final var field = DeduplicationCacheImpl.class.getDeclaredField("submittedTxns");
             field.setAccessible(true);
             //noinspection unchecked
-            return (Set<TransactionID>) field.get(cache);
+            return ((java.util.concurrent.ConcurrentHashMap<TransactionID, Boolean>) field.get(cache)).keySet();
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Inserts a transaction ID without going through expiry checks, to test prune behavior. */
+    @SuppressWarnings("unchecked")
+    private void sneakIn(final TransactionID txId) {
+        try {
+            final var liveField = DeduplicationCacheImpl.class.getDeclaredField("submittedTxns");
+            liveField.setAccessible(true);
+            ((java.util.concurrent.ConcurrentHashMap<TransactionID, Boolean>) liveField.get(cache))
+                    .put(txId, Boolean.TRUE);
+            final var bucketsField = DeduplicationCacheImpl.class.getDeclaredField("byValidStartSecond");
+            bucketsField.setAccessible(true);
+            final var buckets =
+                    (java.util.concurrent.ConcurrentHashMap<Long, Set<TransactionID>>) bucketsField.get(cache);
+            buckets.computeIfAbsent(
+                            txId.transactionValidStartOrThrow().seconds(),
+                            second -> java.util.concurrent.ConcurrentHashMap.newKeySet())
+                    .add(txId);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

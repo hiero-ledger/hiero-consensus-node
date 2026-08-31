@@ -21,6 +21,7 @@ import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -46,6 +47,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private static final Logger log = LogManager.getLogger(SimpleFeeCalculatorImpl.class);
 
     protected final FeeSchedule feeSchedule;
+    private final Map<Extra, Long> extraFees;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
     private final CongestionMultipliers congestionMultipliers;
@@ -56,6 +58,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
             @NonNull CongestionMultipliers congestionMultipliers) {
         this.feeSchedule = requireNonNull(feeSchedule);
+        this.extraFees = extraFeeIndex(feeSchedule);
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
@@ -211,11 +214,19 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     @Override
     public long getExtraFee(Extra extra) {
-        return feeSchedule.extras().stream()
-                .filter(feeDefinition -> feeDefinition.name() == extra)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Extra fee not found: " + extra))
-                .fee();
+        final Long fee = extraFees.get(extra);
+        if (fee == null) {
+            throw new IllegalArgumentException("Extra fee not found: " + extra);
+        }
+        return fee;
+    }
+
+    private static Map<Extra, Long> extraFeeIndex(@NonNull final FeeSchedule feeSchedule) {
+        final Map<Extra, Long> index = new EnumMap<>(Extra.class);
+        for (final var extraDef : feeSchedule.extras()) {
+            index.put(extraDef.name(), extraDef.fee());
+        }
+        return index;
     }
 
     /**

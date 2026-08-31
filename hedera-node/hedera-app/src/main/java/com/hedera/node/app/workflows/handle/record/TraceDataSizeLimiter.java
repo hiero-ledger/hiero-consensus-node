@@ -124,6 +124,15 @@ public class TraceDataSizeLimiter {
         return clippingState.traceDataSizeLimitExceeded;
     }
 
+    /**
+     * Clears the running size estimate and the exceeded flag so a reused stream builder can
+     * accumulate trace data for the next user transaction.
+     */
+    public void reset() {
+        serializedTraceDataBytes = 0;
+        clippingState.traceDataSizeLimitExceeded = false;
+    }
+
     private boolean markExceeded(
             final long previousSerializedBytes, final long newSerializedBytes, final long attemptedTotal) {
         log.warn(

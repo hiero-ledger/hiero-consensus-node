@@ -24,6 +24,7 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -38,6 +39,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -737,5 +739,74 @@ final class RecordCacheImplTest extends AppTestBase {
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, currentNodeId)).isEqualTo(SAME_NODE);
         }
+    }
+
+    @Nested
+    @DisplayName("Receipt expiry")
+    final class ReceiptExpiryTests {
+        @Mock
+        private BlockStreamManager blockStreamManager;
+
+        @Test
+        @DisplayName("A second commit in the same consensus second does not expire a live txn")
+        void purgeSkipsWhenEarliestSecondUnchanged() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var validStart = Instant.ofEpochSecond(1_700_000_000L);
+            final var txId = txnIdAt(validStart);
+            addSuccess(cache, txId, 0L);
+
+            final var t0 = validStart.plusSeconds(10);
+            cache.commitReceipts(wsa.getState(), t0, null, blockStreamManager, StreamMode.RECORDS);
+            cache.commitReceipts(wsa.getState(), t0.plusNanos(1), null, blockStreamManager, StreamMode.RECORDS);
+
+            assertThat(cache.hasDuplicate(txId, 0L)).isEqualTo(SAME_NODE);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("Receipts expire once consensus time is past max valid duration from valid start")
+        void purgeExpiresAfterMaxValidDuration() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var validStart = Instant.ofEpochSecond(1_700_000_000L);
+            final var txId = txnIdAt(validStart);
+            addSuccess(cache, txId, 0L);
+
+            cache.commitReceipts(
+                    wsa.getState(), validStart.plusSeconds(10), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.hasDuplicate(txId, 0L)).isEqualTo(SAME_NODE);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).hasSize(1);
+
+            cache.commitReceipts(
+                    wsa.getState(), validStart.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.hasDuplicate(txId, 0L)).isEqualTo(NO_DUPLICATE);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Account record query spans multiple valid-start seconds")
+        void getRecordsSpansMultipleValidStartSeconds() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            addSuccess(cache, txnIdAt(t0), 0L);
+            addSuccess(cache, txnIdAt(t0.plusSeconds(1)), 0L);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).hasSize(2);
+        }
+    }
+
+    private static TransactionID txnIdAt(final Instant validStart) {
+        return TransactionID.newBuilder()
+                .accountID(PAYER_ACCOUNT_ID)
+                .transactionValidStart(new Timestamp(validStart.getEpochSecond(), validStart.getNano()))
+                .build();
+    }
+
+    private static void addSuccess(final RecordCacheImpl cache, final TransactionID txId, final long nodeId) {
+        final var receipt = TransactionReceipt.newBuilder().status(SUCCESS).build();
+        final var record = TransactionRecord.newBuilder()
+                .transactionID(txId)
+                .receipt(receipt)
+                .build();
+        cache.addRecordSource(nodeId, txId, DueDiligenceFailure.NO, new PartialRecordSource(record));
     }
 }

@@ -89,13 +89,45 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
             final var value = entry.getValue();
             if (value == null) {
                 removeFromDataSource(key);
-                listeners.forEach(listener -> listener.mapDeleteChange(key));
+                notifyMapDelete(key);
             } else {
                 putIntoDataSource(key, value);
-                listeners.forEach(listener -> listener.mapUpdateChange(key, value));
+                notifyMapUpdate(key, value);
             }
         }
         reset();
+    }
+
+    /**
+     * Writes buffered mutations to the backing store without notifying listeners. Used when listeners
+     * already fired as each mutation was applied to this state (the wrap-commit path).
+     */
+    public void flushToDataSource() {
+        for (final var entry : modifications.entrySet()) {
+            final var key = entry.getKey();
+            final var value = entry.getValue();
+            if (value == null) {
+                removeFromDataSource(key);
+            } else {
+                putIntoDataSource(key, value);
+            }
+        }
+        reset();
+    }
+
+    /**
+     * Notifies listeners of a map update. Used when a wrapping state applies a mutation into this
+     * backend so block-stream diffs still fire per user transaction.
+     */
+    public void notifyMapUpdate(@NonNull final K key, @NonNull final V value) {
+        listeners.forEach(listener -> listener.mapUpdateChange(key, value));
+    }
+
+    /**
+     * Notifies listeners of a map delete.
+     */
+    public void notifyMapDelete(@NonNull final K key) {
+        listeners.forEach(listener -> listener.mapDeleteChange(key));
     }
 
     /**

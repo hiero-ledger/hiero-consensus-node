@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NO
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -103,6 +104,7 @@ final class SubmissionManagerTest extends AppTestBase {
         void setup() {
             bytes = randomBytes(25);
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            lenient().when(deduplicationCache.putIfAbsent(any())).thenReturn(true);
             submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
             txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
@@ -135,7 +137,7 @@ final class SubmissionManagerTest extends AppTestBase {
             // And the metrics keeping track of errors submitting are NOT touched
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is updated
-            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
+            verify(deduplicationCache).putIfAbsent(txBody.transactionIDOrThrow());
         }
 
         @Test
@@ -151,8 +153,9 @@ final class SubmissionManagerTest extends AppTestBase {
                     .isEqualTo(PLATFORM_TRANSACTION_NOT_CREATED);
             // And the error metrics HAVE been updated
             verify(platformTxnRejections).cycle();
-            // And the deduplication cache is NOT called
-            verify(deduplicationCache, never()).add(txBody.transactionIDOrThrow());
+            // Claim is rolled back so a later retry can succeed
+            verify(deduplicationCache).putIfAbsent(txBody.transactionIDOrThrow());
+            verify(deduplicationCache).remove(txBody.transactionIDOrThrow());
         }
 
         @Test
@@ -160,9 +163,9 @@ final class SubmissionManagerTest extends AppTestBase {
         void testSubmittingDuplicateTransactionsCloseTogether() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-            when(deduplicationCache.contains(txBody.transactionIDOrThrow()))
-                    .thenReturn(false)
-                    .thenReturn(true);
+            when(deduplicationCache.putIfAbsent(txBody.transactionIDOrThrow()))
+                    .thenReturn(true)
+                    .thenReturn(false);
 
             // When we submit a duplicate transaction twice in close succession, then the second one fails
             // with a DUPLICATE_TRANSACTION error
@@ -172,7 +175,7 @@ final class SubmissionManagerTest extends AppTestBase {
                     .extracting(t -> ((PreCheckException) t).responseCode())
                     .isEqualTo(DUPLICATE_TRANSACTION);
             // And the deduplication cache is updated just once
-            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
+            verify(deduplicationCache, times(2)).putIfAbsent(txBody.transactionIDOrThrow());
         }
     }
 
@@ -193,6 +196,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @BeforeEach
         void setup() {
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            lenient().when(deduplicationCache.putIfAbsent(any())).thenReturn(true);
             submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
 
             // Create main transaction bytes
@@ -231,7 +235,6 @@ final class SubmissionManagerTest extends AppTestBase {
         void testAtomicBatchSuccess() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-            when(deduplicationCache.contains(any())).thenReturn(false);
 
             // When we submit a transaction with an atomic batch
             submissionManager.submit(txBodyWithBatch, mainBytes, false);
@@ -240,10 +243,10 @@ final class SubmissionManagerTest extends AppTestBase {
             verify(transactionPool).submitApplicationTransaction(mainBytes);
 
             // And the deduplication cache is updated for the main transaction
-            verify(deduplicationCache).add(txBodyWithBatch.transactionIDOrThrow());
+            verify(deduplicationCache).putIfAbsent(txBodyWithBatch.transactionIDOrThrow());
 
-            // And for each transaction in the batch (1 main + 2 inner = 3 total)
-            verify(deduplicationCache, times(3)).add(any());
+            // And for each inner transaction in the batch
+            verify(deduplicationCache, times(2)).add(any());
         }
 
         @Test
@@ -251,7 +254,6 @@ final class SubmissionManagerTest extends AppTestBase {
         void testAtomicBatchWithParseException() throws Exception {
             // Given a platform that will succeed in taking bytes
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-            when(deduplicationCache.contains(any())).thenReturn(false);
 
             // Create a batch with an invalid transaction
             List<Bytes> invalidBatch = new ArrayList<>(batchTransactions);
@@ -276,10 +278,10 @@ final class SubmissionManagerTest extends AppTestBase {
             verify(transactionPool).submitApplicationTransaction(mainBytes);
 
             // And the deduplication cache was updated for the main transaction
-            verify(deduplicationCache).add(txBodyWithInvalidBatch.transactionIDOrThrow());
+            verify(deduplicationCache).putIfAbsent(txBodyWithInvalidBatch.transactionIDOrThrow());
 
             // And for the valid transactions in the batch (but parsing stopped at the invalid one)
-            verify(deduplicationCache, times(3)).add(any());
+            verify(deduplicationCache, times(2)).add(any());
         }
 
         @Test
@@ -297,7 +299,6 @@ final class SubmissionManagerTest extends AppTestBase {
 
             // Given a platform that will succeed in taking bytes
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
-            when(deduplicationCache.contains(any())).thenReturn(false);
 
             // When we submit a transaction with an empty atomic batch
             submissionManager.submit(txBodyWithEmptyBatch, mainBytes, false);
@@ -306,8 +307,8 @@ final class SubmissionManagerTest extends AppTestBase {
             verify(transactionPool).submitApplicationTransaction(mainBytes);
 
             // And the deduplication cache is updated for the main transaction only
-            verify(deduplicationCache).add(txBodyWithEmptyBatch.transactionIDOrThrow());
-            verify(deduplicationCache, times(1)).add(any());
+            verify(deduplicationCache).putIfAbsent(txBodyWithEmptyBatch.transactionIDOrThrow());
+            verify(deduplicationCache, never()).add(any());
         }
     }
 
@@ -338,6 +339,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @BeforeEach
         void setup() {
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            when(deduplicationCache.putIfAbsent(any())).thenReturn(true);
             txBytes = randomBytes(25);
             txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
@@ -388,7 +390,7 @@ final class SubmissionManagerTest extends AppTestBase {
             assertThatNoException().isThrownBy(() -> submissionManager.submit(txBody, txBytes, false));
 
             // And the deduplication cache is updated, confirming the transaction was accepted
-            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
+            verify(deduplicationCache).putIfAbsent(txBody.transactionIDOrThrow());
         }
     }
 }

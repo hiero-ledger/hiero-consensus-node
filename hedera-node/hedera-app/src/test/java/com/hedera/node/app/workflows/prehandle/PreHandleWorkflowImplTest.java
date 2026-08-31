@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
@@ -49,6 +50,7 @@ import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
+import com.hedera.node.app.signature.impl.CompletedSignatureVerificationFuture;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -59,6 +61,8 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.ingest.IngestHandoff;
+import com.hedera.node.app.workflows.ingest.IngestHandoffCache;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.HederaConfig;
@@ -122,6 +126,8 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
     @Mock
     private DeduplicationCache deduplicationCache;
 
+    private final IngestHandoffCache ingestHandoffCache = new IngestHandoffCache();
+
     /** We use a real functional store factory with our standard test data set. Needed by the workflow. */
     private ReadableStoreFactory storeFactory;
 
@@ -166,7 +172,8 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                 signatureVerifier,
                 signatureExpander,
                 configProvider,
-                deduplicationCache);
+                deduplicationCache,
+                ingestHandoffCache);
     }
 
     /**
@@ -722,6 +729,34 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
         }
 
         @Test
+        @DisplayName("Happy path reuses ingest parse and payer verification")
+        void happyPathWithIngestHandoff() throws Exception {
+            final var payerAccount = ALICE.accountID();
+            final var payerKey = ALICE.keyInfo().publicKey();
+            final var txInfo = scenario().withPayer(payerAccount).txInfo();
+            final var txBytes = asByteArray(txInfo.signedTx());
+            final Transaction platformTx = createAppPayloadWrapper(txBytes);
+            final var payerResults = Map.<Key, SignatureVerificationFuture>of(
+                    payerKey, new CompletedSignatureVerificationFuture(payerKey, null, true));
+            ingestHandoffCache.put(
+                    platformTx.getApplicationTransaction(),
+                    new IngestHandoff(txInfo, payerKey, payerResults, DEFAULT_CONFIG_VERSION));
+
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.status()).isEqualTo(SO_FAR_SO_GOOD);
+            assertThat(result.responseCode()).isEqualTo(OK);
+            assertThat(result.payer()).isEqualTo(ALICE.accountID());
+            assertThat(result.txInfo()).isSameAs(txInfo);
+            assertThat(result.verificationResults()).isEqualTo(payerResults);
+            verify(transactionChecker, never()).parseSignedAndCheck(any(Bytes.class), anyInt());
+            verify(deduplicationCache, never()).add(any());
+            verify(signatureVerifier, never()).verify(any(), any());
+            verify(dispatcher).dispatchPreHandle(any());
+        }
+
+        @Test
         @DisplayName(
                 "Happy path with Key-based signature verification and a result derived from different config version")
         void happyPathWithoutReuse(@Mock SignatureVerificationFuture sigFuture) throws Exception {
@@ -861,7 +896,8 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                     previousResult,
                     (txns, bytes) -> {});
 
-            // Then the transaction pre-handle succeeds!
+            // Then the transaction pre-handle succeeds and reuses the previous result object
+            assertThat(result).isSameAs(previousResult);
             assertThat(result.status()).isEqualTo(SO_FAR_SO_GOOD);
             assertThat(result.responseCode()).isEqualTo(OK);
             assertThat(result.payer()).isEqualTo(ALICE.accountID());
@@ -872,8 +908,10 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.txInfo()).isNotNull();
             assertThat(result.txInfo()).isSameAs(previousResult.txInfo());
             assertThat(result.configVersion()).isEqualTo(DEFAULT_CONFIG_VERSION);
-            // And we do see this transaction registered with the deduplication cache
             verifyNoInteractions(deduplicationCache);
+            verify(dispatcher, never()).dispatchPreHandle(any());
+            verify(dispatcher, never()).dispatchPureChecks(any());
+            verify(transactionChecker, never()).parseSignedAndCheck(any(), anyInt());
         }
 
         @Test

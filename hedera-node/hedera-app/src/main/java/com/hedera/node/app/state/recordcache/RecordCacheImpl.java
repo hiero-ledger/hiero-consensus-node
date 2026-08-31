@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.recordcache;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
@@ -14,8 +13,6 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -41,6 +38,7 @@ import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
@@ -121,55 +119,102 @@ public class RecordCacheImpl implements HederaRecordCache {
      */
     private final Map<TransactionID, HistorySource> historySources = new ConcurrentHashMap<>();
     /**
-     * A secondary index that maps from the AccountID of the payer account to a set of transaction IDs that were
-     * submitted by this payer. This is only needed for answering queries. Ideally such queries would exist on the
-     * mirror node instead. The answer to this query will include child records that were created as a consequence
-     * of the original user transaction, but not any preceding records triggered by it.
+     * A secondary index from payer {@link AccountID} to that payer's recent transaction IDs, bucketed by
+     * valid-start second so expiry is a prefix drop instead of a {@link HashSet#remove} on a multi-million
+     * entry set. Handle mutates; getters may read from other threads. Used only for account-id record
+     * queries (unused on the production ingest path).
      */
-    private final Map<AccountID, Set<TransactionID>> payerTxnIds = new ConcurrentHashMap<>();
+    private final Map<AccountID, PayerTxnIndex> payerTxnIds = new ConcurrentHashMap<>();
+    /**
+     * Handle-thread list of the same indexes, so expiry does not scan the {@link ConcurrentHashMap} table.
+     */
+    private final List<PayerTxnIndex> livePayerIndexes = new ArrayList<>();
     /**
      * The list of transaction receipts for the current round.
      */
     private final List<TransactionReceiptEntry> transactionReceipts = new ArrayList<>();
+    /**
+     * Last earliest valid-start <em>second</em> for which {@link #purgeExpiredReceiptEntries} walked the
+     * queue. Rounds in the same consensus second share this value, so later rounds skip the walk.
+     */
+    private long lastPurgeEarliestValidStartSecond = Long.MIN_VALUE;
 
     /**
-     * Contains history of transactions submitted with the same "base" {@link TransactionID};
-     * i.e., with the same payer and valid start time.
-     * <p>
-     * This history has two parts:
-     * <ol>
-     *     <li>A {@code nodeIds} set with all the node ids that have submitted a properly
-     *     screened transaction with the scoped base {@link TransactionID}; this is used to
-     *     classify duplicate transactions.</li>
-     *     <li>A {@code recordSources} list with all the sources of records for the relevant
-     *     base {@link TransactionID}. This is used to construct {@link TransactionRecord}
-     *     records for answering queries.</li>
-     * </ol>
-     *
-     * @param nodeIds The set of node ids that have submitted a properly screened transaction
-     * @param recordSources The sources of records for the relevant base {@link TransactionID}
+     * History for one base {@link TransactionID}. The common CryptoTransfer case is one classifiable node and one
+     * record source, so those are stored inline; a set/list is allocated only for duplicates.
      */
-    private record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
-            implements ReceiptSource {
-        public HistorySource() {
-            this(new HashSet<>(), new ArrayList<>());
+    private static final class HistorySource implements ReceiptSource {
+        private static final long NO_NODE = Long.MIN_VALUE;
+
+        private long firstNodeId = NO_NODE;
+
+        @Nullable
+        private Set<Long> extraNodeIds;
+
+        @Nullable
+        private RecordSource firstRecordSource;
+
+        @Nullable
+        private List<RecordSource> extraRecordSources;
+
+        void addClassifiableNode(final long nodeId) {
+            if (firstNodeId == NO_NODE) {
+                firstNodeId = nodeId;
+            } else if (firstNodeId != nodeId) {
+                extraNodeIds().add(nodeId);
+            }
+        }
+
+        boolean hasClassifiableNode() {
+            return firstNodeId != NO_NODE;
+        }
+
+        boolean submittedBy(final long nodeId) {
+            return firstNodeId == nodeId || (extraNodeIds != null && extraNodeIds.contains(nodeId));
+        }
+
+        @NonNull
+        Set<Long> nodeIds() {
+            if (firstNodeId == NO_NODE) {
+                return Set.of();
+            }
+            if (extraNodeIds == null || extraNodeIds.isEmpty()) {
+                return Set.of(firstNodeId);
+            }
+            final var all = new HashSet<Long>(extraNodeIds.size() + 1);
+            all.add(firstNodeId);
+            all.addAll(extraNodeIds);
+            return all;
+        }
+
+        void addRecordSourceIfAbsent(@NonNull final RecordSource recordSource) {
+            if (firstRecordSource == null) {
+                firstRecordSource = recordSource;
+                return;
+            }
+            if (firstRecordSource == recordSource) {
+                return;
+            }
+            final var extras = extraRecordSources();
+            if (!extras.contains(recordSource)) {
+                extras.add(recordSource);
+            }
         }
 
         @Override
         public @NonNull TransactionReceipt priorityReceipt(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
-            if (recordSources.isEmpty()) {
+            if (firstRecordSource == null) {
                 return PENDING_RECEIPT;
             }
-            final var firstPriorityReceipt = recordSources.getFirst().receiptOf(txnId);
-            if (!NODE_FAILURES.contains(firstPriorityReceipt.status())) {
+            final var firstPriorityReceipt = firstRecordSource.receiptOf(txnId);
+            if (!NODE_FAILURES.contains(firstPriorityReceipt.status()) || extraRecordSources == null) {
                 return firstPriorityReceipt;
-            } else {
-                for (int i = 1, n = recordSources.size(); i < n; i++) {
-                    final var nextPriorityReceipt = recordSources.get(i).receiptOf(txnId);
-                    if (!NODE_FAILURES.contains(nextPriorityReceipt.status())) {
-                        return nextPriorityReceipt;
-                    }
+            }
+            for (final var source : extraRecordSources) {
+                final var nextPriorityReceipt = source.receiptOf(txnId);
+                if (!NODE_FAILURES.contains(nextPriorityReceipt.status())) {
+                    return nextPriorityReceipt;
                 }
             }
             return firstPriorityReceipt;
@@ -178,10 +223,18 @@ public class RecordCacheImpl implements HederaRecordCache {
         @Override
         public @Nullable TransactionReceipt childReceipt(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
-            for (final var source : recordSources) {
+            if (firstRecordSource != null) {
                 try {
-                    return source.receiptOf(txnId);
+                    return firstRecordSource.receiptOf(txnId);
                 } catch (IllegalArgumentException ignore) {
+                }
+                if (extraRecordSources != null) {
+                    for (final var source : extraRecordSources) {
+                        try {
+                            return source.receiptOf(txnId);
+                        } catch (IllegalArgumentException ignore) {
+                        }
+                    }
                 }
             }
             return null;
@@ -191,7 +244,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         public @NonNull List<TransactionReceipt> duplicateReceipts(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
             final List<TransactionReceipt> receipts = new ArrayList<>();
-            recordSources.forEach(source -> receipts.add(source.receiptOf(txnId)));
+            forEachSource(source -> receipts.add(source.receiptOf(txnId)));
             receipts.remove(priorityReceipt(txnId));
             return receipts;
         }
@@ -200,7 +253,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         public @NonNull List<TransactionReceipt> childReceipts(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
             final List<TransactionReceipt> receipts = new ArrayList<>();
-            recordSources.forEach(source -> receipts.addAll(source.childReceiptsOf(txnId)));
+            forEachSource(source -> receipts.addAll(source.childReceiptsOf(txnId)));
             return receipts;
         }
 
@@ -214,16 +267,88 @@ public class RecordCacheImpl implements HederaRecordCache {
         History historyOf(@NonNull final TransactionID userTxnId) {
             final List<TransactionRecord> duplicateRecords = new ArrayList<>();
             final List<TransactionRecord> childRecords = new ArrayList<>();
-            for (final var recordSource : recordSources) {
-                recordSource.forEachTxnRecord(txnRecord -> {
-                    final var txnId = txnRecord.transactionIDOrThrow();
-                    if (matchesExceptNonce(txnId, userTxnId)) {
-                        final var source = txnId.nonce() > 0 ? childRecords : duplicateRecords;
-                        source.add(txnRecord);
-                    }
-                });
+            forEachSource(recordSource -> recordSource.forEachTxnRecord(txnRecord -> {
+                final var txnId = txnRecord.transactionIDOrThrow();
+                if (matchesExceptNonce(txnId, userTxnId)) {
+                    final var source = txnId.nonce() > 0 ? childRecords : duplicateRecords;
+                    source.add(txnRecord);
+                }
+            }));
+            return new History(nodeIds(), duplicateRecords, childRecords);
+        }
+
+        private void forEachSource(@NonNull final java.util.function.Consumer<RecordSource> action) {
+            if (firstRecordSource == null) {
+                return;
             }
-            return new History(nodeIds, duplicateRecords, childRecords);
+            action.accept(firstRecordSource);
+            if (extraRecordSources != null) {
+                extraRecordSources.forEach(action);
+            }
+        }
+
+        @NonNull
+        private Set<Long> extraNodeIds() {
+            if (extraNodeIds == null) {
+                extraNodeIds = new HashSet<>();
+            }
+            return extraNodeIds;
+        }
+
+        @NonNull
+        private List<RecordSource> extraRecordSources() {
+            if (extraRecordSources == null) {
+                extraRecordSources = new ArrayList<>();
+            }
+            return extraRecordSources;
+        }
+    }
+
+    /**
+     * Per-payer transaction IDs grouped by valid-start second. Handle-thread appends; query threads iterate.
+     */
+    private static final class PayerTxnIndex {
+        private final AccountID payerId;
+        private final ArrayDeque<PayerSecondBucket> buckets = new ArrayDeque<>();
+
+        private PayerTxnIndex(@NonNull final AccountID payerId) {
+            this.payerId = payerId;
+        }
+
+        void add(@NonNull final TransactionID txnId) {
+            final long second =
+                    txnId.transactionValidStartOrElse(Timestamp.DEFAULT).seconds();
+            var last = buckets.peekLast();
+            if (last == null || last.validStartSecond != second) {
+                last = new PayerSecondBucket(second);
+                buckets.addLast(last);
+            }
+            last.txnIds.add(txnId);
+        }
+
+        void dropExpired(final long earliestValidStartSecond) {
+            PayerSecondBucket first;
+            while ((first = buckets.peekFirst()) != null && first.validStartSecond < earliestValidStartSecond) {
+                buckets.pollFirst();
+            }
+        }
+
+        boolean isEmpty() {
+            return buckets.isEmpty();
+        }
+
+        @NonNull
+        Iterable<PayerSecondBucket> buckets() {
+            return buckets;
+        }
+    }
+
+    private static final class PayerSecondBucket {
+        private final long validStartSecond;
+        private final List<TransactionID> txnIds = new ArrayList<>();
+
+        private PayerSecondBucket(final long validStartSecond) {
+            this.validStartSecond = validStartSecond;
         }
     }
 
@@ -267,22 +392,22 @@ public class RecordCacheImpl implements HederaRecordCache {
                 // Ensure this node won't submit duplicate transactions and be penalized for it
                 deduplicationCache.add(baseTxnId);
                 // Now update the history of this transaction id
-                final var historySource = historySources.computeIfAbsent(baseTxnId, ignore -> new HistorySource());
+                final var historySource = historySourceFor(baseTxnId);
                 // Honest nodes use the set of node ids that have submitted classifiable transactions with this id to
                 // classify user versus node duplicates; so reconstructing the set here is critical for deterministic
                 // transaction handling across all nodes in the network
                 if (!NODE_FAILURES.contains(receipt.status())) {
-                    historySource.nodeIds().add(receipt.nodeId());
+                    historySource.addClassifiableNode(receipt.nodeId());
                 }
                 // These steps only make a partial transaction record available for answering queries, and are not
                 // of critical importance for the operation of the node
-                if (historySource.recordSources().isEmpty()) {
-                    historySource.recordSources().add(new PartialRecordSource());
+                if (historySource.firstRecordSource == null) {
+                    historySource.addRecordSourceIfAbsent(new PartialRecordSource());
                 }
-                ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
-                payerTxnIds
-                        .computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
-                        .add(txnId);
+                ((PartialRecordSource) historySource.firstRecordSource).incorporate(asTxnRecord(receipt));
+                if (txnId.nonce() == 0) {
+                    indexPayerTxn(txnId.accountIDOrThrow(), txnId);
+                }
             }
         }
     }
@@ -304,26 +429,24 @@ public class RecordCacheImpl implements HederaRecordCache {
             transactionReceipts.add(new TransactionReceiptEntry(nodeId, txnId, status));
             final var baseTxnId =
                     txnId.nonce() == 0 ? txnId : txnId.copyBuilder().nonce(0).build();
-            final var historySource = historySources.computeIfAbsent(baseTxnId, ignore -> new HistorySource());
+            final var historySource = historySourceFor(baseTxnId);
             // We don't let improperly submitted transactions keep properly submitted transactions from using an id
             if (!NODE_FAILURES.contains(status)) {
-                historySource.nodeIds().add(nodeId);
+                historySource.addClassifiableNode(nodeId);
             }
             // Only add each record source once per history; since very few record sources contain more than one
             // transaction id, and few transaction ids have duplicates, this is almost always an existence check
-            // in an empty list
-            if (!historySource.recordSources().contains(recordSource)) {
-                historySource.recordSources.add(recordSource);
-            }
+            // on the first source
+            historySource.addRecordSourceIfAbsent(recordSource);
             final AccountID effectivePayerId;
             if (dueDiligenceFailure == DueDiligenceFailure.YES && matchesExceptNonce(txnId, userTxnId)) {
                 effectivePayerId = requireNonNull(networkInfo.nodeInfo(nodeId)).accountId();
             } else {
                 effectivePayerId = txnId.accountIDOrThrow();
             }
-            payerTxnIds
-                    .computeIfAbsent(effectivePayerId, ignored -> new HashSet<>())
-                    .add(txnId);
+            if (txnId.nonce() == 0) {
+                indexPayerTxn(effectivePayerId, txnId);
+            }
         }
     }
 
@@ -370,12 +493,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             committable.commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getQueueStateChanges();
-            if (!changes.isEmpty()) {
-                blockStreamManager.writeItem((now -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
-                        .build()));
-            }
+            blockStreamManager.writeStateChanges(immediateStateChangeListener.takeQueueStateChanges());
         }
     }
 
@@ -386,10 +504,10 @@ public class RecordCacheImpl implements HederaRecordCache {
         final var historySource = historySources.get(txnId);
         // If there is no history for this transaction id; or all its history consists of
         // unclassifiable records, return that it is effectively a unique id
-        if (historySource == null || historySource.nodeIds().isEmpty()) {
+        if (historySource == null || !historySource.hasClassifiableNode()) {
             return NO_DUPLICATE;
         }
-        return historySource.nodeIds().contains(nodeId) ? SAME_NODE : OTHER_NODE;
+        return historySource.submittedBy(nodeId) ? SAME_NODE : OTHER_NODE;
     }
 
     /**
@@ -398,11 +516,17 @@ public class RecordCacheImpl implements HederaRecordCache {
     private void purgeExpiredReceiptEntries(
             @NonNull final WritableQueueState<TransactionReceiptEntries> queue,
             @NonNull final Instant consensusTimestamp) {
-        // Compute the earliest valid start timestamp that is still within the max transaction duration window.
+        // Compute the earliest valid start second that is still within the max transaction duration window.
+        // Skip the queue walk when this second has not advanced (many rounds share a consensus second).
         final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-        final var earliestValidStart = new Timestamp(
-                consensusTimestamp.getEpochSecond() - config.transactionMaxValidDuration(),
-                consensusTimestamp.getNano());
+        final long earliestValidStartSecond =
+                consensusTimestamp.getEpochSecond() - config.transactionMaxValidDuration();
+        if (earliestValidStartSecond == lastPurgeEarliestValidStartSecond) {
+            return;
+        }
+        lastPurgeEarliestValidStartSecond = earliestValidStartSecond;
+        dropExpiredPayerBuckets(earliestValidStartSecond);
+        final var earliestValidStart = new Timestamp(earliestValidStartSecond, 0);
         // Loop in order and expunge the entry if even the latest TransactionReceiptEntry is expired
         TransactionReceiptEntries roundReceipts;
         while ((roundReceipts = queue.peek()) != null) {
@@ -411,11 +535,15 @@ public class RecordCacheImpl implements HederaRecordCache {
                 queue.poll();
                 continue;
             }
-            final var latestReceiptValidStart = roundReceipts.entries().stream()
-                    .max(TRANSACTION_VALID_START_COMPARATOR)
-                    .map(entry -> entry.transactionIdOrElse(TransactionID.DEFAULT)
-                            .transactionValidStartOrElse(Timestamp.DEFAULT))
-                    .orElseThrow();
+            Timestamp latestReceiptValidStart = null;
+            for (final var entry : roundReceipts.entries()) {
+                final var validStart =
+                        entry.transactionIdOrElse(TransactionID.DEFAULT).transactionValidStartOrElse(Timestamp.DEFAULT);
+                if (latestReceiptValidStart == null
+                        || TIMESTAMP_COMPARATOR.compare(validStart, latestReceiptValidStart) > 0) {
+                    latestReceiptValidStart = validStart;
+                }
+            }
             // If even the latest valid start time is before the earliest valid start, then all transaction
             // ids used in this round are expired and cannot be duplicated
             if (isBefore(latestReceiptValidStart, earliestValidStart)) {
@@ -428,24 +556,6 @@ public class RecordCacheImpl implements HederaRecordCache {
                             txnId.nonce() == 0
                                     ? txnId
                                     : txnId.copyBuilder().nonce(0).build());
-                    // Remove from the payer to transaction index
-                    var payerId = txnId.accountIDOrThrow();
-                    var txnIds = payerTxnIds.computeIfAbsent(payerId, ignored -> new HashSet<>());
-                    if (!txnIds.remove(txnId)) {
-                        // The submitting node account must have been the payer
-                        payerId = requireNonNull(networkInfo.nodeInfo(receipt.nodeId()))
-                                .accountId();
-                        txnIds = payerTxnIds.computeIfAbsent(payerId, ignored -> new HashSet<>());
-                        if (!txnIds.remove(txnId) && receipt.status() != DUPLICATE_TRANSACTION) {
-                            logger.warn(
-                                    "Non-duplicate {} not cached for either payer or submitting node {}",
-                                    txnId,
-                                    payerId);
-                        }
-                    }
-                    if (txnIds.isEmpty()) {
-                        payerTxnIds.remove(payerId);
-                    }
                 }
                 // Remove the round receipts from the queue
                 queue.poll();
@@ -480,8 +590,8 @@ public class RecordCacheImpl implements HederaRecordCache {
     @NonNull
     @Override
     public List<TransactionRecord> getRecords(@NonNull final AccountID accountID) {
-        final var txnIds = payerTxnIds.get(accountID);
-        if (txnIds == null) {
+        final var payerIndex = payerTxnIds.get(accountID);
+        if (payerIndex == null) {
             return emptyList();
         }
         // Note that at **most** LedgerConfig#recordsMaxQueryableByAccount() records will be available, even if the
@@ -492,23 +602,30 @@ public class RecordCacheImpl implements HederaRecordCache {
                 .recordsMaxQueryableByAccount();
         // While we still need to gather more records, collect them from the different histories.
         final var records = new ArrayList<TransactionRecord>(maxRemaining);
-        // Because the set of transaction IDs could be concurrently modified by
+        // Because the payer buckets could be concurrently modified by
         // the handle thread, wrap this in a try-catch block to deal with a CME
         // and return whatever we are able to gather. (I.e. this is a best-effort
         // query, and not a critical path; unused in production environments)
         try {
-            for (final var txnId : txnIds) {
-                final var historySource = historySources.get(txnId);
-                if (historySource != null) {
-                    final var history = historySource.historyOf(txnId);
-                    final var sourcedRecords = history.orderedRecords();
-                    records.addAll(
-                            sourcedRecords.size() > maxRemaining
-                                    ? sourcedRecords.subList(0, maxRemaining)
-                                    : sourcedRecords);
-                    maxRemaining -= sourcedRecords.size();
-                    if (maxRemaining <= 0) {
-                        break;
+            final var seen = new HashSet<TransactionID>();
+            gather:
+            for (final var bucket : payerIndex.buckets()) {
+                for (final var txnId : bucket.txnIds) {
+                    if (!seen.add(txnId)) {
+                        continue;
+                    }
+                    final var historySource = historySources.get(txnId);
+                    if (historySource != null) {
+                        final var history = historySource.historyOf(txnId);
+                        final var sourcedRecords = history.orderedRecords();
+                        records.addAll(
+                                sourcedRecords.size() > maxRemaining
+                                        ? sourcedRecords.subList(0, maxRemaining)
+                                        : sourcedRecords);
+                        maxRemaining -= sourcedRecords.size();
+                        if (maxRemaining <= 0) {
+                            break gather;
+                        }
                     }
                 }
             }
@@ -518,6 +635,43 @@ public class RecordCacheImpl implements HederaRecordCache {
         records.sort((a, b) -> TIMESTAMP_COMPARATOR.compare(
                 a.consensusTimestampOrElse(Timestamp.DEFAULT), b.consensusTimestampOrElse(Timestamp.DEFAULT)));
         return records;
+    }
+
+    @NonNull
+    private HistorySource historySourceFor(@NonNull final TransactionID baseTxnId) {
+        var historySource = historySources.get(baseTxnId);
+        if (historySource == null) {
+            historySource = new HistorySource();
+            historySources.put(baseTxnId, historySource);
+        }
+        return historySource;
+    }
+
+    private void indexPayerTxn(@NonNull final AccountID payerId, @NonNull final TransactionID txnId) {
+        var index = payerTxnIds.get(payerId);
+        if (index == null) {
+            index = new PayerTxnIndex(payerId);
+            payerTxnIds.put(payerId, index);
+            livePayerIndexes.add(index);
+        }
+        index.add(txnId);
+    }
+
+    private void dropExpiredPayerBuckets(final long earliestValidStartSecond) {
+        int w = 0;
+        final int n = livePayerIndexes.size();
+        for (int i = 0; i < n; i++) {
+            final var index = livePayerIndexes.get(i);
+            index.dropExpired(earliestValidStartSecond);
+            if (index.isEmpty()) {
+                payerTxnIds.remove(index.payerId, index);
+            } else {
+                livePayerIndexes.set(w++, index);
+            }
+        }
+        if (w < n) {
+            livePayerIndexes.subList(w, n).clear();
+        }
     }
 
     /**

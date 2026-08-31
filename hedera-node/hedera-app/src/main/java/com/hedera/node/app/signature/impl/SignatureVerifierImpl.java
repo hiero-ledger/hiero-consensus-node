@@ -86,4 +86,14 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
 
         return futures;
     }
+
+    @Override
+    public boolean verifyEd25519(
+            @NonNull final Bytes signedBytes, @NonNull final Bytes publicKey, @NonNull final Bytes signature) {
+        requireNonNull(signedBytes);
+        requireNonNull(publicKey);
+        requireNonNull(signature);
+        return cryptoEngine.verifySync(
+                signedBytes.toByteArray(), signature.toByteArray(), publicKey.toByteArray(), SignatureType.ED25519);
+    }
 }

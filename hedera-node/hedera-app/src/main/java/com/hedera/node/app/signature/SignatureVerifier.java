@@ -40,4 +40,16 @@ public interface SignatureVerifier {
     @NonNull
     Map<Key, SignatureVerificationFuture> verify(
             @NonNull Bytes signedBytes, @NonNull Set<ExpandedSignaturePair> sigPairs, @NonNull MessageType messageType);
+
+    /**
+     * Synchronously verifies a single Ed25519 signature without allocating futures or maps.
+     *
+     * @param signedBytes the signed bytes
+     * @param publicKey the Ed25519 public key
+     * @param signature the Ed25519 signature
+     * @return {@code true} if the signature is valid
+     */
+    default boolean verifyEd25519(@NonNull Bytes signedBytes, @NonNull Bytes publicKey, @NonNull Bytes signature) {
+        throw new UnsupportedOperationException("Ed25519 fast-path verify is not implemented");
+    }
 }

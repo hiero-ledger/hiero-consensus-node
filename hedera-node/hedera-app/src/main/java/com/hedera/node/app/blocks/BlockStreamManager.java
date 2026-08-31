@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -13,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -201,6 +203,14 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
+
+    /**
+     * Writes a {@code StateChanges} item stamped with the last consensus time already written
+     * to the stream. The caller must not mutate {@code changes} after this returns.
+     *
+     * @param changes the state changes to write; ignored when empty
+     */
+    void writeStateChanges(@NonNull List<StateChange> changes);
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that

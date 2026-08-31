@@ -154,6 +154,14 @@ public interface StreamBuilder {
     void nullOutSideEffectFields();
 
     /**
+     * Restores txn-scoped fields to construction defaults so this builder can be reused as the
+     * root USER builder of the next sequential handle dispatch. Child builders are not reused.
+     */
+    default void resetForNextUserTxn() {
+        // no-op unless this instance is a reusable root builder
+    }
+
+    /**
      * Sets the transactionID of the record based on the user transaction record.
      * @return the builder
      */

@@ -2,6 +2,7 @@
 package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
@@ -47,5 +48,46 @@ class WrappedWritableKVStateTest extends StateTestBase {
         assertThat(state.get(E_KEY)).isEqualTo(ELDERBERRY); // Has the new value
         assertThat(delegate.get(B_KEY)).isEqualTo(BLACKBERRY); // Has the new value
         assertThat(delegate.get(E_KEY)).isEqualTo(ELDERBERRY); // Has the new value
+    }
+
+    @Test
+    @DisplayName("retarget drops uncommitted mutations and reads from the new delegate")
+    void retargetDropsUncommittedAndSwitchesDelegate() {
+        state.put(B_KEY, BLACKBERRY);
+
+        final var replacement = new HashMap<ProtoBytes, ProtoBytes>();
+        replacement.put(A_KEY, CHERRY);
+        final var newDelegate = new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, replacement);
+        state.retarget(newDelegate);
+
+        assertThat(state.get(A_KEY)).isEqualTo(CHERRY);
+        assertThat(state.get(B_KEY)).isNull();
+        assertThat(delegate.get(B_KEY)).isEqualTo(BANANA);
+        assertThat(newDelegate.get(A_KEY)).isEqualTo(CHERRY);
+    }
+
+    @Test
+    @DisplayName("Wrap commit is the next-txn original even if the delegate has not flushed")
+    void commitIsNextTxnOriginalWithoutDelegateFlush() {
+        state.put(B_KEY, BLACKBERRY);
+        state.commit();
+
+        assertThat(state.getOriginalValue(B_KEY)).isEqualTo(BLACKBERRY);
+        assertThat(delegate.get(B_KEY)).isEqualTo(BLACKBERRY);
+        assertThat(delegate.getOriginalValue(B_KEY)).isEqualTo(BANANA);
+    }
+
+    @Test
+    @DisplayName("Wrap apply notifies backend listeners so merkle commit can be deferred")
+    void commitNotifiesBackendListeners() {
+        final var listener = Mockito.mock(KVChangeListener.class);
+        delegate.registerListener(listener);
+
+        state.put(B_KEY, BLACKBERRY);
+        state.remove(A_KEY);
+        state.commit();
+
+        verify(listener).mapUpdateChange(B_KEY, BLACKBERRY);
+        verify(listener).mapDeleteChange(A_KEY);
     }
 }

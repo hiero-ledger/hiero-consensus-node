@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
@@ -58,6 +59,16 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
     void setUp() {
         signedBytes = randomBytes(32);
         verifier = new SignatureVerifierImpl(cryptoEngine);
+    }
+
+    @Test
+    @DisplayName("Ed25519 fast path calls verifySync with raw arrays")
+    void verifyEd25519FastPath() {
+        when(cryptoEngine.verifySync(any(byte[].class), any(byte[].class), any(byte[].class), any()))
+                .thenReturn(true);
+        assertThat(verifier.verifyEd25519(signedBytes, randomBytes(32), randomBytes(64)))
+                .isTrue();
+        verify(cryptoEngine).verifySync(any(byte[].class), any(byte[].class), any(byte[].class), any());
     }
 
     @Test

@@ -80,5 +80,6 @@ class WritableStoreFactoryImplTest {
 
         // then
         assertThat(store).isInstanceOf(storeClass);
+        assertThat(subject.getStore(storeClass)).isSameAs(store);
     }
 }

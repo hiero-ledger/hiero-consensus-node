@@ -200,6 +200,38 @@ class NodeFeeManagerTest {
     }
 
     @Test
+    void onCloseBlockDoesNotCommitAccountKv() {
+        final var accountId = asAccount(0, 0, 1001L);
+        final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
+                .value(accountId, Account.DEFAULT)
+                .build();
+        accounts.put(accountId, Account.DEFAULT.copyBuilder().tinybarBalance(1L).build());
+        assertTrue(accounts.isModified());
+
+        nodePaymentsState = new FunctionWritableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
+        nodePaymentsRef.set(NodePayments.DEFAULT);
+        final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
+        writableStates = MapWritableStates.builder()
+                .state(nodePaymentsState)
+                .state(accounts)
+                .build();
+        readableStates =
+                MapReadableStates.builder().state(readableNodePaymentsState).build();
+        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
+
+        subject.onOpenBlock(state);
+        subject.accumulate(NODE_ACCOUNT_ID_3, 50L);
+        subject.onCloseBlock(state);
+
+        assertTrue(accounts.isModified());
+        assertEquals(1, nodePaymentsRef.get().payments().size());
+        assertEquals(50L, nodePaymentsRef.get().payments().get(0).fees());
+    }
+
+    @Test
     void testDistributeFeesWhenDisabled() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.feeCollectionAccountEnabled", false)

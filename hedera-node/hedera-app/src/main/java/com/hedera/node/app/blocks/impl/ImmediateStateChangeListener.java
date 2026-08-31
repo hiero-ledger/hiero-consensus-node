@@ -72,7 +72,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -85,9 +84,12 @@ import java.util.function.Predicate;
 public class ImmediateStateChangeListener implements StateChangeListener {
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(MAP, QUEUE);
 
-    private final List<StateChange> kvStateChanges = new ArrayList<>();
+    private List<StateChange> kvStateChanges = new ArrayList<>();
 
-    private final List<StateChange> queueStateChanges = new ArrayList<>();
+    private List<StateChange> queueStateChanges = new ArrayList<>();
+
+    @Nullable
+    private List<StateChange> combinedStateChanges;
 
     @Nullable
     private Predicate<Object> logicallyIdenticalMapping;
@@ -170,6 +172,21 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
+     * Hands off the current key/value changes and replaces the listener's list so later
+     * mutations cannot affect an in-flight block item.
+     *
+     * @return the previous key/value changes; empty when none were recorded
+     */
+    public List<StateChange> takeKvStateChanges() {
+        if (kvStateChanges.isEmpty()) {
+            return kvStateChanges;
+        }
+        final var taken = kvStateChanges;
+        kvStateChanges = new ArrayList<>(taken.size());
+        return taken;
+    }
+
+    /**
      * Returns the list of queue state changes.
      * @return the list of queue state changes
      */
@@ -178,14 +195,42 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns the list of state changes.
+     * Hands off the current queue changes and replaces the listener's list so later
+     * mutations cannot affect an in-flight block item.
+     *
+     * @return the previous queue changes; empty when none were recorded
+     */
+    public List<StateChange> takeQueueStateChanges() {
+        if (queueStateChanges.isEmpty()) {
+            return queueStateChanges;
+        }
+        final var taken = queueStateChanges;
+        queueStateChanges = new ArrayList<>(taken.size());
+        return taken;
+    }
+
+    /**
+     * Returns the list of state changes. When only one of the kv or queue lists is
+     * populated, that list is returned directly. Both populated is rare and uses a
+     * reused buffer.
+     *
      * @return the list of state changes
      */
     public List<StateChange> getStateChanges() {
-        final var allStateChanges = new LinkedList<StateChange>();
-        allStateChanges.addAll(kvStateChanges);
-        allStateChanges.addAll(queueStateChanges);
-        return allStateChanges;
+        if (queueStateChanges.isEmpty()) {
+            return kvStateChanges;
+        }
+        if (kvStateChanges.isEmpty()) {
+            return queueStateChanges;
+        }
+        if (combinedStateChanges == null) {
+            combinedStateChanges = new ArrayList<>(kvStateChanges.size() + queueStateChanges.size());
+        } else {
+            combinedStateChanges.clear();
+        }
+        combinedStateChanges.addAll(kvStateChanges);
+        combinedStateChanges.addAll(queueStateChanges);
+        return combinedStateChanges;
     }
 
     private static <K> MapChangeKey mapChangeKeyFor(@NonNull final K key) {

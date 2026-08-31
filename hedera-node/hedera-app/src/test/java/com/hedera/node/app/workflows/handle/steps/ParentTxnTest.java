@@ -34,6 +34,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
@@ -174,6 +175,26 @@ class ParentTxnTest {
         assertNotNull(subject.config());
 
         assertThat(subject.baseBuilder()).isInstanceOf(PairedStreamBuilder.class);
+    }
+
+    @Test
+    void reusesRootStackAcrossSequentialTopLevelTxns() {
+        givenExistingCreator();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BOTH_CONFIG, 1));
+
+        final var factory = createUserTxnFactory();
+        final var first =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+        final var firstBuilder = first.baseBuilder();
+        final var second =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+
+        assertSame(first.stack(), second.stack());
+        assertThat(second.baseBuilder()).isSameAs(firstBuilder);
+        assertThat(second.baseBuilder()).isInstanceOf(PairedStreamBuilder.class);
+        assertSame(
+                first.tokenContextImpl().writableStore(WritableAccountStore.class),
+                second.tokenContextImpl().writableStore(WritableAccountStore.class));
     }
 
     @Test

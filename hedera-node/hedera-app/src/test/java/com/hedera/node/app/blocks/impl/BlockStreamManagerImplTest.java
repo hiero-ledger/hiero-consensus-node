@@ -46,6 +46,7 @@ import static org.mockito.Mockito.withSettings;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -2041,6 +2042,18 @@ class BlockStreamManagerImplTest {
         subject.init(state, HASH_OF_ZERO, true);
     }
 
+    @Test
+    void writeStateChangesStampsLastUsedTimeAndIgnoresEmpty() {
+        givenSingleRoundPerBlockSubject();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+
+        assertDoesNotThrow(() -> subject.writeStateChanges(List.of()));
+        assertDoesNotThrow(() -> subject.writeStateChanges(List.of(StateChange.DEFAULT)));
+    }
+
     private void givenSingleRoundPerBlockSubject() {
         givenSubjectWith(
                 1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
@@ -2587,6 +2600,8 @@ class BlockStreamManagerImplTest {
         assertNull(subject.prngSeed());
         assertDoesNotThrow(() -> subject.writeItem(FAKE_SIGNED_TRANSACTION));
         assertDoesNotThrow(() -> subject.writeItem(ts -> FAKE_STATE_CHANGES));
+        assertDoesNotThrow(() -> subject.writeStateChanges(List.of()));
+        assertDoesNotThrow(() -> subject.writeStateChanges(List.of(StateChange.DEFAULT)));
         // A second boundary re-enters the flush, but the done-guard makes it a no-op (no new block, no second close)
         subject.startRound(round, state);
 

@@ -118,6 +118,18 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     }
 
     @Override
+    public void commitSingleton(final int stateId) {
+        final var state = states.get(stateId);
+        if (!(state instanceof WritableSingletonStateBase<?> singleton)) {
+            throw new IllegalArgumentException("Unknown singleton state ID " + stateId);
+        }
+        singleton.commit();
+        if (onCommit != null) {
+            onCommit.run();
+        }
+    }
+
+    @Override
     public String toString() {
         return "MapWritableStates{" + "states=" + states + '}';
     }

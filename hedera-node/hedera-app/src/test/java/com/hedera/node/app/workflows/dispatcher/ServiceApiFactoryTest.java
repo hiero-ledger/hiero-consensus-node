@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
@@ -74,6 +75,7 @@ class ServiceApiFactoryTest {
                 .willReturn(new FunctionWritableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> null, (a) -> {}));
         assertNotNull(subject.getApi(TokenServiceApi.class));
+        assertSame(subject.getApi(TokenServiceApi.class), subject.getApi(TokenServiceApi.class));
     }
 
     private static class NonExistentApi {}
