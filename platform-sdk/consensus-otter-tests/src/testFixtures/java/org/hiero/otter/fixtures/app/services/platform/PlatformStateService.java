@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.platform;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -12,6 +15,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -24,6 +28,7 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
@@ -41,6 +46,11 @@ public class PlatformStateService implements OtterService {
 
     private static final PlatformStateSpecification STATE_SPECIFICATION = new PlatformStateSpecification();
 
+    private final SemanticVersion version;
+
+    public PlatformStateService(@NonNull final SemanticVersion version) {
+        this.version = version;
+    }
     /**
      * {@inheritDoc}
      */
@@ -52,6 +62,22 @@ public class PlatformStateService implements OtterService {
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final VirtualMapState state) {
         log.info(STARTUP.getMarker(), "PlatformStateService initialized");
+
+        if (InitTrigger.RESTART.equals(trigger)) {
+            final SemanticVersion stateVersion = versionOf(state.getReadableStates(NAME));
+            final int compare = SEMANTIC_VERSION_COMPARATOR.compare(stateVersion, version);
+            if (compare < 0) {
+                log.info(STARTUP.getMarker(), "Mutating state on upgrade path");
+                final WritablePlatformStateStore store = new WritablePlatformStateStore(state.getWritableStates(NAME));
+                store.setCreationSoftwareVersion(version);
+                commitState(state);
+            }
+        }
+    }
+
+    private SemanticVersion versionOf(@NonNull final ReadableStates readableStates) {
+        final ReadablePlatformStateStore store = new ReadablePlatformStateStore(readableStates);
+        return store.getCreationSoftwareVersion();
     }
 
     /**

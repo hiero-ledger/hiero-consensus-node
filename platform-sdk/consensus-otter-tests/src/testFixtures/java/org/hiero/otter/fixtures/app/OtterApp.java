@@ -81,7 +81,7 @@ public class OtterApp implements ConsensusStateEventHandler {
         this.appServices =
                 appConfig.services().stream().map(OtterApp::instantiateService).toList();
         this.allServices = Stream.concat(
-                        appServices.stream(), Stream.of(new PlatformStateService(), new RosterService()))
+                        appServices.stream(), Stream.of(new PlatformStateService(version), new RosterService()))
                 .toList();
     }
 

@@ -3,19 +3,23 @@ package org.hiero.otter.test;
 
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
@@ -74,5 +78,45 @@ public class RestartTest {
         // All nodes should go through the normal status progression again
         assertThat(networkStatusResults)
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+    }
+
+    /**
+     * Verifies that upgrading from a non-freeze state fails.
+     *
+     * @param env the test environment
+     */
+    @OtterTest
+    void upgradeFromNonFreezeState(@NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        // Setup simulation
+        final Node node = network.addNode();
+
+        network.start();
+
+        // Allow the nodes to run for a short time
+        timeManager.waitFor(Duration.ofSeconds(10L));
+
+        // The node should go through the normal status progression again
+        final MultipleNodePlatformStatusResults networkStatusResults = network.newPlatformStatusResults();
+        assertThat(networkStatusResults)
+                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        networkStatusResults.clear();
+
+        // Shutdown the node.
+        network.shutdown();
+
+        node.bumpConfigVersion();
+
+        // The network should fail to go ACTIVE, because it goes to CATASTROPHIC_FAILURE
+        assertThrows(TimeoutException.class, network::start);
+
+        assertThat(networkStatusResults)
+                .haveSteps(target(CATASTROPHIC_FAILURE)
+                        .requiringInterim(REPLAYING_EVENTS)
+                        .optionalInterim(OBSERVING));
+
+        network.shutdown();
     }
 }
