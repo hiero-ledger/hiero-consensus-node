@@ -301,14 +301,14 @@ class BlockNodeConfigurationTest {
                 .priority(0)
                 .streamingTls(BlockNodeTlsConfig.newBuilder()
                         .enabled(true)
-                        .certificateSha256("a".repeat(64))
+                        .certificateSha384("a".repeat(96))
                         .build())
                 .build();
 
         final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
 
         assertThat(config.streamingTls().enabled()).isTrue();
-        assertThat(config.streamingTls().certificateSha256()).hasSize(32);
+        assertThat(config.streamingTls().certificateSha384()).hasSize(48);
         assertThat(config.serviceTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
     }
 
@@ -339,7 +339,7 @@ class BlockNodeConfigurationTest {
                 .priority(0)
                 .streamingTls(BlockNodeTlsConfig.newBuilder()
                         .enabled(false)
-                        .certificateSha256("a".repeat(64))
+                        .certificateSha384("a".repeat(96))
                         .build())
                 .build();
 

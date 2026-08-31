@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class BlockNodeTlsConfigurationTest {
 
-    private static final String FINGERPRINT = "a".repeat(64);
+    private static final String FINGERPRINT = "a".repeat(96);
 
     @Test
     void testFromNullIsDisabled() {
@@ -20,7 +20,7 @@ class BlockNodeTlsConfigurationTest {
     @Test
     void testDisabledByDefault() {
         assertThat(BlockNodeTlsConfiguration.DISABLED.enabled()).isFalse();
-        assertThat(BlockNodeTlsConfiguration.DISABLED.certificateSha256()).isNull();
+        assertThat(BlockNodeTlsConfiguration.DISABLED.certificateSha384()).isNull();
         assertThat(BlockNodeTlsConfiguration.DISABLED.toTls().enabled()).isFalse();
     }
 
@@ -39,7 +39,7 @@ class BlockNodeTlsConfigurationTest {
                 BlockNodeTlsConfig.newBuilder().enabled(true).build());
 
         assertThat(config.enabled()).isTrue();
-        assertThat(config.certificateSha256()).isNull();
+        assertThat(config.certificateSha384()).isNull();
 
         final Tls tls = config.toTls();
         assertThat(tls.enabled()).isTrue();
@@ -51,11 +51,11 @@ class BlockNodeTlsConfigurationTest {
     void testEnabledWithFingerprintPinsCertificate() {
         final BlockNodeTlsConfiguration config = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256(FINGERPRINT)
+                .certificateSha384(FINGERPRINT)
                 .build());
 
         assertThat(config.enabled()).isTrue();
-        assertThat(config.certificateSha256()).hasSize(32);
+        assertThat(config.certificateSha384()).hasSize(48);
 
         final Tls tls = config.toTls();
         assertThat(tls.enabled()).isTrue();
@@ -67,25 +67,25 @@ class BlockNodeTlsConfigurationTest {
     void testFingerprintAccessorReturnsCopy() {
         final BlockNodeTlsConfiguration config = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256(FINGERPRINT)
+                .certificateSha384(FINGERPRINT)
                 .build());
 
-        final byte[] first = config.certificateSha256();
+        final byte[] first = config.certificateSha384();
         first[0] = (byte) 0xFF;
 
-        assertThat(config.certificateSha256()).isNotEqualTo(first);
+        assertThat(config.certificateSha384()).isNotEqualTo(first);
     }
 
     @Test
     void testColonSeparatedFingerprintIsAccepted() {
-        final String colonSeparated = String.join(":", "ab".repeat(32).split("(?<=\\G..)"));
+        final String colonSeparated = String.join(":", "ab".repeat(48).split("(?<=\\G..)"));
         final BlockNodeTlsConfiguration withColons = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256(colonSeparated)
+                .certificateSha384(colonSeparated)
                 .build());
         final BlockNodeTlsConfiguration withoutColons = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256("ab".repeat(32))
+                .certificateSha384("ab".repeat(48))
                 .build());
 
         assertThat(withColons).isEqualTo(withoutColons);
@@ -95,11 +95,11 @@ class BlockNodeTlsConfigurationTest {
     void testUppercaseFingerprintIsAccepted() {
         final BlockNodeTlsConfiguration upper = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256("AB".repeat(32))
+                .certificateSha384("AB".repeat(48))
                 .build());
         final BlockNodeTlsConfiguration lower = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256("ab".repeat(32))
+                .certificateSha384("ab".repeat(48))
                 .build());
 
         assertThat(upper).isEqualTo(lower);
@@ -109,17 +109,17 @@ class BlockNodeTlsConfigurationTest {
     void testBlankFingerprintIsTreatedAsAbsent() {
         final BlockNodeTlsConfiguration config = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256("   ")
+                .certificateSha384("   ")
                 .build());
 
-        assertThat(config.certificateSha256()).isNull();
+        assertThat(config.certificateSha384()).isNull();
     }
 
     @Test
     void testNonHexFingerprintIsRejected() {
         final BlockNodeTlsConfig proto = BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256("z".repeat(64))
+                .certificateSha384("z".repeat(96))
                 .build();
 
         assertThatThrownBy(() -> BlockNodeTlsConfiguration.from(proto))
@@ -131,7 +131,7 @@ class BlockNodeTlsConfigurationTest {
     void testWrongLengthFingerprintIsRejected() {
         final BlockNodeTlsConfig proto = BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256("abcd")
+                .certificateSha384("abcd")
                 .build();
 
         assertThatThrownBy(() -> BlockNodeTlsConfiguration.from(proto))
@@ -143,7 +143,7 @@ class BlockNodeTlsConfigurationTest {
     void testFingerprintWithoutTlsIsRejected() {
         final BlockNodeTlsConfig proto = BlockNodeTlsConfig.newBuilder()
                 .enabled(false)
-                .certificateSha256(FINGERPRINT)
+                .certificateSha384(FINGERPRINT)
                 .build();
 
         assertThatThrownBy(() -> BlockNodeTlsConfiguration.from(proto))
@@ -155,15 +155,15 @@ class BlockNodeTlsConfigurationTest {
     void testEqualsAndHashCode() {
         final BlockNodeTlsConfiguration pinned = BlockNodeTlsConfiguration.newBuilder()
                 .enabled(true)
-                .certificateSha256(FINGERPRINT)
+                .certificateSha384(FINGERPRINT)
                 .build();
         final BlockNodeTlsConfiguration samePin = BlockNodeTlsConfiguration.newBuilder()
                 .enabled(true)
-                .certificateSha256(FINGERPRINT)
+                .certificateSha384(FINGERPRINT)
                 .build();
         final BlockNodeTlsConfiguration otherPin = BlockNodeTlsConfiguration.newBuilder()
                 .enabled(true)
-                .certificateSha256("b".repeat(64))
+                .certificateSha384("b".repeat(96))
                 .build();
         final BlockNodeTlsConfiguration noPin =
                 BlockNodeTlsConfiguration.newBuilder().enabled(true).build();
@@ -176,12 +176,12 @@ class BlockNodeTlsConfigurationTest {
     @Test
     void testToString() {
         assertThat(BlockNodeTlsConfiguration.DISABLED.toString())
-                .isEqualTo("BlockNodeTlsConfiguration{enabled=false, certificateSha256=null}");
+                .isEqualTo("BlockNodeTlsConfiguration{enabled=false, certificateSha384=null}");
         assertThat(BlockNodeTlsConfiguration.newBuilder()
                         .enabled(true)
-                        .certificateSha256(FINGERPRINT)
+                        .certificateSha384(FINGERPRINT)
                         .build()
                         .toString())
-                .isEqualTo("BlockNodeTlsConfiguration{enabled=true, certificateSha256='" + FINGERPRINT + "'}");
+                .isEqualTo("BlockNodeTlsConfiguration{enabled=true, certificateSha384='" + FINGERPRINT + "'}");
     }
 }

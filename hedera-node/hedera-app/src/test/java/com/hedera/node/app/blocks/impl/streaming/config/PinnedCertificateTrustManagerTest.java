@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming.config;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateExpiredException;
@@ -30,7 +30,7 @@ class PinnedCertificateTrustManagerTest {
     static void beforeAll() throws Exception {
         certificate = generateCertificate("localhost");
         otherCertificate = generateCertificate("impostor");
-        fingerprint = sha256(certificate);
+        fingerprint = sha384(certificate);
     }
 
     @Test
@@ -124,7 +124,7 @@ class PinnedCertificateTrustManagerTest {
                 distinguishedName, keyPair, distinguishedName, keyPair, new SecureRandom(), CryptoConstants.SIG_TYPE2);
     }
 
-    private static byte[] sha256(final X509Certificate cert) throws Exception {
-        return MessageDigest.getInstance("SHA-256").digest(cert.getEncoded());
+    private static byte[] sha384(final X509Certificate cert) throws Exception {
+        return noThrowSha384HashOf(cert.getEncoded());
     }
 }

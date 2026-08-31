@@ -845,7 +845,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                             "priority": 1,
                             "streamingTls": {
                                 "enabled": true,
-                                "certificateSha256": "%s"
+                                "certificateSha384": "%s"
                             }
                         },
                         {
@@ -858,7 +858,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                         }
                     ]
                 }
-                """.formatted("a".repeat(64)));
+                """.formatted("a".repeat(96)));
 
         invoke_loadConfiguration();
 
@@ -871,7 +871,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 .findFirst()
                 .orElseThrow();
         assertThat(publishOnly.streamingTls().enabled()).isTrue();
-        assertThat(publishOnly.streamingTls().certificateSha256()).hasSize(32);
+        assertThat(publishOnly.streamingTls().certificateSha384()).hasSize(48);
         assertThat(publishOnly.serviceTls().enabled()).isFalse();
 
         final BlockNodeConfiguration allApis = config.configs().stream()
@@ -879,7 +879,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 .findFirst()
                 .orElseThrow();
         assertThat(allApis.streamingTls().enabled()).isTrue();
-        assertThat(allApis.streamingTls().certificateSha256()).isNull();
+        assertThat(allApis.streamingTls().certificateSha384()).isNull();
         assertThat(allApis.serviceTls().enabled()).isTrue();
     }
 
@@ -894,7 +894,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                             "priority": 1,
                             "streamingTls": {
                                 "enabled": false,
-                                "certificateSha256": "%s"
+                                "certificateSha384": "%s"
                             }
                         },
                         {
@@ -904,7 +904,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                         }
                     ]
                 }
-                """.formatted("a".repeat(64)));
+                """.formatted("a".repeat(96)));
 
         invoke_loadConfiguration();
 

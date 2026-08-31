@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Tag;
  *
  * <p>Each block node API is configured independently in {@code block-nodes.json}, so TLS may be required on the
  * publish API alone, on every API, or on neither. Simulators present a self-signed certificate that the consensus node
- * trusts by pinning its SHA-256 fingerprint, which is how an operator would configure a block node fronted by a
+ * trusts by pinning its SHA-384 fingerprint, which is how an operator would configure a block node fronted by a
  * TLS-terminating proxy.
  *
  * <p>NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled.

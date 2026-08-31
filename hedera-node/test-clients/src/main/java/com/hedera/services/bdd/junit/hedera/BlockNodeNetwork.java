@@ -49,8 +49,8 @@ public class BlockNodeNetwork {
     private String rsaBootstrapJson;
 
     public static final int BLOCK_NODE_LOCAL_PORT = 40840;
-    /** A well-formed SHA-256 fingerprint that no simulator certificate will ever match. */
-    private static final String UNMATCHED_FINGERPRINT = "0".repeat(64);
+    /** A well-formed SHA-384 fingerprint that no simulator certificate will ever match. */
+    private static final String UNMATCHED_FINGERPRINT = "0".repeat(96);
 
     private static final int MAX_START_ATTEMPTS = 4;
     private static final long CONTAINER_START_BACKOFF_MS = 1000L;
@@ -315,7 +315,7 @@ public class BlockNodeNetwork {
     /**
      * Builds the {@code streamingTls} / {@code serviceTls} block a consensus node needs to reach one API of a
      * simulated block node. Simulators serve a self-signed certificate, so the consensus node trusts it by pinning
-     * the certificate's SHA-256 fingerprint.
+     * the certificate's SHA-384 fingerprint.
      *
      * @param tlsMode which of the block node's APIs are served over TLS
      * @param streaming true for the streaming (publish) API, false for the service API
@@ -334,10 +334,10 @@ public class BlockNodeNetwork {
         }
         final String fingerprint = tlsMode == BlockNodeTlsMode.ALL_BAD_FINGERPRINT
                 ? UNMATCHED_FINGERPRINT
-                : SelfSignedCert.shared().sha256Fingerprint();
+                : SelfSignedCert.shared().sha384Fingerprint();
         return BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
-                .certificateSha256(fingerprint)
+                .certificateSha384(fingerprint)
                 .build();
     }
 

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.simulator;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static org.hiero.base.utility.CommonUtils.hex;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.util.HexFormat;
 import java.util.List;
 import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
@@ -16,7 +17,7 @@ import org.hiero.base.crypto.CryptoConstants;
 /**
  * A self-signed certificate used by {@link SimulatedBlockNodeServer} to serve an API over TLS.
  * <p>
- * A consensus node trusts this certificate by pinning its SHA-256 fingerprint in {@code block-nodes.json}, which is
+ * A consensus node trusts this certificate by pinning its SHA-384 fingerprint in {@code block-nodes.json}, which is
  * exactly how an operator would configure a block node fronted by a self-signed certificate. Because the fingerprint
  * identifies the certificate, hostname verification is not performed and the certificate needs no subject alternative
  * names.
@@ -30,7 +31,7 @@ public final class SelfSignedCert {
 
     private final KeyPair keyPair;
     private final X509Certificate certificate;
-    private final String sha256Fingerprint;
+    private final String sha384Fingerprint;
 
     private SelfSignedCert() {
         try {
@@ -47,8 +48,7 @@ public final class SelfSignedCert {
                     keyPair,
                     new SecureRandom(),
                     CryptoConstants.SIG_TYPE2);
-            sha256Fingerprint = HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded()));
+            sha384Fingerprint = hex(noThrowSha384HashOf(certificate.getEncoded()));
         } catch (final Exception e) {
             throw new IllegalStateException("Failed to generate a self-signed certificate for a simulated block", e);
         }
@@ -72,10 +72,10 @@ public final class SelfSignedCert {
     }
 
     /**
-     * @return the hex-encoded SHA-256 fingerprint a consensus node should pin to trust this certificate
+     * @return the hex-encoded SHA-384 fingerprint a consensus node should pin to trust this certificate
      */
-    public @NonNull String sha256Fingerprint() {
-        return sha256Fingerprint;
+    public @NonNull String sha384Fingerprint() {
+        return sha384Fingerprint;
     }
 
     /**

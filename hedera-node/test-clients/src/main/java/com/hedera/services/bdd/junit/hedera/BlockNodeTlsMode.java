@@ -5,7 +5,7 @@ package com.hedera.services.bdd.junit.hedera;
  * Defines which of a simulated block node's APIs are served over TLS, and therefore which {@code streamingTls} /
  * {@code serviceTls} blocks are written into the consensus node's {@code block-nodes.json}.
  *
- * <p>TLS-enabled simulators present a self-signed certificate, which the consensus node trusts by pinning its SHA-256
+ * <p>TLS-enabled simulators present a self-signed certificate, which the consensus node trusts by pinning its SHA-384
  * fingerprint. This mirrors how an operator would configure a block node fronted by a TLS-terminating proxy.
  */
 public enum BlockNodeTlsMode {

@@ -137,20 +137,24 @@ message BlockNodeTlsConfig {
     bool enabled = 1;
 
     /**
-     * Optional SHA-256 fingerprint of the certificate presented by this endpoint,
+     * Optional SHA-384 fingerprint of the certificate presented by this endpoint,
      * hex-encoded.<br/>
      * <p>
-     * The value MUST be 64 hexadecimal characters, and MAY separate octets with
+     * SHA-384 matches the digest used by `grpc_certificate_hash` on a
+     * `Node`, so a single algorithm describes every certificate in the network.<br/>
+     * The value MUST be 96 hexadecimal characters, and MAY separate octets with
      * a colon (`:`). Case is not significant.<br/>
+     * The hash SHALL be taken over the DER encoding of the certificate, which is what
+     * `openssl x509 -noout -fingerprint -sha384` reports.<br/>
      * If present, the consensus node SHALL accept the endpoint's certificate if and
-     * only if the SHA-256 hash of that certificate matches this value; neither the
+     * only if the SHA-384 hash of that certificate matches this value; neither the
      * platform trust store nor hostname verification SHALL be consulted. This permits
      * the use of self-signed certificates.<br/>
      * If absent, the endpoint's certificate SHALL be verified against the platform
      * default trust store, with hostname verification.<br/>
      * This field MUST NOT be present unless `enabled` is true.
      */
-    google.protobuf.StringValue certificate_sha256 = 2;
+    google.protobuf.StringValue certificate_sha384 = 2;
 }
 
 /**

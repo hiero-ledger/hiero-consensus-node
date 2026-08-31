@@ -24,7 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
 
-    private static final String FINGERPRINT = "a".repeat(64);
+    private static final String FINGERPRINT = "a".repeat(96);
 
     private BlockNodeClientFactory factory;
     private BlockNodeConfiguration config;
@@ -123,7 +123,7 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
                 BlockNodeTlsConfiguration.newBuilder().enabled(true);
         return useTrustStore
                 ? builder.build()
-                : builder.certificateSha256(FINGERPRINT).build();
+                : builder.certificateSha384(FINGERPRINT).build();
     }
 
     private static BlockNodeConfiguration newBlockNodeConfigWithTls(

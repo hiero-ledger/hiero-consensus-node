@@ -18,7 +18,7 @@ Each element of `nodes` has the following fields:
 
 - `address` (string, required): Hostname or IPv4/IPv6 address of the Block Node (e.g. "localhost", "10.0.0.5").
 - `streamingPort` (integer, required): TCP port for the Block Node to receive blocks from the Consensus Node.
-- `servicePort` (integer, required): TCP port for the Block Node to access service-related APIs such as server status. (Note: this is defaulted to the streaming port)
+- `servicePort` (integer, optional): TCP port for the Block Node to access service-related APIs such as server status. (Note: this is defaulted to the streaming port)
 - `priority` (integer, required): Lower numbers are higher priority. Nodes with smaller priority values are preferred for selection. Among nodes with the same priority, selection is randomized.
 - `messageSizeSoftLimitBytes` (integer, optional): Desired maximum per-request payload size in bytes for this node. If omitted, the default is 2,097,152 bytes (2 MB).
 - `messageSizeHardLimitBytes` (integer, optional): Absolute maximum per-request payload size in bytes, which a request may "burst" up to when a single block item exceeds the soft limit. Must be greater than or equal to the soft limit. If omitted, the default comes from `blockNode.defaultMessageHardLimitBytes`.
@@ -54,17 +54,19 @@ connects to that endpoint using plaintext.
 A TLS block has two fields:
 
 - `enabled` (boolean): whether the Consensus Node uses TLS for this endpoint.
-- `certificateSha256` (string, optional): hex-encoded SHA-256 fingerprint of the certificate the endpoint
-  presents. 64 hexadecimal characters, case-insensitive, optionally colon-separated (the form emitted by
-  `openssl x509 -noout -fingerprint -sha256`). Must not be set unless `enabled` is `true`.
+- `certificateSha384` (string, optional): hex-encoded SHA-384 fingerprint of the certificate the endpoint
+  presents. 96 hexadecimal characters, case-insensitive, optionally colon-separated (the form emitted by
+  `openssl x509 -noout -fingerprint -sha384`). Must not be set unless `enabled` is `true`.
+  SHA-384 is the same digest the network uses for `grpc_certificate_hash` on a node, so one algorithm
+  describes every certificate in the network. The hash is taken over the certificate's DER encoding.
 
 |           `streamingTls` / `serviceTls`            |                                                                                                                 Behavior                                                                                                                 |
 |----------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | absent                                             | Plaintext.                                                                                                                                                                                                                               |
 | `{ "enabled": false }`                             | Plaintext.                                                                                                                                                                                                                               |
 | `{ "enabled": true }`                              | TLS. The certificate is verified against the platform default trust store, with hostname verification. Use this for certificates signed by a public or system-trusted CA.                                                                |
-| `{ "enabled": true, "certificateSha256": "..." }`  | TLS. The certificate is accepted if and only if its SHA-256 hash matches. Neither the trust store nor hostname verification is consulted, which is what allows a self-signed certificate to be used without distributing trust material. |
-| `{ "enabled": false, "certificateSha256": "..." }` | Rejected as contradictory; the node is skipped with a warning.                                                                                                                                                                           |
+| `{ "enabled": true, "certificateSha384": "..." }`  | TLS. The certificate is accepted if and only if its SHA-384 hash matches. Neither the trust store nor hostname verification is consulted, which is what allows a self-signed certificate to be used without distributing trust material. |
+| `{ "enabled": false, "certificateSha384": "..." }` | Rejected as contradictory; the node is skipped with a warning.                                                                                                                                                                           |
 
 The Consensus Node only verifies the Block Node's identity; it does not present a client certificate, so
 mutual TLS is not supported. TLS on the Block Node side is expected to be terminated in front of the Block
@@ -76,7 +78,7 @@ file stay plaintext.
 The fingerprint of a certificate can be obtained with:
 
 ```bash
-openssl x509 -in blocknode.crt -noout -fingerprint -sha256
+openssl x509 -in blocknode.crt -noout -fingerprint -sha384
 ```
 
 #### Example: TLS on the publish API only, with a self-signed certificate
@@ -91,7 +93,7 @@ openssl x509 -in blocknode.crt -noout -fingerprint -sha256
       "priority": 0,
       "streamingTls": {
         "enabled": true,
-        "certificateSha256": "3A:1F:...:9C"
+        "certificateSha384": "3A:1F:...:9C"
       }
     }
   ]
@@ -137,7 +139,7 @@ openssl x509 -in blocknode.crt -noout -fingerprint -sha256
 ### Validation notes
 
 - `priority` should be a non-negative integer. Use `0` for the highest priority.
-- A node whose TLS settings are not internally consistent (for example a `certificateSha256` on an endpoint
+- A node whose TLS settings are not internally consistent (for example a `certificateSha384` on an endpoint
   that is not using TLS) is skipped with a warning; the other nodes in the file are still loaded.
 - `address` must be resolvable by the OS DNS stack or be a valid IP address. If resolution fails, the active-connection-IP metric will report `-1` for that node.
 
