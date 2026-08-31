@@ -1175,12 +1175,18 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
+        // Inactive node: even with every publication precondition satisfied (targetIncludes(SELF_ID)=true),
+        // isActive=false gates this node's own hinTS-key publication -- nothing is scheduled or submitted.
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, false);
-
-        // isActive=false gates this node's own hinTS-key publication: nothing scheduled or submitted
         assertNull(scheduledTasks.poll());
         verify(submissions, never()).submitHintsKey(anyInt(), anyInt(), any());
+
+        // Identical state, active node: the publication task IS now scheduled -- proving isActive is the sole gate.
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+        assertNotNull(scheduledTasks.poll());
     }
 
     private void setupWith(@NonNull final HintsConstruction construction) {
