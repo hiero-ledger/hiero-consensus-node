@@ -6,9 +6,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.prehandle.PreHandleContextListUpdatesTest.A_COMPLEX_KEY;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,6 +43,8 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -131,6 +135,53 @@ class PreHandleContextImplTest implements Scenarios {
     void creatorInfoWorks() {
         final var result = subject.creatorInfo();
         assertThat(result).isEqualTo(creatorInfo);
+    }
+
+    @Test
+    @DisplayName("Key/account sets exposed to PreHandleResult are unmodifiable")
+    void exposedKeyAndAccountSetsAreUnmodifiable() throws PreCheckException {
+        subject.requireKey(otherKey);
+
+        // PreHandleContextImpl exposes unmodifiable views, so a consumer cannot mutate them.
+        assertThatThrownBy(() -> subject.requiredNonPayerKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> subject.optionalNonPayerKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> subject.requiredHollowAccounts().add(account))
+                .isInstanceOf(UnsupportedOperationException.class);
+
+        // Feeding raw, mutable sets (not the unmodifiable views above) proves PreHandleResult does the wrapping
+        // itself: the exposed collections still reject mutation...
+        final var rawRequiredKeys = new LinkedHashSet<>(subject.requiredNonPayerKeys());
+        final var rawOptionalKeys = new LinkedHashSet<>(subject.optionalNonPayerKeys());
+        final var rawHollowAccounts = new LinkedHashSet<>(subject.requiredHollowAccounts());
+        final var result = new PreHandleResult(
+                PAYER,
+                payerKey,
+                SO_FAR_SO_GOOD,
+                OK,
+                null,
+                rawRequiredKeys,
+                rawOptionalKeys,
+                rawHollowAccounts,
+                Map.of(),
+                null,
+                0L);
+        assertThatThrownBy(() -> result.getRequiredKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> result.getOptionalKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> result.getHollowAccounts().add(account))
+                .isInstanceOf(UnsupportedOperationException.class);
+
+        // ...and that it snapshots them, so mutating the source sets after construction is not visible through
+        // the exposed collections.
+        rawRequiredKeys.add(payerKey);
+        rawOptionalKeys.add(payerKey);
+        rawHollowAccounts.add(account);
+        assertThat(result.getRequiredKeys()).doesNotContain(payerKey);
+        assertThat(result.getOptionalKeys()).doesNotContain(payerKey);
+        assertThat(result.getHollowAccounts()).doesNotContain(account);
     }
 
     @Nested
