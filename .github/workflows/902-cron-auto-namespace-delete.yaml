@@ -95,6 +95,19 @@ on:
         description: "*solo-sd*t-n14 (AdHoc Tests)"
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   delete-selected-namespaces:
     runs-on: hl-cn-default-lin-sm
     env:
