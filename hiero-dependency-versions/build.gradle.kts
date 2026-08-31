@@ -25,7 +25,7 @@ val protobuf = "4.34.0"
 val blockNodeProtobufSources = "0.39.0"
 val testContainers = "2.0.3"
 val tuweni = "2.7.2"
-val vertx = "4.5.24"
+val vertx = "4.5.30"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
