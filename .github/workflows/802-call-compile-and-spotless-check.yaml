@@ -75,6 +75,13 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
       - name: Compile Application Code
         id: compile-source
         run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
