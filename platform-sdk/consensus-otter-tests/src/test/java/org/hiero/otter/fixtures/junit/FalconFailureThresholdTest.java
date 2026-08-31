@@ -25,9 +25,23 @@ class FalconFailureThresholdTest {
     private final FalconTestExtension extension = new FalconTestExtension();
 
     @Test
-    @DisplayName("A sweep without a threshold runs every repetition, no matter how many fail")
-    void sweepWithoutThresholdRunsEveryRepetition() {
-        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("noThreshold");
+    @DisplayName("By default a sweep stops after the first failed repetition")
+    void sweepStopsAfterFirstFailureByDefault() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("defaultThreshold");
+        assertThat(repetitions).hasSize(3);
+
+        // The first repetition runs and fails, which already reaches the default threshold of one.
+        assertThat(isDisabled(repetitions.get(0))).isFalse();
+        fail(repetitions.get(0));
+
+        assertThat(isDisabled(repetitions.get(1))).isTrue();
+        assertThat(isDisabled(repetitions.get(2))).isTrue();
+    }
+
+    @Test
+    @DisplayName("A threshold of Integer.MAX_VALUE runs every repetition, no matter how many fail")
+    void maxValueThresholdRunsEveryRepetition() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("noEarlyStop");
         assertThat(repetitions).hasSize(3);
 
         for (final FalconFailureThresholdExtension repetition : repetitions) {
@@ -152,7 +166,10 @@ class FalconFailureThresholdTest {
     private static final class Samples {
 
         @FalconTest(repetitions = 3)
-        void noThreshold() {}
+        void defaultThreshold() {}
+
+        @FalconTest(repetitions = 3, failureThreshold = Integer.MAX_VALUE)
+        void noEarlyStop() {}
 
         @FalconTest(repetitions = 5, failureThreshold = 2)
         void thresholdOfTwo() {}

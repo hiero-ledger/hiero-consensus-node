@@ -36,10 +36,11 @@ public @interface FalconTest {
      * Specifies the number of repetitions that may fail before the rest of the sweep is skipped. Once this many
      * repetitions have failed, the remaining repetitions are not run. Ignored if {@link #randomSeed()} is set.
      *
-     * <p>The default of {@link 1} halts further repetitions as soon as a single repetition fails. Values must be
-     * greater than zero and less than {@link #repetitions()}. Note that the threshold is compared against
-     * the {@link #repetitions()} declared here, not against a count supplied via {@code falcon.repetitions}; if that
-     * system property lowers the number of repetitions below the threshold, the threshold simply never trips.
+     * <p>The default of {@code 1} halts further repetitions as soon as a single repetition fails. Values must be
+     * greater than zero and less than {@link #repetitions()}, or {@link Integer#MAX_VALUE} to run the whole sweep no
+     * matter how many repetitions fail. Note that the threshold is compared against the {@link #repetitions()} declared
+     * here, not against a count supplied via {@code falcon.repetitions}; if that system property lowers the number of
+     * repetitions below the threshold, the threshold simply never trips.
      *
      * @return the number of failed repetitions that stops the sweep
      */
