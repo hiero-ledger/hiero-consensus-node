@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
