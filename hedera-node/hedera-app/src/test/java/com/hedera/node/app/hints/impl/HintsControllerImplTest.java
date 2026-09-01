@@ -1021,6 +1021,174 @@ class HintsControllerImplTest {
                 onHintsFinished);
     }
 
+    // --- Platform-active status independence of committed state ---
+    // The node-local platform-active flag must never change what is written to the (Merkle-backed)
+    // hints store: the store writes are functions of consensus time and state, so they occur with the
+    // same values whether or not this node is ACTIVE. isActive gates only this node's own async
+    // self-submission of its contribution (a gossip action that itself writes no state). Each test
+    // below mirrors an isActive=true test above and asserts the same consensus-derived store write.
+
+    @Test
+    void setsPreprocessingStartTimeEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
+                .willReturn(CONSTRUCTION_WITH_START_TIME);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, false);
+
+        // State write uses the consensus timestamp, regardless of node-local ACTIVE status
+        verify(store).setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME);
+        // ...but the node does not schedule/submit its own preprocessing vote when not ACTIVE
+        assertTrue(scheduledTasks.isEmpty());
+        verify(submissions, never()).submitHintsVote(eq(CONSTRUCTION_ID), any(PreprocessedKeys.class));
+    }
+
+    @Test
+    void movesToNextNodeEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(1L)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
+                        .crs(INITIAL_CRS)
+                        .build());
+
+        given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
+        subject.setFinalCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // State write happens regardless of node-local ACTIVE status
+        verify(store).moveToNextNode(2L, CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
+    }
+
+    @Test
+    void repeatsProcessEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
+                        .crs(INITIAL_CRS)
+                        .build());
+        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
+        subject.setFinalCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // CRS state transition is written regardless of node-local ACTIVE status
+        verify(store)
+                .setCrsState(CRSState.newBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(0L)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(10))))
+                        .crs(INITIAL_CRS)
+                        .build());
+    }
+
+    @Test
+    void doesNotSelfSubmitCrsUpdateWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(SELF_ID)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(7))))
+                        .crs(INITIAL_CRS)
+                        .build());
+        assertTrue(scheduledTasks.isEmpty());
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // Only the node-local self-submission is gated by isActive: no task scheduled, nothing submitted
+        assertTrue(scheduledTasks.isEmpty());
+        verify(submissions, never()).submitCrsUpdate(any(), any());
+    }
+
+    @Test
+    void setsFinalCrsIfAllIdsCompletedEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(null)
+                        .crs(INITIAL_CRS)
+                        .build());
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // The GATHERING -> WAITING_FOR_ADOPTING_FINAL_CRS transition is written regardless of ACTIVE status
+        verify(store)
+                .setCrsState(CRSState.newBuilder()
+                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(5))))
+                        .crs(INITIAL_CRS)
+                        .build());
+    }
+
+    @Test
+    void setsFinalCrsAndRemovesContributionEndTimeEvenWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+
+        given(store.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
+                        .crs(INITIAL_CRS)
+                        .build());
+        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
+        subject.setFinalCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 18)));
+
+        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+
+        // The threshold-met -> COMPLETED adoption is written regardless of ACTIVE status
+        verify(store)
+                .setCrsState(CRSState.newBuilder()
+                        .crs(INITIAL_CRS)
+                        .stage(CRSStage.COMPLETED)
+                        .nextContributingNodeId(null)
+                        .contributionEndTime((Timestamp) null)
+                        .build());
+    }
+
+    @Test
+    void doesNotPublishHintsKeyWhenNodeIsNotActive() {
+        setupWith(UNFINISHED_CONSTRUCTION);
+        // remove crs publication task
+        scheduledTasks.poll();
+        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+
+        // Inactive node: even with every publication precondition satisfied (targetIncludes(SELF_ID)=true),
+        // isActive=false gates this node's own hinTS-key publication -- nothing is scheduled or submitted.
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, false);
+        assertNull(scheduledTasks.poll());
+        verify(submissions, never()).submitHintsKey(anyInt(), anyInt(), any());
+
+        // Identical state, active node: the publication task IS now scheduled -- proving isActive is the sole gate.
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+        assertNotNull(scheduledTasks.poll());
+    }
+
     private void setupWith(@NonNull final HintsConstruction construction) {
         setupWith(
                 construction,
