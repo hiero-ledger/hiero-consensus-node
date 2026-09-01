@@ -1,0 +1,27 @@
+# Grafana expands $VAR from the *container's* environment, so every variable
+# used here must also appear in the grafana service's `environment:` block.
+apiVersion: 1
+
+datasources:
+  - name: ${METRICS_DATASOURCE_NAME}
+    uid: ${METRICS_DATASOURCE_NAME}
+    type: prometheus
+    access: proxy
+    url: ${METRICS_DATASOURCE_URL}
+    isDefault: true
+    jsonData:
+      prometheusType: Prometheus
+      # Load-bearing. Below 2.24.0 Grafana omits start/end from
+      # /api/v1/label/<name>/values, and VictoriaMetrics then defaults that call
+      # to the last day starting 00:00 UTC - so label_values(...) template
+      # variables silently resolve against a fixed window instead of the
+      # dashboard's time range.
+      prometheusVersion: 2.24.0
+      timeInterval: ${SCRAPE_INTERVAL}
+
+  - name: ${LOKI_DATASOURCE_NAME}
+    uid: ${LOKI_DATASOURCE_NAME}
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false

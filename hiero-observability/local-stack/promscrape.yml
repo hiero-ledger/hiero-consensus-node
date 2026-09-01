@@ -1,0 +1,38 @@
+# VictoriaMetrics scrape configuration.
+#
+# DO NOT EDIT. Copy this file to `promscrape.local.yml`, edit the copy, and set
+# PROMSCRAPE_CONFIG=./promscrape.local.yml in `local.env`.
+#
+# %{VAR} placeholders are substituted by VictoriaMetrics on the raw file, before
+# it is parsed as YAML, which is why a JSON list or map lands here as a valid
+# YAML flow collection. Keep SCRAPE_TARGETS / METRIC_LABELS valid JSON.
+
+global:
+  scrape_interval: %{SCRAPE_INTERVAL}
+
+scrape_configs:
+  # The application under observation.
+  - job_name: app
+    static_configs:
+      - targets: %{SCRAPE_TARGETS}
+        labels: %{METRIC_LABELS}
+
+  # The metrics backend itself.
+  - job_name: victoriametrics
+    static_configs:
+      - targets: ["victoriametrics:8428"]
+        labels: %{METRIC_LABELS}
+
+  # Log-pipeline health.
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+        labels: %{METRIC_LABELS}
+
+  # Fixture served by `make selftest`. SELFTEST_TARGETS is empty in normal use,
+  # so this job contributes no target and nothing shows up red on /targets.
+  - job_name: selftest
+    metrics_path: /metrics.txt
+    static_configs:
+      - targets: %{SELFTEST_TARGETS}
+        labels: %{METRIC_LABELS}

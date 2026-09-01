@@ -1,0 +1,56 @@
+# Loki - minimal single-binary, filesystem-backed configuration.
+#
+# Run with `-config.expand-env=true`, which expands ${VAR} from the container's
+# environment. Note that Loki uses ${VAR} while VictoriaMetrics uses %{VAR};
+# they are different syntaxes for different tools, do not unify them.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # This is the whole point of the stack: a test run that finished hours ago
+  # must still be ingestible. `reject_old_samples: true` with the usual 1h
+  # max age silently drops exactly that.
+  reject_old_samples: false
+  retention_period: ${LOGS_RETENTION}
+  volume_enabled: true
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  retention_delete_delay: 1h
+  # Required whenever retention is enabled.
+  delete_request_store: filesystem
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100

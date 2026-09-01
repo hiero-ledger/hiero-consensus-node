@@ -1,0 +1,66 @@
+// Log pipeline: tail files from /logs, group multi-line entries, push to Loki.
+//
+// DO NOT EDIT. This whole directory is mounted as Alloy's config directory and
+// Alloy merges every *.alloy file in it, so put your additions in
+// `config.local.alloy` alongside this file - it is gitignored. Component names
+// must stay unique across the merged files.
+
+// 1. Discover the files to tail. One glob, container-side path.
+local.file_match "logs" {
+	path_targets = [{
+		__path__ = sys.env("LOG_INCLUDE"),
+	}]
+}
+
+// 2. Derive the `log_name` stream label from the file's basename, minus its
+//    extension: /logs/hgcaa.log -> log_name="hgcaa". Done here rather than in a
+//    process stage because relabelling is stable Prometheus semantics.
+discovery.relabel "logs" {
+	targets = local.file_match.logs.targets
+
+	rule {
+		source_labels = ["__path__"]
+		regex         = ".*/([^/]+?)(?:\\.[^./]+)?"
+		target_label  = "log_name"
+		replacement   = "$1"
+	}
+}
+
+// 3. Tail. `tail_from_end` defaults to false, so files that already existed
+//    when the stack started are read from the beginning.
+loki.source.file "logs" {
+	targets    = discovery.relabel.logs.output
+	forward_to = [loki.process.logs.receiver]
+}
+
+loki.process "logs" {
+	// 4. Group continuation lines into the entry they belong to. Without this a
+	//    Java stack trace arrives as dozens of useless single-line entries.
+	//    The regex comes from the environment, so it needs no extra escaping.
+	stage.multiline {
+		firstline     = sys.env("LOG_MULTILINE_START")
+		max_wait_time = "5s"
+		max_lines     = 512
+	}
+
+	// 5. LOG_LABELS is a JSON map; promote its entries to real stream labels.
+	stage.static_labels {
+		values = encoding.from_json(sys.env("LOG_LABELS"))
+	}
+
+	// 6. Drop the full-path label loki.source.file adds. `log_name` is the
+	//    per-file selector; `filename` is just high-cardinality noise.
+	stage.label_drop {
+		values = ["filename"]
+	}
+
+	forward_to = [loki.write.loki.receiver]
+}
+
+// 7. Alloy's own metrics are served on --server.http.listen-addr and scraped by
+//    VictoriaMetrics; nothing is pushed from here.
+loki.write "loki" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}
