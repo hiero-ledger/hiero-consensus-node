@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
+import static com.hedera.statevalidation.blockstream.BlocksToPcesWorkflow.DECISION_MARGIN_ROUNDS;
 import static com.hedera.statevalidation.blockstream.BlocksToPcesWorkflow.convert;
 import static com.hedera.statevalidation.blockstream.BlocksToPcesWorkflow.roundSpan;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileName;
@@ -229,10 +230,14 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         // replaying node's orphan buffer never releases them. The origin stamp itself remains originRound.
         final long leftSearchRound = Math.max(1L, originRound - roundsNonAncient);
 
-        // The left boundary is the first block containing a round >= leftSearchRound. BlockRangeResolver
-        // expects a left block number; we use leftSearchRound as the left bound for the search.
+        // Resolve the right boundary at targetRound + DECISION_MARGIN_ROUNDS so the events that decide the target
+        // (which live in blocks past it — see BlocksToPcesWorkflow.DECISION_MARGIN_ROUNDS) are downloaded, not just
+        // the target-containing block. The resolver clamps to the stream tip if the margin runs past the last
+        // available block. This mirrors the ceiling filterByRoundWindow applies when selecting, so the downloaded
+        // set and the selected set agree.
         final BlockRangeResolver resolver = new BlockRangeResolver(gcpBlockStreamPath, billingProject, tempBlockDir);
-        final BlockRangeResolver.BlockRange range = resolver.resolveByRounds(leftSearchRound, targetRound);
+        final BlockRangeResolver.BlockRange range =
+                resolver.resolveByRounds(leftSearchRound, targetRound, DECISION_MARGIN_ROUNDS);
 
         // Download one block PAST the resolved right boundary. replay-pces needs the events in the block
         // after the target-containing block to decide consensus on (and thus close) the target block —

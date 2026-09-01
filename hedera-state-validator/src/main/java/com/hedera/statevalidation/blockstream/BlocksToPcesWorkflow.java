@@ -75,15 +75,20 @@ public final class BlocksToPcesWorkflow {
     private static final long BOUNDARY_LAG_ROUNDS = 10_000;
 
     /**
-     * Number of consensus rounds to include past targetRound when selecting blocks. A block at consensus
-     * round R carries the events that reached consensus at R, but the events with birth round R (which vote
-     * to decide round R during replay) live in blocks at consensus rounds R, R+1, R+2, ... So to guarantee
-     * the target round reaches consensus during replay, the PCES must include blocks a number of rounds past
-     * the target. Fame decision walks up subsequent rounds and, worst case, crosses a coin round (every
-     * coinFreq rounds, default 12) plus its counting rounds; 16 is comfortably above that. Extra rounds are
-     * harmless — replay snapshots at the target round and stops, so the surplus is available but unused.
+     * Number of consensus rounds to include past targetRound when selecting (and downloading) blocks, so the
+     * events that decide the target round during replay are present in the PCES.
+     *
+     * <p>The events that vote to decide round R have birth rounds at/after R but reach consensus — and thus land
+     * in blocks — some rounds later. In a <i>native</i> PCES that lag is small (fame-decision depth: a coin round
+     * every {@code coinFreq}, default 12, plus counting), which is where the former value of 16 came from. This
+     * PCES is <b>reconstructed from a block stream</b>, where birth rounds carry large backward jitter relative to
+     * consensus rounds — the same jitter {@link #BOUNDARY_LAG_ROUNDS} exists to absorb. That jitter, not
+     * fame-decision depth, dominates how far past the target the deciding events reside, so the margin is sized off
+     * {@link #BOUNDARY_LAG_ROUNDS} (plus the original fame-decision term). Surplus is harmless — replay snapshots at
+     * the target and stops — and the GCS resolver clamps the request to the stream tip when the margin runs past
+     * the last available block.
      */
-    private static final long DECISION_MARGIN_ROUNDS = 16;
+    public static final long DECISION_MARGIN_ROUNDS = BOUNDARY_LAG_ROUNDS + 16;
 
     /**
      * Number of most-recently-written event hashes the {@link StaleParentTracker} retains in order to recognize a
