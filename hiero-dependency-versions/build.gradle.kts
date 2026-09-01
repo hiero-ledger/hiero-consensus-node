@@ -25,6 +25,7 @@ val prometheusSimpleclient = "0.16.0"
 val blockNodeProtobufSources = "0.39.0"
 val testContainers = "2.0.3"
 val tuweni = "2.7.2"
+val vertx = "4.5.30"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
@@ -77,7 +78,7 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
         because("simpleclient.tracer.common")
     }
-    api("io.vertx:vertx-core:4.5.30") { because("io.vertx.core") }
+    api("io.vertx:vertx-core:$vertx") { because("io.vertx.core") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }

@@ -74,7 +74,7 @@ jobs:
           set +e
           set +x
 
-          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]|chewie'`
           do
             echo "Cleaning ${namespace}"
             sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
@@ -95,7 +95,7 @@ jobs:
           set +e
           set +x
 
-          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]|chewie'`
           do
             echo "Cleaning ${namespace}"
             sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
