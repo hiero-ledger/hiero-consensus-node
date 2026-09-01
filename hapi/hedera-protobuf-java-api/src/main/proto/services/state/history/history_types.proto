@@ -92,6 +92,16 @@ message HistoryProof {
    * required to keep extending the chain of trust.
    */
   bytes uncompressed_wraps_proof = 4;
+  /**
+   * The hash of the WRAPS proving key archive whose public parameters were
+   * used to construct this proof. A proof may only be extended by a
+   * construction using the same parameters; one using a different proving
+   * key must begin a new chain of trust from a genesis proof.
+   *
+   * Empty when the proof carries no WRAPS proof, and on WRAPS proofs
+   * constructed before this value was recorded.
+   */
+  bytes wraps_proving_key_hash = 5;
 }
 
 /**

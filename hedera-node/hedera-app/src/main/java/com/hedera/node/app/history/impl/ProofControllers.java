@@ -193,6 +193,64 @@ public class ProofControllers {
     }
 
     /**
+     * Returns whether a new construction may fold onto the given proof; that is, whether the proof is extensible
+     * with a WRAPS proof and carries the proving key hash the network is configured to use.
+     * <p>
+     * Folding requires identical public parameters at every step in the chain. A proof with no recorded proving
+     * key hash is taken to have been built under the configured key.
+     *
+     * @param proof the proof to fold onto, if any
+     * @param tssConfig the TSS configuration
+     * @return whether the proof may be folded onto
+     */
+    public static boolean isFoldable(@Nullable final HistoryProof proof, @NonNull final TssConfig tssConfig) {
+        requireNonNull(tssConfig);
+        if (!isWrapsExtensible(proof)) {
+            return false;
+        }
+        final var proofKeyHash = requireNonNull(proof).wrapsProvingKeyHash();
+        return Bytes.EMPTY.equals(proofKeyHash) || proofKeyHash.equals(configuredProvingKeyHash(tssConfig));
+    }
+
+    /**
+     * Returns whether a construction extending the given active proof must ground a fresh genesis WRAPS proof
+     * rather than fold onto it.
+     * <p>
+     * A proof that is not WRAPS-extensible has nothing to fold onto, and grounds a genesis proof unconditionally.
+     * Discarding a WRAPS-extensible proof built under a superseded proving key moves the ledger id, so it also
+     * requires {@link TssConfig#wrapsAllowFreshGenesisOnKeyChange()} and a chain of trust that block proofs do
+     * not yet carry.
+     *
+     * @param proof the active proof, if any
+     * @param tssConfig the TSS configuration
+     * @param chainOfTrustInUse whether block proofs already carry a chain-of-trust proof
+     * @return whether a fresh genesis proof is needed
+     */
+    public static boolean needsFreshGenesis(
+            @Nullable final HistoryProof proof, @NonNull final TssConfig tssConfig, final boolean chainOfTrustInUse) {
+        requireNonNull(tssConfig);
+        if (!tssConfig.wrapsEnabled() || isFoldable(proof, tssConfig)) {
+            return false;
+        }
+        if (!isWrapsExtensible(proof)) {
+            return true;
+        }
+        return tssConfig.wrapsAllowFreshGenesisOnKeyChange() && !chainOfTrustInUse;
+    }
+
+    /**
+     * Returns the configured WRAPS proving key hash as bytes, or {@link Bytes#EMPTY} if none is configured.
+     *
+     * @param tssConfig the TSS configuration
+     * @return the configured proving key hash
+     */
+    public static Bytes configuredProvingKeyHash(@NonNull final TssConfig tssConfig) {
+        requireNonNull(tssConfig);
+        final var hex = tssConfig.wrapsProvingKeyHash();
+        return hex.isBlank() ? Bytes.EMPTY : Bytes.fromHex(hex);
+    }
+
+    /**
      * Returns the ID of the current proof construction, or {@link #NO_CONSTRUCTION_ID} if there is none.
      */
     private long currentConstructionId() {

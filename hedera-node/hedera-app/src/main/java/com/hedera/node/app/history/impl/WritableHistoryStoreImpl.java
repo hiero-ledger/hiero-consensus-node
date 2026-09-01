@@ -3,6 +3,8 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.history.HistoryService.isCompleted;
+import static com.hedera.node.app.history.impl.ProofControllers.isFoldable;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
@@ -87,6 +89,15 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
+        // Constructions are matched by roster hashes alone, so a completed bootstrap construction is
+        // matched again whenever the same roster is both source and target -- which is exactly the shape
+        // of the phase entered to ground a new chain of trust. Reusing it would leave the network with a
+        // completed construction holding the very proof it needs to replace, and no work to do.
+        if (construction != null
+                && isCompleted(construction, tssConfig)
+                && !isFoldable(construction.targetProof(), tssConfig)) {
+            construction = null;
+        }
         if (construction == null) {
             final var gracePeriod = phase == BOOTSTRAP
                     ? tssConfig.bootstrapProofKeyGracePeriod()

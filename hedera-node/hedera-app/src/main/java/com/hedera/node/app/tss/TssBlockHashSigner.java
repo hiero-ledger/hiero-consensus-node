@@ -80,6 +80,27 @@ public class TssBlockHashSigner implements BlockHashSigner {
         this.historyService = (tssConfig.historyEnabled() && streamMode != RECORDS) ? historyService : null;
     }
 
+    /**
+     * Returns whether block proofs carry a chain-of-trust proof from the history service, rather than a mock
+     * signature; that is, whether the network's ledger id is what verifiers anchor block proofs on.
+     * <p>
+     * Mirrors the branching in {@link #sign(Bytes, Request)}, but reads configuration live rather than the
+     * snapshot taken at construction, so a network configured to cut over answers true from that point on.
+     *
+     * @param tssConfig the TSS configuration
+     * @param blockStreamConfig the block stream configuration
+     * @return whether block proofs currently carry a chain-of-trust proof
+     */
+    public static boolean usesChainOfTrustProof(
+            @NonNull final TssConfig tssConfig, @NonNull final BlockStreamConfig blockStreamConfig) {
+        requireNonNull(tssConfig);
+        requireNonNull(blockStreamConfig);
+        return !tssConfig.forceMockSignatures()
+                && blockStreamConfig.streamMode() != RECORDS
+                && tssConfig.hintsEnabled()
+                && tssConfig.historyEnabled();
+    }
+
     @Override
     public boolean isReady() {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);

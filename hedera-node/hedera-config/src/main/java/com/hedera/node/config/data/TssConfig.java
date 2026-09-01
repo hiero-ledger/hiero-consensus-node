@@ -86,6 +86,12 @@ public record TssConfig(
         @NetworkProperty
         String wrapsProvingKeyDownloadUrl,
 
+        // Whether a WRAPS proof built under a superseded proving key may be discarded in favor of a fresh
+        // genesis proof; when false, a construction that cannot fold onto the active proof fails instead.
+        // Publishes a new ledger id, and has no effect once block proofs carry the chain of trust
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean wrapsAllowFreshGenesisOnKeyChange,
+
         @ConfigProperty(defaultValue = "300s") @NetworkProperty
         Duration wrapsProvingKeyRetryInterval,
 

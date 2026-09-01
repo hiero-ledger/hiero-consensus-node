@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
+import static com.hedera.node.app.history.impl.ProofControllers.needsFreshGenesis;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -12,6 +13,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartR
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
+import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
@@ -1117,10 +1119,14 @@ public class HandleWorkflow {
                         }
                         return;
                     }
-                    // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
-                    // to finish, so we make do right after network genesis with a list-of-signatures block proof
-                    final boolean isWrapsGenesis =
-                            tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
+                    // WRAPS genesis is the proof that grounds a chain of trust; but it takes a long time to
+                    // finish, so we make do in the meantime with a list-of-signatures block proof
+                    final boolean isWrapsGenesis = needsFreshGenesis(
+                            activeConstruction.targetProof(),
+                            tssConfig,
+                            usesChainOfTrustProof(
+                                    tssConfig,
+                                    configProvider.getConfiguration().getConfigData(BlockStreamConfig.class)));
                     if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
                         final var activeRoster = requireNonNull(rosterStore.getActiveRoster());
                         final var candidateRoster = rosterStore.getCandidateRoster();
@@ -1144,6 +1150,19 @@ public class HandleWorkflow {
                         } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
+                            if (isWrapsGenesis) {
+                                // The ledger id is the hash of the address book a genesis proof grounds itself
+                                // in; it must be in state before the recursive proof is voted on against it
+                                final var proof = construction.targetProofOrThrow();
+                                final var newLedgerId =
+                                        proof.targetHistoryOrThrow().addressBookHash();
+                                if (!newLedgerId.equals(historyStore.getLedgerId())) {
+                                    logger.info("Re-anchored chain of trust, ledger id is now '{}'", newLedgerId);
+                                    historyStore.setLedgerId(newLedgerId);
+                                    setLedgerIdContext.set(new LedgerIdContext(
+                                            newLedgerId, proof.targetProofKeys(), targetNodeWeights));
+                                }
+                            }
                             // Finishing WRAPS genesis has no actual implications for hinTS
                             if (!isWrapsGenesis) {
                                 // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
@@ -1193,9 +1212,21 @@ public class HandleWorkflow {
                             ? null
                             : () -> {
                                 final var activeConstruction = readableHistoryStore.getActiveConstruction();
-                                return !activeConstruction.hasTargetProof()
-                                        || (tssConfig.wrapsEnabled()
-                                                != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
+                                if (!activeConstruction.hasTargetProof()) {
+                                    return true;
+                                }
+                                final var activeProof = activeConstruction.targetProofOrThrow();
+                                // A construction that must ground a genesis proof takes the bootstrap phase,
+                                // which holds the candidate roster back until the chain of trust exists
+                                return (tssConfig.wrapsEnabled() != isWrapsExtensible(activeProof))
+                                        || needsFreshGenesis(
+                                                activeProof,
+                                                tssConfig,
+                                                usesChainOfTrustProof(
+                                                        tssConfig,
+                                                        configProvider
+                                                                .getConfiguration()
+                                                                .getConfigData(BlockStreamConfig.class)));
                             });
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
@@ -1222,19 +1253,24 @@ public class HandleWorkflow {
                 if (tssConfig.historyEnabled()) {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
-                    // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis (including WRAPS genesis), the active hinTS construction's key---otherwise,
-                    // the next hinTS construction's key...note that even when this is null, the controller
-                    // can still make progress on publishing proof keys as needed
+                    // If we are doing a chain-of-trust proof, this is the verification key we are proving.
+                    // A construction that grounds a genesis proof proves the key of the roster it is
+                    // grounded in, so it takes the ACTIVE hinTS construction's key; one that extends the
+                    // chain to a new roster takes the NEXT construction's. Note that even when this is
+                    // null, the controller can still make progress on publishing proof keys as needed.
+                    final var activeProofConstruction = historyStore.getActiveConstruction();
+                    final boolean groundsGenesisProof = historyStore.getLedgerId() == null
+                            || (activeProofConstruction.hasTargetProof()
+                                    && needsFreshGenesis(
+                                            activeProofConstruction.targetProofOrThrow(),
+                                            tssConfig,
+                                            usesChainOfTrustProof(
+                                                    tssConfig,
+                                                    configProvider
+                                                            .getConfiguration()
+                                                            .getConfigData(BlockStreamConfig.class))));
                     final var vk = Optional.ofNullable(
-                                    (historyStore.getLedgerId() == null
-                                                    || (tssConfig.wrapsEnabled()
-                                                            && historyStore
-                                                                    .getActiveConstruction()
-                                                                    .hasTargetProof()
-                                                            && !isWrapsExtensible(historyStore
-                                                                    .getActiveConstruction()
-                                                                    .targetProof())))
+                                    groundsGenesisProof
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
