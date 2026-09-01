@@ -6,7 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.GenesisSubProcessTest;
-import com.hedera.services.bdd.GenesisSubProcessTest.SubProcessNodeConfig;
+import com.hedera.services.bdd.GenesisSubprocessTest;
+import com.hedera.services.bdd.GenesisSubprocessTest.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import java.time.Duration;
@@ -31,7 +31,7 @@ public class LedgerIdPublicationTest {
     private static final int NETWORK_SIZE = 4;
 
     @HapiTest
-    @GenesisSubProcessTest(
+    @GenesisSubprocessTest(
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -68,7 +68,7 @@ public class LedgerIdPublicationTest {
             })
     final Stream<DynamicTest> ledgerIdPublicationExternalizedInRecordStream() {
         return hapiTest(
-                streamMustIncludePassFrom(
+                streamMustIncludePassWithReplayFrom(
                         selectedItems(ledgerIdPublicationValidator(), 1, (spec, item) -> {
                             try {
                                 return extractTransactionBody(item.getTransaction())

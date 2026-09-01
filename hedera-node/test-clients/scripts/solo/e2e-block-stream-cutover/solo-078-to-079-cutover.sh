@@ -3,14 +3,14 @@
 #
 # Isolated reproducer for the 0.78 -> 0.79 BLOCKS cutover that deploys directly at the
 # published 0.78 release tag, verifies the 0.78 baseline, then upgrades the CN to the local 0.79
-# build and simultaneously upgrades the Block Node from v0.41.0-rc1 to v0.41.0.
+# build and simultaneously upgrades the Block Node to v0.41.0.
 #
 #   1. Deploy a CN network directly at the published v0.78.0-rc.5 release tag. The 0.78 genesis
 #      baseline uses dual-write streaming (streamMode=BOTH, writerMode=FILE_AND_GRPC) + mock TSS
 #      signatures, so genesis + staking complete without a block node (deployed mid-chain, step 3).
 #      The WRAPS env is injected before the JVMs start so all nodes initialize WRAPS in lockstep.
 #   2. Deploy a mirror node + explorer UI on the 0.78 network (importer reads blocks from the BN).
-#   3. Deploy a Block Node (v0.41.0-rc1) mid-chain; it verifies the real-TSS blocks streamed by the CN.
+#   3. Deploy a Block Node (v0.41.0) mid-chain; it verifies the real-TSS blocks streamed by the CN.
 #   4. Seed the Block Node with the network's TSS ledger id (published during 0.78) so it can
 #      verify blocks after the upgrade.
 #   5. Upgrade the CN in place to the local 0.79 build with
@@ -99,12 +99,12 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
 # --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
-# The reproducer deploys a Block Node (v0.41.0-rc1) before the 0.78 step, seeds it with the
+# The reproducer deploys a Block Node (v0.41.0) before the 0.78 step, seeds it with the
 # network's TSS ledger id before the 0.79 upgrade, and asserts the upgraded BN (v0.41.0) verifies +
 # persists the real-TSS-signed post-upgrade blocks.
 #
-# The baseline BN floor is v0.41.0-rc1, not something older: the block root tree the CN builds became
-# a fixed 16-slot merkle tree (#26919 on release/0.78, #26721 on main) and only BN v0.41.0-rc1+ feeds
+# The baseline BN floor is v0.41.0, not something older: the block root tree the CN builds became
+# a fixed 16-slot merkle tree (#26919 on release/0.78, #26721 on main) and only BN v0.41.0+ feeds
 # 16 leaves to its Merkle Mountain Top hasher (hiero-block-node #3378). A v0.40.x-or-older BN rejects
 # every block a 0.78-with-that-rework CN produces with EndOfStream/BAD_BLOCK_PROOF, which saturates
 # the CN block buffer and wedges the handle thread on backpressure.
@@ -112,7 +112,7 @@ MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.41.0-rc1}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.41.0}"
 BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
