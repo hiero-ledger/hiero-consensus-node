@@ -1,4 +1,7 @@
 NAMESPACE=$1
+# Optional second argument. "once" runs a single pruning pass and returns; anything else (including
+# no argument, which is how 831/832 invoke this) keeps the original hourly loop.
+MODE=$2
 LIVEDATA_ROOT=/opt/hiero/block-node/data/live
 
 while [ true ]
@@ -10,5 +13,11 @@ do
   done
 
   wait
+
+  if [ "${MODE}" = "once" ]
+  then
+    break
+  fi
+
   sleep 3600
 done

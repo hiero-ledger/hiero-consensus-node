@@ -190,6 +190,7 @@ jobs:
     with:
       # No test-asset / cluster / namespace: Chewie allocates the MDLT cluster and namespace.
       ref: "${{ inputs.build-tag }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "100000000"
       nlg-time: "3"
@@ -200,6 +201,7 @@ jobs:
       request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       mdlt-length: ${{ fromJSON(needs.verify-citr-vars.outputs.mdlt-length) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
