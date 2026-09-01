@@ -19,12 +19,8 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
-import java.util.HexFormat;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.fees.FeeResult;
 
 /**
@@ -37,9 +33,6 @@ import org.hiero.hapi.fees.FeeResult;
  */
 @Singleton
 public class TransactionDispatcher {
-    private static final Logger logger = LogManager.getLogger(TransactionDispatcher.class);
-    private static final HexFormat HEX = HexFormat.of();
-
     public static final String TYPE_NOT_SUPPORTED = "This transaction type is not supported";
     public static final String SYSTEM_DELETE_WITHOUT_ID_CASE = "SystemDelete without IdCase";
     public static final String SYSTEM_UNDELETE_WITHOUT_ID_CASE = "SystemUndelete without IdCase";
@@ -91,7 +84,6 @@ public class TransactionDispatcher {
             final var handler = getHandler(context.body());
             handler.pureChecks(context);
         } catch (UnsupportedOperationException ex) {
-            logInvalidTransactionBody("pureChecks", context.body(), ex);
             throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
@@ -110,7 +102,6 @@ public class TransactionDispatcher {
             final var handler = getHandler(context.body());
             handler.preHandle(context);
         } catch (UnsupportedOperationException ex) {
-            logInvalidTransactionBody("preHandle", context.body(), ex);
             throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
@@ -156,7 +147,6 @@ public class TransactionDispatcher {
                     .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
             return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
         } catch (UnsupportedOperationException ex) {
-            logInvalidTransactionBody("computeFees", feeContext.body(), ex);
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
@@ -199,7 +189,6 @@ public class TransactionDispatcher {
             final var handler = getHandler(context.body());
             handler.handle(context);
         } catch (UnsupportedOperationException ex) {
-            logInvalidTransactionBody("handle", context.body(), ex);
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
@@ -308,45 +297,5 @@ public class TransactionDispatcher {
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };
-    }
-
-    private static void logInvalidTransactionBody(
-            @NonNull final String stage,
-            @NonNull final TransactionBody body,
-            @NonNull final UnsupportedOperationException ex) {
-        logger.warn(
-                "TransactionDispatcher INVALID_TRANSACTION_BODY: stage={} bodyKind={} memo={} details={}",
-                stage,
-                body.data().kind(),
-                body.memo(),
-                dispatchBodyDetails(body),
-                ex);
-    }
-
-    @NonNull
-    private static String dispatchBodyDetails(@NonNull final TransactionBody body) {
-        if (body.hasContractCall()) {
-            final var call = body.contractCallOrThrow();
-            return "contractCall[contractID="
-                    + (call.hasContractID() ? call.contractIDOrThrow() : "null")
-                    + ", gas="
-                    + call.gas()
-                    + ", amount="
-                    + call.amount()
-                    + ", functionParametersBytes="
-                    + call.functionParameters().length()
-                    + ", selector="
-                    + selectorOf(call.functionParameters().toByteArray())
-                    + "]";
-        }
-        return "";
-    }
-
-    @NonNull
-    private static String selectorOf(@NonNull final byte[] bytes) {
-        if (bytes.length < 4) {
-            return "";
-        }
-        return HEX.formatHex(Arrays.copyOf(bytes, 4));
     }
 }
