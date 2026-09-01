@@ -134,6 +134,16 @@ public final class BlockRangeResolver {
      * @return the resolved block range
      */
     public BlockRange resolveByRounds(final long originRound, final long targetRound) throws IOException {
+        return resolveByRounds(originRound, targetRound, 0L);
+    }
+
+    /**
+     * As {@link #resolveByRounds(long, long)}, but extends the right boundary by {@code marginRounds} past the
+     * target so the events that decide the target during replay are downloaded. The true {@code targetRound} is
+     * still resolved strictly (an out-of-range target throws); only the margin extension clamps to the stream tip.
+     */
+    public BlockRange resolveByRounds(final long originRound, final long targetRound, final long marginRounds)
+            throws IOException {
         log.info(CONSOLE, "Discovering block stream boundaries ...");
 
         log.info(CONSOLE, "  Listing first available block file ...");
@@ -160,9 +170,24 @@ public final class BlockRangeResolver {
             final long leftBlock = findBlockForTargetRound(firstBlock, lastBlock, originRound, executor);
             log.info(CONSOLE, "  Origin round {} found in block {}", originRound, leftBlock);
 
+            // Strict: the real target must be present in the stream (guards a target chosen past the tip).
             log.info(CONSOLE, "  Searching for block containing target round {} ...", targetRound);
-            final long rightBlock = findBlockForTargetRound(leftBlock, lastBlock, targetRound, executor);
-            log.info(CONSOLE, "  Target round {} found in block {}", targetRound, rightBlock);
+            final long targetBlock = findBlockForTargetRound(leftBlock, lastBlock, targetRound, executor);
+            log.info(CONSOLE, "  Target round {} found in block {}", targetRound, targetBlock);
+
+            final long rightBlock;
+            if (marginRounds <= 0) {
+                rightBlock = targetBlock;
+            } else {
+                final long marginRound = targetRound + marginRounds;
+                log.info(
+                        CONSOLE,
+                        "  Extending right boundary to round {} (target + {} decision margin) ...",
+                        marginRound,
+                        marginRounds);
+                rightBlock = findBlockForRoundClamped(targetBlock, lastBlock, marginRound, executor);
+                log.info(CONSOLE, "  Right boundary resolved to block {}", rightBlock);
+            }
 
             final BlockRange range = new BlockRange(leftBlock, rightBlock);
             cleanUpProbeFiles(range);
@@ -170,6 +195,28 @@ public final class BlockRangeResolver {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Like {@link #findBlockForTargetRound} but, when {@code round} is past the stream tip, returns the last
+     * available block instead of throwing. Used for the forward decision margin, which routinely asks for
+     * {@code target + DECISION_MARGIN_ROUNDS} — a round that usually does not exist yet. Taking everything
+     * available is correct: the surplus only supplies deciding events, and replay stops at the real target.
+     */
+    private long findBlockForRoundClamped(
+            final long leftBlock, final long lastAvailableBlock, final long round, final ExecutorService executor)
+            throws IOException {
+        final long maxRoundInLastBlock = getMaxRound(lastAvailableBlock);
+        if (maxRoundInLastBlock != -1 && round > maxRoundInLastBlock) {
+            log.info(
+                    CONSOLE,
+                    "  Requested round {} is past the stream tip (last available round {}); clamping to last block {}",
+                    round,
+                    maxRoundInLastBlock,
+                    lastAvailableBlock);
+            return lastAvailableBlock;
+        }
+        return findBlockForTargetRound(leftBlock, lastAvailableBlock, round, executor);
     }
 
     private static long blockNumberFromUri(@NonNull final String fileUri) {
