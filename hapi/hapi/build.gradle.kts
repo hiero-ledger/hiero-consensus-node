@@ -36,7 +36,15 @@ val patchAccountIdEquals =
 
 tasks.named("generatePbjSource") { finalizedBy(patchAccountIdEquals) }
 
+// compileJava, sourcesJar, and javadoc all read
+// build/generated/source/pbj-proto/main/java. The patch task rewrites
+// AccountID.java in that tree, so Gradle requires an explicit consumer
+// dependency (not just finalizedBy generatePbjSource).
 tasks.named("compileJava") { dependsOn(patchAccountIdEquals) }
+
+tasks.named("sourcesJar") { dependsOn(patchAccountIdEquals) }
+
+tasks.named("javadoc") { dependsOn(patchAccountIdEquals) }
 
 // If the 'block-node-protobuf-sources.jar' would also contain the generated Java classes, we could
 // replace the 'dependencies' block with a 'requires org.hiero.block.protobuf.sources' entry in
