@@ -9,15 +9,22 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ThreadSafeByteCounter implements ModifiableByteCounter {
 
     private final AtomicLong count = new AtomicLong(0);
+    private final AtomicLong totalCount = new AtomicLong(0);
 
     @Override
     public void addToCount(final long value) {
         count.addAndGet(value);
+        totalCount.addAndGet(value);
     }
 
     @Override
     public long getCount() {
         return count.get();
+    }
+
+    @Override
+    public long getTotalCount() {
+        return totalCount.get();
     }
 
     @Override
