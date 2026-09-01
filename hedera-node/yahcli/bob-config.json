@@ -1,0 +1,22 @@
+{
+  "protocol_version": 1,
+  "chain_id": "hiero:localnetb",
+  "serviceAddress": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  "initialTrustAnchor":   "BT0sNLkCXEhFQf0V9BA6fcNVCq4VdnIvcS6FeljYHBY=",
+  "initialTrustAnchorId": "BT0sNLkCXEhFQf0V9BA6fcNVCq4VdnIvcS6FeljYHBY=",
+  "throttles": {
+    "maxMessagesPerBundle":    1000,
+    "maxSyncsPerSec":            10,
+    "maxMessagePayloadBytes":  65536,
+    "maxGasPerMessage":      "300000",
+    "maxQueueDepth":           10000,
+    "maxSyncBytes":        "4194304"
+  },
+  "endpoints": [
+    {
+      "serviceEndpoint": { "ipAddress": "127.0.0.1", "port": 50311 },
+      "tlsCertificate":   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "accountId":        "AAAAAAAAAAM="
+    }
+  ]
+}

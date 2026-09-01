@@ -20,8 +20,8 @@ val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
+val protobuf = "4.34.1"
 val prometheusSimpleclient = "0.16.0"
-val protobuf = "4.34.0"
 val blockNodeProtobufSources = "0.39.0"
 val testContainers = "2.0.3"
 val tuweni = "2.7.2"
@@ -93,6 +93,7 @@ dependencies.constraints {
     api("org.assertj:assertj-core:3.27.7") { because("org.assertj.core") }
     api("org.bouncycastle:bcpkix-jdk18on:$bouncycastle") { because("org.bouncycastle.pkix") }
     api("org.bouncycastle:bcprov-jdk18on:$bouncycastle") { because("org.bouncycastle.provider") }
+    api("org.bouncycastle:bctls-jdk18on:$bouncycastle") { because("org.bouncycastle.tls") }
     api("org.eclipse.collections:eclipse-collections-api:$eclipseCollections") {
         because("org.eclipse.collections.api")
     }

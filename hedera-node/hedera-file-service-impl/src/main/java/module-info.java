@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.file.impl {
+    exports com.hedera.node.app.service.file.impl.base;
+    exports com.hedera.node.app.service.file.impl.handlers;
+    exports com.hedera.node.app.service.file.impl.records;
+    exports com.hedera.node.app.service.file.impl.schemas;
+    exports com.hedera.node.app.service.file.impl.utils;
+    exports com.hedera.node.app.service.file.impl;
+
     requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
@@ -20,11 +27,4 @@ module com.hedera.node.app.service.file.impl {
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
-
-    exports com.hedera.node.app.service.file.impl.handlers;
-    exports com.hedera.node.app.service.file.impl.records;
-    exports com.hedera.node.app.service.file.impl;
-    exports com.hedera.node.app.service.file.impl.base;
-    exports com.hedera.node.app.service.file.impl.utils;
-    exports com.hedera.node.app.service.file.impl.schemas;
 }

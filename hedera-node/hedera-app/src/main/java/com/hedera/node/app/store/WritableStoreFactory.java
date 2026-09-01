@@ -15,6 +15,15 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestConstructionStore;
+import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
+import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.contract.ContractService;
@@ -123,6 +132,38 @@ public class WritableStoreFactory {
                 WritableBlockRecordStore.class,
                 new StoreEntry(
                         BlockRecordService.NAME, (states, entityCounters) -> new WritableBlockRecordStore(states)));
+        // CLPR Service
+        newMap.put(
+                WritableLedgerConfigurationStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new WritableLedgerConfigurationStore(states)));
+        newMap.put(
+                WritableEndpointManifestStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new WritableEndpointManifestStore(states)));
+        newMap.put(
+                WritableEndpointManifestConstructionStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new WritableEndpointManifestConstructionStore(states)));
+        newMap.put(
+                WritableChannelStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableChannelStore(states)));
+        newMap.put(
+                WritablePendingCommitmentStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new WritablePendingCommitmentStore(states)));
+        newMap.put(
+                WritablePendingConnectorCommitmentStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new WritablePendingConnectorCommitmentStore(states)));
+        newMap.put(
+                WritableMessageQueueStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableMessageQueueStore(states)));
+        newMap.put(
+                WritableConnectorStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableConnectorStore(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

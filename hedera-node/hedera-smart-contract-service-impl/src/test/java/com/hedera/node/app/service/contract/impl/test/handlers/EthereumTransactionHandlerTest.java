@@ -21,6 +21,7 @@ import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCa
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -72,6 +73,7 @@ import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -235,7 +237,7 @@ class EthereumTransactionHandlerTest {
         given(context.body()).willReturn(body);
         given(context.payer()).willReturn(AccountID.DEFAULT);
         given(context.dispatchMetadata()).willReturn(EMPTY_METADATA);
-        given(hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer()))
+        given(hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer(), (ClprDispatchMetadata) null))
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
@@ -883,6 +885,8 @@ class EthereumTransactionHandlerTest {
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
         final AtomicReference<HandleException.OnRollback> rollbackCallback = new AtomicReference<>();
         given(context.dispatchMetadata()).willReturn(dispatchMetadata);
+        given(dispatchMetadata.getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class))
+                .willReturn(Optional.empty());
         given(dispatchMetadata.getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class))
                 .willReturn(Optional.of(o -> rollbackCallback.set((HandleException.OnRollback) o)));
 

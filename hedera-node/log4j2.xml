@@ -380,7 +380,6 @@
       <AppenderRef ref="Console"/>
     </Logger>
 
-
     <Logger name="org.springframework" level="ERROR" additivity="false">
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>

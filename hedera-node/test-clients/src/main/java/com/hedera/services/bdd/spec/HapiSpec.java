@@ -1301,6 +1301,52 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     /**
+     * Creates a dynamic test targeting a specific network.
+     * Used by multi-network tests to direct operations at an explicitly named network.
+     *
+     * @param targetNetwork the network to direct all operations to
+     * @param ops the operations to run
+     * @return a {@link Stream} of {@link DynamicTest}s (single element)
+     */
+    public static Stream<DynamicTest> networkHapiTest(
+            @NonNull final HederaNetwork targetNetwork, @NonNull final SpecOperation... ops) {
+        return networkHapiTest(null, targetNetwork, ops);
+    }
+
+    /**
+     * Variant of {@link #networkHapiTest(HederaNetwork, SpecOperation...)} that appends a
+     * human-readable {@code description} to the dynamic test's display name, yielding
+     * {@code <spec>@<network> - <description>}. Multi-network factories emit many steps against
+     * the same networks, so a per-step description keeps them distinguishable in test reports and
+     * IDE runners (otherwise every step shows the same {@code spec@<network>}).
+     *
+     * @param description short, human-readable label for this step (null/blank falls back to the
+     *                    bare {@code <spec>@<network>} name)
+     * @param targetNetwork the network to direct all operations to
+     * @param ops the operations to run
+     * @return a {@link Stream} of {@link DynamicTest}s (single element)
+     */
+    public static Stream<DynamicTest> networkHapiTest(
+            @Nullable final String description,
+            @NonNull final HederaNetwork targetNetwork,
+            @NonNull final SpecOperation... ops) {
+        requireNonNull(targetNetwork);
+        final var specName = SPEC_NAME.get();
+        final var base = specName != null ? specName.substring(specName.lastIndexOf('.') + 1) : "spec";
+        final var displayName = base + "@" + targetNetwork.name()
+                + (description == null || description.isBlank() ? "" : " - " + description);
+        final var spec = new HapiSpec(
+                displayName,
+                HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                new SpecOperation[0],
+                new SpecOperation[0],
+                ops,
+                Collections.emptyList());
+        doTargetSpec(spec, targetNetwork);
+        return Stream.of(DynamicTest.dynamicTest(displayName, spec));
+    }
+
+    /**
      * Creates dynamic tests derived from with the given operations, ensuring the listed properties are
      * restored to their original values after running the tests.
      *

@@ -9,6 +9,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.queries.clpr.HapiClprGetEndpointManifest;
+import com.hedera.services.bdd.spec.queries.clpr.HapiClprGetLedgerConfiguration;
 import com.hedera.services.bdd.spec.queries.consensus.HapiGetTopicInfo;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.queries.contract.HapiGetContractBytecode;
@@ -247,5 +249,13 @@ public class QueryVerbs {
 
     public static HapiGetTokenNftInfo getTokenNftInfo(final String token, final long serialNum) {
         return new HapiGetTokenNftInfo(token, serialNum);
+    }
+
+    public static HapiClprGetLedgerConfiguration clprGetLedgerConfiguration() {
+        return new HapiClprGetLedgerConfiguration();
+    }
+
+    public static HapiClprGetEndpointManifest clprGetEndpointManifest() {
+        return new HapiClprGetEndpointManifest();
     }
 }

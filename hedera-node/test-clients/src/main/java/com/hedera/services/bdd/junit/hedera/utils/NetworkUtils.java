@@ -174,6 +174,7 @@ public class NetworkUtils {
         requireNonNull(networkName);
         return new NodeMetadata(
                 nodeId,
+                networkName,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
                         .shardNum(shard)
@@ -222,6 +223,7 @@ public class NetworkUtils {
         requireNonNull(workingDir);
         return new NodeMetadata(
                 nodeId,
+                networkName,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
                         .shardNum(shard)

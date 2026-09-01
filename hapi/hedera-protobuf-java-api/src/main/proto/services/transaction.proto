@@ -87,6 +87,16 @@ import "services/node_update.proto";
 import "services/node_delete.proto";
 
 import "services/custom_fees.proto";
+
+import "services/clpr_update_ledger_configuration.proto";
+import "services/clpr_complete_channel.proto";
+import "services/clpr_register_channel.proto";
+import "services/clpr_close_channel.proto";
+import "services/clpr_register_connector.proto";
+import "services/clpr_deregister_connector.proto";
+import "services/clpr_complete_connector.proto";
+import "services/clpr_submit_bundle.proto";
+import "services/clpr_redact_message.proto";
 import "platform/event/state_signature_transaction.proto";
 
 import "services/auxiliary/hints/hints_key_publication.proto";
@@ -95,6 +105,7 @@ import "services/auxiliary/hints/hints_partial_signature.proto";
 import "services/auxiliary/hints/crs_publication.proto";
 
 import "services/auxiliary/history/history_proof_signature.proto";
+import "services/auxiliary/clpr/clpr_endpoint_publication.proto";
 import "services/auxiliary/history/history_proof_key_publication.proto";
 import "services/auxiliary/history/history_proof_vote.proto";
 
@@ -702,6 +713,57 @@ message TransactionBody {
          * A transaction body for voting on migration wrapped record root hash state.
          */
         com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody migration_root_hash_vote = 81;
+
+        /**
+         * Update the local CLPR ledger configuration.
+         */
+        com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody clprUpdateLedgerConfiguration = 82;
+
+        /**
+         * Phase 1 (Commit): Claim a CLPR Channel ID. Creates in PENDING state.
+         */
+        com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody clprRegisterChannel = 83;
+
+        /**
+         * Phase 2 (Reveal): Complete a PENDING Channel. Transitions to ACTIVE.
+         */
+        com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody clprCompleteChannel = 84;
+
+        /**
+         * Initiate graceful closure of a CLPR Channel.
+         */
+        com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody clprCloseChannel = 85;
+
+        /**
+         * Submit a bundle of cross-ledger messages from a peer sync.
+         */
+        com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody clprSubmitBundle = 86;
+
+        /**
+         * Redact a message from the outbound queue before delivery.
+         */
+        com.hedera.hapi.node.clpr.ClprRedactMessageTransactionBody clprRedactMessage = 87;
+
+        /**
+         * Register a Connector on the CLPR Service.
+         */
+        com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody clprRegisterConnector = 88;
+
+        /**
+         * Remove a Connector from the CLPR Service.
+         */
+        com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody clprDeregisterConnector = 89;
+
+        /**
+         * Phase 2 (Reveal): Complete a pending Connector commitment.
+         */
+        com.hedera.hapi.node.clpr.ClprCompleteConnectorTransactionBody clprCompleteConnector = 90;
+
+        /**
+         * A node self-publishes its own CLPR endpoint into a manifest construction (see
+         * `dev-context/clpr-endpoint-self-publication-design.md`).
+         */
+        com.hedera.hapi.services.auxiliary.clpr.ClprEndpointPublicationTransactionBody clpr_endpoint_publication = 91;
     }
 
     /**

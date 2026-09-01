@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Phase 1 (Commit): Reserves a channel by committing an ownership hash.
+ * Permissionless — any payer can register.
+ *
+ * The ownership_commitment is an opaque 32-byte hash that binds the
+ * caller to a (channel_id, public_key) tuple without revealing
+ * either value. This prevents cross-ledger front-running.
+ * See the cross-platform spec §5.1 for the full commit-reveal scheme.
+ */
+message ClprRegisterChannelTransactionBody {
+    /**
+     * 32-byte ownership commitment: keccak256(channel_id || public_key).
+     * The preimage is revealed in the completeChannel transaction.
+     */
+    bytes ownership_commitment = 1;
+}

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.schedule.impl {
+    exports com.hedera.node.app.service.schedule.impl.handlers;
+    exports com.hedera.node.app.service.schedule.impl.schemas;
+    exports com.hedera.node.app.service.schedule.impl;
+
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.schedule;
     requires transitive com.hedera.node.app.service.token;
@@ -17,8 +21,4 @@ module com.hedera.node.app.service.schedule.impl {
     requires com.google.common;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
-
-    exports com.hedera.node.app.service.schedule.impl;
-    exports com.hedera.node.app.service.schedule.impl.handlers;
-    exports com.hedera.node.app.service.schedule.impl.schemas;
 }

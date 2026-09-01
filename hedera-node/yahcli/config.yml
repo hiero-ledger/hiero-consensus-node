@@ -1,9 +1,13 @@
-defaultNetwork: localhost
+defaultNetwork: alice
 networks:
-  localhost:
+  alice:
     allowedReceiverAccountIds: []
     nodes:
-      - { id: 0, account: 3, ipv4Addr: host.docker.internal}
+      - { id: 0, account: 3, ipv4Addr: 127.0.0.1, port: 50211}
+  bob:
+    allowedReceiverAccountIds: [ ]
+    nodes:
+      - { id: 0, account: 3, ipv4Addr: 127.0.0.1, port: 50311 }
   previewnet:
     allowedReceiverAccountIds:
     nodes:
