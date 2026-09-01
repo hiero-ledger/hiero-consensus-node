@@ -77,7 +77,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Download MC utility
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         run: |
           gcloud --no-user-output-enabled storage cp "${{ env.MC_PATH }}" mc
           chmod a+rx mc
