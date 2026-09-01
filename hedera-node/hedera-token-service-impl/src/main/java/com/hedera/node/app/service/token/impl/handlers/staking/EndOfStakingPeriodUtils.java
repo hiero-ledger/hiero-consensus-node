@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static java.util.Objects.requireNonNull;
 
@@ -152,7 +153,7 @@ public final class EndOfStakingPeriodUtils {
             final long reservedStakingRewards,
             final long unreservedStakingRewardBalance) {
         final long hbarsStakedToReward = (totalStakedRewardStart / HBARS_TO_TINYBARS);
-        final long maxTotalReward = maxPerHbarRewardRate * hbarsStakedToReward;
+        final long maxTotalReward = clampedMultiply(maxPerHbarRewardRate, hbarsStakedToReward);
         final var nodeRewardFeeFraction = Fraction.newBuilder()
                 .numerator(stakingConfig.feesNodeRewardPercentage())
                 .denominator(100L)
