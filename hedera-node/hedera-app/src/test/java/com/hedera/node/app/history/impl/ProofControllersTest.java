@@ -3,6 +3,8 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.history.impl.ProofControllers.activeProofNeedsWork;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -10,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -36,6 +39,7 @@ class ProofControllersTest {
             new ProofKeysAccessorImpl.SchnorrKeyPair(Bytes.EMPTY, Bytes.EMPTY);
     private static final HistoryProofConstruction ONE_CONSTRUCTION =
             HistoryProofConstruction.newBuilder().constructionId(1L).build();
+    private static final Bytes LEDGER_ID = Bytes.wrap("LEDGER_ID");
     private static final String KEY_HASH_A = "0a".repeat(48);
     private static final String KEY_HASH_B = "0b".repeat(48);
 
@@ -258,6 +262,67 @@ class ProofControllersTest {
 
         assertFalse(ProofControllers.needsFreshGenesis(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A)), config, false));
         assertFalse(ProofControllers.needsFreshGenesis(null, config, false));
+    }
+
+    @Test
+    void activeProofNeedsWorkUntilThereIsAFoldableProofOfTheRightKind() {
+        final var foldable = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A)));
+        final var staleKey = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_B)));
+        final var nonRecursive = constructionWith(HistoryProof.newBuilder()
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
+                .build());
+
+        // Nothing to build on yet
+        assertTrue(activeProofNeedsWork(HistoryProofConstruction.DEFAULT, tssConfigFor(KEY_HASH_A, false), false));
+        // A proof of the wrong kind for the current WRAPS setting
+        assertTrue(activeProofNeedsWork(nonRecursive, tssConfigFor(KEY_HASH_A, false), false));
+        // A proof that can no longer be folded onto, once re-anchoring is allowed
+        assertTrue(activeProofNeedsWork(staleKey, tssConfigFor(KEY_HASH_A, true), false));
+
+        // ...but not while re-anchoring is disallowed, nor once block proofs carry the chain of trust
+        assertFalse(activeProofNeedsWork(staleKey, tssConfigFor(KEY_HASH_A, false), false));
+        assertFalse(activeProofNeedsWork(staleKey, tssConfigFor(KEY_HASH_A, true), true));
+        // ...and never for a proof that still folds
+        assertFalse(activeProofNeedsWork(foldable, tssConfigFor(KEY_HASH_A, true), false));
+    }
+
+    @Test
+    void groundsGenesisProofBeforeAnyLedgerIdAndWheneverAFreshGenesisIsNeeded() {
+        final var foldable = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A)));
+        final var staleKey = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_B)));
+
+        // No ledger id yet: the network is grounding its first chain of trust
+        assertTrue(groundsGenesisProof(HistoryProofConstruction.DEFAULT, null, tssConfigFor(KEY_HASH_A, false), false));
+        // A superseded proving key grounds a new one, when allowed
+        assertTrue(groundsGenesisProof(staleKey, LEDGER_ID, tssConfigFor(KEY_HASH_A, true), false));
+
+        // An extendable chain proves the NEXT construction's key instead
+        assertFalse(groundsGenesisProof(foldable, LEDGER_ID, tssConfigFor(KEY_HASH_A, true), false));
+        // A construction with no proof yet is not itself grounding one
+        assertFalse(groundsGenesisProof(
+                HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfigFor(KEY_HASH_A, true), false));
+    }
+
+    @Test
+    void reAnchoredLedgerIdIsNullWhenTheAnchorHasNotMoved() {
+        final var anchor = Bytes.wrap("ADDRESS_BOOK_HASH");
+        final var proof = HistoryProof.newBuilder()
+                .targetHistory(new History(anchor, Bytes.EMPTY))
+                .build();
+
+        // Grounding at the same address book anchors at the same hash, so there is nothing to publish
+        assertNull(ProofControllers.reAnchoredLedgerId(proof, anchor));
+        // Grounding anywhere else establishes a new ledger id, including the very first one
+        assertEquals(anchor, ProofControllers.reAnchoredLedgerId(proof, Bytes.wrap("SOMETHING_ELSE")));
+        assertEquals(anchor, ProofControllers.reAnchoredLedgerId(proof, null));
+    }
+
+    private static HistoryProofConstruction constructionWith(final HistoryProof proof) {
+        return HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .targetProof(proof)
+                .build();
     }
 
     private static HistoryProof wrapsProofBuiltWith(final Bytes provingKeyHash) {

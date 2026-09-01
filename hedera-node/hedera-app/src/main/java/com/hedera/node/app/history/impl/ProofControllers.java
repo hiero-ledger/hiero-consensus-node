@@ -239,6 +239,69 @@ public class ProofControllers {
     }
 
     /**
+     * Returns whether the history service still has work to do for the given active construction: it has no
+     * proof yet, its proof is the wrong kind for the current WRAPS setting, or its proof can no longer be
+     * folded onto. While this holds, the network stays in the phase that grounds a chain of trust and leaves
+     * any candidate roster alone.
+     *
+     * @param activeConstruction the active proof construction
+     * @param tssConfig the TSS configuration
+     * @param chainOfTrustInUse whether block proofs already carry a chain-of-trust proof
+     * @return whether the active construction still needs work
+     */
+    public static boolean activeProofNeedsWork(
+            @NonNull final HistoryProofConstruction activeConstruction,
+            @NonNull final TssConfig tssConfig,
+            final boolean chainOfTrustInUse) {
+        requireNonNull(activeConstruction);
+        requireNonNull(tssConfig);
+        if (!activeConstruction.hasTargetProof()) {
+            return true;
+        }
+        final var activeProof = activeConstruction.targetProofOrThrow();
+        return (tssConfig.wrapsEnabled() != isWrapsExtensible(activeProof))
+                || needsFreshGenesis(activeProof, tssConfig, chainOfTrustInUse);
+    }
+
+    /**
+     * Returns whether the work implied by the given active construction grounds a genesis proof rather than
+     * extending the chain to a new roster. A grounding construction proves the key of the roster it is
+     * grounded in, so it takes the ACTIVE hinTS construction's key rather than the NEXT one's.
+     *
+     * @param activeConstruction the active proof construction
+     * @param ledgerId the ledger id in state, or null if none has been established
+     * @param tssConfig the TSS configuration
+     * @param chainOfTrustInUse whether block proofs already carry a chain-of-trust proof
+     * @return whether a genesis proof is being grounded
+     */
+    public static boolean groundsGenesisProof(
+            @NonNull final HistoryProofConstruction activeConstruction,
+            @Nullable final Bytes ledgerId,
+            @NonNull final TssConfig tssConfig,
+            final boolean chainOfTrustInUse) {
+        requireNonNull(activeConstruction);
+        requireNonNull(tssConfig);
+        return ledgerId == null
+                || (activeConstruction.hasTargetProof()
+                        && needsFreshGenesis(activeConstruction.targetProofOrThrow(), tssConfig, chainOfTrustInUse));
+    }
+
+    /**
+     * Returns the ledger id a completed grounding proof establishes, or null if it is the one already in state.
+     * A proof grounded in the same address book anchors at the same hash, so there is no new id to publish.
+     *
+     * @param proof the proof that grounded the chain of trust
+     * @param currentLedgerId the ledger id in state, if any
+     * @return the new ledger id, or null if unchanged
+     */
+    @Nullable
+    public static Bytes reAnchoredLedgerId(@NonNull final HistoryProof proof, @Nullable final Bytes currentLedgerId) {
+        requireNonNull(proof);
+        final var anchor = proof.targetHistoryOrThrow().addressBookHash();
+        return anchor.equals(currentLedgerId) ? null : anchor;
+    }
+
+    /**
      * Returns the configured WRAPS proving key hash as bytes, or {@link Bytes#EMPTY} if none is configured.
      *
      * @param tssConfig the TSS configuration
