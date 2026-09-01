@@ -102,13 +102,13 @@ jobs:
 
       - name: Stage Yahcli Assets
         run: |
-          SHADOW_JAR="$(ls -1 hedera-node/yahcli/build/libs/*-all.jar 2>/dev/null | head -n1)"
-          if [[ -z "${SHADOW_JAR}" ]]; then
+          FAT_JAR="$(ls -1 hedera-node/yahcli/build/libs/*-all.jar 2>/dev/null | head -n1)"
+          if [[ -z "${FAT_JAR}" ]]; then
             echo "::error::Yahcli shadow JAR not found in hedera-node/yahcli/build/libs/"
             exit 1
           fi
-          cp -f "${SHADOW_JAR}" hedera-node/yahcli/assets/yahcli.jar
-          echo "Staged yahcli.jar from ${SHADOW_JAR} ($(du -h hedera-node/yahcli/assets/yahcli.jar | cut -f1))"
+          cp -f "${FAT_JAR}" hedera-node/yahcli/assets/yahcli.jar
+          echo "Staged yahcli.jar from ${FAT_JAR} ($(du -h hedera-node/yahcli/assets/yahcli.jar | cut -f1))"
 
       - name: Authenticate to Google Cloud
         id: google-auth
