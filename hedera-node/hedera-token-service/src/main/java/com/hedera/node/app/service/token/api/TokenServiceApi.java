@@ -229,6 +229,19 @@ public interface TokenServiceApi {
             @NonNull LongConsumer onNodeRefund);
 
     /**
+     * Reverses node fees previously accumulated by {@link #chargeFees} for the given node account,
+     * without moving any balances. Used to compensate the block-scoped node-payments accumulation when
+     * a charged dispatch is rolled back and re-charged: the savepoint rollback reverts the ledger
+     * effects (payer debit, fee collection credit) but cannot reach the in-memory node-payments
+     * accumulator, so the accumulation must be reversed explicitly to avoid double-counting the node
+     * fee on the subsequent re-charge.
+     *
+     * @param nodeAccountId the node account whose accumulated node fees should be reversed
+     * @param amount the amount of previously accumulated node fees to reverse
+     */
+    void reverseNodeFee(@NonNull AccountID nodeAccountId, long amount);
+
+    /**
      * Returns the number of storage slots used by the given account before any changes were made via
      * this {@link TokenServiceApi}.
      *

@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -10,12 +18,16 @@ import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -28,9 +40,20 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.history.History;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -42,24 +65,38 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.file.FileService;
+import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.services.ServicesRegistry;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
+import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -69,6 +106,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -76,11 +114,16 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import com.swirlds.state.test.fixtures.MapWritableKVState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -90,6 +133,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -206,6 +250,33 @@ class HandleWorkflowTest {
     @Mock
     private NodeFeeManager nodeFeeManager;
 
+    @Mock
+    private FileServiceImpl fileService;
+
+    @Mock
+    private ServicesRegistry servicesRegistry;
+
+    @Mock
+    private StartupNetworks startupNetworks;
+
+    @Mock
+    private SelfNodeAccountIdManager selfNodeAccountIdManager;
+
+    @Mock
+    private WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
+
+    @Mock
+    private MigrationRootHashSubmissions migrationRootHashSubmissions;
+
+    @Mock
+    private AppContext appContext;
+
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
+    private NodeInfo creatorInfo;
+
     private HandleWorkflow subject;
 
     @BeforeEach
@@ -309,6 +380,78 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void postUpgradeRemovesRetiredFeeScheduleFileFromState() {
+        final var retiredFileId = FileID.newBuilder().fileNum(111L).build();
+        final var simpleFeesFileId = FileID.newBuilder().fileNum(113L).build();
+        final var counts =
+                new AtomicReference<>(EntityCounts.newBuilder().numFiles(2).build());
+
+        final var entityIdStates = MapWritableStates.builder()
+                .state(new FunctionWritableSingletonState<>(
+                        ENTITY_ID_STATE_ID, "ENTITY_ID", () -> EntityNumber.DEFAULT, n -> {}))
+                .state(new FunctionWritableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, "ENTITY_COUNTS", counts::get, counts::set))
+                .state(new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        "HIGHEST_NODE_ID",
+                        () -> com.hedera.hapi.platform.state.NodeId.DEFAULT,
+                        n -> {}))
+                .build();
+        final var tokenStates = MapWritableStates.builder()
+                .state(MapWritableKVState.builder(STAKING_INFOS_STATE_ID, "STAKING_INFOS")
+                        .build())
+                .state(new FunctionWritableSingletonState<>(
+                        STAKING_NETWORK_REWARDS_STATE_ID,
+                        "STAKING_NETWORK_REWARDS",
+                        () -> NetworkStakingRewards.DEFAULT,
+                        n -> {}))
+                .build();
+        final var nodeStates = MapWritableStates.builder()
+                .state(MapWritableKVState.builder(NODES_STATE_ID, "NODES").build())
+                .build();
+        final var fileStates = MapWritableStates.builder()
+                .state(MapWritableKVState.<FileID, File>builder(FILES_STATE_ID, "FILES")
+                        .value(
+                                retiredFileId,
+                                File.newBuilder().fileId(retiredFileId).build())
+                        .value(
+                                simpleFeesFileId,
+                                File.newBuilder().fileId(simpleFeesFileId).build())
+                        .build())
+                .build();
+        given(state.getWritableStates(TokenService.NAME)).willReturn(tokenStates);
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        given(state.getWritableStates(AddressBookService.NAME)).willReturn(nodeStates);
+        given(state.getWritableStates(FileService.NAME)).willReturn(fileStates);
+        given(blockStreamManager.pendingWork()).willReturn(POST_UPGRADE_WORK);
+
+        // Same event scaffolding as writeEventHeaderWithNoParentEvents, but carrying one transaction
+        // so the workflow reaches the post-upgrade branch of handlePlatformTransaction()
+        final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
+        txn.setConsensusTimestamp(NOW);
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator())
+                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final var files = fileStates.<FileID, File>get(FILES_STATE_ID);
+        assertNull(files.get(retiredFileId), "retired fee schedule file must be removed from state");
+        assertNotNull(files.get(simpleFeesFileId), "unrelated system files must survive");
+        assertEquals(1, counts.get().numFiles(), "file entity counter must be decremented");
     }
 
     @Test
@@ -422,7 +565,7 @@ class HandleWorkflowTest {
         EventDescriptor parentDescriptor = EventDescriptor.newBuilder().build();
         EventDescriptorWrapper parent = mock(EventDescriptorWrapper.class);
         given(parent.hash()).willReturn(parentHash);
-        given(parent.eventDescriptor()).willReturn(parentDescriptor);
+        given(parent.toPbj()).willReturn(parentDescriptor);
 
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
@@ -486,7 +629,7 @@ class HandleWorkflowTest {
 
         EventDescriptorWrapper parentNotInBlock = mock(EventDescriptorWrapper.class);
         given(parentNotInBlock.hash()).willReturn(parentNotInBlockHash);
-        given(parentNotInBlock.eventDescriptor()).willReturn(notInBlockDescriptor);
+        given(parentNotInBlock.toPbj()).willReturn(notInBlockDescriptor);
 
         // Setup event with two parents
         given(event.getHash()).willReturn(eventHash);
@@ -838,5 +981,122 @@ class HandleWorkflowTest {
         verify(scheduleService).executableTxns(any(), any(), any());
         // But the loop body never entered — no scheduled txn was started
         verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+    }
+
+    @Test
+    void ledgerIdExternalizationDoesNotReuseTheNodeFeeConsensusTime() {
+        final var beforeEvents = Instant.ofEpochSecond(1_234_600L, 100);
+        final var afterEvents = beforeEvents.plusSeconds(1);
+        final var ledgerId = Bytes.wrap("LEDGER_ID");
+        final var proof = HistoryProof.newBuilder()
+                .targetHistory(History.newBuilder().addressBookHash(ledgerId).build())
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .targetProof(proof)
+                .build();
+        final var historyStore = mock(WritableHistoryStore.class);
+        given(historyStore.getActiveConstruction()).willReturn(construction);
+        // Stand in for a finished proof; in production the callback fires from the controller, either while
+        // reconciling TSS state or while handling the HistoryProofVote that completes the construction
+        willAnswer(invocation -> {
+                    invocation.<OnProofFinished>getArgument(0).onFinished(historyStore, construction, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        given(historyService.historyProofVerificationKey()).willReturn(Bytes.EMPTY);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(mock(ReadableStates.class));
+
+        final var creatorId = NodeId.of(0L);
+        given(round.iterator()).willAnswer(_ -> List.of(event).iterator());
+        given(event.getConsensusTimestamp()).willReturn(NOW);
+        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getCreatorId()).willReturn(creatorId);
+        final var lastUsedConsTime = new AtomicReference<>(beforeEvents);
+        // Stands in for handling the round's transactions, which advances the last-used consensus time
+        given(event.consensusTransactionIterator()).willAnswer(invocation -> {
+            lastUsedConsTime.set(afterEvents);
+            return emptyIterator();
+        });
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockStreamManager.lastUsedConsensusTime()).willAnswer(invocation -> lastUsedConsTime.get());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        // Both dispatches under test run through a real SystemTransactions, so each transaction is assigned the
+        // consensus time production would give it; the dispatch is then aborted, since carrying one out needs the
+        // entire handle stack
+        given(appContext.idFactory()).willReturn(entityIdFactory);
+        given(entityIdFactory.newAccountId(anyLong())).willReturn(AccountID.DEFAULT);
+        given(networkInfo.addressBook()).willReturn(List.of(creatorInfo));
+        final var realSystemTransactions = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+        final var assignedConsTimes = ArgumentCaptor.forClass(Instant.class);
+        given(parentTxnFactory.createSystemTxn(any(), any(), assignedConsTimes.capture(), any(), any(), any()))
+                .willThrow(new IllegalStateException("Aborting dispatch after its consensus time is assigned"));
+        // Mirrors NodeFeeManager.distributeFees(), which forwards its consensus time to dispatchNodePayments()
+        given(nodeFeeManager.distributeFees(any(), any(), any())).willAnswer(invocation -> {
+            realSystemTransactions.dispatchNodePayments(
+                    invocation.getArgument(0),
+                    invocation.getArgument(1),
+                    TransferList.newBuilder()
+                            .accountAmounts(AccountAmount.newBuilder()
+                                    .accountID(AccountID.DEFAULT)
+                                    .amount(1L)
+                                    .build())
+                            .build());
+            return true;
+        });
+        willAnswer(invocation -> {
+                    realSystemTransactions.externalizeLedgerId(
+                            invocation.getArgument(0),
+                            invocation.getArgument(1),
+                            invocation.getArgument(2),
+                            invocation.getArgument(3),
+                            invocation.getArgument(4),
+                            invocation.getArgument(5));
+                    return null;
+                })
+                .given(systemTransactions)
+                .externalizeLedgerId(any(), any(), any(), any(), any(), any());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final var consTimes = assignedConsTimes.getAllValues();
+        assertEquals(2, consTimes.size(), "Expected the node fee payment and the ledger id publication to dispatch");
+        final var nodeFeeConsTime = consTimes.getFirst();
+        final var ledgerIdConsTime = consTimes.getLast();
+        assertNotEquals(
+                nodeFeeConsTime,
+                ledgerIdConsTime,
+                "The node fee payment and the ledger id publication were assigned the same consensus time, "
+                        + nodeFeeConsTime);
+        assertTrue(
+                ledgerIdConsTime.isAfter(afterEvents),
+                "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
+                        + "handled in the round at " + afterEvents);
     }
 }

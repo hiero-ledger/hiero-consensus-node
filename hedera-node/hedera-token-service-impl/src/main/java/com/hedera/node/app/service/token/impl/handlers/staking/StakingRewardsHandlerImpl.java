@@ -252,7 +252,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         final var stakedAccountId = account.stakedAccountId();
         final var stakedAccount = accountStore.getOriginalValue(stakedAccountId);
         // if the special reward receiver account is not staked to a node, it will not need to receive reward
-        if (stakedAccount != null && stakedAccount.hasStakedNodeId()) {
+        if (stakedAccount != null && !stakedAccount.deleted() && stakedAccount.hasStakedNodeId()) {
             updatedSpecialRewardReceivers.add(stakedAccountId);
         }
         return updatedSpecialRewardReceivers;
@@ -514,6 +514,13 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                 // This should be impossible, we try to enforce staking only to existing accounts; but
                 // it doesn't justify failing a user transaction, so we just log it
                 log.error("Stakee account {} not found in the store", stakeeId);
+                return;
+            }
+            if (stakee.deleted()) {
+                // A deleted stakee no longer participates in staking; updating its stakedToMe would
+                // put it back into the modified-accounts set and trigger a withdraw-without-award in
+                // adjustNodeStakes, which corrupts the node's stake total on every subsequent
+                // transaction that touches any account still pointing at this deleted stakee.
                 return;
             }
             final var initialStakedToMe = stakee.stakedToMe();

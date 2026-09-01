@@ -21,8 +21,8 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.citr-mirror-node-version }}
       citr-solo-version:
         value: ${{ jobs.extract-citr-vars.outputs.citr-solo-version }}
-      mqpt-cluster:
-        value: ${{ jobs.extract-citr-vars.outputs.mqpt-cluster }}
+      cutover-solo-version:
+        value: ${{ jobs.extract-citr-vars.outputs.cutover-solo-version }}
       tck-version:
         value: ${{ jobs.extract-citr-vars.outputs.tck-version }}
       js-sdk-version:
@@ -33,7 +33,8 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.bn-mirror-node-version }}
       json-rpc-relay-version:
         value: ${{ jobs.extract-citr-vars.outputs.json-rpc-relay-version }}
-
+      nlg-version:
+        value: ${{ jobs.extract-citr-vars.outputs.nlg-version }}
 permissions:
   contents: read
 
@@ -50,12 +51,14 @@ jobs:
       adhoc-xts-solo-version: ${{ steps.get-citr-vars.outputs.adhoc-xts-solo-version }}
       citr-mirror-node-version: ${{ steps.get-citr-vars.outputs.citr-mirror-node-version }}
       citr-solo-version: ${{ steps.get-citr-vars.outputs.citr-solo-version }}
-      mqpt-cluster: ${{ steps.get-citr-vars.outputs.mqpt-cluster }}
+      cutover-solo-version: ${{ steps.get-citr-vars.outputs.cutover-solo-version }}
       tck-version: ${{ steps.get-citr-vars.outputs.tck-version }}
       js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
       block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
       bn-mirror-node-version: ${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}
       json-rpc-relay-version: ${{ steps.get-citr-vars.outputs.json-rpc-relay-version }}
+      nlg-version: ${{ steps.get-citr-vars.outputs.nlg-version }}
+
     steps:
       - name: Initialize Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -94,12 +97,13 @@ jobs:
             "adhoc-xts-solo-version"
             "citr-mirror-node-version"
             "citr-solo-version"
-            "mqpt-cluster"
+            "cutover-solo-version"
             "tck-version"
             "js-sdk-version"
             "block-node-version"
             "bn-mirror-node-version"
             "json-rpc-relay-version"
+            "nlg-version"
           )
 
           # Loop through expected keys and check if they are set in GITHUB_OUTPUT

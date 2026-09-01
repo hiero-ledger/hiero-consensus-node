@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,6 +15,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.ServicesConfigurationList;
+import com.hedera.hapi.node.base.Setting;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.FileAppendTransactionBody;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
@@ -40,6 +45,7 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,6 +63,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SystemFileUpdatesTest implements TransactionFactory {
 
     private static final Bytes FILE_BYTES = Bytes.wrap("Hello World");
+    private static final Bytes UNPARSEABLE_BYTES = Bytes.wrap("NOT_A_SERVICES_CONFIGURATION_LIST");
+    private static final Bytes CONFIG_LIST_BYTES =
+            ServicesConfigurationList.PROTOBUF.toBytes(ServicesConfigurationList.newBuilder()
+                    .nameValue(Setting.newBuilder()
+                            .name("tokens.maxPerAccount")
+                            .value("1000")
+                            .build())
+                    .build());
     private static final Instant CONSENSUS_NOW = Instant.parse("2000-01-01T00:00:00Z");
     private long SHARD;
     private long REALM;
@@ -240,6 +254,162 @@ class SystemFileUpdatesTest implements TransactionFactory {
     }
 
     @Test
+    void unparseableNetworkPropertiesUpdateIsNotSuccess() {
+        // given
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.networkProperties());
+        files.put(fileID, File.newBuilder().contents(UNPARSEABLE_BYTES).build());
+        files.put(
+                idFactory.newFileId(config.hapiPermissions()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(CONFIG_FILE_PART_UPLOADED);
+        // Must still rebuild config, else a restarted node diverges; see FacilityInitModule
+        verify(configProvider).update(eq(UNPARSEABLE_BYTES), eq(CONFIG_LIST_BYTES));
+    }
+
+    @Test
+    void parseableNetworkPropertiesUpdateIsSuccess() {
+        // given
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.networkProperties());
+        files.put(fileID, File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+        files.put(
+                idFactory.newFileId(config.hapiPermissions()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(SUCCESS);
+        verify(configProvider).update(eq(CONFIG_LIST_BYTES), eq(CONFIG_LIST_BYTES));
+    }
+
+    @Test
+    void unparseableHapiPermissionsUpdateIsNotSuccess() {
+        // given
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.hapiPermissions());
+        files.put(fileID, File.newBuilder().contents(UNPARSEABLE_BYTES).build());
+        files.put(
+                idFactory.newFileId(config.networkProperties()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(CONFIG_FILE_PART_UPLOADED);
+        verify(configProvider).update(eq(CONFIG_LIST_BYTES), eq(UNPARSEABLE_BYTES));
+    }
+
+    @Test
+    void parseableHapiPermissionsUpdateIsSuccess() {
+        // given
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.hapiPermissions());
+        files.put(fileID, File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+        files.put(
+                idFactory.newFileId(config.networkProperties()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(SUCCESS);
+    }
+
+    @Test
+    void unparseableAppendToNetworkPropertiesIsNotSuccess() {
+        // given
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.networkProperties());
+        files.put(fileID, File.newBuilder().contents(UNPARSEABLE_BYTES).build());
+        files.put(
+                idFactory.newFileId(config.hapiPermissions()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(idFactory.newAccountId(50L))
+                        .build())
+                .fileAppend(FileAppendTransactionBody.newBuilder().fileID(fileID))
+                .build();
+
+        // when
+        final var status = subject.handleTxBody(state, txBody);
+
+        // then
+        assertThat(status).isEqualTo(CONFIG_FILE_PART_UPLOADED);
+    }
+
+    @Test
+    void truncatedNetworkPropertiesContentsIsNotSuccess() {
+        // given a partial upload's intermediate state
+        final var truncated = CONFIG_LIST_BYTES.slice(0, CONFIG_LIST_BYTES.length() - 1);
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.networkProperties());
+        files.put(fileID, File.newBuilder().contents(truncated).build());
+        files.put(
+                idFactory.newFileId(config.hapiPermissions()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(CONFIG_FILE_PART_UPLOADED);
+    }
+
+    @Test
+    void emptyNetworkPropertiesContentsIsSuccess() {
+        // given empty contents, as when clearing the override file
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.networkProperties());
+        files.put(fileID, File.newBuilder().contents(Bytes.EMPTY).build());
+        files.put(
+                idFactory.newFileId(config.hapiPermissions()),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(SUCCESS);
+    }
+
+    @Test
+    void onlyTheTargetedFileDeterminesTheStatus() {
+        // given a pre-existing unparseable permissions file
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.networkProperties());
+        files.put(fileID, File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+        files.put(
+                idFactory.newFileId(config.hapiPermissions()),
+                File.newBuilder().contents(UNPARSEABLE_BYTES).build());
+
+        // when
+        final var status = subject.handleTxBody(state, updateOf(fileID));
+
+        // then
+        assertThat(status).isEqualTo(SUCCESS);
+    }
+
+    private TransactionBody updateOf(@NonNull final FileID fileID) {
+        return TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(idFactory.newAccountId(50L))
+                        .build())
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID))
+                .build();
+    }
+
+    @Test
     void throttleMangerUpdatedOnFileUpdate() {
         // given
         final var configuration = configProvider.getConfiguration();
@@ -284,28 +454,6 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .update(
                         FileUtilities.getFileContent(state, fileID),
                         AccountID.newBuilder().accountNum(50L).build());
-    }
-
-    @Test
-    void feeManagerUpdatedOnFileUpdate() {
-        // given
-        final var configuration = configProvider.getConfiguration();
-        final var config = configuration.getConfigData(FilesConfig.class);
-
-        final var fileNum = config.feeSchedules();
-        final var fileID = FileID.newBuilder().fileNum(fileNum).build();
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(AccountID.newBuilder().accountNum(50L).build())
-                        .build())
-                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID));
-        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
-
-        // when
-        subject.handleTxBody(state, txBody.build());
-
-        // then
-        verify(feeManager, times(1)).update(FileUtilities.getFileContent(state, fileID));
     }
 
     @Test

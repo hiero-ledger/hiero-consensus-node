@@ -9,7 +9,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.MerkleHasher;
-import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.MerklePathUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.Cryptography;
@@ -72,7 +72,7 @@ public class VirtualHashChunk {
         if (height <= 0) {
             throw new IllegalArgumentException("Wrong chunk height: " + height);
         }
-        final int rank = Path.getRank(path);
+        final int rank = MerklePathUtils.getRank(path);
         if (rank % height != 0) {
             throw new IllegalArgumentException("Wrong chunk rank/height: " + rank + "/" + height);
         }
@@ -249,12 +249,12 @@ public class VirtualHashChunk {
     public static long pathToChunkPath(final long path, final int chunkHeight) {
         assert path > 0;
         assert chunkHeight > 0;
-        final int rankDif = Path.getRank(path) % chunkHeight;
-        return Path.getGrandParentPath(path, rankDif == 0 ? chunkHeight : rankDif);
+        final int rankDif = MerklePathUtils.getRank(path) % chunkHeight;
+        return MerklePathUtils.getGrandParentPath(path, rankDif == 0 ? chunkHeight : rankDif);
     }
 
     public long getChunkId() {
-        return pathToChunkId(Path.getLeftChildPath(path), height);
+        return pathToChunkId(MerklePathUtils.getLeftChildPath(path), height);
     }
 
     /**
@@ -279,7 +279,7 @@ public class VirtualHashChunk {
     }
 
     public static long chunkPathToChunkId(final long chunkPath, final int chunkHeight) {
-        return pathToChunkId(Path.getLeftChildPath(chunkPath), chunkHeight);
+        return pathToChunkId(MerklePathUtils.getLeftChildPath(chunkPath), chunkHeight);
     }
 
     /**
@@ -306,7 +306,7 @@ public class VirtualHashChunk {
             id += chunksAtRank;
             chunkRank += chunkHeight;
         }
-        return Path.getLeftGrandChildPath(0, chunkRank) + chunkId - id + chunksAtRank - 1;
+        return MerklePathUtils.getLeftGrandChildPath(0, chunkRank) + chunkId - id + chunksAtRank - 1;
     }
 
     /**
@@ -367,16 +367,16 @@ public class VirtualHashChunk {
      *      If the path is outside this chunk
      */
     public static int getPathIndexInChunk(long path, final long chunkPath, final int chunkHeight) {
-        final int chunkRank = Path.getRank(chunkPath);
-        final int pathRank = Path.getRank(path);
+        final int chunkRank = MerklePathUtils.getRank(chunkPath);
+        final int pathRank = MerklePathUtils.getRank(path);
         if ((pathRank <= chunkRank) || (pathRank > chunkRank + chunkHeight)) {
             throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath + "/" + chunkHeight);
         }
         final int rankDif = pathRank % chunkHeight;
         if (rankDif != 0) {
-            path = Path.getLeftGrandChildPath(path, chunkHeight - rankDif);
+            path = MerklePathUtils.getLeftGrandChildPath(path, chunkHeight - rankDif);
         }
-        final long firstPathInChunk = Path.getLeftGrandChildPath(chunkPath, chunkHeight);
+        final long firstPathInChunk = MerklePathUtils.getLeftGrandChildPath(chunkPath, chunkHeight);
         if ((path < firstPathInChunk) || (path >= firstPathInChunk + getChunkSize(chunkHeight))) {
             throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath + "/" + chunkHeight);
         }
@@ -397,8 +397,8 @@ public class VirtualHashChunk {
         final long maxPathChunkId = pathToChunkId(maxPath, chunkHeight);
         // Now check what chunk covers the last path at the previous rank. It may
         // be greater than the chunk for maxPath
-        final int prevRank = Math.max(1, Path.getRank(maxPath) - 1);
-        final long maxPathInPrevRank = Path.getRightGrandChildPath(0, prevRank);
+        final int prevRank = Math.max(1, MerklePathUtils.getRank(maxPath) - 1);
+        final long maxPathInPrevRank = MerklePathUtils.getRightGrandChildPath(0, prevRank);
         final long prevRankPathChunkId = pathToChunkId(maxPathInPrevRank, chunkHeight);
         return Math.max(prevRankPathChunkId, maxPathChunkId);
     }
@@ -417,7 +417,7 @@ public class VirtualHashChunk {
 
     public static boolean containsPath(final long path, final long chunkPath, final int chunkHeight) {
         final int chunkSize = getChunkSize(chunkHeight);
-        final long firstPathAtLastLevel = Path.getLeftGrandChildPath(chunkPath, chunkHeight);
+        final long firstPathAtLastLevel = MerklePathUtils.getLeftGrandChildPath(chunkPath, chunkHeight);
         return (path >= firstPathAtLastLevel) && (path <= firstPathAtLastLevel + chunkSize);
     }
 
@@ -430,7 +430,7 @@ public class VirtualHashChunk {
         if ((pathIndex < 0) || (pathIndex >= chunkSize)) {
             throw new IllegalArgumentException("Wrong path index");
         }
-        final long firstPathAtLastLevel = Path.getLeftGrandChildPath(chunkPath, chunkHeight);
+        final long firstPathAtLastLevel = MerklePathUtils.getLeftGrandChildPath(chunkPath, chunkHeight);
         return firstPathAtLastLevel + pathIndex;
     }
 
@@ -501,8 +501,8 @@ public class VirtualHashChunk {
      * in the chunk.
      */
     private void updateDataRank(final long hashPath) {
-        final int chunkRank = Path.getRank(this.path);
-        final int pathRank = Path.getRank(hashPath);
+        final int chunkRank = MerklePathUtils.getRank(this.path);
+        final int pathRank = MerklePathUtils.getRank(hashPath);
         // No synchronization as setHashAtPath() / setHashBytesAtPath() should not be called
         // in parallel for paths at different ranks. Field visibility is guaranteed by the
         // caller, typically VirtualHasher fork-join tasks
@@ -582,8 +582,8 @@ public class VirtualHashChunk {
      */
     public byte[] calcHashBytes(
             MerkleHasher hasher, final long path, final long firstLeafPath, final long lastLeafPath) {
-        final int pathRank = Path.getRank(path);
-        final int chunkRank = Path.getRank(this.path);
+        final int pathRank = MerklePathUtils.getRank(path);
+        final int chunkRank = MerklePathUtils.getRank(this.path);
         assert pathRank >= chunkRank;
         assert pathRank <= chunkRank + height;
         return calcHashBytes(hasher, chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
@@ -599,9 +599,9 @@ public class VirtualHashChunk {
             return getHashBytesAtPath(path);
         }
         assert h > 0;
-        final long leftPath = Path.getLeftChildPath(path);
+        final long leftPath = MerklePathUtils.getLeftChildPath(path);
         final byte[] leftHash = calcHashBytes(hasher, h - 1, leftPath, firstLeafPath, lastLeafPath);
-        final long rightPath = Path.getRightChildPath(path);
+        final long rightPath = MerklePathUtils.getRightChildPath(path);
         final byte[] rightHash = calcHashBytes(hasher, h - 1, rightPath, firstLeafPath, lastLeafPath);
         return hasher.internalNodeHashBytes(leftHash, rightHash);
     }

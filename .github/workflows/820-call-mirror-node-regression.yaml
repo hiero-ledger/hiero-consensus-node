@@ -94,7 +94,7 @@ jobs:
         run: npm install -g @hiero-ledger/solo@${SOLO_VERSION}
 
       - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d
@@ -105,8 +105,9 @@ jobs:
 
       - name: Configure and run solo
         id: run-solo
+        timeout-minutes: 15
         env:
-          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.156.0' }}
+          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.161.0' }}
         run: |
           set -ex
           cat <<EOF > mirror.yml

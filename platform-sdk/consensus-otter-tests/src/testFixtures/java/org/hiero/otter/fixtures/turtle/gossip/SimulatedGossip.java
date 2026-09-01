@@ -3,15 +3,8 @@ package org.hiero.otter.fixtures.turtle.gossip;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.component.framework.model.DeterministicWiringModel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.Gossip;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -19,13 +12,20 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 
 /**
- * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetwork}.
+ * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkConnectivity}.
  */
-public class SimulatedGossip implements Gossip {
+public class SimulatedGossip implements Gossip, EventReceiver {
 
-    private final SimulatedNetwork network;
+    private final SimulatedNetworkConnectivity networkConnectivity;
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
@@ -35,22 +35,14 @@ public class SimulatedGossip implements Gossip {
     private DeterministicWiringModel deterministicWiringModel;
 
     /**
-     * A buffer of all events this gossip instance has received. This is used to re-deliver events that were received
-     * while the node was halted.
-     */
-    private final List<PlatformEvent> eventBuffer = new ArrayList<>();
-
-    /** Keeps track of the status of the node the last time we checked if it was running */
-    private boolean wasPreviouslyHalted = false;
-
-    /**
      * Constructor.
      *
-     * @param network the network on which this gossip system will run
+     * @param networkConnectivity the network connections on which this gossip system will run
      * @param selfId the ID of the node running this gossip system
      */
-    public SimulatedGossip(@NonNull final SimulatedNetwork network, @NonNull final NodeId selfId) {
-        this.network = requireNonNull(network);
+    public SimulatedGossip(
+            @NonNull final SimulatedNetworkConnectivity networkConnectivity, @NonNull final NodeId selfId) {
+        this.networkConnectivity = requireNonNull(networkConnectivity);
         this.selfId = requireNonNull(selfId);
     }
 
@@ -83,9 +75,13 @@ public class SimulatedGossip implements Gossip {
 
         this.eventOutput = requireNonNull(eventOutput);
         this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);
-        eventInput.bindConsumer(event -> network.submitEvent(selfId, event));
+        eventInput.bindConsumer(event -> {
+            // Self-created events have no sender until now; the network identifies the source by this field
+            event.setSenderId(selfId);
+            networkConnectivity.submitEvent(event);
+        });
+        eventWindowInput.bindConsumer(eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
 
-        eventWindowInput.bindConsumer(eventWindow -> eventBuffer.removeIf(eventWindow::isAncient));
         startInput.bindConsumer(ignored -> {});
         stopInput.bindConsumer(ignored -> {});
         clearInput.bindConsumer(ignored -> {});
@@ -96,21 +92,15 @@ public class SimulatedGossip implements Gossip {
     }
 
     /**
-     * This method is called every time this node receives an event from the network.
-     *
-     * @param event the event that was received
+     * {@inheritDoc}
      */
-    void receiveEvent(@NonNull final PlatformEvent event) {
+    @Override
+    public boolean receiveEvent(@NonNull final PlatformEvent event) {
         if (deterministicWiringModel.isRunning()) {
-            if (wasPreviouslyHalted) {
-                eventBuffer.forEach(this::forwardEvent);
-                wasPreviouslyHalted = false;
-            }
             forwardEvent(event);
-        } else {
-            wasPreviouslyHalted = true;
+            return true;
         }
-        eventBuffer.add(event);
+        return false;
     }
 
     private void forwardEvent(@NonNull final PlatformEvent event) {
@@ -118,5 +108,12 @@ public class SimulatedGossip implements Gossip {
             intakeEventCounter.eventEnteredIntakePipeline(event.getSenderId());
         }
         eventOutput.forward(event);
+    }
+
+    /**
+     * Resets this node's gossip point so that it will receive all necessary events after a restart.
+     */
+    public void onRestart() {
+        networkConnectivity.resetCursor(selfId);
     }
 }

@@ -108,6 +108,25 @@ the transition to a terminal state, it too will cease operations.
 
 To establish a connection back to the block node, a new connection object will need to be created.
 
+### Request Timeouts
+
+Each request that gets sent to a block node has a timeout associated with it. These timeouts are based on the size of
+the request being sent.
+
+For each request, the total size of the request is determined (as a number of bytes). Then, a calculation is performed
+that multiplies the number of kilobytes (1024 bytes) that make up the request by a number of microseconds
+(`blockNode.operationTimeout.microsPerKilobyte`). This value is then converted to milliseconds and added to the base
+milliseconds (`blockNode.operationTimeout.baseMillis`). If the total exceeds the maximum timeout
+(`blockNode.operationTimeout.maxMillis`) then the timeout clamped to the max allowed. This is the amount of time the
+consensus node will wait for a request to complete before timing it out.
+
+If the number of times a timeout has been encountered exceeds the max allowed (`blockNode.operationTimeout.maxTimeoutsPerWindow`)
+within a given window of time (`blockNode.operationTimeout.timeoutWindowDuration`) - for example, a max of 3 timeouts in
+a 60 second window, then the connection will be closed. The connection will have a close reason of `TIMEOUT`.
+If the number of timeouts does not exceed the max allowed, then the block may be resent. Regardless of what progress has
+been successfully made in sending parts of the block, if a retry is attempted, the requests will start with the block
+header and re-send the full block.
+
 ### Request Sizing
 
 There are two configurations that govern the size of a `PublishStreamRequest` that gets sent to a block node.
@@ -148,21 +167,50 @@ Where:
 
 Block request IDs (streaming requests only):
 
-- `N#-STR#-BLK#-REQ#`
+- `N#-STR#-BLK#-BAN#-REQ#`
 
 Where:
 
 - `BLK#` is the block number being sent
+- `BAN#` is the number of times this block has been tried
 - `REQ#` is the request number within that block
 
 ### Logging format
 
-For block streaming request sends, logs include the full block request correlation ID in the connection context:
+When sending requests to a block node, all requests have a correlation ID that is unique to the connection. The format
+of the correlation ID is:
 
-`[N3-STR1-BLK0-REQ2/localhost:37753/ACTIVE] Sending request to block node (type=BLOCK_ITEMS)`
+```
+N{NodeId}-STR{ConnectionId}-BLK{BlockNumber}-BAN{BlockAttemptNumber}-REQ{BlockRequestNumber}-CRN{ConnectionRequestNumber}
+```
 
-For non-block-specific operations (e.g. service/status calls), logs use the connection-level ID:
+- Node ID: the ID of the current consensus node where the request originated from
+- Connection ID: the unique ID of the stream/connection established (unique within the lifespan of the JVM)
+- Block Number: the block number associated with the request
+- Block Attempt Number: the number of times the block has been attempted (happy path will be '1', but if a block is being retried then this number will increment for each retry)
+- Block Request Number: the request number unique to the block
+- Connection Request Number: unique ID for the request (unique within the lifespan of the connection)
 
+An example of this correlation ID is:
+`[N3-STR1-BLK0-BAN1-REQ2-CRN1391/localhost:37753/ACTIVE] ...`
+
+Some requests are not associated with a block, such as sending an EndStream request, and therefore they will lack
+block-specific details. These will have a format of:
+
+```
+N{NodeId}-[STR|SVC]{ConnectionId}-CRN{ConnectionRequestNumber}
+```
+
+An example of this correlation ID is:
+`[N3-SVC1-CRN12/localhost:37753/ACTIVE] ...`
+
+For general purpose logging, all logs should be identified by the node and stream with the format:
+
+```
+N{NodeId}-[STR|SVC]{ConnectionId}
+```
+
+An example of the correlation ID:
 `[N3-SVC1/localhost:37753/ACTIVE] ...`
 
 ### Notes
