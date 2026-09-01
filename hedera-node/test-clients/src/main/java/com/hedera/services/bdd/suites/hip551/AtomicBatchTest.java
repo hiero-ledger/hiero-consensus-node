@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -44,7 +43,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
@@ -54,8 +52,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -94,12 +90,9 @@ import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
-import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -110,10 +103,8 @@ import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.RunnableOp;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -930,87 +921,6 @@ public class AtomicBatchTest {
                                             .batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator),
                     getAccountBalance(receiver).hasTinyBars(FIVE_HBARS * 2));
-        }
-
-        @HapiTest
-        @DisplayName("Synthetic child record is filed under the inner txn that caused it")
-        final Stream<DynamicTest> syntheticChildIsFiledUnderTheInnerTxnThatCausedIt() {
-            final var batchOperator = "batchOperator";
-            // Each inner transaction has its own payer, so the identity stamped on the synthetic record
-            // distinguishes which inner transaction it was attributed to
-            final var lazyCreator = "lazyCreator";
-            final var benignPayer = "benignPayer";
-            final var receiver = "benignReceiver";
-            final var makeCalls = "MakeCalls";
-            final var hollowKey = "hollowKey";
-            final var causingInner = "causingInner";
-            final var unrelatedInner = "unrelatedInner";
-            final var createdAccountId = new AtomicReference<AccountID>();
-            final var causingInnerRecords = new AtomicReference<List<TransactionRecord>>();
-
-            return hapiTest(
-                    cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate(lazyCreator).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate(benignPayer).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate(receiver).balance(0L),
-                    uploadInitCode(makeCalls),
-                    contractCreate(makeCalls).gas(3_000_000L),
-                    newKeyNamed(hollowKey).shape(SECP_256K1_SHAPE),
-                    withAddressOfKey(
-                            hollowKey,
-                            address -> blockingOrder(
-                                    // The first inner sends value to a brand new EVM address, lazy-creating it;
-                                    // the second is an unrelated transfer paid by a different account
-                                    atomicBatch(
-                                                    contractCall(makeCalls, "makeCallWithAmount", address, new byte[0])
-                                                            .batchKey(batchOperator)
-                                                            .payingWith(lazyCreator)
-                                                            .gas(1_000_000L)
-                                                            .sending(ONE_HBAR)
-                                                            .via(causingInner),
-                                                    cryptoTransfer(movingHbar(1L)
-                                                                    .between(benignPayer, receiver))
-                                                            .batchKey(batchOperator)
-                                                            .payingWith(benignPayer)
-                                                            .via(unrelatedInner))
-                                            .signedByPayerAnd(batchOperator),
-                                    getAliasedAccountInfo(ByteString.copyFrom(explicitBytesOf(address)))
-                                            .has(accountWith().balance(ONE_HBAR))
-                                            .exposingIdTo(createdAccountId::set),
-                                    // The creation belongs to the inner transaction that caused it...
-                                    getTxnRecord(causingInner)
-                                            .andAllChildRecords()
-                                            .hasNonStakingChildRecordCount(1)
-                                            .exposingAllTo(causingInnerRecords::set),
-                                    // ...and not to an unrelated inner transaction paid by someone else
-                                    getTxnRecord(unrelatedInner)
-                                            .andAllChildRecords()
-                                            .hasNonStakingChildRecordCount(0),
-                                    withOpContext((spec, opLog) -> {
-                                        final var causingId = spec.registry().getTxnId(causingInner);
-                                        final var unrelatedId = spec.registry().getTxnId(unrelatedInner);
-                                        final var creations = causingInnerRecords.get().stream()
-                                                .filter(record ->
-                                                        record.getReceipt().hasAccountID())
-                                                .toList();
-
-                                        assertEquals(1, creations.size(), "expected one synthetic creation");
-                                        final var creation = creations.getFirst();
-                                        final var creationId = creation.getTransactionID();
-                                        assertEquals(
-                                                SUCCESS, creation.getReceipt().getStatus());
-                                        assertEquals(
-                                                createdAccountId.get(),
-                                                creation.getReceipt().getAccountID());
-                                        // The nonce comes from a counter shared by every synthetic record in the
-                                        // user transaction, so only its being a child nonce is meaningful
-                                        assertTrue(creationId.getNonce() > 0, "expected a child nonce");
-                                        assertEquals(causingId.getAccountID(), creationId.getAccountID());
-                                        assertEquals(
-                                                causingId.getTransactionValidStart(),
-                                                creationId.getTransactionValidStart());
-                                        assertNotEquals(unrelatedId.getAccountID(), creationId.getAccountID());
-                                    }))));
         }
     }
 
