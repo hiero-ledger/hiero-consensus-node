@@ -51,6 +51,7 @@ public class PlatformStateService implements OtterService {
     public PlatformStateService(@NonNull final SemanticVersion version) {
         this.version = version;
     }
+
     /**
      * {@inheritDoc}
      */
@@ -67,7 +68,11 @@ public class PlatformStateService implements OtterService {
             final SemanticVersion stateVersion = versionOf(state.getReadableStates(NAME));
             final int compare = SEMANTIC_VERSION_COMPARATOR.compare(stateVersion, version);
             if (compare < 0) {
-                log.info(STARTUP.getMarker(), "Mutating state on upgrade path");
+                log.info(
+                        STARTUP.getMarker(),
+                        "Mutating state on upgrade path to mimic Hedera app behavior. Old version: {}, new version: {}",
+                        stateVersion,
+                        version);
                 final WritablePlatformStateStore store = new WritablePlatformStateStore(state.getWritableStates(NAME));
                 store.setCreationSoftwareVersion(version);
                 commitState(state);
@@ -75,6 +80,7 @@ public class PlatformStateService implements OtterService {
         }
     }
 
+    @NonNull
     private SemanticVersion versionOf(@NonNull final ReadableStates readableStates) {
         final ReadablePlatformStateStore store = new ReadablePlatformStateStore(readableStates);
         return store.getCreationSoftwareVersion();
@@ -121,7 +127,7 @@ public class PlatformStateService implements OtterService {
     /**
      * Handles the freeze transaction by updating the freeze time in the platform state.
      *
-     * @param writableStates the current state of the Otter testing tool
+     * @param writableStates    the current state of the Otter testing tool
      * @param freezeTransaction the freeze transaction to handle
      */
     private static void handleFreeze(
@@ -132,11 +138,12 @@ public class PlatformStateService implements OtterService {
     }
 
     /**
-     * Handles the state signature transaction by creating a new ScopedSystemTransaction and passing it to the callback.
+     * Handles the state signature transaction by creating a new ScopedSystemTransaction and passing it to the
+     * callback.
      *
-     * @param event the event associated with the transaction
+     * @param event       the event associated with the transaction
      * @param transaction the state signature transaction to handle
-     * @param callback the callback to invoke with the new ScopedSystemTransaction
+     * @param callback    the callback to invoke with the new ScopedSystemTransaction
      */
     private static void handleStateSignature(
             @NonNull final Event event,
