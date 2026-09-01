@@ -105,7 +105,7 @@ dependencies.constraints {
     api("org.hyperledger.besu:secp256r1:1.4.2")
     api("org.hyperledger.besu:arithmetic:1.4.2")
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
-    api("org.json:json:20250517") { because("org.json") }
+    api("org.json:json:20260719") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
     api("org.junit:junit-bom:$junit5")
