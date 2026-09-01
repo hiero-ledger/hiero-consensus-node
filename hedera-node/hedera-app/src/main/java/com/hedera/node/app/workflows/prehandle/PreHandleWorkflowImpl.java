@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
+import static com.hedera.hapi.util.HapiUtils.accountIdsEqual;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.nodeDueDiligenceFailure;
@@ -432,7 +433,13 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         }
         // If not, bootstrap the expanded signature pairs by grabbing all prefixes that are "full" keys already
         final var originals = txInfo.signatureMap().sigPair();
-        final var expanded = new LinkedHashSet<ExpandedSignaturePair>();
+        final long expectedExpandedSignatures = (long) originals.size()
+                + (payerIsHollow == PayerIsHollow.NO ? 1 : 0)
+                + (onlyPayerKey == VerifyOnlyPayerKey.NO
+                        ? (long) context.requiredNonPayerKeys().size()
+                                + context.optionalNonPayerKeys().size()
+                        : 0);
+        final var expanded = new LinkedHashSet<ExpandedSignaturePair>(hashTableCapacityFor(expectedExpandedSignatures));
         signatureExpander.expand(originals, expanded);
         // Expand the payer account key signatures if it is not a hollow account
         if (payerIsHollow == PayerIsHollow.NO) {
@@ -458,6 +465,10 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             return merged;
         }
         return signatureVerifier.verify(txInfo.signedBytes(), expanded);
+    }
+
+    private static int hashTableCapacityFor(final long expectedSize) {
+        return (int) Math.min(Integer.MAX_VALUE, (expectedSize * 4 + 2) / 3);
     }
 
     @Nullable
@@ -498,7 +509,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             return false;
         }
         return innerTransaction == InnerTransaction.YES
-                || creatorInfo.accountId().equals(txInfo.txBody().nodeAccountID());
+                || accountIdsEqual(creatorInfo.accountId(), txInfo.txBody().nodeAccountID());
     }
 
     @NonNull

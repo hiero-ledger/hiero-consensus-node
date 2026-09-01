@@ -37,6 +37,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.NodeId;
@@ -47,6 +48,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
+import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
@@ -83,6 +85,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mock.Strictness;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -729,6 +732,63 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
         }
 
         @Test
+        @DisplayName("Expanded signatures retain original, payer, required, and optional key order")
+        void expandedSignaturesRetainInsertionOrder() throws Exception {
+            final var payerKey = ALICE.keyInfo().publicKey();
+            final var originalKey = BOB.keyInfo().publicKey();
+            final var requiredKey = ERIN.keyInfo().publicKey();
+            final var optionalKey = CAROL.keyInfo().publicKey();
+            final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(txInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(txInfo);
+            final var original = expandedPair(originalKey);
+            final var payer = expandedPair(payerKey);
+            final var required = expandedPair(requiredKey);
+            final var optional = expandedPair(optionalKey);
+            doAnswer(invocation -> {
+                        invocation.<Set<ExpandedSignaturePair>>getArgument(1).add(original);
+                        return null;
+                    })
+                    .when(signatureExpander)
+                    .expand(any(List.class), any(Set.class));
+            doAnswer(invocation -> {
+                        invocation.<Set<ExpandedSignaturePair>>getArgument(2).add(payer);
+                        return null;
+                    })
+                    .when(signatureExpander)
+                    .expand(org.mockito.ArgumentMatchers.eq(payerKey), any(List.class), any(Set.class));
+            doAnswer(invocation -> {
+                        final Iterable<Key> keys = invocation.getArgument(0);
+                        final var expanded = invocation.<Set<ExpandedSignaturePair>>getArgument(2);
+                        for (final var key : keys) {
+                            if (key.equals(requiredKey)) {
+                                expanded.add(required);
+                            } else if (key.equals(optionalKey)) {
+                                expanded.add(optional);
+                            }
+                        }
+                        return null;
+                    })
+                    .when(signatureExpander)
+                    .expand(any(Iterable.class), any(List.class), any(Set.class));
+            doAnswer(invocation -> {
+                        final var context = invocation.getArgument(0, PreHandleContext.class);
+                        context.requireKey(requiredKey);
+                        context.optionalKey(optionalKey);
+                        return null;
+                    })
+                    .when(dispatcher)
+                    .dispatchPreHandle(any());
+            final var expandedCaptor = ArgumentCaptor.forClass(Set.class);
+            when(signatureVerifier.verify(any(), expandedCaptor.capture())).thenReturn(Map.of());
+
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            assertThat(expandedCaptor.getValue()).containsExactly(original, payer, required, optional);
+        }
+
+        @Test
         @DisplayName("Happy path reuses ingest parse and payer verification")
         void happyPathWithIngestHandoff() throws Exception {
             final var payerAccount = ALICE.accountID();
@@ -1005,5 +1065,10 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             // And we do see this transaction registered with the deduplication cache
             verify(deduplicationCache).add(txInfo.txBody().transactionIDOrThrow());
         }
+    }
+
+    private static ExpandedSignaturePair expandedPair(final Key key) {
+        final var keyBytes = key.hasEd25519() ? key.ed25519OrThrow() : key.ecdsaSecp256k1OrThrow();
+        return new ExpandedSignaturePair(key, keyBytes, null, SignaturePair.DEFAULT);
     }
 }

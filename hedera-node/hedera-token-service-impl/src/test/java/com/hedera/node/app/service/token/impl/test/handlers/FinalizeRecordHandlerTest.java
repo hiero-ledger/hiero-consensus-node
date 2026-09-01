@@ -6,8 +6,10 @@ import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static java.util.Collections.emptyMap;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
@@ -16,6 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -40,6 +43,7 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.FinalizeRecordHandler;
+import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHandler.StakingRewardsResult;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHandlerImpl;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
@@ -56,6 +60,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -976,7 +981,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void handleCombinedHbarAndTokenTransfersSuccess() {
+    void combinedGoldenOutputSurvivesConsecutiveScratchReuse() {
         // This test case tests the combined success of hbar, fungible token, and nft transfers
 
         final var token321Rel = givenFungibleTokenRelation()
@@ -1029,8 +1034,9 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         given(context.configuration()).willReturn(configuration);
 
         subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
 
-        BDDMockito.verify(recordBuilder)
+        BDDMockito.verify(recordBuilder, times(2))
                 .transferList(TransferList.newBuilder()
                         .accountAmounts(
                                 AccountAmount.newBuilder()
@@ -1042,7 +1048,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                         .amount(hbar1212Change)
                                         .build())
                         .build());
-        BDDMockito.verify(recordBuilder)
+        BDDMockito.verify(recordBuilder, times(2))
                 .tokenTransferLists(List.of(
                         TokenTransferList.newBuilder()
                                 .token(TOKEN_321)
@@ -1064,6 +1070,170 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                         .receiverAccountID(ACCOUNT_1212_ID)
                                         .build())
                                 .build()));
+    }
+
+    @Test
+    void nestedAndConsecutiveFinalizationsUseIsolatedScratch() {
+        setupTestStores(List.of(ACCOUNT_1212, ACCOUNT_3434), List.of(), List.of(), List.of());
+        writableAccountStore.put(ACCOUNT_1212
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_1212.tinybarBalance() - 10)
+                .build());
+        writableAccountStore.put(ACCOUNT_3434
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_3434.tinybarBalance() + 10)
+                .build());
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        final var outerContext = context;
+
+        setupTestStores(List.of(ACCOUNT_3434, ACCOUNT_5656), List.of(), List.of(), List.of());
+        writableAccountStore.put(ACCOUNT_3434
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_3434.tinybarBalance() - 20)
+                .build());
+        writableAccountStore.put(ACCOUNT_5656
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_5656.tinybarBalance() + 20)
+                .build());
+        context = mock(FinalizeContext.class, withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
+        final var nestedContext = mockContext();
+        given(nestedContext.configuration()).willReturn(configuration);
+
+        given(outerContext.hasChildOrPrecedingRecords()).willAnswer(invocation -> {
+            subject.finalizeNonStakingRecord(nestedContext, HederaFunctionality.CRYPTO_DELETE);
+            return false;
+        });
+
+        subject.finalizeNonStakingRecord(outerContext, HederaFunctionality.CRYPTO_DELETE);
+
+        setupTestStores(List.of(ACCOUNT_1212, ACCOUNT_5656), List.of(), List.of(), List.of());
+        writableAccountStore.put(ACCOUNT_1212
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_1212.tinybarBalance() - 30)
+                .build());
+        writableAccountStore.put(ACCOUNT_5656
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_5656.tinybarBalance() + 30)
+                .build());
+        context = mock(FinalizeContext.class, withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
+        final var consecutiveContext = mockContext();
+        given(consecutiveContext.configuration()).willReturn(configuration);
+        subject.finalizeNonStakingRecord(consecutiveContext, HederaFunctionality.CRYPTO_DELETE);
+
+        verify(recordBuilder)
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_3434_ID)
+                                        .amount(-20)
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_5656_ID)
+                                        .amount(20)
+                                        .build())
+                        .build());
+        verify(recordBuilder)
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_1212_ID)
+                                        .amount(-10)
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_3434_ID)
+                                        .amount(10)
+                                        .build())
+                        .build());
+        verify(recordBuilder)
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_1212_ID)
+                                        .amount(-30)
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_5656_ID)
+                                        .amount(30)
+                                        .build())
+                        .build());
+    }
+
+    @Test
+    void exceptionReleasesAndClearsScratch() {
+        setupTestStores(List.of(ACCOUNT_1212), List.of(), List.of(), List.of());
+        writableAccountStore.put(ACCOUNT_1212.copyBuilder().tinybarBalance(1).build());
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        given(context.userTransactionRecordBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
+
+        assertThatThrownBy(() -> subject.finalizeNonStakingRecord(context, HederaFunctionality.CRYPTO_DELETE))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(FAIL_INVALID));
+
+        setupTestStores(List.of(ACCOUNT_1212, ACCOUNT_3434), List.of(), List.of(), List.of());
+        writableAccountStore.put(ACCOUNT_1212
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_1212.tinybarBalance() - 10)
+                .build());
+        writableAccountStore.put(ACCOUNT_3434
+                .copyBuilder()
+                .tinybarBalance(ACCOUNT_3434.tinybarBalance() + 10)
+                .build());
+        context = mock(FinalizeContext.class, withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
+        final var validContext = mockContext();
+        given(validContext.configuration()).willReturn(configuration);
+
+        assertThatCode(() -> subject.finalizeNonStakingRecord(validContext, HederaFunctionality.CRYPTO_DELETE))
+                .doesNotThrowAnyException();
+        verify(recordBuilder)
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_1212_ID)
+                                        .amount(-10)
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_3434_ID)
+                                        .amount(10)
+                                        .build())
+                        .build());
+    }
+
+    @Test
+    void usesStakingAnalysisOriginalsButRereadsPostStakingCurrentAccounts() {
+        setupTestStores(List.of(ACCOUNT_1212, ACCOUNT_3434), List.of(), List.of(), List.of());
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        given(stakingRewardsHandler.applyStakingRewardsWithAnalysis(
+                        eq(context), eq(Collections.emptySet()), eq(emptyMap()), any()))
+                .willAnswer(invocation -> {
+                    writableAccountStore.put(ACCOUNT_1212
+                            .copyBuilder()
+                            .tinybarBalance(ACCOUNT_1212.tinybarBalance() - 10)
+                            .build());
+                    writableAccountStore.put(ACCOUNT_3434
+                            .copyBuilder()
+                            .tinybarBalance(ACCOUNT_3434.tinybarBalance() + 10)
+                            .build());
+                    return new StakingRewardsResult(
+                            emptyMap(), Map.of(ACCOUNT_1212_ID, ACCOUNT_1212, ACCOUNT_3434_ID, ACCOUNT_3434));
+                });
+
+        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+
+        verify(recordBuilder)
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_1212_ID)
+                                        .amount(-10)
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(ACCOUNT_3434_ID)
+                                        .amount(10)
+                                        .build())
+                        .build());
     }
 
     private FinalizeContext mockContext() {

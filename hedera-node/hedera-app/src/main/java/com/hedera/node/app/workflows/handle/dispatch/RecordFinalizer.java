@@ -18,7 +18,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -92,9 +91,10 @@ public class RecordFinalizer {
             return emptySet();
         }
         return switch (function) {
-            case CRYPTO_TRANSFER -> zeroAdjustIdsFrom(body.cryptoTransferOrThrow()
-                    .transfersOrElse(TransferList.DEFAULT)
-                    .accountAmounts());
+            case CRYPTO_TRANSFER ->
+                zeroAdjustIdsFrom(body.cryptoTransferOrThrow()
+                        .transfersOrElse(TransferList.DEFAULT)
+                        .accountAmounts());
             case ETHEREUM_TRANSACTION, CONTRACT_CALL, CONTRACT_CREATE -> recordBuilder.explicitRewardSituationIds();
             default -> emptySet();
         };
@@ -108,9 +108,13 @@ public class RecordFinalizer {
      */
     @NonNull
     Set<AccountID> zeroAdjustIdsFrom(@NonNull final List<AccountAmount> explicitHbarAdjustments) {
-        return explicitHbarAdjustments.stream()
-                .filter(aa -> aa.amount() == 0)
-                .map(AccountAmount::accountID)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        final Set<AccountID> zeroAdjustIds = LinkedHashSet.newLinkedHashSet(explicitHbarAdjustments.size());
+        for (int i = 0, n = explicitHbarAdjustments.size(); i < n; i++) {
+            final var adjustment = explicitHbarAdjustments.get(i);
+            if (adjustment.amount() == 0) {
+                zeroAdjustIds.add(adjustment.accountID());
+            }
+        }
+        return zeroAdjustIds;
     }
 }

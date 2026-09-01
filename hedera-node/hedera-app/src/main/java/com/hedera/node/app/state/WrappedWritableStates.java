@@ -147,10 +147,15 @@ public class WrappedWritableStates implements WritableStates {
         commitInStateIdOrder(writableKVStateMap, WrappedWritableKVState::commit);
         commitInStateIdOrder(writableQueueStateMap, WrappedWritableQueueState::commit);
         commitInStateIdOrder(writableSingletonStateMap, WrappedWritableSingletonState::commit);
-        // In-memory backends must persist now. Merkle keeps write buffers until
-        // VirtualMap.copy(); listeners already fired from wrap apply.
-        if (delegate instanceof CommittableWritableStates terminalStates && terminalStates.requiresImmediateCommit()) {
-            terminalStates.commit();
+        // In-memory backends commit now (listeners + readable views). Merkle already
+        // fired listeners from wrap apply; flush into the VirtualMap so working-state
+        // queries and ingest see the writes without a round copy.
+        if (delegate instanceof CommittableWritableStates terminalStates) {
+            if (terminalStates.requiresImmediateCommit()) {
+                terminalStates.commit();
+            } else {
+                terminalStates.flushToDataSource();
+            }
         }
     }
 

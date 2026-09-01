@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
+import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
@@ -402,6 +403,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
      */
     void writeItem(@NonNull final byte[] bytes) {
         requireNonNull(bytes);
+        writeItemPrefix(bytes.length);
+        writableStreamingData.writeBytes(bytes);
+    }
+
+    private void writeItemPrefix(final int itemLength) {
         if (state != State.OPEN) {
             throw new IllegalStateException(
                     "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
@@ -410,9 +416,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
         // Write the ITEMS tag.
         ProtoWriterTools.writeTag(writableStreamingData, BlockSchema.ITEMS, ProtoConstants.WIRE_TYPE_DELIMITED);
         // Write the length of the item.
-        writableStreamingData.writeVarInt(bytes.length, false);
-        // Write the item bytes themselves.
-        writableStreamingData.writeBytes(bytes);
+        writableStreamingData.writeVarInt(itemLength, false);
     }
 
     /**
@@ -425,7 +429,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
         requireNonNull(bytes, "bytes must not be null");
-        writeItem(bytes.toByteArray());
+        writeItemPrefix(toIntExact(bytes.length()));
+        bytes.writeTo(writableStreamingData);
+    }
+
+    @Override
+    public void writePbjItemAndSerialized(@NonNull final BlockItem item, @NonNull final byte[] serialized) {
+        writeItem(serialized);
     }
 
     @Override

@@ -57,11 +57,12 @@ public class AdjustHbarChangesStep extends BaseTokenHandler implements TransferS
 
         final var accountStore =
                 transferContext.getHandleContext().storeFactory().writableStore(WritableAccountStore.class);
+        final var accountAmounts = op.transfersOrElse(TransferList.DEFAULT).accountAmounts();
         // Aggregate all the hbar balances from the changes. It also includes allowance transfer amounts
-        final Map<AccountID, Long> netHbarTransfers = new LinkedHashMap<>();
+        final Map<AccountID, Long> netHbarTransfers = LinkedHashMap.newLinkedHashMap(accountAmounts.size());
         // Allowance transfers is only for negative amounts, it is used to reduce allowance for the spender
-        final Map<AccountID, Long> allowanceTransfers = new LinkedHashMap<>();
-        for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+        final Map<AccountID, Long> allowanceTransfers = LinkedHashMap.newLinkedHashMap(accountAmounts.size());
+        for (final var aa : accountAmounts) {
             netHbarTransfers.merge(aa.accountID(), aa.amount(), Long::sum);
             if (aa.isApproval() && aa.amount() < 0) {
                 allowanceTransfers.merge(aa.accountID(), aa.amount(), Long::sum);

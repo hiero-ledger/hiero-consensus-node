@@ -65,6 +65,40 @@ public class HapiUtils {
     private static final Pattern IPV4_ADDRESS_PATTERN =
             Pattern.compile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$");
 
+    /**
+     * Returns whether two account IDs are equal without going through {@link AccountID#equals(Object)}'s
+     * {@code OneOf} / {@link Objects#equals(Object, Object)} path. Numeric IDs (the CryptoTransfer hot path)
+     * compare shard, realm, and account number as primitives.
+     */
+    public static boolean accountIdsEqual(@Nullable final AccountID a, @Nullable final AccountID b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.shardNum() != b.shardNum() || a.realmNum() != b.realmNum()) {
+            return false;
+        }
+        if (a.hasAccountNum()) {
+            return b.hasAccountNum()
+                    && a.accountNumOrThrow().longValue()
+                            == b.accountNumOrThrow().longValue();
+        }
+        if (a.hasAlias()) {
+            return b.hasAlias() && a.aliasOrThrow().equals(b.aliasOrThrow());
+        }
+        return !b.hasAccountNum() && !b.hasAlias();
+    }
+
+    /**
+     * Returns whether {@code id} is the protobuf default account id ({@code 0.0.unset}), without calling
+     * {@link AccountID#equals(Object)}.
+     */
+    public static boolean isDefaultAccountId(@NonNull final AccountID id) {
+        return id.shardNum() == 0 && id.realmNum() == 0 && !id.hasAccountNum() && !id.hasAlias();
+    }
+
     /** A {@link Comparator} for {@link AccountID}s. Sorts first by account number, then by alias. */
     public static final Comparator<AccountID> ACCOUNT_ID_COMPARATOR = (o1, o2) -> {
         if (o1 == o2) return 0;

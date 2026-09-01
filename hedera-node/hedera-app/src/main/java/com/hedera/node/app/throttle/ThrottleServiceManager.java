@@ -160,7 +160,7 @@ public class ThrottleServiceManager {
         if (hapiThrottles.isEmpty()) {
             hapiThrottleSnapshots = emptyList();
         } else {
-            hapiThrottleSnapshots = new ArrayList<>();
+            hapiThrottleSnapshots = new ArrayList<>(hapiThrottles.size());
             for (final var throttle : hapiThrottles) {
                 hapiThrottleSnapshots.add(throttle.usageSnapshot());
             }

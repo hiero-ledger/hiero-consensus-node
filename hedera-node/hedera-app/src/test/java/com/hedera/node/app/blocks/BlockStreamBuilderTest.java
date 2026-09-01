@@ -274,6 +274,37 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
+    void resetForNextUserTxnDoesNotMutateInFlightTransactionResultLists() {
+        final var builder = createBaseBuilder().functionality(HederaFunctionality.CRYPTO_TRANSFER);
+        final var result = builder.build(false, null).blockItems().get(1).transactionResult();
+
+        assertEquals(List.of(tokenAssociation), result.automaticTokenAssociations());
+
+        builder.resetForNextUserTxn();
+
+        assertEquals(List.of(tokenAssociation), result.automaticTokenAssociations());
+        assertThat(result.automaticTokenAssociations()).isNotEmpty();
+    }
+
+    @Test
+    void syncBodyIdInvalidatesCachedSignedTransactionBytes() throws Exception {
+        final var updatedId =
+                TransactionID.newBuilder().accountID(AccountID.DEFAULT).build();
+        final var builder = createBaseBuilder()
+                .serializedSignedTx(signedTxBytes)
+                .transactionID(updatedId)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER);
+
+        builder.syncBodyIdFromRecordId();
+
+        final var serializedSignedTx =
+                builder.build(false, null).blockItems().getFirst().signedTransactionOrThrow();
+        final var updatedSignedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+        final var updatedBody = TransactionBody.PROTOBUF.parse(updatedSignedTx.bodyBytes());
+        assertThat(updatedBody.transactionID()).isEqualTo(updatedId);
+    }
+
+    @Test
     void nullOutSideEffectFieldsClearsEvmLogsAndCreatedContractIds() {
         final var contractId = ContractID.newBuilder().contractNum(1L).build();
         final var log = EvmTransactionLog.DEFAULT;

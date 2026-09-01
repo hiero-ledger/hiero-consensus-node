@@ -47,6 +47,8 @@ class ThrottleServiceManagerTest {
             new CongestionLevelStarts(List.of(new Timestamp(1L, 2), EPOCH), List.of(new Timestamp(3L, 4), EPOCH));
     private static final ThrottleUsageSnapshot MOCK_USAGE_SNAPSHOT =
             new ThrottleUsageSnapshot(123L, new Timestamp(1_234_567L, 890));
+    private static final ThrottleUsageSnapshot SECOND_MOCK_USAGE_SNAPSHOT =
+            new ThrottleUsageSnapshot(456L, new Timestamp(1_234_568L, 891));
 
     @Mock
     private ConfigProvider configProvider;
@@ -96,6 +98,9 @@ class ThrottleServiceManagerTest {
     @Mock
     private DeterministicThrottle cryptoTransferThrottle;
 
+    @Mock
+    private DeterministicThrottle highVolumeCryptoTransferThrottle;
+
     private ThrottleServiceManager subject;
 
     @BeforeEach
@@ -141,6 +146,9 @@ class ThrottleServiceManagerTest {
     void savesInternalStateAsExpected() {
         givenWritableThrottleState();
         givenThrottleMocks();
+        given(backendThrottle.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(cryptoTransferThrottle, highVolumeCryptoTransferThrottle));
+        given(highVolumeCryptoTransferThrottle.usageSnapshot()).willReturn(SECOND_MOCK_USAGE_SNAPSHOT);
         given(gasThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(backendThrottle.opsDurationThrottle()).willReturn(opsDurationThrottle);
         given(opsDurationThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
@@ -155,7 +163,9 @@ class ThrottleServiceManagerTest {
 
         verify(writableThrottleSnapshots)
                 .put(new ThrottleUsageSnapshots(
-                        List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT, MOCK_USAGE_SNAPSHOT));
+                        List.of(MOCK_USAGE_SNAPSHOT, SECOND_MOCK_USAGE_SNAPSHOT),
+                        MOCK_USAGE_SNAPSHOT,
+                        MOCK_USAGE_SNAPSHOT));
         verify(writableLevelStarts).put(MOCK_CONGESTION_LEVEL_STARTS);
     }
 

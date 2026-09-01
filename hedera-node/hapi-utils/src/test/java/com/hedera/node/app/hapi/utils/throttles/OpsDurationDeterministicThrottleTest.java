@@ -3,6 +3,8 @@ package com.hedera.node.app.hapi.utils.throttles;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +51,63 @@ final class OpsDurationDeterministicThrottleTest {
         assertEquals(0, restored.capacityFree(now));
         assertEquals(1000, restored.capacityUsed(0L));
         assertEquals(100, restored.capacity());
+    }
+
+    @Test
+    void memoizesSnapshotAndInvalidatesWhenUsageChanges() {
+        final var now = Instant.ofEpochSecond(1);
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        final var initial = subject.usageSnapshot();
+
+        assertSame(initial, subject.usageSnapshot());
+
+        subject.useCapacity(now, 50);
+        final var afterUse = subject.usageSnapshot();
+        assertNotSame(initial, afterUse);
+        assertSame(afterUse, subject.usageSnapshot());
+
+        subject.useCapacity(now.plusSeconds(1), 25);
+        assertNotSame(afterUse, subject.usageSnapshot());
+    }
+
+    @Test
+    void preservesSnapshotIdentityAcrossNoOpsAndRejectedMutations() {
+        final var now = Instant.ofEpochSecond(1);
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+
+        subject.useCapacity(now, 50);
+        final var snapshot = subject.usageSnapshot();
+
+        subject.useCapacity(now, -1);
+        assertSame(snapshot, subject.usageSnapshot());
+        subject.useCapacity(now, 0);
+        assertSame(snapshot, subject.usageSnapshot());
+        assertThrows(IllegalArgumentException.class, () -> subject.useCapacity(now.minusNanos(1), 1));
+        assertSame(snapshot, subject.usageSnapshot());
+    }
+
+    @Test
+    void resetUsageToWarmsCacheFromSuppliedSnapshot() {
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        final var supplied = new ThrottleUsageSnapshot(50, new Timestamp(1, 2));
+
+        subject.resetUsageTo(supplied);
+
+        assertSame(supplied, subject.usageSnapshot());
+    }
+
+    @Test
+    void failedResetDoesNotLeaveAStaleCachedSnapshot() {
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        final var before = subject.usageSnapshot();
+        final var invalid = new ThrottleUsageSnapshot(-1, new Timestamp(1, 2));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.resetUsageTo(invalid));
+
+        final var after = subject.usageSnapshot();
+        assertNotSame(before, after);
+        assertEquals(before.used(), after.used());
+        assertEquals(invalid.lastDecisionTime(), after.lastDecisionTime());
     }
 
     @Test

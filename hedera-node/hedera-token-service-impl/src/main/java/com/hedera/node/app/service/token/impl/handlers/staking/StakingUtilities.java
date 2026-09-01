@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static com.hedera.hapi.util.HapiUtils.accountIdsEqual;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 
@@ -64,7 +65,7 @@ public class StakingUtilities {
                 .stakedNodeIdOrElse(SENTINEL_NODE_ID)
                 .equals(modifiedAccount.stakedNodeIdOrElse(SENTINEL_NODE_ID));
         final var differStakeAccountId =
-                !effectiveStakedAccountId(originalAccount).equals(effectiveStakedAccountId(modifiedAccount));
+                !accountIdsEqual(effectiveStakedAccountId(originalAccount), effectiveStakedAccountId(modifiedAccount));
         return differDeclineReward || differStakedNodeId || differStakeAccountId;
     }
 

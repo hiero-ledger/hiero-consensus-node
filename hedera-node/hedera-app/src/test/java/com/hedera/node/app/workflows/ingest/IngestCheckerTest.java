@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -43,6 +44,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
@@ -59,6 +61,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
@@ -84,6 +87,7 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
@@ -99,6 +103,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -785,6 +790,55 @@ class IngestCheckerTest extends AppTestBase {
             // then
             assertThat(result.txnInfoOrThrow()).isEqualTo(myTransactionInfo);
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        @DisplayName("Expands and verifies every signature in a multi-key payer")
+        void expandsEverySignatureInMultiKeyPayer() throws Exception {
+            final var aliceKey = ALICE.account().keyOrThrow();
+            final var bobKey = BOB.account().keyOrThrow();
+            final var payerKey = Key.newBuilder()
+                    .keyList(KeyList.newBuilder().keys(aliceKey, bobKey))
+                    .build();
+            final var account = ALICE.account().copyBuilder().key(payerKey).build();
+            final var aliceSigPair = SignaturePair.newBuilder()
+                    .pubKeyPrefix(aliceKey.ecdsaSecp256k1OrThrow())
+                    .ecdsaSecp256k1(Bytes.wrap("alice-signature"))
+                    .build();
+            final var bobSigPair = SignaturePair.newBuilder()
+                    .pubKeyPrefix(bobKey.ed25519OrThrow())
+                    .ed25519(Bytes.wrap("bob-signature"))
+                    .build();
+            final var sigPairs = List.of(aliceSigPair, bobSigPair);
+            final var multiSigMap = SignatureMap.newBuilder().sigPair(sigPairs).build();
+            final var multiSigTxInfo = new TransactionInfo(
+                    signedTx, txBody, multiSigMap, signedTx.bodyBytes(), CONSENSUS_CREATE_TOPIC, serializedTx);
+            final var expandedAlice =
+                    new ExpandedSignaturePair(aliceKey, aliceKey.ecdsaSecp256k1OrThrow(), null, aliceSigPair);
+            final var expandedBob = new ExpandedSignaturePair(bobKey, bobKey.ed25519OrThrow(), null, bobSigPair);
+            doAnswer(invocation -> {
+                        final Set<ExpandedSignaturePair> expanded = invocation.getArgument(1);
+                        expanded.add(expandedAlice);
+                        expanded.add(expandedBob);
+                        return null;
+                    })
+                    .when(signatureExpander)
+                    .expand(eq(sigPairs), any());
+            final var aliceFuture = mock(SignatureVerificationFuture.class);
+            final var bobFuture = mock(SignatureVerificationFuture.class);
+            final var aliceVerification = mock(SignatureVerification.class);
+            final var bobVerification = mock(SignatureVerification.class);
+            when(aliceVerification.failed()).thenReturn(false);
+            when(bobVerification.failed()).thenReturn(false);
+            when(aliceFuture.get(anyLong(), any())).thenReturn(aliceVerification);
+            when(bobFuture.get(anyLong(), any())).thenReturn(bobVerification);
+            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(aliceKey, aliceFuture, bobKey, bobFuture));
+
+            subject.verifyAccountSignature(multiSigTxInfo, account, configuration);
+
+            final var expandedCaptor = ArgumentCaptor.forClass(Set.class);
+            verify(signatureExpander).expand(eq(sigPairs), expandedCaptor.capture());
+            assertThat(expandedCaptor.getValue()).containsExactlyInAnyOrder(expandedAlice, expandedBob);
         }
 
         @Test

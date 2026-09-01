@@ -9,8 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class BlockImplUtilsTest {
@@ -120,6 +122,18 @@ class BlockImplUtilsTest {
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, new byte[0], new byte[0]));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, null, new byte[0]));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, new byte[0], null));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNodeInto(null, new byte[0], new byte[0], new byte[48], 0));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNodeInto(digest, null, new byte[0], new byte[48], 0));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNodeInto(digest, new byte[0], null, new byte[48], 0));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNodeInto(digest, new byte[0], new byte[0], null, 0));
     }
 
     @Test
@@ -152,6 +166,49 @@ class BlockImplUtilsTest {
         digest.reset(); // Not necessary, but specifies intent
         final byte[] actual = BlockImplUtils.hashInternalNode(digest, data1Array, data2Array);
         assertArrayEquals(expected.toByteArray(), actual);
+    }
+
+    @Test
+    void hashInternalNodeIntoIsByteEquivalentAndResetsDigest() throws NoSuchAlgorithmException {
+        final var left = MessageDigest.getInstance("SHA-384").digest("left".getBytes(StandardCharsets.UTF_8));
+        final var right = MessageDigest.getInstance("SHA-384").digest("right".getBytes(StandardCharsets.UTF_8));
+        final var expected = BlockImplUtils.hashInternalNode(left, right);
+        final var output = new byte[BlockImplUtils.HASH_SIZE + 4];
+        final var digest = MessageDigest.getInstance("SHA-384");
+
+        BlockImplUtils.hashInternalNodeInto(digest, left, right, output, 2);
+
+        assertArrayEquals(expected, Arrays.copyOfRange(output, 2, 2 + BlockImplUtils.HASH_SIZE));
+        assertArrayEquals(
+                MessageDigest.getInstance("SHA-384").digest("next".getBytes(StandardCharsets.UTF_8)),
+                digest.digest("next".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void hashInternalNodeIntoRejectsInvalidOutputBeforeUpdatingDigest() throws NoSuchAlgorithmException {
+        final var digest = MessageDigest.getInstance("SHA-384");
+        final var expected = digest.digest("next".getBytes(StandardCharsets.UTF_8));
+
+        assertThrows(
+                IndexOutOfBoundsException.class,
+                () -> BlockImplUtils.hashInternalNodeInto(digest, new byte[48], new byte[48], new byte[47], 0));
+
+        assertArrayEquals(expected, digest.digest("next".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void hashInternalNodeIntoSupportsAliasingEitherChild() {
+        final var left = BlockImplUtils.hashLeaf(new byte[] {1});
+        final var right = BlockImplUtils.hashLeaf(new byte[] {2});
+        final var expected = BlockImplUtils.hashInternalNode(left, right);
+        final var leftOutput = left.clone();
+        final var rightOutput = right.clone();
+
+        BlockImplUtils.hashInternalNodeInto(sha384DigestOrThrow(), leftOutput, right, leftOutput, 0);
+        BlockImplUtils.hashInternalNodeInto(sha384DigestOrThrow(), left, rightOutput, rightOutput, 0);
+
+        assertArrayEquals(expected, leftOutput);
+        assertArrayEquals(expected, rightOutput);
     }
 
     @Test

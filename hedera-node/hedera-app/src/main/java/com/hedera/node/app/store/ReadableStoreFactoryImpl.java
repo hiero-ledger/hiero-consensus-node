@@ -162,11 +162,15 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
         newMap.put(
                 ReadableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
+        int cacheIndex = 0;
+        for (final var entry : newMap.entrySet()) {
+            entry.setValue(entry.getValue().withCacheIndex(cacheIndex++));
+        }
         return Collections.unmodifiableMap(newMap);
     }
 
     private final State state;
-    private final Map<Class<?>, Object> storeCache = new HashMap<>();
+    private Object[] storeCache;
     private ReadableEntityIdStoreImpl entityIdStore;
 
     /**
@@ -176,6 +180,16 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
      */
     public ReadableStoreFactoryImpl(@NonNull final State state) {
         this.state = requireNonNull(state, "The supplied argument 'state' cannot be null!");
+    }
+
+    /**
+     * Drops cached store instances so the next {@link #readableStore(Class)} call re-reads
+     * {@link State#getReadableStates(String)}. Needed when the working {@link State} object is
+     * reused across user transactions: KV read caches would otherwise keep a prior "not found".
+     */
+    public void dropCachedStores() {
+        storeCache = null;
+        entityIdStore = null;
     }
 
     /**
@@ -191,32 +205,51 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
     @Override
     public <C> C readableStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
-        final var cached = storeCache.get(storeInterface);
-        if (cached != null) {
-            return storeInterface.cast(cached);
-        }
         final var entry = STORE_FACTORY.get(storeInterface);
-        if (entry != null) {
-            final var readableStates = state.getReadableStates(entry.name);
-            if (entityIdStore == null) {
-                entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
-            }
-            final var store = entry.createFrom(readableStates, entityIdStore);
-            if (!storeInterface.isInstance(store)) {
-                throw new IllegalArgumentException("No instance " + storeInterface
-                        + " is available"); // This needs to be ensured while stores are registered
-            }
-            storeCache.put(storeInterface, store);
-            return storeInterface.cast(store);
+        if (entry == null) {
+            throw new IllegalArgumentException("No store of class " + storeInterface + " is available");
         }
-        throw new IllegalArgumentException("No store of class " + storeInterface + " is available");
+
+        if (storeCache != null) {
+            final var cached = storeCache[entry.cacheIndex];
+            if (cached != null) {
+                return storeInterface.cast(cached);
+            }
+        }
+
+        final var readableStates = state.getReadableStates(entry.name);
+        if (entityIdStore == null) {
+            entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+        }
+        final var store = entry.createFrom(readableStates, entityIdStore);
+        if (!storeInterface.isInstance(store)) {
+            throw new IllegalArgumentException("No instance " + storeInterface
+                    + " is available"); // This needs to be ensured while stores are registered
+        }
+        if (storeCache == null) {
+            storeCache = new Object[STORE_FACTORY.size()];
+        }
+        storeCache[entry.cacheIndex] = store;
+        return storeInterface.cast(store);
     }
 
     private record StoreEntry(
-            @NonNull String name, @Nullable BiFunction<ReadableStates, ReadableEntityIdStore, ?> fromStates) {
+            @NonNull String name,
+            @Nullable BiFunction<ReadableStates, ReadableEntityIdStore, ?> fromStates,
+            int cacheIndex) {
+        private StoreEntry(
+                @NonNull final String name,
+                @Nullable final BiFunction<ReadableStates, ReadableEntityIdStore, ?> fromStates) {
+            this(name, fromStates, -1);
+        }
+
         private StoreEntry {
             requireNonNull(name);
             requireNonNull(fromStates);
+        }
+
+        private StoreEntry withCacheIndex(final int cacheIndex) {
+            return new StoreEntry(name, fromStates, cacheIndex);
         }
 
         @SuppressWarnings("unchecked")

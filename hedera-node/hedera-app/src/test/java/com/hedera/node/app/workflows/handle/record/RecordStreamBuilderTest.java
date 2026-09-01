@@ -15,6 +15,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
@@ -105,6 +106,26 @@ public class RecordStreamBuilderTest {
         assertThat(record.contractCreateResult().logInfo()).isEmpty();
         assertThat(record.contractCreateResult().bloom()).isEqualTo(Bytes.EMPTY);
         assertThat(record.contractCreateResult().createdContractIDs()).isEmpty();
+    }
+
+    @Test
+    void syncBodyIdInvalidatesCachedSignedTransactionBytes() throws Exception {
+        final var initialBody = TransactionBody.DEFAULT;
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(initialBody))
+                .build();
+        final var updatedId = TransactionID.newBuilder().nonce(1).build();
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(signedTx)
+                .serializedSignedTx(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                .transactionID(updatedId);
+
+        builder.syncBodyIdFromRecordId();
+
+        final var serializedSignedTx = builder.build().transaction().signedTransactionBytes();
+        final var updatedSignedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+        final var updatedBody = TransactionBody.PROTOBUF.parse(updatedSignedTx.bodyBytes());
+        assertThat(updatedBody.transactionID()).isEqualTo(updatedId);
     }
 
     @Test

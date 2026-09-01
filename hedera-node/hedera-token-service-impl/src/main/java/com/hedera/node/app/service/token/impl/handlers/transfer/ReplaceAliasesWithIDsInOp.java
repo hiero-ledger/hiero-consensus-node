@@ -31,6 +31,9 @@ public class ReplaceAliasesWithIDsInOp {
         requireNonNull(transferContext);
 
         final var resolutions = transferContext.resolutions();
+        if (resolutions.isEmpty()) {
+            return op;
+        }
         final var replacedAliasesOp = CryptoTransferTransactionBody.newBuilder();
         final var transferList = TransferList.newBuilder();
         final var tokenTransfersList = new ArrayList<TokenTransferList>();

@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.EnsureAliasesStep;
+import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWithIDsInOp;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -44,6 +45,36 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
         givenTxn();
         ensureAliasesStep = new EnsureAliasesStep(body);
         transferContext = new TransferContextImpl(handleContext);
+    }
+
+    @Test
+    void returnsOriginalOpWhenThereAreNoResolutions() {
+        final var opWithoutAliases = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(
+                                AccountAmountUtils.aaWith(ownerId, -1_000), AccountAmountUtils.aaWith(payerId, +1_000))
+                        .build())
+                .build();
+
+        final var replacedOp = new ReplaceAliasesWithIDsInOp().replaceAliasesWithIds(opWithoutAliases, transferContext);
+
+        assertThat(replacedOp).isSameAs(opWithoutAliases);
+    }
+
+    @Test
+    void rebuildsOpWhenThereAreResolutions() {
+        setUpInsertingKnownAliasesToState();
+        ensureAliasesStep.doIn(transferContext);
+
+        final var replacedOp = new ReplaceAliasesWithIDsInOp().replaceAliasesWithIds(body, transferContext);
+
+        assertThat(replacedOp).isNotSameAs(body);
+        assertThat(replacedOp.transfersOrThrow().accountAmounts().get(1).accountIDOrThrow())
+                .isEqualTo(hbarReceiverId);
+        assertThat(replacedOp.tokenTransfers().getFirst().transfers().get(1).accountIDOrThrow())
+                .isEqualTo(tokenReceiverId);
+        assertThat(replacedOp.tokenTransfers().get(1).nftTransfers().getFirst().receiverAccountIDOrThrow())
+                .isEqualTo(tokenReceiverId);
     }
 
     @Test

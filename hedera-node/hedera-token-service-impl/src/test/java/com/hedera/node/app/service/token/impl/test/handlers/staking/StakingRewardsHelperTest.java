@@ -2,13 +2,18 @@
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.MAX_PENDING_REWARDS;
+import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.analyzeStakingAccounts;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.StakeInfoHelperTest.DEFAULT_CONFIG;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -17,6 +22,8 @@ import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,63 +86,146 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void getsAllRewardReceiversForStakeMetaChanges() {
-        final var stakeToMeRewardReceiver = AccountID.newBuilder()
-                .accountNum(account.accountId().accountNum())
-                .build();
-        final var explicitRewardReceiver =
-                AccountID.newBuilder().accountNum(1234567L).build();
-
-        final var stakeToMeRewardReceivers = Set.of(stakeToMeRewardReceiver);
-        final var explicitRewardReceivers = Set.of(explicitRewardReceiver);
         writableAccountStore.put(account.copyBuilder().stakedNodeId(0L).build());
-        final var rewardReceivers = StakingRewardsHelper.getAllRewardReceivers(
-                writableAccountStore, stakeToMeRewardReceivers, explicitRewardReceivers);
-        assertThat(rewardReceivers).contains(stakeToMeRewardReceiver);
+        final var analysis = analyzeStakingAccounts(writableAccountStore, Set.of(), Set.of());
+        assertThat(analysis.rewardReceivers()).contains(account.accountId());
     }
 
     @Test
     void getsAllRewardReceiversForBalanceChanges() {
-        final var stakeToMeRewardReceiver = AccountID.newBuilder()
-                .accountNum(account.accountId().accountNum())
-                .build();
-        final var explicitRewardReceiver =
-                AccountID.newBuilder().accountNum(1234567L).build();
-
-        final var stakeToMeRewardReceivers = Set.of(stakeToMeRewardReceiver);
-        final var explicitRewardReceivers = Set.of(explicitRewardReceiver);
         writableAccountStore.put(account.copyBuilder().tinybarBalance(1000L).build());
-        final var rewardReceivers = StakingRewardsHelper.getAllRewardReceivers(
-                writableAccountStore, stakeToMeRewardReceivers, explicitRewardReceivers);
-        assertThat(rewardReceivers).contains(stakeToMeRewardReceiver);
+        final var analysis = analyzeStakingAccounts(writableAccountStore, Set.of(), Set.of());
+        assertThat(analysis.rewardReceivers()).contains(account.accountId());
     }
 
     @Test
     void getsAllRewardReceiversIfAlreadyStakedToNode() {
-        final var stakeToMeRewardReceiver = AccountID.newBuilder()
-                .accountNum(account.accountId().accountNum())
-                .build();
-        final var explicitRewardReceiver =
-                AccountID.newBuilder().accountNum(1234567L).build();
-
-        final var stakeToMeRewardReceivers = Set.of(stakeToMeRewardReceiver);
-        final var explicitRewardReceivers = Set.of(explicitRewardReceiver);
-        final var rewardReceivers = StakingRewardsHelper.getAllRewardReceivers(
-                writableAccountStore, stakeToMeRewardReceivers, explicitRewardReceivers);
-        assertThat(rewardReceivers).contains(stakeToMeRewardReceiver);
+        final var analysis = analyzeStakingAccounts(writableAccountStore, Set.of(account.accountId()), Set.of());
+        assertThat(analysis.rewardReceivers()).contains(account.accountId());
     }
 
     @Test
     void getsAllRewardReceiversIfExplicitlyStakedToNode() {
         final var alreadyStakedToNodeRewardReceiver =
                 AccountID.newBuilder().accountNum(payerId.accountNum()).build();
-        final var explicitRewardReceiver =
-                AccountID.newBuilder().accountNum(1234567L).build();
+        final var analysis =
+                analyzeStakingAccounts(writableAccountStore, Set.of(alreadyStakedToNodeRewardReceiver), Set.of());
+        assertThat(analysis.rewardReceivers()).contains(alreadyStakedToNodeRewardReceiver);
+    }
 
-        final var stakeToMeRewardReceivers = Set.of(alreadyStakedToNodeRewardReceiver);
-        final var explicitRewardReceivers = Set.of(explicitRewardReceiver);
-        final var rewardReceivers = StakingRewardsHelper.getAllRewardReceivers(
-                writableAccountStore, stakeToMeRewardReceivers, explicitRewardReceivers);
-        assertThat(rewardReceivers).contains(alreadyStakedToNodeRewardReceiver);
+    @Test
+    void analysisPreservesSpecialCanonicalAndExplicitReceiverOrder() {
+        final var store = mock(WritableAccountStore.class);
+        final var stakerId = id(1001L);
+        final var canonicalId = id(1002L);
+        final var stakeeId = id(1003L);
+        final var explicitId = id(1004L);
+        final var prePaidId = id(1005L);
+
+        final var originalStaker =
+                account(stakerId).stakedAccountId(stakeeId).tinybarBalance(100L).build();
+        final var currentStaker =
+                originalStaker.copyBuilder().tinybarBalance(101L).build();
+        final var originalCanonical =
+                account(canonicalId).stakedNodeId(1L).tinybarBalance(200L).build();
+        final var currentCanonical =
+                originalCanonical.copyBuilder().tinybarBalance(201L).build();
+        final var originalStakee = account(stakeeId).stakedNodeId(2L).build();
+        final var explicit = account(explicitId).stakedNodeId(3L).build();
+        final var prePaid = account(prePaidId).stakedNodeId(4L).build();
+
+        given(store.modifiedAccountsInState()).willReturn(new LinkedHashSet<>(List.of(stakerId, canonicalId)));
+        given(store.getOriginalValue(stakerId)).willReturn(originalStaker);
+        given(store.get(stakerId)).willReturn(currentStaker);
+        given(store.getOriginalValue(canonicalId)).willReturn(originalCanonical);
+        given(store.get(canonicalId)).willReturn(currentCanonical);
+        given(store.getOriginalValue(stakeeId)).willReturn(originalStakee);
+        given(store.get(stakeeId)).willReturn(originalStakee);
+        given(store.get(explicitId)).willReturn(explicit);
+        given(store.getOriginalValue(explicitId)).willReturn(explicit);
+        given(store.getOriginalValue(prePaidId)).willReturn(prePaid);
+
+        final var analysis = analyzeStakingAccounts(store, new LinkedHashSet<>(List.of(explicitId)), Set.of(prePaidId));
+
+        assertThat(analysis.modifiedAccounts())
+                .extracting(StakingRewardsHelper.ModifiedAccountAnalysis::accountId)
+                .containsExactly(stakerId, canonicalId);
+        assertThat(analysis.rewardReceivers()).containsExactly(stakeeId, canonicalId, explicitId);
+        assertThat(analysis.stakedToMeAdjustmentReceivers()).containsExactly(stakeeId);
+        assertThat(analysis.originalAccounts())
+                .containsEntry(stakerId, originalStaker)
+                .containsEntry(canonicalId, originalCanonical)
+                .containsEntry(stakeeId, originalStakee)
+                .containsEntry(explicitId, explicit)
+                .containsEntry(prePaidId, prePaid);
+        verify(store).modifiedAccountsInState();
+    }
+
+    @Test
+    void zeroWholeHbarStakedToMeAdjustmentStillCountsAsStakingWork() {
+        final var store = mock(WritableAccountStore.class);
+        final var stakerId = id(2001L);
+        final var stakeeId = id(2002L);
+        final var original =
+                account(stakerId).stakedAccountId(stakeeId).tinybarBalance(1L).build();
+        final var current = original.copyBuilder().tinybarBalance(2L).build();
+
+        given(store.modifiedAccountsInState()).willReturn(Set.of(stakerId));
+        given(store.getOriginalValue(stakerId)).willReturn(original);
+        given(store.get(stakerId)).willReturn(current);
+        final var stakee = account(stakeeId).build();
+        given(store.getOriginalValue(stakeeId)).willReturn(stakee);
+        given(store.get(stakeeId)).willReturn(stakee);
+
+        final var analysis = analyzeStakingAccounts(store, Set.of(), Set.of());
+
+        assertThat(analysis.rewardReceivers()).isEmpty();
+        assertThat(analysis.stakedToMeAdjustmentReceivers()).containsExactly(stakeeId);
+        assertThat(analysis.hasStakingWork()).isTrue();
+    }
+
+    @Test
+    void reusedScratchDoesNotLeakReceiversFromAPriorAnalysis() {
+        final var store = mock(WritableAccountStore.class);
+        final var firstId = id(4001L);
+        final var secondId = id(4002L);
+        final var first = account(firstId).stakedNodeId(1L).tinybarBalance(10L).build();
+        final var firstModified = first.copyBuilder().tinybarBalance(11L).build();
+        final var second =
+                account(secondId).stakedNodeId(1L).tinybarBalance(20L).build();
+        final var secondModified = second.copyBuilder().tinybarBalance(21L).build();
+        final var scratch = new StakingRewardsHelper.StakingAnalysisScratch();
+
+        given(store.modifiedAccountsInState()).willReturn(Set.of(firstId));
+        given(store.getOriginalValue(firstId)).willReturn(first);
+        given(store.get(firstId)).willReturn(firstModified);
+        final var firstAnalysis = analyzeStakingAccounts(store, Set.of(), Set.of(), scratch);
+        assertThat(firstAnalysis.rewardReceivers()).containsExactly(firstId);
+
+        given(store.modifiedAccountsInState()).willReturn(Set.of(secondId));
+        given(store.getOriginalValue(secondId)).willReturn(second);
+        given(store.get(secondId)).willReturn(secondModified);
+        final var secondAnalysis = analyzeStakingAccounts(store, Set.of(), Set.of(), scratch);
+        assertThat(secondAnalysis.rewardReceivers()).containsExactly(secondId);
+        assertThat(secondAnalysis.rewardReceivers()).doesNotContain(firstId);
+    }
+
+    @Test
+    void keyOnlyStyleChangeHasNoStakingWork() {
+        final var store = mock(WritableAccountStore.class);
+        final var id = id(3001L);
+        final var original = account(id).stakedNodeId(1L).build();
+
+        given(store.modifiedAccountsInState()).willReturn(Set.of(id));
+        given(store.getOriginalValue(id)).willReturn(original);
+        given(store.get(id)).willReturn(original);
+
+        final var analysis = analyzeStakingAccounts(store, Set.of(), Set.of());
+
+        assertThat(analysis.rewardReceivers()).isEmpty();
+        assertThat(analysis.stakedToMeAdjustmentReceivers()).isEmpty();
+        assertThat(analysis.hasStakeMetadataChanges()).isFalse();
+        assertThat(analysis.hasStakingWork()).isFalse();
     }
 
     @Test
@@ -205,5 +295,13 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
                 .contains(
                         "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807, fixing to 50B hbar",
                         "Pending rewards increased by 9223372036854775807 to an un-payable 9223372036854775807 for node 0, fixing to 50B hbar");
+    }
+
+    private static AccountID id(final long accountNum) {
+        return AccountID.newBuilder().accountNum(accountNum).build();
+    }
+
+    private static Account.Builder account(final AccountID id) {
+        return Account.newBuilder().accountId(id);
     }
 }

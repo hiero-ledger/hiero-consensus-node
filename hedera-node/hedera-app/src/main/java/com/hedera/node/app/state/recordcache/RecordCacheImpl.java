@@ -45,8 +45,11 @@ import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -126,9 +129,10 @@ public class RecordCacheImpl implements HederaRecordCache {
      */
     private final Map<AccountID, PayerTxnIndex> payerTxnIds = new ConcurrentHashMap<>();
     /**
-     * Handle-thread list of the same indexes, so expiry does not scan the {@link ConcurrentHashMap} table.
+     * Handle-thread registry of non-empty payer indexes keyed by their first valid-start second. This lets expiry visit
+     * only indexes that have expired buckets, without scanning the concurrent query map or iterating empty seconds.
      */
-    private final List<PayerTxnIndex> livePayerIndexes = new ArrayList<>();
+    private final NavigableMap<Long, Set<PayerTxnIndex>> payerIndexesByFrontSecond = new TreeMap<>();
     /**
      * The list of transaction receipts for the current round.
      */
@@ -146,16 +150,16 @@ public class RecordCacheImpl implements HederaRecordCache {
     private static final class HistorySource implements ReceiptSource {
         private static final long NO_NODE = Long.MIN_VALUE;
 
-        private long firstNodeId = NO_NODE;
+        private volatile long firstNodeId = NO_NODE;
 
         @Nullable
-        private Set<Long> extraNodeIds;
+        private volatile Set<Long> extraNodeIds;
 
         @Nullable
-        private RecordSource firstRecordSource;
+        private volatile RecordSource firstRecordSource;
 
         @Nullable
-        private List<RecordSource> extraRecordSources;
+        private volatile List<RecordSource> extraRecordSources;
 
         void addClassifiableNode(final long nodeId) {
             if (firstNodeId == NO_NODE) {
@@ -290,7 +294,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         @NonNull
         private Set<Long> extraNodeIds() {
             if (extraNodeIds == null) {
-                extraNodeIds = new HashSet<>();
+                extraNodeIds = ConcurrentHashMap.newKeySet();
             }
             return extraNodeIds;
         }
@@ -298,7 +302,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         @NonNull
         private List<RecordSource> extraRecordSources() {
             if (extraRecordSources == null) {
-                extraRecordSources = new ArrayList<>();
+                extraRecordSources = new CopyOnWriteArrayList<>();
             }
             return extraRecordSources;
         }
@@ -310,6 +314,8 @@ public class RecordCacheImpl implements HederaRecordCache {
     private static final class PayerTxnIndex {
         private final AccountID payerId;
         private final ArrayDeque<PayerSecondBucket> buckets = new ArrayDeque<>();
+        private long registeredFrontSecond;
+        private boolean registered;
 
         private PayerTxnIndex(@NonNull final AccountID payerId) {
             this.payerId = payerId;
@@ -319,9 +325,20 @@ public class RecordCacheImpl implements HederaRecordCache {
             final long second =
                     txnId.transactionValidStartOrElse(Timestamp.DEFAULT).seconds();
             var last = buckets.peekLast();
-            if (last == null || last.validStartSecond != second) {
+            if (last == null || last.validStartSecond < second) {
                 last = new PayerSecondBucket(second);
                 buckets.addLast(last);
+            } else if (last.validStartSecond > second) {
+                final var laterBuckets = new ArrayDeque<PayerSecondBucket>();
+                do {
+                    laterBuckets.addFirst(buckets.removeLast());
+                    last = buckets.peekLast();
+                } while (last != null && last.validStartSecond > second);
+                if (last == null || last.validStartSecond != second) {
+                    last = new PayerSecondBucket(second);
+                    buckets.addLast(last);
+                }
+                buckets.addAll(laterBuckets);
             }
             last.txnIds.add(txnId);
         }
@@ -335,6 +352,10 @@ public class RecordCacheImpl implements HederaRecordCache {
 
         boolean isEmpty() {
             return buckets.isEmpty();
+        }
+
+        long frontSecond() {
+            return requireNonNull(buckets.peekFirst()).validStartSecond;
         }
 
         @NonNull
@@ -652,26 +673,74 @@ public class RecordCacheImpl implements HederaRecordCache {
         if (index == null) {
             index = new PayerTxnIndex(payerId);
             payerTxnIds.put(payerId, index);
-            livePayerIndexes.add(index);
+            index.add(txnId);
+            discardAlreadyExpiredBucketsAndRegister(index);
+            return;
         }
+        final long previousFrontSecond = index.frontSecond();
         index.add(txnId);
+        if (index.frontSecond() != previousFrontSecond) {
+            relocatePayerIndex(index);
+        }
     }
 
     private void dropExpiredPayerBuckets(final long earliestValidStartSecond) {
-        int w = 0;
-        final int n = livePayerIndexes.size();
-        for (int i = 0; i < n; i++) {
-            final var index = livePayerIndexes.get(i);
-            index.dropExpired(earliestValidStartSecond);
-            if (index.isEmpty()) {
-                payerTxnIds.remove(index.payerId, index);
-            } else {
-                livePayerIndexes.set(w++, index);
+        Map.Entry<Long, Set<PayerTxnIndex>> expiredEntry;
+        while ((expiredEntry = payerIndexesByFrontSecond.firstEntry()) != null
+                && expiredEntry.getKey() < earliestValidStartSecond) {
+            final var indexes = List.copyOf(expiredEntry.getValue());
+            for (final var index : indexes) {
+                unregisterPayerIndex(index);
+            }
+            for (final var index : indexes) {
+                index.dropExpired(earliestValidStartSecond);
+                if (index.isEmpty()) {
+                    payerTxnIds.remove(index.payerId, index);
+                } else {
+                    registerPayerIndex(index);
+                }
             }
         }
-        if (w < n) {
-            livePayerIndexes.subList(w, n).clear();
+    }
+
+    private void discardAlreadyExpiredBucketsAndRegister(@NonNull final PayerTxnIndex index) {
+        index.dropExpired(lastPurgeEarliestValidStartSecond);
+        if (index.isEmpty()) {
+            payerTxnIds.remove(index.payerId, index);
+        } else {
+            registerPayerIndex(index);
         }
+    }
+
+    private void registerPayerIndex(@NonNull final PayerTxnIndex index) {
+        if (index.registered || index.isEmpty()) {
+            throw new IllegalStateException("Only an unregistered, non-empty payer index can be registered");
+        }
+        final long frontSecond = index.frontSecond();
+        payerIndexesByFrontSecond
+                .computeIfAbsent(frontSecond, ignored -> new HashSet<>())
+                .add(index);
+        index.registeredFrontSecond = frontSecond;
+        index.registered = true;
+    }
+
+    private void unregisterPayerIndex(@NonNull final PayerTxnIndex index) {
+        if (!index.registered) {
+            return;
+        }
+        final var indexes = payerIndexesByFrontSecond.get(index.registeredFrontSecond);
+        if (indexes != null) {
+            indexes.remove(index);
+            if (indexes.isEmpty()) {
+                payerIndexesByFrontSecond.remove(index.registeredFrontSecond, indexes);
+            }
+        }
+        index.registered = false;
+    }
+
+    private void relocatePayerIndex(@NonNull final PayerTxnIndex index) {
+        unregisterPayerIndex(index);
+        discardAlreadyExpiredBucketsAndRegister(index);
     }
 
     /**

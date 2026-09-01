@@ -16,7 +16,9 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.common.EntityIDPair;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.StakingAnalysisScratch;
 import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,6 +31,15 @@ import java.util.Objects;
 public abstract class RecordFinalizerBase {
     protected static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
+    private final ThreadLocal<ScratchHolder> scratchHolder = ThreadLocal.withInitial(ScratchHolder::new);
+
+    /**
+     * Acquires scratch collections for one finalization. A nested finalization receives a distinct buffer, while a
+     * later finalization on the same thread reuses the cleared buffer at the same depth.
+     */
+    protected final ScratchLease acquireScratch() {
+        return scratchHolder.get().acquire();
+    }
 
     /**
      * Whether system entities are being created (which in particular requires non-zero sum
@@ -45,12 +56,17 @@ public abstract class RecordFinalizerBase {
      */
     @NonNull
     protected Map<AccountID, Long> hbarChangesFrom(
-            @NonNull final WritableAccountStore writableAccountStore, final long maxLegalBalance) {
-        final var hbarChanges = new HashMap<AccountID, Long>();
+            @NonNull final WritableAccountStore writableAccountStore,
+            final long maxLegalBalance,
+            @NonNull final Map<AccountID, Account> cachedOriginalAccounts,
+            @NonNull final Map<AccountID, Long> hbarChanges) {
+        final var modifiedAccountIds = writableAccountStore.modifiedAccountsInState();
         var netHbarBalance = 0L;
-        for (final AccountID modifiedAcctId : writableAccountStore.modifiedAccountsInState()) {
+        for (final AccountID modifiedAcctId : modifiedAccountIds) {
             final var modifiedAcct = requireNonNull(writableAccountStore.getAccountById(modifiedAcctId));
-            final var persistedAcct = writableAccountStore.getOriginalValue(modifiedAcctId);
+            final var persistedAcct = cachedOriginalAccounts.containsKey(modifiedAcctId)
+                    ? cachedOriginalAccounts.get(modifiedAcctId)
+                    : writableAccountStore.getOriginalValue(modifiedAcctId);
             // It's possible the modified account was created in this transaction, in which case the non-existent
             // persisted account effectively has no balance (i.e. its prior balance is 0)
             final var persistedBalance = persistedAcct != null ? persistedAcct.tinybarBalance() : 0;
@@ -88,9 +104,10 @@ public abstract class RecordFinalizerBase {
     @NonNull
     protected Map<EntityIDPair, Long> tokenRelChangesFrom(
             @NonNull final WritableTokenRelationStore writableTokenRelStore,
-            @NonNull final IsCryptoTransfer isCryptoTransfer) {
-        final var tokenRelChanges = new HashMap<EntityIDPair, Long>();
-        for (final EntityIDPair modifiedRel : writableTokenRelStore.modifiedTokens()) {
+            @NonNull final IsCryptoTransfer isCryptoTransfer,
+            @NonNull final Map<EntityIDPair, Long> tokenRelChanges) {
+        final var modifiedTokenRels = writableTokenRelStore.modifiedTokens();
+        for (final EntityIDPair modifiedRel : modifiedTokenRels) {
             final var relAcctId = modifiedRel.accountIdOrThrow();
             final var relTokenId = modifiedRel.tokenIdOrThrow();
             final var modifiedTokenRel = writableTokenRelStore.get(relAcctId, relTokenId);
@@ -138,20 +155,22 @@ public abstract class RecordFinalizerBase {
      */
     @NonNull
     protected List<TokenTransferList> asTokenTransferListFrom(
-            @NonNull final Map<EntityIDPair, Long> fungibleChanges, @NonNull final IsCryptoTransfer isCryptoTransfer) {
-        final var fungibleTokenTransferLists = new ArrayList<TokenTransferList>();
-        final var acctAmountsByTokenId = new HashMap<TokenID, HashMap<AccountID, Long>>();
+            @NonNull final Map<EntityIDPair, Long> fungibleChanges,
+            @NonNull final IsCryptoTransfer isCryptoTransfer,
+            @NonNull final FinalizationScratch scratch) {
+        final var acctAmountsByTokenId = scratch.acctAmountsByTokenId;
         for (final var fungibleChange : fungibleChanges.entrySet()) {
             final var tokenIdOfAcctAmountChange = fungibleChange.getKey().tokenId();
             final var accountIdOfAcctAmountChange = fungibleChange.getKey().accountId();
             if (!acctAmountsByTokenId.containsKey(tokenIdOfAcctAmountChange)) {
-                acctAmountsByTokenId.put(tokenIdOfAcctAmountChange, new HashMap<>());
+                acctAmountsByTokenId.put(tokenIdOfAcctAmountChange, scratch.nextAccountAmounts());
             }
             if (fungibleChange.getValue() != 0 || isCryptoTransfer == IsCryptoTransfer.YES) {
                 final var tokenIdMap = acctAmountsByTokenId.get(tokenIdOfAcctAmountChange);
                 tokenIdMap.merge(accountIdOfAcctAmountChange, fungibleChange.getValue(), Long::sum);
             }
         }
+        final var fungibleTokenTransferLists = new ArrayList<TokenTransferList>(acctAmountsByTokenId.size());
         // Mold the fungible changes into a transfer ordered by (token ID, account ID). The fungible pairs are ordered
         // by (accountId, tokenId), so we need to group by each token ID
         for (final var acctAmountsForToken : acctAmountsByTokenId.entrySet()) {
@@ -170,7 +189,7 @@ public abstract class RecordFinalizerBase {
                 }
                 fungibleTokenTransferLists.add(TokenTransferList.newBuilder()
                         .token(acctAmountsForToken.getKey())
-                        .transfers(aaList)
+                        .transfers(List.copyOf(aaList))
                         .build());
             }
         }
@@ -194,9 +213,12 @@ public abstract class RecordFinalizerBase {
     protected Map<TokenID, List<NftTransfer>> nftChangesFrom(
             @NonNull final WritableNftStore writableNftStore,
             @NonNull final WritableTokenStore writableTokenStore,
-            final Map<EntityIDPair, Long> tokenRelChanges) {
-        final var nftChanges = new HashMap<TokenID, List<NftTransfer>>();
-        for (final NftID nftId : writableNftStore.modifiedNfts()) {
+            final Map<EntityIDPair, Long> tokenRelChanges,
+            @NonNull final FinalizationScratch scratch) {
+        final var modifiedNftIds = writableNftStore.modifiedNfts();
+        final var modifiedTokenIds = writableTokenStore.modifiedTokens();
+        final var nftChanges = scratch.nftChanges;
+        for (final NftID nftId : modifiedNftIds) {
             final var modifiedNft = writableNftStore.get(nftId);
             final var persistedNft = writableNftStore.getOriginalValue(nftId);
 
@@ -237,10 +259,10 @@ public abstract class RecordFinalizerBase {
             if (receiverAccountId.equals(senderAccountId)) {
                 continue;
             }
-            updateNftChanges(nftId, senderAccountId, receiverAccountId, nftChanges, tokenRelChanges);
+            updateNftChanges(nftId, senderAccountId, receiverAccountId, nftChanges, tokenRelChanges, scratch);
         }
 
-        for (final var tokenId : writableTokenStore.modifiedTokens()) {
+        for (final var tokenId : modifiedTokenIds) {
             final var originalToken = writableTokenStore.getOriginalValue(tokenId);
             final var modifiedToken = requireNonNull(writableTokenStore.get(tokenId));
             if (bothExistButTreasuryChanged(originalToken, modifiedToken)
@@ -254,7 +276,8 @@ public abstract class RecordFinalizerBase {
                         originalToken.treasuryAccountId(),
                         modifiedToken.treasuryAccountId(),
                         nftChanges,
-                        tokenRelChanges);
+                        tokenRelChanges,
+                        scratch);
             }
         }
         return nftChanges;
@@ -292,7 +315,8 @@ public abstract class RecordFinalizerBase {
             final AccountID senderAccountId,
             final AccountID receiverAccountId,
             final Map<TokenID, List<NftTransfer>> nftChanges,
-            @Nullable final Map<EntityIDPair, Long> tokenRelChanges) {
+            @Nullable final Map<EntityIDPair, Long> tokenRelChanges,
+            @NonNull final FinalizationScratch scratch) {
         final var isMint = senderAccountId.accountNum() == 0;
         final var isWipeOrBurn = receiverAccountId.accountNum() == 0;
         final var isTreasuryChange = nftId.serialNumber() == -1;
@@ -303,7 +327,7 @@ public abstract class RecordFinalizerBase {
                 .build();
 
         if (!nftChanges.containsKey(nftId.tokenId())) {
-            nftChanges.put(nftId.tokenId(), new ArrayList<>());
+            nftChanges.put(nftId.tokenId(), scratch.nextNftTransfers());
         }
 
         final var currentNftChanges = nftChanges.get(nftId.tokenId());
@@ -350,7 +374,7 @@ public abstract class RecordFinalizerBase {
             final Map<TokenID, List<NftTransfer>> nftChanges) {
 
         // Create a new transfer list for each token ID
-        final var nftTokenTransferLists = new ArrayList<TokenTransferList>();
+        final var nftTokenTransferLists = new ArrayList<TokenTransferList>(nftChanges.size());
         for (final var nftsForTokenId : nftChanges.entrySet()) {
             if (!nftsForTokenId.getValue().isEmpty()) {
                 // This var is the collection of all NFT transfers _for a single token ID_
@@ -359,11 +383,117 @@ public abstract class RecordFinalizerBase {
                 nftTransfersForTokenId.sort(NFT_TRANSFER_COMPARATOR);
                 nftTokenTransferLists.add(TokenTransferList.newBuilder()
                         .token(nftsForTokenId.getKey())
-                        .nftTransfers(nftTransfersForTokenId)
+                        .nftTransfers(List.copyOf(nftTransfersForTokenId))
                         .build());
             }
         }
 
         return nftTokenTransferLists;
+    }
+
+    protected final class ScratchLease implements AutoCloseable {
+        private final ScratchHolder owner;
+        private final int depth;
+        private final FinalizationScratch scratch;
+        private boolean closed;
+
+        private ScratchLease(final ScratchHolder owner, final int depth, final FinalizationScratch scratch) {
+            this.owner = owner;
+            this.depth = depth;
+            this.scratch = scratch;
+        }
+
+        public FinalizationScratch scratch() {
+            return scratch;
+        }
+
+        @Override
+        public void close() {
+            if (!closed) {
+                owner.release(depth);
+                closed = true;
+            }
+        }
+    }
+
+    protected static final class FinalizationScratch {
+        private final Map<AccountID, Long> hbarChanges = new HashMap<>();
+        private final Map<EntityIDPair, Long> tokenRelChanges = new HashMap<>();
+        private final Map<TokenID, List<NftTransfer>> nftChanges = new HashMap<>();
+        private final Map<TokenID, HashMap<AccountID, Long>> acctAmountsByTokenId = new HashMap<>();
+        private final List<HashMap<AccountID, Long>> accountAmountMaps = new ArrayList<>();
+        private final List<ArrayList<NftTransfer>> nftTransferLists = new ArrayList<>();
+        private final Map<NftID, AccountID> childFinalNftOwners = new HashMap<>();
+        private final StakingAnalysisScratch stakingScratch = new StakingAnalysisScratch();
+        private int accountAmountMapCount;
+        private int nftTransferListCount;
+
+        public StakingAnalysisScratch stakingScratch() {
+            return stakingScratch;
+        }
+
+        public Map<AccountID, Long> hbarChanges() {
+            return hbarChanges;
+        }
+
+        public Map<EntityIDPair, Long> tokenRelChanges() {
+            return tokenRelChanges;
+        }
+
+        public Map<TokenID, List<NftTransfer>> nftChanges() {
+            return nftChanges;
+        }
+
+        public Map<NftID, AccountID> childFinalNftOwners() {
+            return childFinalNftOwners;
+        }
+
+        private HashMap<AccountID, Long> nextAccountAmounts() {
+            if (accountAmountMapCount == accountAmountMaps.size()) {
+                accountAmountMaps.add(new HashMap<>());
+            }
+            return accountAmountMaps.get(accountAmountMapCount++);
+        }
+
+        private ArrayList<NftTransfer> nextNftTransfers() {
+            if (nftTransferListCount == nftTransferLists.size()) {
+                nftTransferLists.add(new ArrayList<>());
+            }
+            return nftTransferLists.get(nftTransferListCount++);
+        }
+
+        private void clear() {
+            hbarChanges.clear();
+            tokenRelChanges.clear();
+            nftChanges.clear();
+            acctAmountsByTokenId.clear();
+            childFinalNftOwners.clear();
+            accountAmountMapCount = 0;
+            nftTransferListCount = 0;
+            accountAmountMaps.forEach(Map::clear);
+            nftTransferLists.forEach(List::clear);
+            stakingScratch.reset();
+        }
+    }
+
+    private final class ScratchHolder {
+        private final List<FinalizationScratch> buffers = new ArrayList<>();
+        private int depth;
+
+        private ScratchLease acquire() {
+            if (depth == buffers.size()) {
+                buffers.add(new FinalizationScratch());
+            }
+            final var scratch = buffers.get(depth);
+            scratch.clear();
+            return new ScratchLease(this, depth++, scratch);
+        }
+
+        private void release(final int acquiredDepth) {
+            if (acquiredDepth != depth - 1) {
+                throw new IllegalStateException("Finalization scratch released out of order");
+            }
+            depth--;
+        }
     }
 }

@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
+import static com.hedera.hapi.util.HapiUtils.isDefaultAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
@@ -225,7 +226,7 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
      * @param accountId The accountId to check.
      */
     public static void requireNotDefault(@NonNull final AccountID accountId) {
-        if (accountId.equals(AccountID.DEFAULT)) {
+        if (isDefaultAccountId(accountId)) {
             throw new IllegalArgumentException("Account ID cannot be default");
         }
     }

@@ -124,15 +124,32 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
      * Counts all unique accounts involved in a CryptoTransfer transaction.
      */
     private long countUniqueAccounts(@NonNull final CryptoTransferTransactionBody op) {
-        final Set<AccountID> accounts = new HashSet<>();
-        op.transfersOrElse(TransferList.DEFAULT).accountAmounts().forEach(aa -> accounts.add(aa.accountIDOrThrow()));
-        op.tokenTransfers().forEach(ttl -> {
-            ttl.transfers().forEach(aa -> accounts.add(aa.accountIDOrThrow()));
-            ttl.nftTransfers().forEach(nft -> {
+        final var hbarTransfers = op.transfersOrElse(TransferList.DEFAULT).accountAmounts();
+        final var tokenTransfers = op.tokenTransfers();
+        int maximumAccountCount = hbarTransfers.size();
+        for (int i = 0, n = tokenTransfers.size(); i < n; i++) {
+            final var tokenTransfer = tokenTransfers.get(i);
+            maximumAccountCount += tokenTransfer.transfers().size()
+                    + 2 * tokenTransfer.nftTransfers().size();
+        }
+
+        final Set<AccountID> accounts = HashSet.newHashSet(maximumAccountCount);
+        for (int i = 0, n = hbarTransfers.size(); i < n; i++) {
+            accounts.add(hbarTransfers.get(i).accountIDOrThrow());
+        }
+        for (int i = 0, n = tokenTransfers.size(); i < n; i++) {
+            final var tokenTransfer = tokenTransfers.get(i);
+            final var fungibleTransfers = tokenTransfer.transfers();
+            for (int j = 0, m = fungibleTransfers.size(); j < m; j++) {
+                accounts.add(fungibleTransfers.get(j).accountIDOrThrow());
+            }
+            final var nftTransfers = tokenTransfer.nftTransfers();
+            for (int j = 0, m = nftTransfers.size(); j < m; j++) {
+                final var nft = nftTransfers.get(j);
                 accounts.add(nft.senderAccountIDOrThrow());
                 accounts.add(nft.receiverAccountIDOrThrow());
-            });
-        });
+            }
+        }
         return accounts.size();
     }
 

@@ -103,9 +103,10 @@ public class IncrementalStreamingHasher {
         hashList.add(hash);
         // Fold up: combine sibling pairs while the current position is odd
         for (long n = leafCount; (n & 1L) == 1; n >>= 1) {
-            final byte[] y = hashList.removeLast();
-            final byte[] x = hashList.removeLast();
-            hashList.add(hashInternalNode(x, y));
+            final byte[] rightChild = hashList.removeLast();
+            final byte[] leftChild = hashList.removeLast();
+            BlockImplUtils.hashInternalNodeInto(digest, leftChild, rightChild, leftChild, 0);
+            hashList.add(leftChild);
         }
         leafCount++;
     }
@@ -128,11 +129,11 @@ public class IncrementalStreamingHasher {
     public byte[] computeRootHash() {
         if (hashList.isEmpty()) {
             // This value is precomputed as the hash of an empty tree; therefore it should _not_ be hashed as a leaf
-            return BlockStreamManager.HASH_OF_ZERO_BYTES;
+            return BlockStreamManager.HASH_OF_ZERO_BYTES.clone();
         }
         if (hashList.size() == 1) {
             // This value should already have been hashed as a leaf, and therefore should _not_ be re-hashed
-            return hashList.getFirst();
+            return hashList.getFirst().clone();
         }
 
         byte[] merkleRootHash = hashList.getLast();
@@ -146,12 +147,12 @@ public class IncrementalStreamingHasher {
      * Returns the current intermediate hashing state (pending subtree roots).
      *
      * <p>This can be used to inspect or save the state for later resumption.
-     * The returned list is the internal list, not a copy.
+     * The returned hashes are copies, so later in-place folds cannot mutate a previously captured state.
      *
      * @return the list of pending subtree root hashes
      */
     public List<Bytes> intermediateHashingState() {
-        return hashList.stream().map(Bytes::wrap).toList();
+        return hashList.stream().map(hash -> Bytes.wrap(hash.clone())).toList();
     }
 
     /**

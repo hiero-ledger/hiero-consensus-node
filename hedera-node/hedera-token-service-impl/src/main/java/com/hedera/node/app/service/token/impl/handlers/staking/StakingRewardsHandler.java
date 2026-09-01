@@ -5,8 +5,11 @@ import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUti
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.StakingAnalysisScratch;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,6 +44,33 @@ public interface StakingRewardsHandler {
             FinalizeContext context,
             @NonNull Set<AccountID> explicitRewardReceivers,
             @NonNull Map<AccountID, Long> prePaidRewards);
+
+    /**
+     * Applies staking rewards and returns the dispatch analysis used to apply them. Implementations that do not retain
+     * an analysis can rely on this compatibility default.
+     */
+    default StakingRewardsResult applyStakingRewardsWithAnalysis(
+            @NonNull final FinalizeContext context,
+            @NonNull final Set<AccountID> explicitRewardReceivers,
+            @NonNull final Map<AccountID, Long> prePaidRewards) {
+        return applyStakingRewardsWithAnalysis(context, explicitRewardReceivers, prePaidRewards, null);
+    }
+
+    /**
+     * Applies staking rewards using reusable analysis collections when {@code scratch} is provided.
+     */
+    default StakingRewardsResult applyStakingRewardsWithAnalysis(
+            @NonNull final FinalizeContext context,
+            @NonNull final Set<AccountID> explicitRewardReceivers,
+            @NonNull final Map<AccountID, Long> prePaidRewards,
+            @Nullable final StakingAnalysisScratch scratch) {
+        return new StakingRewardsResult(
+                applyStakingRewards(context, explicitRewardReceivers, prePaidRewards), Collections.emptyMap());
+    }
+
+    record StakingRewardsResult(
+            @NonNull Map<AccountID, Long> rewardsPaid,
+            @NonNull Map<AccountID, Account> originalAccounts) {}
 
     /**
      * Checks if the account has been rewarded since the last staking metadata change.

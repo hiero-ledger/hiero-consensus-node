@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +40,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -2358,6 +2362,33 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         validateDirtyHash(8, path8Hash, dirtyChunks);
 
         chunkLoader.reset(); // not sure if this is needed
+    }
+
+    @Test
+    @DisplayName("Concurrent preloads return the same chunk for the correct cache version")
+    void concurrentPreloadsReturnSameChunkForCacheVersion() throws Exception {
+        final VirtualNodeCache cache1 = cache.copy();
+        final VirtualHashChunk cache0Chunk = cache.preloadHashChunk(0);
+        cache1.copy();
+
+        final int threadCount = 16;
+        final CountDownLatch start = new CountDownLatch(1);
+        final List<Future<VirtualHashChunk>> futures = new ArrayList<>(threadCount);
+        try (final var executor = Executors.newFixedThreadPool(threadCount)) {
+            for (int i = 0; i < threadCount; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    return cache1.preloadHashChunk(0);
+                }));
+            }
+            start.countDown();
+
+            final VirtualHashChunk cache1Chunk = futures.getFirst().get();
+            assertNotSame(cache0Chunk, cache1Chunk);
+            for (final Future<VirtualHashChunk> future : futures) {
+                assertSame(cache1Chunk, future.get());
+            }
+        }
     }
 
     @Test

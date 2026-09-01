@@ -100,6 +100,32 @@ public final class MerkleHasher {
     }
 
     /**
+     * Calculates a hash for an internal node and writes it into an existing byte array.
+     *
+     * <p>The output may alias either child hash because both child hashes are consumed before the
+     * digest is written.
+     *
+     * @param left the left child hash
+     * @param right the right child hash, or null if there is no right child
+     * @param output the array into which the calculated hash is written
+     * @param offset the offset in {@code output} at which the hash is written
+     */
+    public void internalNodeHashBytesInto(
+            @NonNull final byte[] left, @Nullable final byte[] right, @NonNull final byte[] output, final int offset) {
+        Objects.requireNonNull(left, "left cannot be null");
+        Objects.checkFromIndexSize(
+                offset, digestType.digestLength(), Objects.requireNonNull(output, "output cannot be null").length);
+
+        digestWriter.writeByte(right == null ? (byte) 0x01 : (byte) 0x02);
+        digestWriter.writeBytes(left, 0, left.length);
+        if (right != null) {
+            digestWriter.writeBytes(right, 0, right.length);
+        }
+        // Calling digestInto() resets the digest
+        digestWriter.digestInto(output, offset);
+    }
+
+    /**
      * Calculates a hash for an internal node from its left and right child node hashes.
      * This method may be called with the null righ hash to calculate the root hash for a tree with only one leaf node.
      *

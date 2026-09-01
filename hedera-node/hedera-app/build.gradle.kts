@@ -176,16 +176,21 @@ tasks.register<JavaExec>("run") {
             nodeWorkingDir.get().dir("data/lib").asFileTree
     mainModule = "com.hedera.node.app"
 
-    // Pin the node heap (not Gradle workers) so G1 is not resizing under NLG.
-    // 16g matches the serial CT baseline; 12g is too small. Override with -PnodeHeap.
-    val heap = providers.gradleProperty("nodeHeap").orElse("16g").get()
+    // Give ZGC room to collect concurrently while leaving native-memory headroom on a host with
+    // roughly 30g available. Override the range with -PnodeHeapMin and -PnodeHeapMax.
+    // The legacy -PnodeHeap option remains supported and pins both ends of the range.
+    val legacyHeap = providers.gradleProperty("nodeHeap")
+    val minHeap = providers.gradleProperty("nodeHeapMin").orElse(legacyHeap).orElse("16g").get()
+    val maxHeap = providers.gradleProperty("nodeHeapMax").orElse(legacyHeap).orElse("32g").get()
     jvmArgs(
-        "-Xms$heap",
-        "-Xmx$heap",
-        "-XX:+AlwaysPreTouch",
+        "-Xms$minHeap",
+        "-Xmx$maxHeap",
+        "-XX:+UseZGC",
+        "-XX:ZAllocationSpikeTolerance=2",
+        "-XX:MetaspaceSize=100M",
+        "-Xlog:gc*:gc.log",
         "-Dio.netty.leakDetection.level=DISABLED",
-        // macOS Java dual-stacks 0.0.0.0 as tcp46, which accepts TCP on the LAN IP then
-        // closes HTTP/2. Force IPv4 so remote NLG can use 192.168.0.118:50211.
+        // Force IPv4 so a remote NLG can reach the local node over its LAN address.
         "-Djava.net.preferIPv4Stack=true",
     )
 

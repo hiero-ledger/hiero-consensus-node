@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -50,6 +51,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
@@ -65,6 +67,7 @@ import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -198,6 +201,9 @@ public class ThrottleAccumulatorTest {
 
     @Mock
     private State state;
+
+    @Mock
+    private State changedState;
 
     @Mock
     private ReadableStates readableStates;
@@ -2272,6 +2278,97 @@ public class ThrottleAccumulatorTest {
         assertFalse(
                 subject.hasHighVolumeThrottleFor(CRYPTO_UPDATE),
                 "Should NOT have high-volume throttle for CRYPTO_UPDATE");
+    }
+
+    @Test
+    void cachesCombinedThrottleListUntilDefinitionsAreRebuilt() throws IOException, ParseException {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        subject.rebuildFor(getThrottleDefs("bootstrap/high-volume-throttles.json"));
+
+        final var cached = subject.allActiveThrottlesIncludingHighVolume();
+
+        assertThat(subject.allActiveThrottlesIncludingHighVolume()).isSameAs(cached);
+        assertThat(cached)
+                .containsExactlyElementsOf(
+                        List.of(subject.activeThrottles(), subject.highVolumeActiveThrottles()).stream()
+                                .flatMap(List::stream)
+                                .toList());
+
+        subject.rebuildFor(getThrottleDefs("bootstrap/throttles.json"));
+
+        assertThat(subject.allActiveThrottlesIncludingHighVolume())
+                .isNotSameAs(cached)
+                .containsExactlyElementsOf(subject.activeThrottles());
+    }
+
+    @Test
+    void reusesStoreFactoryForSameStateWithinAccumulator() {
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
+        final var cached = subject.factoryFor(state);
+
+        assertThat(subject.factoryFor(state)).isSameAs(cached);
+
+        final var otherAccumulator =
+                new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
+        assertThat(otherAccumulator.factoryFor(state)).isNotSameAs(cached);
+    }
+
+    @Test
+    void invalidatesStoreFactoryWhenStateReferenceChanges() {
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
+        final var cached = subject.factoryFor(state);
+        final var replacement = subject.factoryFor(changedState);
+
+        assertThat(replacement).isNotSameAs(cached);
+        assertThat(subject.factoryFor(changedState)).isSameAs(replacement);
+    }
+
+    @Test
+    void skipRestoreRollsBackAllThrottlesAndRewarmsOriginalSnapshots() {
+        final var first = DeterministicThrottle.withTps(1);
+        final var second = DeterministicThrottle.withTps(1);
+        first.allow(1, Instant.ofEpochSecond(1));
+        second.allow(1, Instant.ofEpochSecond(2));
+        final var firstBefore = first.usageSnapshot();
+        final var secondBefore = second.usageSnapshot();
+        final var firstReplacement = new ThrottleUsageSnapshot(0, new Timestamp(3, 0));
+        final var invalidSecond = new ThrottleUsageSnapshot(second.capacity() + 1, new Timestamp(4, 0));
+
+        ThrottleAccumulator.restoreThrottleUsage(
+                List.of(first, second),
+                List.of(firstReplacement, invalidSecond),
+                ThrottleAccumulator.SnapshotMismatchPolicy.SKIP);
+
+        assertThat(first.usageSnapshot()).isSameAs(firstBefore);
+        assertThat(second.usageSnapshot()).isSameAs(secondBefore);
+    }
+
+    @Test
+    void failFastRestorePropagatesFailureWithoutServingStaleSnapshots() {
+        final var first = DeterministicThrottle.withTps(1);
+        final var second = DeterministicThrottle.withTps(1);
+        final var secondBefore = second.usageSnapshot();
+        final var firstReplacement = new ThrottleUsageSnapshot(0, new Timestamp(3, 0));
+        final var invalidSecond = new ThrottleUsageSnapshot(second.capacity() + 1, new Timestamp(4, 0));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ThrottleAccumulator.restoreThrottleUsage(
+                        List.of(first, second),
+                        List.of(firstReplacement, invalidSecond),
+                        ThrottleAccumulator.SnapshotMismatchPolicy.FAIL_FAST));
+
+        assertThat(first.usageSnapshot()).isSameAs(firstReplacement);
+        assertThat(second.usageSnapshot()).isNotSameAs(secondBefore);
+        assertThat(second.usageSnapshot().used()).isEqualTo(secondBefore.used());
+        assertThat(second.usageSnapshot().lastDecisionTime()).isEqualTo(invalidSecond.lastDecisionTime());
     }
 
     @ParameterizedTest

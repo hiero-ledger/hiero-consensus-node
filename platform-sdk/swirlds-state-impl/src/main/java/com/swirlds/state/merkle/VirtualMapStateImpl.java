@@ -149,10 +149,16 @@ public class VirtualMapStateImpl implements VirtualMapState {
     @Override
     @NonNull
     public ReadableStates getReadableStates(@NonNull String serviceName) {
-        return readableStatesMap.computeIfAbsent(serviceName, s -> {
-            final var stateMetadata = services.get(s);
-            return stateMetadata == null ? EmptyReadableStates.INSTANCE : new MerkleReadableStates(stateMetadata);
-        });
+        final var existingStates = readableStatesMap.get(serviceName);
+        if (existingStates != null) {
+            return existingStates;
+        }
+
+        final var stateMetadata = services.get(serviceName);
+        final ReadableStates newStates =
+                stateMetadata == null ? EmptyReadableStates.INSTANCE : new MerkleReadableStates(stateMetadata);
+        final var concurrentStates = readableStatesMap.putIfAbsent(serviceName, newStates);
+        return concurrentStates == null ? newStates : concurrentStates;
     }
 
     /**
@@ -162,10 +168,13 @@ public class VirtualMapStateImpl implements VirtualMapState {
     @NonNull
     public WritableStates getWritableStates(@NonNull final String serviceName) {
         virtualMap.throwIfImmutable();
-        return writableStatesMap.computeIfAbsent(serviceName, s -> {
-            final var stateMetadata = services.getOrDefault(s, Map.of());
-            return new MerkleWritableStates(serviceName, stateMetadata);
-        });
+        var states = writableStatesMap.get(serviceName);
+        if (states == null) {
+            final var stateMetadata = services.getOrDefault(serviceName, Map.of());
+            states = new MerkleWritableStates(serviceName, stateMetadata);
+            writableStatesMap.put(serviceName, states);
+        }
+        return states;
     }
 
     @Override
@@ -244,14 +253,20 @@ public class VirtualMapStateImpl implements VirtualMapState {
 
         // Remove the metadata entry
         final var stateMetadata = services.get(serviceName);
+        final boolean removed;
         if (stateMetadata != null) {
-            stateMetadata.remove(stateId);
+            removed = stateMetadata.remove(stateId) != null;
+        } else {
+            removed = false;
         }
 
         // Eventually remove the cached WritableState
         final var writableStates = writableStatesMap.get(serviceName);
         if (writableStates != null) {
             writableStates.remove(stateId);
+        }
+        if (removed) {
+            readableStatesMap.remove(serviceName);
         }
     }
 
@@ -611,17 +626,28 @@ public class VirtualMapStateImpl implements VirtualMapState {
 
         @Override
         public void commit() {
-            // Ensure all commits always happen in lexicographic order by state ID
-            commitInStateIdOrder(kvInstances, state -> ((WritableKVStateBase) state).commit());
-            commitInStateIdOrder(singletonInstances, state -> ((WritableSingletonStateBase) state).commit());
-            commitInStateIdOrder(queueInstances, state -> ((WritableQueueStateBase) state).commit());
-            readableStatesMap.remove(serviceName);
+            try {
+                // Ensure all commits always happen in lexicographic order by state ID
+                commitInStateIdOrder(kvInstances, state -> ((WritableKVStateBase) state).commit());
+                commitInStateIdOrder(singletonInstances, state -> ((WritableSingletonStateBase) state).commit());
+                commitInStateIdOrder(queueInstances, state -> ((WritableQueueStateBase) state).commit());
+            } finally {
+                readableStatesMap.remove(serviceName);
+            }
         }
 
         @Override
         public void commitSingleton(final int stateId) {
-            ((WritableSingletonStateBase<?>) getSingleton(stateId)).commit();
-            readableStatesMap.remove(serviceName);
+            try {
+                ((WritableSingletonStateBase<?>) getSingleton(stateId)).commit();
+            } finally {
+                readableStatesMap.remove(serviceName);
+            }
+        }
+
+        @Override
+        public void flushToDataSource() {
+            flushToVirtualMap();
         }
 
         /**
@@ -629,10 +655,14 @@ public class VirtualMapStateImpl implements VirtualMapState {
          * Listeners already ran when the handle wrap applied each transaction's changes.
          */
         void flushToVirtualMap() {
-            commitInStateIdOrder(kvInstances, state -> ((WritableKVStateBase) state).flushToDataSource());
-            commitInStateIdOrder(singletonInstances, state -> ((WritableSingletonStateBase) state).flushToDataSource());
-            commitInStateIdOrder(queueInstances, state -> ((WritableQueueStateBase) state).flushToDataSource());
-            readableStatesMap.remove(serviceName);
+            try {
+                commitInStateIdOrder(kvInstances, state -> ((WritableKVStateBase) state).flushToDataSource());
+                commitInStateIdOrder(
+                        singletonInstances, state -> ((WritableSingletonStateBase) state).flushToDataSource());
+                commitInStateIdOrder(queueInstances, state -> ((WritableQueueStateBase) state).flushToDataSource());
+            } finally {
+                readableStatesMap.remove(serviceName);
+            }
         }
 
         /**

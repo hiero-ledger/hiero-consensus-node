@@ -5,6 +5,9 @@ import static com.hedera.node.app.hapi.utils.throttles.DeterministicThrottleTest
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -201,6 +204,86 @@ class LeakyBucketDeterministicThrottleTest {
 
         assertEquals(used, subject.delegate().bucket().capacityUsed());
         assertEquals(snapshot, subject.usageSnapshot());
+    }
+
+    @Test
+    void memoizesSnapshotAndInvalidatesForEveryUsageMutation() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        final var initial = subject.usageSnapshot();
+
+        assertSame(initial, subject.usageSnapshot());
+
+        assertTrue(subject.allow(now, 100));
+        final var afterAllow = subject.usageSnapshot();
+        assertNotSame(initial, afterAllow);
+        assertSame(afterAllow, subject.usageSnapshot());
+
+        subject.leakUnusedGasPreviouslyReserved(25);
+        final var afterUnusedGasLeak = subject.usageSnapshot();
+        assertNotSame(afterAllow, afterUnusedGasLeak);
+
+        assertTrue(subject.allow(now, 100));
+        final var beforeReclaim = subject.usageSnapshot();
+        subject.reclaimLastAllowedUse();
+        final var afterReclaim = subject.usageSnapshot();
+        assertNotSame(beforeReclaim, afterReclaim);
+
+        subject.leakUntil(now.plusNanos(1_000_000));
+        final var afterLeakUntil = subject.usageSnapshot();
+        assertNotSame(afterReclaim, afterLeakUntil);
+
+        assertTrue(subject.allow(now.plusNanos(1_000_000), 100));
+        final var beforeReset = subject.usageSnapshot();
+        subject.resetUsage();
+        assertNotSame(beforeReset, subject.usageSnapshot());
+    }
+
+    @Test
+    void preservesSnapshotIdentityAcrossNoOpsAndRejectedMutations() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        final var initial = subject.usageSnapshot();
+
+        assertThrows(IllegalArgumentException.class, () -> subject.allow(now, -1));
+        assertSame(initial, subject.usageSnapshot());
+        subject.leakUnusedGasPreviouslyReserved(0);
+        assertSame(initial, subject.usageSnapshot());
+        subject.reclaimLastAllowedUse();
+        assertSame(initial, subject.usageSnapshot());
+        subject.resetLastAllowedUse();
+        assertSame(initial, subject.usageSnapshot());
+        subject.resetUsage();
+        assertSame(initial, subject.usageSnapshot());
+
+        assertTrue(subject.allow(now, DEFAULT_CAPACITY));
+        final var full = subject.usageSnapshot();
+        assertFalse(subject.allow(now, 1));
+        assertSame(full, subject.usageSnapshot());
+        assertThrows(IllegalArgumentException.class, () -> subject.allow(now.minusNanos(1), 1));
+        assertSame(full, subject.usageSnapshot());
+        subject.leakUntil(now);
+        assertSame(full, subject.usageSnapshot());
+    }
+
+    @Test
+    void resetUsageToWarmsCacheFromSuppliedSnapshot() {
+        final var supplied = new ThrottleUsageSnapshot(123L, new Timestamp(1_234_567L, 890));
+
+        subject.resetUsageTo(supplied);
+
+        assertSame(supplied, subject.usageSnapshot());
+    }
+
+    @Test
+    void failedResetDoesNotLeaveAStaleCachedSnapshot() {
+        final var before = subject.usageSnapshot();
+        final var invalid = new ThrottleUsageSnapshot(subject.capacity() + 1, new Timestamp(1_234_567L, 890));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.resetUsageTo(invalid));
+
+        final var after = subject.usageSnapshot();
+        assertNotSame(before, after);
+        assertEquals(before.used(), after.used());
+        assertEquals(invalid.lastDecisionTime(), after.lastDecisionTime());
     }
 
     @Test

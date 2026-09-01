@@ -15,6 +15,7 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityIDPair;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.impl.RecordFinalizerBase;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -22,6 +23,7 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHandler;
+import com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHandler.StakingRewardsResult;
 import com.hedera.node.app.service.token.records.ChildStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.FinalizeContext;
@@ -32,7 +34,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -100,6 +101,18 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             @NonNull final HederaFunctionality functionality,
             @Nullable final Set<AccountID> explicitRewardReceivers,
             @Nullable final Map<AccountID, Long> prePaidRewards) {
+        try (final var scratchLease = acquireScratch()) {
+            finalizeRecordWithScratch(
+                    context, functionality, explicitRewardReceivers, prePaidRewards, scratchLease.scratch());
+        }
+    }
+
+    private void finalizeRecordWithScratch(
+            @NonNull final FinalizeContext context,
+            @NonNull final HederaFunctionality functionality,
+            @Nullable final Set<AccountID> explicitRewardReceivers,
+            @Nullable final Map<AccountID, Long> prePaidRewards,
+            @NonNull final FinalizationScratch scratch) {
         final var recordBuilder = context.userTransactionRecordBuilder(CryptoTransferStreamBuilder.class);
 
         // This handler won't ask the context for its transaction, but instead will determine the net hbar transfers and
@@ -111,15 +124,25 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         final var writableNftStore = context.writableStore(WritableNftStore.class);
         final var writableTokenStore = context.writableStore(WritableTokenStore.class);
 
+        Map<AccountID, Account> cachedOriginalAccounts = Map.of();
         if (explicitRewardReceivers != null && prePaidRewards != null) {
             // staking rewards are triggered for any balance changes to account's that are staked to
             // a node. They are also triggered if staking related fields are modified
             // Calculate staking rewards and add them also to hbarChanges here, before assessing
             // net changes for transaction record
-            final var rewardsPaid =
-                    stakingRewardsHandler.applyStakingRewards(context, explicitRewardReceivers, prePaidRewards);
+            final StakingRewardsResult result = stakingRewardsHandler.applyStakingRewardsWithAnalysis(
+                    context, explicitRewardReceivers, prePaidRewards, scratch.stakingScratch());
+            final Map<AccountID, Long> rewardsPaid;
+            if (result == null) {
+                // Compatibility for mocks and alternative implementations that have not adopted the analysis API.
+                rewardsPaid =
+                        stakingRewardsHandler.applyStakingRewards(context, explicitRewardReceivers, prePaidRewards);
+            } else {
+                rewardsPaid = result.rewardsPaid();
+                cachedOriginalAccounts = result.originalAccounts();
+            }
             if (requiresExternalization(rewardsPaid)) {
-                recordBuilder.paidStakingRewards(asAccountAmounts(rewardsPaid));
+                recordBuilder.paidStakingRewards(List.copyOf(asAccountAmounts(rewardsPaid)));
             }
         }
 
@@ -128,7 +151,8 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                 context.configuration().getConfigData(LedgerConfig.class).totalTinyBarFloat();
         final Map<AccountID, Long> hbarChanges;
         try {
-            hbarChanges = hbarChangesFrom(writableAccountStore, maxLegalBalance);
+            hbarChanges = hbarChangesFrom(
+                    writableAccountStore, maxLegalBalance, cachedOriginalAccounts, scratch.hbarChanges());
         } catch (HandleException e) {
             if (e.getStatus() == FAIL_INVALID) {
                 logHbarFinalizationFailInvalid(
@@ -141,31 +165,33 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         final var isCryptoTransfer =
                 functionality == HederaFunctionality.CRYPTO_TRANSFER ? IsCryptoTransfer.YES : IsCryptoTransfer.NO;
         // get all the token relation changes for fungible and non-fungible tokens
-        final var tokenRelChanges = tokenRelChangesFrom(writableTokenRelStore, isCryptoTransfer);
+        final var tokenRelChanges =
+                tokenRelChangesFrom(writableTokenRelStore, isCryptoTransfer, scratch.tokenRelChanges());
         // get all the NFT changes. Go through the nft changes and see if there are any token relation changes
         // for the sender and receiver of the NFTs. If there are, then reduce the balance change for that relation
         // by 1 for receiver and increment the balance change for sender by 1. This is to ensure that the NFT
         // transfer is not double counted in the token relation changes and the NFT changes. Also we don't need to
         // represent the changes for Mint or Wipe of NFTs in the token relation changes.
-        final var nftChanges = nftChangesFrom(writableNftStore, writableTokenStore, tokenRelChanges);
+        final var nftChanges = nftChangesFrom(writableNftStore, writableTokenStore, tokenRelChanges, scratch);
 
         if (context.hasChildOrPrecedingRecords()) {
             // All the above changes maps are mutable
-            deductChangesFromChildOrPrecedingRecords(context, tokenRelChanges, nftChanges, hbarChanges);
+            deductChangesFromChildOrPrecedingRecords(
+                    context, tokenRelChanges, nftChanges, hbarChanges, scratch.childFinalNftOwners());
         }
         if (!hbarChanges.isEmpty()) {
             // Save the modified hbar amounts so records can be written
             recordBuilder.transferList(TransferList.newBuilder()
-                    .accountAmounts(asAccountAmounts(hbarChanges))
+                    .accountAmounts(List.copyOf(asAccountAmounts(hbarChanges)))
                     .build());
         }
         final var hasTokenTransferLists = !tokenRelChanges.isEmpty() || !nftChanges.isEmpty();
         if (hasTokenTransferLists) {
-            final var tokenTransferLists = asTokenTransferListFrom(tokenRelChanges, isCryptoTransfer);
+            final var tokenTransferLists = asTokenTransferListFrom(tokenRelChanges, isCryptoTransfer, scratch);
             final var nftTokenTransferLists = asTokenTransferListFromNftChanges(nftChanges);
             tokenTransferLists.addAll(nftTokenTransferLists);
             tokenTransferLists.sort(TOKEN_TRANSFER_LIST_COMPARATOR);
-            recordBuilder.tokenTransferLists(tokenTransferLists);
+            recordBuilder.tokenTransferLists(List.copyOf(tokenTransferLists));
         }
     }
 
@@ -193,8 +219,8 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             @NonNull final FinalizeContext context,
             @NonNull final Map<EntityIDPair, Long> fungibleChanges,
             @NonNull final Map<TokenID, List<NftTransfer>> nftTransfers,
-            @NonNull final Map<AccountID, Long> hbarChanges) {
-        final Map<NftID, AccountID> childFinalNftOwners = new HashMap<>();
+            @NonNull final Map<AccountID, Long> hbarChanges,
+            @NonNull final Map<NftID, AccountID> childFinalNftOwners) {
         context.forEachChildRecord(ChildStreamBuilder.class, childRecord -> {
             final List<AccountAmount> childHbarChangesFromRecord = childRecord.transferList() == null
                     ? emptyList()

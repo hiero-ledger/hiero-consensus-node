@@ -50,6 +50,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -87,6 +90,8 @@ final class RecordCacheImplTest extends AppTestBase {
     @Mock
     private NetworkInfo networkInfo;
 
+    private HederaConfig hederaConfig;
+
     @Mock
     private StartupNetworks startupNetworks;
 
@@ -100,6 +105,7 @@ final class RecordCacheImplTest extends AppTestBase {
             @Mock final LedgerConfig ledgerConfig,
             @Mock final NetworkInfo networkInfo) {
         dedupeCache = new DeduplicationCacheImpl(props, instantSource);
+        this.hederaConfig = hederaConfig;
         final var registry = new FakeSchemaRegistry();
         final var state = new FakeState();
         final var svc = new RecordCacheService();
@@ -792,11 +798,214 @@ final class RecordCacheImplTest extends AppTestBase {
 
             assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).hasSize(2);
         }
+
+        @Test
+        @DisplayName("Out-of-order valid starts do not strand expired payer buckets")
+        void outOfOrderValidStartsDoNotStrandExpiredBuckets() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            final var liveTxnId = txnIdAt(t0.plusSeconds(100));
+            final var expiredTxnId = txnIdAt(t0);
+            addSuccess(cache, liveTxnId, 0L);
+            addSuccess(cache, expiredTxnId, 0L);
+
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID))
+                    .extracting(TransactionRecord::transactionID)
+                    .containsExactly(liveTxnId);
+            assertThat(cache.getHistory(expiredTxnId)).isNotNull();
+        }
+
+        @Test
+        @DisplayName("An out-of-order add below the last purge threshold expires immediately")
+        void outOfOrderAddBelowLastPurgeThresholdExpiresImmediately() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            final var liveTxnId = txnIdAt(t0.plusSeconds(100));
+            final var lateExpiredTxnId = txnIdAt(t0);
+            addSuccess(cache, liveTxnId, 0L);
+
+            final var consensusTime = t0.plusSeconds(181);
+            cache.commitReceipts(wsa.getState(), consensusTime, null, blockStreamManager, StreamMode.RECORDS);
+            addSuccess(cache, lateExpiredTxnId, 0L);
+            cache.commitReceipts(
+                    wsa.getState(), consensusTime.plusNanos(1), null, blockStreamManager, StreamMode.RECORDS);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID))
+                    .extracting(TransactionRecord::transactionID)
+                    .containsExactly(liveTxnId);
+            assertThat(cache.getHistory(lateExpiredTxnId)).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Multi-payer expiry drops only expired payer buckets")
+        void multiPayerExpiryDropsOnlyExpiredBuckets() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            final var otherPayer = AccountID.newBuilder().accountNum(1002).build();
+            final var expiredTxnId = txnIdAt(PAYER_ACCOUNT_ID, t0);
+            final var liveTxnId = txnIdAt(otherPayer, t0.plusSeconds(100));
+            addSuccess(cache, expiredTxnId, 0L);
+            addSuccess(cache, liveTxnId, 0L);
+
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(100), null, blockStreamManager, StreamMode.RECORDS);
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+            assertThat(cache.getRecords(otherPayer)).hasSize(1);
+            assertThat(cache.getHistory(expiredTxnId)).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Expiry visits only payers whose front second is before the threshold")
+        void expiryPreservesAllNonExpiringPayerIndexes() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            final var expiredTxnId = txnIdAt(PAYER_ACCOUNT_ID, t0);
+            addSuccess(cache, expiredTxnId, 0L);
+            for (int i = 0; i < 20; i++) {
+                final var payerId =
+                        AccountID.newBuilder().accountNum(2_000L + i).build();
+                addSuccess(cache, txnIdAt(payerId, t0.plusSeconds(100 + i)), 0L);
+            }
+
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+            for (int i = 0; i < 20; i++) {
+                final var payerId =
+                        AccountID.newBuilder().accountNum(2_000L + i).build();
+                assertThat(cache.getRecords(payerId)).hasSize(1);
+            }
+        }
+
+        @Test
+        @DisplayName("Removing a payer's final bucket permits a fresh index for that payer")
+        void finalBucketRemovalPermitsFreshPayerIndex() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            addSuccess(cache, txnIdAt(t0), 0L);
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+
+            final var freshTxnId = txnIdAt(t0.plusSeconds(200));
+            addSuccess(cache, freshTxnId, 0L);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID))
+                    .extracting(TransactionRecord::transactionID)
+                    .containsExactly(freshTxnId);
+        }
+
+        @Test
+        @DisplayName("Due-diligence payer index expires under the node account")
+        void dueDiligencePayerIndexExpiresUnderNodeAccount() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var validStart = Instant.ofEpochSecond(1_700_000_000L);
+            final var txId = txnIdAt(validStart);
+            final var record = TransactionRecord.newBuilder()
+                    .transactionID(txId)
+                    .receipt(TransactionReceipt.newBuilder().status(SUCCESS))
+                    .build();
+            given(nodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+            given(networkInfo.nodeInfo(1L)).willReturn(nodeInfo);
+
+            cache.addRecordSource(1L, txId, DueDiligenceFailure.YES, new PartialRecordSource(record));
+            cache.commitReceipts(
+                    wsa.getState(), validStart.plusSeconds(180), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+            assertThat(cache.getRecords(NODE_ACCOUNT_ID)).hasSize(1);
+
+            cache.commitReceipts(
+                    wsa.getState(), validStart.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.getRecords(NODE_ACCOUNT_ID)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Rebuilt payer buckets honor exact and dynamic duration boundaries")
+        void rebuiltPayerBucketsHonorExactAndDynamicDurationBoundaries() {
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            final var expiredTxnId = txnIdAt(t0);
+            final var boundaryTxnId = txnIdAt(t0.plusSeconds(1));
+            final var queue = wsa.getState()
+                    .getWritableStates(RecordCacheService.NAME)
+                    .<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            queue.add(new TransactionReceiptEntries(List.of(
+                    new TransactionReceiptEntry(0L, expiredTxnId, SUCCESS),
+                    new TransactionReceiptEntry(0L, boundaryTxnId, SUCCESS))));
+            ((ListWritableQueueState<?>) queue).commit();
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID))
+                    .extracting(TransactionRecord::transactionID)
+                    .containsExactly(boundaryTxnId);
+
+            given(hederaConfig.transactionMaxValidDuration()).willReturn(178L);
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Rebuilt registry expires each payer from its own front second")
+        void rebuiltRegistryTracksEachPayerFrontSecond() {
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            final var otherPayer = AccountID.newBuilder().accountNum(1002).build();
+            final var expiredTxnId = txnIdAt(t0);
+            final var survivingTxnId = txnIdAt(otherPayer, t0.plusSeconds(100));
+            final var queue = wsa.getState()
+                    .getWritableStates(RecordCacheService.NAME)
+                    .<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            queue.add(new TransactionReceiptEntries(List.of(
+                    new TransactionReceiptEntry(0L, expiredTxnId, SUCCESS),
+                    new TransactionReceiptEntry(0L, survivingTxnId, SUCCESS))));
+            ((ListWritableQueueState<?>) queue).commit();
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+
+            cache.commitReceipts(wsa.getState(), t0.plusSeconds(181), null, blockStreamManager, StreamMode.RECORDS);
+
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+            assertThat(cache.getRecords(otherPayer))
+                    .extracting(TransactionRecord::transactionID)
+                    .containsExactly(survivingTxnId);
+        }
+
+        @Test
+        @DisplayName("Concurrent account queries remain best-effort while payer buckets relocate")
+        void concurrentQueriesRemainBestEffortDuringRelocation() throws Exception {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var t0 = Instant.ofEpochSecond(1_700_000_000L);
+            addSuccess(cache, txnIdAt(t0.plusSeconds(1_000)), 0L);
+            final var queryStarted = new CountDownLatch(1);
+            final var stopQuerying = new AtomicBoolean();
+            final var queryTask = CompletableFuture.runAsync(() -> {
+                queryStarted.countDown();
+                while (!stopQuerying.get()) {
+                    cache.getRecords(PAYER_ACCOUNT_ID);
+                }
+            });
+            queryStarted.await();
+
+            try {
+                for (int i = 999; i >= 500; i--) {
+                    addSuccess(cache, txnIdAt(t0.plusSeconds(i)), 0L);
+                }
+            } finally {
+                stopQuerying.set(true);
+            }
+
+            queryTask.join();
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isNotEmpty();
+        }
     }
 
     private static TransactionID txnIdAt(final Instant validStart) {
+        return txnIdAt(PAYER_ACCOUNT_ID, validStart);
+    }
+
+    private static TransactionID txnIdAt(final AccountID payerId, final Instant validStart) {
         return TransactionID.newBuilder()
-                .accountID(PAYER_ACCOUNT_ID)
+                .accountID(payerId)
                 .transactionValidStart(new Timestamp(validStart.getEpochSecond(), validStart.getNano()))
                 .build();
     }

@@ -580,8 +580,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 final var pendingWriter = writerSupplier.get();
 
                 pendingWriter.openBlock(block.number());
-                block.items()
-                        .forEach(item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
+                block.items().forEach(item -> pendingWriter.writePbjItemAndSerialized(item, serializeBlockItem(item)));
                 recovered.addFirst(new PendingBlock(
                         block.number(),
                         block.contentsPath(),
@@ -1103,7 +1102,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             streamingObs.onBlockProofCreate(currentPendingBlock.number());
-            currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
+            currentPendingBlock.writer().writePbjItemAndSerialized(proofItem, serializeBlockItem(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first
             if (quiescenceEnabled && currentPendingBlock.contentsPath() == null) {
@@ -1234,7 +1233,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         protected boolean onExecute() {
             byte[] bytes = null;
             try {
-                bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
+                bytes = serializeBlockItem(item);
             } catch (final Exception e) {
                 log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, e);
                 pipelineFailure.compareAndSet(null, e);
@@ -1254,6 +1253,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             pipelineFailure.compareAndSet(null, t);
             out.send(item, null);
         }
+    }
+
+    private static byte[] serializeBlockItem(@NonNull final BlockItem item) {
+        final var serialized = new byte[BlockItem.PROTOBUF.measureRecord(item)];
+        BlockItem.PROTOBUF.write(item, serialized, 0);
+        return serialized;
     }
 
     class SequentialTask extends AbstractTask {
@@ -1298,7 +1303,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     if (header != null) {
                         writer.openBlock(header.number());
                     }
-                    writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
+                    writer.writePbjItemAndSerialized(item, serialized);
                 } catch (final Exception e) {
                     log.error("{} - error hashing/writing block item {}", ALERT_MESSAGE, item, e);
                     pipelineFailure.compareAndSet(null, e);

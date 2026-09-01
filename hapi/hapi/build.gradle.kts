@@ -14,6 +14,30 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-exports,-deprecation,-removal")
 }
 
+val accountIdJava =
+    layout.buildDirectory.file(
+        "generated/source/pbj-proto/main/java/com/hedera/hapi/node/base/AccountID.java"
+    )
+val patchAccountIdEqualsScript = layout.projectDirectory.file("patchAccountIdEquals.py")
+
+val patchAccountIdEquals =
+    tasks.register<Exec>("patchAccountIdEquals") {
+        description = "Fast-path AccountID.equals for numeric account numbers"
+        dependsOn("generatePbjSource")
+        inputs.file(accountIdJava)
+        inputs.file(patchAccountIdEqualsScript)
+        outputs.file(accountIdJava)
+        commandLine(
+            "python3",
+            patchAccountIdEqualsScript.asFile.absolutePath,
+            accountIdJava.get().asFile.absolutePath,
+        )
+    }
+
+tasks.named("generatePbjSource") { finalizedBy(patchAccountIdEquals) }
+
+tasks.named("compileJava") { dependsOn(patchAccountIdEquals) }
+
 // If the 'block-node-protobuf-sources.jar' would also contain the generated Java classes, we could
 // replace the 'dependencies' block with a 'requires org.hiero.block.protobuf.sources' entry in
 // 'module-info.java'. Then, the 'srcDir(tasks.extractProto)' below inside the 'main { pbj {} }'
@@ -46,12 +70,13 @@ sourceSets {
 
 testModuleInfo {
     requires("com.hedera.node.hapi")
-    // we depend on the protoc compiled hapi during test as we test our pbj generated code
-    // against it to make sure it is compatible
     requires("com.google.protobuf.util")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
+
+    // against it to make sure it is compatible
+    // we depend on the protoc compiled hapi during test as we test our pbj generated code
 }
 
 tasks.test {

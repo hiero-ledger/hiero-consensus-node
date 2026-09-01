@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static com.hedera.hapi.util.HapiUtils.accountIdsEqual;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
@@ -20,7 +21,7 @@ import com.hedera.node.config.data.StakingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,52 +57,155 @@ public class StakingRewardsHelper {
     }
 
     /**
-     * Looks through all the accounts modified in state and returns a list of accounts which are staked to a node
-     * and has stakedId or stakedToMe or balance or declineReward changed in this transaction.
+     * Analyzes the accounts modified by a dispatch in their encounter order. This is the only pass over the dispatch's
+     * modified-account set needed by staking reward finalization.
      *
-     * @param writableAccountStore The store to write to for updated values and original values
-     * @param stakeToMeRewardReceivers The accounts which are staked to a node and are special reward receivers
-     * @param explicitRewardReceivers Extra accounts to consider for rewards
-     * @return A list of accounts which are staked to a node and could possibly receive a reward
+     * @param writableAccountStore the account store
+     * @param explicitRewardReceivers extra accounts to consider for rewards
+     * @param prePaidRewardReceivers accounts rewarded by a preceding scheduled dispatch
+     * @return the immutable dispatch-scoped staking analysis
      */
-    public static Set<AccountID> getAllRewardReceivers(
-            final WritableAccountStore writableAccountStore,
-            final Set<AccountID> stakeToMeRewardReceivers,
-            @NonNull final Set<AccountID> explicitRewardReceivers) {
-        final var possibleRewardReceivers = new LinkedHashSet<>(stakeToMeRewardReceivers);
-        addIdsInRewardSituation(
-                writableAccountStore,
-                writableAccountStore.modifiedAccountsInState(),
-                possibleRewardReceivers,
-                FilterType.IS_CANONICAL_REWARD_SITUATION);
-        addIdsInRewardSituation(
-                writableAccountStore, explicitRewardReceivers, possibleRewardReceivers, FilterType.IS_STAKED_TO_NODE);
-        return possibleRewardReceivers;
-    }
-
-    private enum FilterType {
-        IS_CANONICAL_REWARD_SITUATION,
-        IS_STAKED_TO_NODE
-    }
-
-    private static void addIdsInRewardSituation(
+    public static StakingAccountAnalysis analyzeStakingAccounts(
             @NonNull final WritableAccountStore writableAccountStore,
-            @NonNull final Collection<AccountID> ids,
-            @NonNull final Set<AccountID> possibleRewardReceivers,
-            @NonNull final FilterType filterType) {
-        for (final AccountID id : ids) {
-            if (filterType == FilterType.IS_CANONICAL_REWARD_SITUATION) {
-                final var modifiedAcct = requireNonNull(writableAccountStore.get(id));
-                final var originalAcct = writableAccountStore.getOriginalValue(id);
-                if (isRewardSituation(modifiedAcct, originalAcct)) {
-                    possibleRewardReceivers.add(id);
+            @NonNull final Set<AccountID> explicitRewardReceivers,
+            @NonNull final Set<AccountID> prePaidRewardReceivers) {
+        return analyzeStakingAccounts(writableAccountStore, explicitRewardReceivers, prePaidRewardReceivers, null);
+    }
+
+    /**
+     * Analyzes modified accounts using {@code scratch} when provided. Scratch collections are cleared on entry and
+     * remain valid only until the next analysis that reuses the same scratch.
+     */
+    public static StakingAccountAnalysis analyzeStakingAccounts(
+            @NonNull final WritableAccountStore writableAccountStore,
+            @NonNull final Set<AccountID> explicitRewardReceivers,
+            @NonNull final Set<AccountID> prePaidRewardReceivers,
+            @Nullable final StakingAnalysisScratch scratch) {
+        requireNonNull(writableAccountStore);
+        requireNonNull(explicitRewardReceivers);
+        requireNonNull(prePaidRewardReceivers);
+
+        final var modifiedAccountIds = writableAccountStore.modifiedAccountsInState();
+        final List<ModifiedAccountAnalysis> modifiedAccounts;
+        final Map<AccountID, Account> originalAccounts;
+        final Set<AccountID> stakedToMeRewardReceivers;
+        final Set<AccountID> stakedToMeAdjustmentReceivers;
+        final Set<AccountID> canonicalRewardReceivers;
+        final Set<AccountID> possibleRewardReceivers;
+        if (scratch == null) {
+            modifiedAccounts = new ArrayList<>(modifiedAccountIds.size());
+            originalAccounts = HashMap.newHashMap(modifiedAccountIds.size() + 4);
+            stakedToMeRewardReceivers = new LinkedHashSet<>();
+            stakedToMeAdjustmentReceivers = new LinkedHashSet<>();
+            canonicalRewardReceivers = new LinkedHashSet<>();
+            possibleRewardReceivers =
+                    LinkedHashSet.newLinkedHashSet(modifiedAccountIds.size() + explicitRewardReceivers.size());
+        } else {
+            scratch.reset();
+            modifiedAccounts = scratch.modifiedAccounts;
+            originalAccounts = scratch.originalAccounts;
+            stakedToMeRewardReceivers = scratch.stakedToMeRewardReceivers;
+            stakedToMeAdjustmentReceivers = scratch.stakedToMeAdjustmentReceivers;
+            canonicalRewardReceivers = scratch.canonicalRewardReceivers;
+            possibleRewardReceivers = scratch.possibleRewardReceivers;
+        }
+        var hasStakeMetadataChanges = false;
+
+        for (final var id : modifiedAccountIds) {
+            final var originalAccount = writableAccountStore.getOriginalValue(id);
+            final var currentAccount = requireNonNull(writableAccountStore.get(id));
+            originalAccounts.put(id, originalAccount);
+
+            final var stakeIdChangeType = StakeIdChangeType.forCase(originalAccount, currentAccount);
+            final var containsStakeMetadataChanges = hasStakeMetaChanges(originalAccount, currentAccount);
+            final var rewardSituation = isRewardSituation(currentAccount, originalAccount);
+            modifiedAccounts.add(new ModifiedAccountAnalysis(
+                    id, originalAccount, stakeIdChangeType, containsStakeMetadataChanges, rewardSituation));
+            hasStakeMetadataChanges |= containsStakeMetadataChanges;
+            if (rewardSituation) {
+                canonicalRewardReceivers.add(id);
+            }
+
+            if (stakeIdChangeType == StakeIdChangeType.FROM_ACCOUNT_TO_ACCOUNT
+                    && accountIdsEqual(
+                            requireNonNull(originalAccount).stakedAccountIdOrThrow(),
+                            currentAccount.stakedAccountId())) {
+                if (currentAccount.tinybarBalance() != originalAccount.tinybarBalance()) {
+                    addStakedToMeReceiver(
+                            currentAccount.stakedAccountId(),
+                            writableAccountStore,
+                            originalAccounts,
+                            stakedToMeAdjustmentReceivers,
+                            stakedToMeRewardReceivers);
                 }
             } else {
-                if (isCurrentlyStakedToNode(writableAccountStore.get(id))) {
-                    possibleRewardReceivers.add(id);
+                if (stakeIdChangeType.withdrawsFromAccount()) {
+                    addStakedToMeReceiver(
+                            requireNonNull(originalAccount).stakedAccountId(),
+                            writableAccountStore,
+                            originalAccounts,
+                            stakedToMeAdjustmentReceivers,
+                            stakedToMeRewardReceivers);
+                }
+                if (stakeIdChangeType.awardsToAccount()) {
+                    addStakedToMeReceiver(
+                            currentAccount.stakedAccountId(),
+                            writableAccountStore,
+                            originalAccounts,
+                            stakedToMeAdjustmentReceivers,
+                            stakedToMeRewardReceivers);
                 }
             }
         }
+
+        possibleRewardReceivers.addAll(stakedToMeRewardReceivers);
+        possibleRewardReceivers.addAll(canonicalRewardReceivers);
+        for (final var id : explicitRewardReceivers) {
+            if (isCurrentlyStakedToNode(writableAccountStore.get(id))) {
+                cacheOriginal(id, writableAccountStore, originalAccounts);
+                possibleRewardReceivers.add(id);
+            }
+        }
+        for (final var id : prePaidRewardReceivers) {
+            cacheOriginal(id, writableAccountStore, originalAccounts);
+        }
+
+        return new StakingAccountAnalysis(
+                modifiedAccounts,
+                possibleRewardReceivers,
+                stakedToMeAdjustmentReceivers,
+                originalAccounts,
+                hasStakeMetadataChanges);
+    }
+
+    private static void addStakedToMeReceiver(
+            @Nullable final AccountID id,
+            @NonNull final WritableAccountStore writableAccountStore,
+            @NonNull final Map<AccountID, Account> originalAccounts,
+            @NonNull final Set<AccountID> stakedToMeAdjustmentReceivers,
+            @NonNull final Set<AccountID> stakedToMeRewardReceivers) {
+        if (id == null) {
+            return;
+        }
+        final var originalStakee = cacheOriginal(id, writableAccountStore, originalAccounts);
+        if (originalStakee != null && !originalStakee.deleted() && originalStakee.hasStakedNodeId()) {
+            stakedToMeRewardReceivers.add(id);
+        }
+        final var currentStakee = writableAccountStore.get(id);
+        if (currentStakee != null && !currentStakee.deleted()) {
+            stakedToMeAdjustmentReceivers.add(id);
+        }
+    }
+
+    @Nullable
+    private static Account cacheOriginal(
+            @NonNull final AccountID id,
+            @NonNull final WritableAccountStore writableAccountStore,
+            @NonNull final Map<AccountID, Account> originalAccounts) {
+        if (!originalAccounts.containsKey(id)) {
+            originalAccounts.put(id, writableAccountStore.getOriginalValue(id));
+        }
+        return originalAccounts.get(id);
     }
 
     /**
@@ -265,7 +369,7 @@ public class StakingRewardsHelper {
      * @return the list of account amounts (excluding zero adjustments)
      */
     public static List<AccountAmount> asAccountAmounts(@NonNull final Map<AccountID, Long> balanceAdjustments) {
-        final var accountAmounts = new ArrayList<AccountAmount>();
+        final var accountAmounts = new ArrayList<AccountAmount>(balanceAdjustments.size());
         for (final var entry : balanceAdjustments.entrySet()) {
             if (entry.getValue() != 0) {
                 accountAmounts.add(AccountAmount.newBuilder()
@@ -283,5 +387,71 @@ public class StakingRewardsHelper {
         // list the id of an account that doesn't exist in the store, but was created
         // and then reverted inside an overall successful transaction
         return account != null && account.stakedNodeIdOrElse(SENTINEL_NODE_ID) != SENTINEL_NODE_ID;
+    }
+
+    /**
+     * Immutable staking facts derived for one account modified by the dispatch. The current account is deliberately not
+     * retained because reward and staked-to-me mutations can replace it before metadata adjustment.
+     */
+    public record ModifiedAccountAnalysis(
+            @NonNull AccountID accountId,
+            @Nullable Account originalAccount,
+            @NonNull StakeIdChangeType stakeIdChangeType,
+            boolean hasStakeMetadataChanges,
+            boolean rewardSituation) {
+        public ModifiedAccountAnalysis {
+            requireNonNull(accountId);
+            requireNonNull(stakeIdChangeType);
+        }
+    }
+
+    /**
+     * Dispatch-scoped staking analysis. The collections are owned by the analysis, or by a
+     * {@link StakingAnalysisScratch} reused on the same thread; callers must not mutate them.
+     */
+    public record StakingAccountAnalysis(
+            @NonNull List<ModifiedAccountAnalysis> modifiedAccounts,
+            @NonNull Set<AccountID> rewardReceivers,
+            @NonNull Set<AccountID> stakedToMeAdjustmentReceivers,
+            @NonNull Map<AccountID, Account> originalAccounts,
+            boolean hasStakeMetadataChanges) {
+        public StakingAccountAnalysis {
+            requireNonNull(modifiedAccounts);
+            requireNonNull(rewardReceivers);
+            requireNonNull(stakedToMeAdjustmentReceivers);
+            requireNonNull(originalAccounts);
+        }
+
+        /**
+         * Returns whether the analysis found any staking work. A zero reward amount is not considered proof that no
+         * work remains, because zero rewards can still require account metadata updates.
+         *
+         * @return whether staking finalization has work
+         */
+        public boolean hasStakingWork() {
+            return !rewardReceivers.isEmpty() || !stakedToMeAdjustmentReceivers.isEmpty() || hasStakeMetadataChanges;
+        }
+    }
+
+    /**
+     * Reusable collections for {@link #analyzeStakingAccounts}. Depth-scoped by {@link com.hedera.node.app.service.token.impl.RecordFinalizerBase}
+     * so nested child finalization cannot overwrite a parent analysis.
+     */
+    public static final class StakingAnalysisScratch {
+        private final List<ModifiedAccountAnalysis> modifiedAccounts = new ArrayList<>();
+        private final Map<AccountID, Account> originalAccounts = new HashMap<>();
+        private final Set<AccountID> stakedToMeRewardReceivers = new LinkedHashSet<>();
+        private final Set<AccountID> stakedToMeAdjustmentReceivers = new LinkedHashSet<>();
+        private final Set<AccountID> canonicalRewardReceivers = new LinkedHashSet<>();
+        private final Set<AccountID> possibleRewardReceivers = new LinkedHashSet<>();
+
+        public void reset() {
+            modifiedAccounts.clear();
+            originalAccounts.clear();
+            stakedToMeRewardReceivers.clear();
+            stakedToMeAdjustmentReceivers.clear();
+            canonicalRewardReceivers.clear();
+            possibleRewardReceivers.clear();
+        }
     }
 }

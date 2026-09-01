@@ -53,6 +53,7 @@ public class StakingRewardsDistributor {
      * @param stakingInfoStore The store to update the staking info in.
      * @param consensusNow The current consensus time.
      * @param recordBuilder The record builder to use for deleted account beneficiaries.
+     * @param originalAccounts dispatch-scoped original accounts already read during receiver analysis
      * @return The map of rewards paid to each receiver, which includes zero rewards if the calculated reward is zero
      */
     public Map<AccountID, Long> payRewardsIfPending(
@@ -62,13 +63,17 @@ public class StakingRewardsDistributor {
             @NonNull final WritableNetworkStakingRewardsStore stakingRewardsStore,
             @NonNull final WritableStakingInfoStore stakingInfoStore,
             @NonNull final Instant consensusNow,
-            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
+            @NonNull final Map<AccountID, Account> originalAccounts) {
         requireNonNull(possibleRewardReceivers);
+        requireNonNull(originalAccounts);
 
-        final Map<AccountID, Long> rewardsPaid = new HashMap<>();
+        final Map<AccountID, Long> rewardsPaid = HashMap.newHashMap(possibleRewardReceivers.size());
         long payableRewards = -1;
         for (final var receiver : possibleRewardReceivers) {
-            final var originalAccount = writableStore.getOriginalValue(receiver);
+            final var originalAccount = originalAccounts.containsKey(receiver)
+                    ? originalAccounts.get(receiver)
+                    : writableStore.getOriginalValue(receiver);
             if (originalAccount == null) {
                 continue;
             }

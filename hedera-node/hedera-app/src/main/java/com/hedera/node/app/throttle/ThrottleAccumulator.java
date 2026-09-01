@@ -23,6 +23,7 @@ import static com.hedera.node.app.service.token.AliasUtils.isSerializedProtoKey;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS;
 
@@ -114,6 +115,7 @@ public class ThrottleAccumulator {
     private OpsDurationDeterministicThrottle contractOpsDurationThrottle;
     private List<DeterministicThrottle> activeThrottles = emptyList();
     private List<DeterministicThrottle> highVolumeActiveThrottles = emptyList();
+    private List<DeterministicThrottle> allActiveThrottles = emptyList();
 
     @Nullable
     private final ThrottleMetrics throttleMetrics;
@@ -122,6 +124,13 @@ public class ThrottleAccumulator {
     private final IntSupplier capacitySplitSource;
     private final ThrottleType throttleType;
     private final Verbose verbose;
+
+    private static final class CachedFactory {
+        private State state;
+        private ReadableStoreFactoryImpl factory;
+    }
+
+    private final ThreadLocal<CachedFactory> factoryCache = ThreadLocal.withInitial(CachedFactory::new);
 
     /**
      * Whether the accumulator should log verbose definitions.
@@ -285,7 +294,7 @@ public class ThrottleAccumulator {
         final boolean allReqMet;
         if (queryFunction == CRYPTO_GET_ACCOUNT_BALANCE
                 && configuration.getConfigData(TokensConfig.class).countingGetBalanceThrottleEnabled()) {
-            final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+            final var accountStore = factoryFor(state).readableStore(ReadableAccountStore.class);
             final var tokenConfig = configuration.getConfigData(TokensConfig.class);
             final int associationCount =
                     Math.clamp(getAssociationCount(query, accountStore), 1, tokenConfig.maxRelsPerInfoQuery());
@@ -405,14 +414,7 @@ public class ThrottleAccumulator {
      */
     @NonNull
     public List<DeterministicThrottle> allActiveThrottlesIncludingHighVolume() {
-        if (highVolumeActiveThrottles.isEmpty()) {
-            return activeThrottles;
-        }
-        final var combined =
-                new ArrayList<DeterministicThrottle>(activeThrottles.size() + highVolumeActiveThrottles.size());
-        combined.addAll(activeThrottles);
-        combined.addAll(highVolumeActiveThrottles);
-        return combined;
+        return allActiveThrottles;
     }
 
     /**
@@ -608,7 +610,7 @@ public class ThrottleAccumulator {
 
         int transferImplicitCreationsCount = 0;
         if (function == CRYPTO_TRANSFER) {
-            final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+            final var accountStore = factoryFor(state).readableStore(ReadableAccountStore.class);
             transferImplicitCreationsCount = getImplicitCreationsCount(txBody, accountStore);
         }
 
@@ -639,8 +641,7 @@ public class ThrottleAccumulator {
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
-                final var relationStore =
-                        new ReadableStoreFactoryImpl(state).readableStore(ReadableTokenRelationStore.class);
+                final var relationStore = factoryFor(state).readableStore(ReadableTokenRelationStore.class);
                 yield shouldThrottleCryptoTransfer(
                         effectiveManager,
                         now,
@@ -651,7 +652,7 @@ public class ThrottleAccumulator {
                         useHighVolumeBucket);
             }
             case ETHEREUM_TRANSACTION -> {
-                final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+                final var accountStore = factoryFor(state).readableStore(ReadableAccountStore.class);
                 yield shouldThrottleEthTxn(
                         effectiveManager,
                         now,
@@ -727,8 +728,7 @@ public class ThrottleAccumulator {
             if (scheduledFunction == CRYPTO_TRANSFER) {
                 final var transfer = scheduled.cryptoTransferOrThrow();
                 if (usesAliases(transfer)) {
-                    final var accountStore =
-                            new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+                    final var accountStore = factoryFor(state).readableStore(ReadableAccountStore.class);
                     final var transferTxnBody = TransactionBody.newBuilder()
                             .cryptoTransfer(transfer)
                             .build();
@@ -941,6 +941,19 @@ public class ThrottleAccumulator {
     private boolean hasNoRelation(
             @NonNull ReadableTokenRelationStore relationStore, @NonNull AccountID accountID, @NonNull TokenID tokenID) {
         return relationStore.get(accountID, tokenID) == null;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    ReadableStoreFactoryImpl factoryFor(@NonNull final State state) {
+        final var cached = factoryCache.get();
+        if (cached.state != state) {
+            cached.state = state;
+            cached.factory = new ReadableStoreFactoryImpl(state);
+        } else {
+            cached.factory.dropCachedStores();
+        }
+        return cached.factory;
     }
 
     private int hbarAdjustsImplicitCreationsCount(
@@ -1221,6 +1234,11 @@ public class ThrottleAccumulator {
         highVolumeFunctionReqs = newHighVolumeFunctionReqs;
         activeThrottles = newActiveThrottles;
         highVolumeActiveThrottles = newHighVolumeActiveThrottles;
+        final var newAllActiveThrottles =
+                new ArrayList<DeterministicThrottle>(activeThrottles.size() + highVolumeActiveThrottles.size());
+        newAllActiveThrottles.addAll(activeThrottles);
+        newAllActiveThrottles.addAll(highVolumeActiveThrottles);
+        allActiveThrottles = unmodifiableList(newAllActiveThrottles);
 
         if (throttleMetrics != null) {
             final var configuration = configSupplier.get();

@@ -5,12 +5,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
@@ -22,8 +25,11 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 
 class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase {
@@ -383,5 +389,117 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {4, 5})
+    void pureChecksAcceptsUniqueEntriesAtTinyCollectionBoundary(final int size) {
+        final var hbarTransfers = uniqueZeroAccountAmounts(size, 1000);
+        final var tokenTransfers = IntStream.range(0, size)
+                .mapToObj(i -> TokenTransferList.newBuilder()
+                        .token(asToken(3000 + i))
+                        .transfers(uniqueZeroAccountAmounts(size, 4000 + i * 10))
+                        .nftTransfers(uniqueNftTransfers(size))
+                        .build())
+                .toList();
+        final var txn = newCryptoTransfer(hbarTransfers, tokenTransfers);
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void pureChecksFindsEarlyHbarDuplicateAmongFourEntries() {
+        final var transfers = uniqueZeroAccountAmounts(4, 1000);
+        final var txn = newCryptoTransfer(transfers.get(0), transfers.get(0), transfers.get(2), transfers.get(3));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
+    }
+
+    @Test
+    void pureChecksFindsEarlyFungibleDuplicateAmongFourEntries() {
+        final var transfers = uniqueZeroAccountAmounts(4, 1000);
+        final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
+                .token(TOKEN_2468)
+                .transfers(transfers.get(0), transfers.get(0), transfers.get(2), transfers.get(3))
+                .build());
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
+    }
+
+    @Test
+    void pureChecksFindsEarlyTokenDuplicateAmongFourEntries() {
+        final var tokenTransfers = IntStream.range(0, 4)
+                .mapToObj(i -> TokenTransferList.newBuilder()
+                        .token(asToken(i == 1 ? 3000 : 3000 + i))
+                        .transfers(uniqueZeroAccountAmounts(2, 4000))
+                        .build())
+                .toList();
+        final var txn = newCryptoTransfer(List.of(), tokenTransfers);
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_ID_REPEATED_IN_TOKEN_LIST));
+    }
+
+    @Test
+    void pureChecksValidatesNftAccountPresenceBeforeDuplicateSerial() {
+        final var duplicateWithMissingSender = SERIAL_1_FROM_3333_TO_4444
+                .copyBuilder()
+                .senderAccountID((AccountID) null)
+                .build();
+        final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
+                .token(TOKEN_2468)
+                .nftTransfers(SERIAL_1_FROM_3333_TO_4444, duplicateWithMissingSender)
+                .build());
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSFER_ACCOUNT_ID));
+    }
+
+    @Test
+    void pureChecksValidatesDuplicateSerialBeforeRepeatedNftAccount() {
+        final var duplicateWithSameAccounts = SERIAL_1_FROM_3333_TO_4444
+                .copyBuilder()
+                .receiverAccountID(ACCOUNT_ID_3333)
+                .build();
+        final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
+                .token(TOKEN_2468)
+                .nftTransfers(SERIAL_1_FROM_3333_TO_4444, duplicateWithSameAccounts)
+                .build());
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
+    }
+
+    private static List<AccountAmount> uniqueZeroAccountAmounts(final int size, final long firstAccountNum) {
+        return IntStream.range(0, size)
+                .mapToObj(i -> AccountAmount.newBuilder()
+                        .accountID(AccountID.newBuilder()
+                                .accountNum(firstAccountNum + i)
+                                .build())
+                        .amount(0)
+                        .build())
+                .toList();
+    }
+
+    private static List<NftTransfer> uniqueNftTransfers(final int size) {
+        return IntStream.range(0, size)
+                .mapToObj(i -> SERIAL_1_FROM_3333_TO_4444
+                        .copyBuilder()
+                        .serialNumber(i + 1L)
+                        .build())
+                .toList();
     }
 }

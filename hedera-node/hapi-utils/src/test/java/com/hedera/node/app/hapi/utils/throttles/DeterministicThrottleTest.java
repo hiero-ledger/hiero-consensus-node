@@ -12,7 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -293,6 +295,96 @@ class DeterministicThrottleTest {
 
         assertEquals(used, subject.delegate().bucket().capacityUsed());
         assertEquals(asInstant(originalDecision), subject.lastDecisionTime());
+    }
+
+    @Test
+    void memoizesSnapshotAndInvalidatesForEveryUsageMutation() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        final var subject = DeterministicThrottle.withTpsAndBurstPeriod(10, 2);
+        final var initial = subject.usageSnapshot();
+
+        assertSame(initial, subject.usageSnapshot());
+
+        assertTrue(subject.allowInstantaneous(1));
+        final var afterInstantaneousAllow = subject.usageSnapshot();
+        assertNotSame(initial, afterInstantaneousAllow);
+        assertSame(afterInstantaneousAllow, subject.usageSnapshot());
+
+        subject.leakInstantaneous(1);
+        final var afterInstantaneousLeak = subject.usageSnapshot();
+        assertNotSame(afterInstantaneousAllow, afterInstantaneousLeak);
+
+        assertTrue(subject.allow(1, now));
+        final var afterAllow = subject.usageSnapshot();
+        assertNotSame(afterInstantaneousLeak, afterAllow);
+
+        subject.leakCapacity(CAPACITY_UNITS_PER_TXN);
+        final var afterCapacityLeak = subject.usageSnapshot();
+        assertNotSame(afterAllow, afterCapacityLeak);
+
+        assertTrue(subject.allow(1, now));
+        final var beforeReclaim = subject.usageSnapshot();
+        subject.reclaimLastAllowedUse();
+        final var afterReclaim = subject.usageSnapshot();
+        assertNotSame(beforeReclaim, afterReclaim);
+
+        subject.leakUntil(now.plusNanos(1));
+        final var afterLeakUntil = subject.usageSnapshot();
+        assertNotSame(afterReclaim, afterLeakUntil);
+
+        subject.resetUsage();
+        assertNotSame(afterLeakUntil, subject.usageSnapshot());
+    }
+
+    @Test
+    void preservesSnapshotIdentityAcrossNoOpsAndRejectedMutations() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        final var subject = DeterministicThrottle.withTps(1);
+        final var initial = subject.usageSnapshot();
+
+        assertFalse(subject.allowInstantaneous(Integer.MAX_VALUE));
+        assertSame(initial, subject.usageSnapshot());
+        subject.leakInstantaneous(Integer.MAX_VALUE);
+        assertSame(initial, subject.usageSnapshot());
+        subject.leakCapacity(0);
+        assertSame(initial, subject.usageSnapshot());
+        subject.reclaimLastAllowedUse();
+        assertSame(initial, subject.usageSnapshot());
+        subject.resetLastAllowedUse();
+        assertSame(initial, subject.usageSnapshot());
+
+        subject.allow(1, now);
+        final var used = subject.usageSnapshot();
+        assertFalse(subject.allow(2, now));
+        assertSame(used, subject.usageSnapshot());
+        assertThrows(IllegalArgumentException.class, () -> subject.allow(1, now.minusNanos(1)));
+        assertSame(used, subject.usageSnapshot());
+        subject.leakUntil(now);
+        assertSame(used, subject.usageSnapshot());
+    }
+
+    @Test
+    void resetUsageToWarmsCacheFromSuppliedSnapshot() {
+        final var subject = DeterministicThrottle.withTps(1);
+        final var supplied = new ThrottleUsageSnapshot(123L, new Timestamp(1_234_567L, 890));
+
+        subject.resetUsageTo(supplied);
+
+        assertSame(supplied, subject.usageSnapshot());
+    }
+
+    @Test
+    void failedResetDoesNotLeaveAStaleCachedSnapshot() {
+        final var subject = DeterministicThrottle.withTps(1);
+        final var before = subject.usageSnapshot();
+        final var invalid = new ThrottleUsageSnapshot(subject.capacity() + 1, new Timestamp(1_234_567L, 890));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.resetUsageTo(invalid));
+
+        final var after = subject.usageSnapshot();
+        assertNotSame(before, after);
+        assertEquals(before.used(), after.used());
+        assertEquals(invalid.lastDecisionTime(), after.lastDecisionTime());
     }
 
     @Test

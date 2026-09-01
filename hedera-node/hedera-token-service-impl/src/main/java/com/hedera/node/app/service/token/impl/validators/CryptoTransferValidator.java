@@ -46,7 +46,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -76,15 +75,43 @@ public class CryptoTransferValidator {
         final var acctAmounts = op.transfersOrElse(TransferList.DEFAULT).accountAmounts();
         validateTruePreCheck(isNetZeroAdjustment(acctAmounts), INVALID_ACCOUNT_AMOUNTS);
 
-        final var uniqueAcctIds = new HashSet<AccountID>();
-        // Validate hbar transfers
-        for (final AccountAmount acctAmount : acctAmounts) {
+        final var uniqueAcctIds = acctAmounts.size() >= 5 ? HashSet.<AccountID>newHashSet(acctAmounts.size()) : null;
+        AccountID acctId0 = null;
+        AccountID acctId1 = null;
+        AccountID acctId2 = null;
+        AccountID acctId3 = null;
+        var hasRepeatedAccount = false;
+        // Validate hbar transfers, delaying any duplicate error until all other validations have run
+        for (int i = 0; i < acctAmounts.size(); i++) {
+            final var acctAmount = acctAmounts.get(i);
             validateTruePreCheck(acctAmount.hasAccountID(), INVALID_ACCOUNT_ID);
             final var acctId = validateAccountID(acctAmount.accountIDOrThrow(), null);
-            uniqueAcctIds.add(acctId);
+            if (uniqueAcctIds != null) {
+                uniqueAcctIds.add(acctId);
+            } else {
+                switch (i) {
+                    case 0 -> acctId0 = acctId;
+                    case 1 -> {
+                        hasRepeatedAccount |= acctId.equals(acctId0);
+                        acctId1 = acctId;
+                    }
+                    case 2 -> {
+                        hasRepeatedAccount |= acctId.equals(acctId0) || acctId.equals(acctId1);
+                        acctId2 = acctId;
+                    }
+                    case 3 -> {
+                        hasRepeatedAccount |=
+                                acctId.equals(acctId0) || acctId.equals(acctId1) || acctId.equals(acctId2);
+                        acctId3 = acctId;
+                    }
+                    default -> throw new AssertionError("Unexpected small hbar transfer count");
+                }
+            }
             validateFalsePreCheck(hasApprovalAndHookExecution(acctAmount), CANNOT_SET_HOOKS_AND_APPROVAL);
         }
-        validateFalsePreCheck(uniqueAcctIds.size() < acctAmounts.size(), ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
+        validateFalsePreCheck(
+                uniqueAcctIds != null ? uniqueAcctIds.size() < acctAmounts.size() : hasRepeatedAccount,
+                ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
 
         validateTokenTransfers(op.tokenTransfers(), AllowanceStrategy.ALLOWANCES_ALLOWED);
     }
@@ -268,45 +295,101 @@ public class CryptoTransferValidator {
             final List<TokenTransferList> tokenTransfers, final AllowanceStrategy allowanceStrategy)
             throws PreCheckException {
         // Validate token transfers
-        final var tokenIds = new HashSet<TokenID>();
-        for (final TokenTransferList tokenTransfer : tokenTransfers) {
+        final var tokenIds = tokenTransfers.size() >= 5 ? HashSet.<TokenID>newHashSet(tokenTransfers.size()) : null;
+        TokenID tokenId0 = null;
+        TokenID tokenId1 = null;
+        TokenID tokenId2 = null;
+        TokenID tokenId3 = null;
+        var hasRepeatedToken = false;
+        for (int i = 0; i < tokenTransfers.size(); i++) {
+            final var tokenTransfer = tokenTransfers.get(i);
             final var tokenID = tokenTransfer.token();
-            tokenIds.add(tokenID);
+            if (tokenIds != null) {
+                tokenIds.add(tokenID);
+            } else {
+                switch (i) {
+                    case 0 -> tokenId0 = tokenID;
+                    case 1 -> {
+                        hasRepeatedToken |= tokenID != null && tokenID.equals(tokenId0);
+                        tokenId1 = tokenID;
+                    }
+                    case 2 -> {
+                        hasRepeatedToken |= tokenID != null && (tokenID.equals(tokenId0) || tokenID.equals(tokenId1));
+                        tokenId2 = tokenID;
+                    }
+                    case 3 -> {
+                        hasRepeatedToken |= tokenID != null
+                                && (tokenID.equals(tokenId0) || tokenID.equals(tokenId1) || tokenID.equals(tokenId2));
+                        tokenId3 = tokenID;
+                    }
+                    default -> throw new AssertionError("Unexpected small token transfer count");
+                }
+            }
             validateTruePreCheck(tokenID != null && !tokenID.equals(TokenID.DEFAULT), INVALID_TOKEN_ID);
 
             // Validate the fungible transfers
-            final var uniqueTokenAcctIds = new HashSet<AccountID>();
-            validateNonDuplicateFungibleTransfers(tokenTransfer.transfers(), uniqueTokenAcctIds, allowanceStrategy);
+            final var fungibleTransfers = tokenTransfer.transfers();
+            validateNonDuplicateFungibleTransfers(fungibleTransfers, allowanceStrategy);
             // Validate the nft transfers
-            final var nftIds = new HashSet<Long>();
-            validateNftTransfers(tokenTransfer.nftTransfers(), nftIds, allowanceStrategy);
+            final var nftTransfers = tokenTransfer.nftTransfers();
+            validateNftTransfers(nftTransfers, allowanceStrategy);
             // Verify that one and only one of the two types of transfers (fungible or non-fungible) is present
             validateFalsePreCheck(
-                    uniqueTokenAcctIds.isEmpty() && nftIds.isEmpty(), EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS);
+                    fungibleTransfers.isEmpty() && nftTransfers.isEmpty(), EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS);
         }
-        validateFalsePreCheck(tokenIds.size() < tokenTransfers.size(), TOKEN_ID_REPEATED_IN_TOKEN_LIST);
+        validateFalsePreCheck(
+                tokenIds != null ? tokenIds.size() < tokenTransfers.size() : hasRepeatedToken,
+                TOKEN_ID_REPEATED_IN_TOKEN_LIST);
     }
 
-    public static void validateNonDuplicateFungibleTransfers(
-            final List<AccountAmount> fungibleTransfers,
-            final Set<AccountID> uniqueTokenAcctIds,
-            final AllowanceStrategy allowanceStrategy)
+    private static void validateNonDuplicateFungibleTransfers(
+            final List<AccountAmount> fungibleTransfers, final AllowanceStrategy allowanceStrategy)
             throws PreCheckException {
         validateTruePreCheck(isNetZeroAdjustment(fungibleTransfers), TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN);
+        final var uniqueTokenAcctIds =
+                fungibleTransfers.size() >= 5 ? HashSet.<AccountID>newHashSet(fungibleTransfers.size()) : null;
+        AccountID acctId0 = null;
+        AccountID acctId1 = null;
+        AccountID acctId2 = null;
+        AccountID acctId3 = null;
+        var hasRepeatedAccount = false;
         boolean nonZeroFungibleValueFound = false;
-        for (final AccountAmount acctAmount : fungibleTransfers) {
+        for (int i = 0; i < fungibleTransfers.size(); i++) {
+            final var acctAmount = fungibleTransfers.get(i);
             if (allowanceStrategy.equals(AllowanceStrategy.ALLOWANCES_REJECTED)) {
                 validateFalsePreCheck(acctAmount.isApproval(), NOT_SUPPORTED);
             }
             validateTruePreCheck(acctAmount.hasAccountID(), INVALID_TRANSFER_ACCOUNT_ID);
-            uniqueTokenAcctIds.add(acctAmount.accountIDOrThrow());
+            final var acctId = acctAmount.accountIDOrThrow();
+            if (uniqueTokenAcctIds != null) {
+                uniqueTokenAcctIds.add(acctId);
+            } else {
+                switch (i) {
+                    case 0 -> acctId0 = acctId;
+                    case 1 -> {
+                        hasRepeatedAccount |= acctId.equals(acctId0);
+                        acctId1 = acctId;
+                    }
+                    case 2 -> {
+                        hasRepeatedAccount |= acctId.equals(acctId0) || acctId.equals(acctId1);
+                        acctId2 = acctId;
+                    }
+                    case 3 -> {
+                        hasRepeatedAccount |=
+                                acctId.equals(acctId0) || acctId.equals(acctId1) || acctId.equals(acctId2);
+                        acctId3 = acctId;
+                    }
+                    default -> throw new AssertionError("Unexpected small fungible transfer count");
+                }
+            }
             if (!nonZeroFungibleValueFound && acctAmount.amount() != 0) {
                 nonZeroFungibleValueFound = true;
             }
             validateFalsePreCheck(hasApprovalAndHookExecution(acctAmount), CANNOT_SET_HOOKS_AND_APPROVAL);
         }
         validateFalsePreCheck(
-                uniqueTokenAcctIds.size() < fungibleTransfers.size(), ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
+                uniqueTokenAcctIds != null ? uniqueTokenAcctIds.size() < fungibleTransfers.size() : hasRepeatedAccount,
+                ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
     }
 
     private static boolean hasApprovalAndHookExecution(final AccountAmount acctAmount) {
@@ -319,23 +402,51 @@ public class CryptoTransferValidator {
                 && (nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook());
     }
 
-    public static void validateNftTransfers(
-            final List<NftTransfer> nftTransfers, final Set<Long> nftIds, final AllowanceStrategy allowanceStrategy)
-            throws PreCheckException {
-        for (final NftTransfer nftTransfer : nftTransfers) {
+    private static void validateNftTransfers(
+            final List<NftTransfer> nftTransfers, final AllowanceStrategy allowanceStrategy) throws PreCheckException {
+        final var nftIds = nftTransfers.size() >= 5 ? HashSet.<Long>newHashSet(nftTransfers.size()) : null;
+        long serial0 = 0;
+        long serial1 = 0;
+        long serial2 = 0;
+        for (int i = 0; i < nftTransfers.size(); i++) {
+            final var nftTransfer = nftTransfers.get(i);
             if (allowanceStrategy.equals(AllowanceStrategy.ALLOWANCES_REJECTED)) {
                 validateFalsePreCheck(nftTransfer.isApproval(), NOT_SUPPORTED);
             }
-            validateTruePreCheck(nftTransfer.serialNumber() > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
+            final var serialNumber = nftTransfer.serialNumber();
+            validateTruePreCheck(serialNumber > 0, INVALID_TOKEN_NFT_SERIAL_NUMBER);
             validateTruePreCheck(nftTransfer.hasSenderAccountID(), INVALID_TRANSFER_ACCOUNT_ID);
             validateTruePreCheck(nftTransfer.hasReceiverAccountID(), INVALID_TRANSFER_ACCOUNT_ID);
-            validateFalsePreCheck(
-                    !nftIds.isEmpty() && nftIds.contains(nftTransfer.serialNumber()), INVALID_ACCOUNT_AMOUNTS);
+            final boolean hasRepeatedSerial;
+            if (nftIds != null) {
+                hasRepeatedSerial = !nftIds.isEmpty() && nftIds.contains(serialNumber);
+            } else {
+                hasRepeatedSerial = switch (i) {
+                    case 0 -> false;
+                    case 1 -> serialNumber == serial0;
+                    case 2 -> serialNumber == serial0 || serialNumber == serial1;
+                    case 3 -> serialNumber == serial0 || serialNumber == serial1 || serialNumber == serial2;
+                    default -> throw new AssertionError("Unexpected small NFT transfer count");
+                };
+            }
+            validateFalsePreCheck(hasRepeatedSerial, INVALID_ACCOUNT_AMOUNTS);
             validateFalsePreCheck(
                     nftTransfer.senderAccountIDOrThrow().equals(nftTransfer.receiverAccountID()),
                     ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
             validateFalsePreCheck(hasApprovalAndHookExecution(nftTransfer), CANNOT_SET_HOOKS_AND_APPROVAL);
-            nftIds.add(nftTransfer.serialNumber());
+            if (nftIds != null) {
+                nftIds.add(serialNumber);
+            } else {
+                switch (i) {
+                    case 0 -> serial0 = serialNumber;
+                    case 1 -> serial1 = serialNumber;
+                    case 2 -> serial2 = serialNumber;
+                    case 3 -> {
+                        // No later transfer needs the fourth serial.
+                    }
+                    default -> throw new AssertionError("Unexpected small NFT transfer count");
+                }
+            }
         }
     }
 

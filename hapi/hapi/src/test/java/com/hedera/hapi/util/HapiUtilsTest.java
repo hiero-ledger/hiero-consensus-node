@@ -6,6 +6,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
@@ -55,6 +56,44 @@ final class HapiUtilsTest {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
         assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
+    }
+
+    @Test
+    void accountIdsEqualUsesIdentityAndNumericFields() {
+        final var a = AccountID.newBuilder().accountNum(1001L).build();
+        final var b = AccountID.newBuilder().accountNum(1001L).build();
+        final var c = AccountID.newBuilder().accountNum(1002L).build();
+        final var aliasA =
+                AccountID.newBuilder().alias(Bytes.wrap(new byte[] {1, 2})).build();
+        final var aliasB =
+                AccountID.newBuilder().alias(Bytes.wrap(new byte[] {1, 2})).build();
+        final var otherShard =
+                AccountID.newBuilder().shardNum(1).accountNum(1001L).build();
+
+        assertThat(HapiUtils.accountIdsEqual(a, a)).isTrue();
+        assertThat(HapiUtils.accountIdsEqual(a, b)).isTrue();
+        assertThat(HapiUtils.accountIdsEqual(a, c)).isFalse();
+        assertThat(HapiUtils.accountIdsEqual(a, null)).isFalse();
+        assertThat(HapiUtils.accountIdsEqual(null, null)).isTrue();
+        assertThat(HapiUtils.accountIdsEqual(aliasA, aliasB)).isTrue();
+        assertThat(HapiUtils.accountIdsEqual(a, otherShard)).isFalse();
+        assertThat(HapiUtils.accountIdsEqual(a, AccountID.DEFAULT)).isFalse();
+        assertThat(HapiUtils.isDefaultAccountId(AccountID.DEFAULT)).isTrue();
+        assertThat(HapiUtils.isDefaultAccountId(a)).isFalse();
+        assertThat(HapiUtils.isDefaultAccountId(
+                        AccountID.newBuilder().accountNum(0).build()))
+                .isFalse();
+    }
+
+    @Test
+    void numericAccountIdsAreEqualAsDistinctHashMapKeys() {
+        final var first = AccountID.newBuilder().accountNum(42L).build();
+        final var second = AccountID.newBuilder().accountNum(42L).build();
+        final var map = new java.util.HashMap<AccountID, String>();
+        map.put(first, "ok");
+        assertThat(map.get(second)).isEqualTo("ok");
+        assertThat(first.equals(second)).isTrue();
+        assertThat(first).isNotSameAs(second);
     }
 
     @Test

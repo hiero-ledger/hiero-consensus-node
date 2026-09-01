@@ -8,7 +8,9 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.DigestException;
 import java.security.MessageDigest;
+import java.util.Objects;
 import org.hiero.base.crypto.DigestType;
 
 /**
@@ -137,5 +139,40 @@ public class BlockImplUtils {
     public static byte[] hashInternalNode(
             @NonNull final MessageDigest digest, @NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
         return hashOfAll(digest, INTERNAL_NODE_PREFIX, leftHash, rightHash);
+    }
+
+    /**
+     * Hashes an internal node directly into an existing output array.
+     *
+     * <p>The output may alias either child because both child hashes are consumed before the digest is written.
+     *
+     * @param digest the digest to use
+     * @param leftHash the left child hash
+     * @param rightHash the right child hash
+     * @param output the array to receive the hash
+     * @param offset the offset in {@code output} at which to write the hash
+     */
+    public static void hashInternalNodeInto(
+            @NonNull final MessageDigest digest,
+            @NonNull final byte[] leftHash,
+            @NonNull final byte[] rightHash,
+            @NonNull final byte[] output,
+            final int offset) {
+        Objects.requireNonNull(digest);
+        Objects.requireNonNull(leftHash);
+        Objects.requireNonNull(rightHash);
+        Objects.checkFromIndexSize(offset, HASH_SIZE, Objects.requireNonNull(output).length);
+        digest.update(INTERNAL_NODE_PREFIX);
+        digest.update(leftHash);
+        digest.update(rightHash);
+        try {
+            final int bytesWritten = digest.digest(output, offset, HASH_SIZE);
+            if (bytesWritten != HASH_SIZE) {
+                throw new IllegalArgumentException("Digest did not produce a SHA-384 hash");
+            }
+        } catch (final DigestException e) {
+            digest.reset();
+            throw new IllegalArgumentException("Output cannot hold a SHA-384 hash at the requested offset", e);
+        }
     }
 }

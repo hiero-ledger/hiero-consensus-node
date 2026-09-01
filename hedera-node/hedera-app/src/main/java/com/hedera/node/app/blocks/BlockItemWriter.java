@@ -28,6 +28,19 @@ public interface BlockItemWriter {
     void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes);
 
     /**
+     * Writes an item and its serialized bytes to the destination stream.
+     *
+     * <p>The default implementation wraps the caller-owned array without copying it. Implementations that can consume
+     * an array directly should override this method.
+     *
+     * @param item the item to write
+     * @param serialized the serialized item to write
+     */
+    default void writePbjItemAndSerialized(@NonNull final BlockItem item, @NonNull final byte[] serialized) {
+        writePbjItemAndBytes(item, Bytes.wrap(serialized));
+    }
+
+    /**
      * Writes a PBJ item to the destination stream.
      * @param item the item to write
      */

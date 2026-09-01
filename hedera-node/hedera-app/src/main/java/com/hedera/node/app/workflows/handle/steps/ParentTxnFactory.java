@@ -131,6 +131,9 @@ public class ParentTxnFactory {
     @Nullable
     private WritableEntityIdStoreImpl reusableEntityIdStore;
 
+    @Nullable
+    private ReadableStoreFactoryImpl reusableReadableStoreFactory;
+
     private final Map<String, WritableStoreFactory> reusableWritableFactories = new HashMap<>();
 
     @Nullable
@@ -216,7 +219,7 @@ public class ParentTxnFactory {
         requireNonNull(shortCircuitCallback);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
-        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        final var readableStoreFactory = readableStoreFactoryFor(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, shortCircuitCallback);
         // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
@@ -236,8 +239,8 @@ public class ParentTxnFactory {
         if (creatorInfo == null || txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
         }
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, writableStoreFactoryFor(stack, TokenService.NAME));
+        final var tokenContext = new TokenContextImpl(
+                config, stack, consensusNow, readableStoreFactory, writableStoreFactoryFor(stack, TokenService.NAME));
         return new ParentTxn(
                 txnInfo.functionality(),
                 consensusNow,
@@ -277,12 +280,12 @@ public class ParentTxnFactory {
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
-        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        final var readableStoreFactory = readableStoreFactoryFor(stack);
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
                 preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, writableStoreFactoryFor(stack, TokenService.NAME));
+        final var tokenContext = new TokenContextImpl(
+                config, stack, consensusNow, readableStoreFactory, writableStoreFactoryFor(stack, TokenService.NAME));
         return new ParentTxn(
                 functionality,
                 consensusNow,
@@ -378,7 +381,7 @@ public class ParentTxnFactory {
         final var tokenContextImpl = parentTxn.tokenContextImpl();
         final var entityIdStore = entityIdStoreFor(stack);
 
-        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        final var readableStoreFactory = readableStoreFactoryFor(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 writableStoreFactoryFor(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()));
@@ -483,6 +486,9 @@ public class ParentTxnFactory {
                         immediateStateChangeListener,
                         mode,
                         maxTraceBytes)) {
+            // Stack adapters stay valid across reset; cached ReadableAccountStore
+            // instances do not (they pin KV read caches from the previous user txn).
+            reusableReadableStoreFactory = null;
             return reusableRootStack;
         }
         dropReusableStores();
@@ -499,6 +505,7 @@ public class ParentTxnFactory {
 
     private void dropReusableStores() {
         reusableEntityIdStore = null;
+        reusableReadableStoreFactory = null;
         reusableWritableFactories.clear();
         reusableServiceApiFactory = null;
         storesBoundTo = null;
@@ -517,6 +524,14 @@ public class ParentTxnFactory {
             reusableEntityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         }
         return reusableEntityIdStore;
+    }
+
+    private ReadableStoreFactoryImpl readableStoreFactoryFor(@NonNull final SavepointStackImpl stack) {
+        bindStoresTo(stack);
+        if (reusableReadableStoreFactory == null) {
+            reusableReadableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        }
+        return reusableReadableStoreFactory;
     }
 
     private WritableStoreFactory writableStoreFactoryFor(

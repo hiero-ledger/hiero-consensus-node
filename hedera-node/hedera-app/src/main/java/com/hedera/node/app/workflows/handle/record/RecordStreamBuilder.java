@@ -546,7 +546,7 @@ public class RecordStreamBuilder
         final var body =
                 inProgressBody().copyBuilder().transactionID(newTransactionID).build();
         this.signedTx = StreamBuilder.signedTxWith(body);
-        this.serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(this.signedTx);
+        this.serializedSignedTx = null;
         return this;
     }
 

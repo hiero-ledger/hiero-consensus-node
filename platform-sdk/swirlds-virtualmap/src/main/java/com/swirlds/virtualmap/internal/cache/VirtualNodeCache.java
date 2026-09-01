@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -143,6 +144,12 @@ public final class VirtualNodeCache {
      * Hash chunk loader, used to load chunks by chunk IDs. Usually, the current data source.
      */
     private final CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader;
+
+    /**
+     * Reusable remapping function for atomically preloading hash chunks into this cache version.
+     */
+    private final BiFunction<Long, Mutation<Long, VirtualHashChunk>, Mutation<Long, VirtualHashChunk>>
+            preloadHashChunkRemappingFunction;
 
     /**
      * A shared index of keys (K) to the linked lists that contain the values for that key across different versions.
@@ -297,6 +304,7 @@ public final class VirtualNodeCache {
 
         this.hashChunkHeight = source.hashChunkHeight;
         this.hashChunkLoader = source.hashChunkLoader;
+        this.preloadHashChunkRemappingFunction = this::preloadHashChunkMutation;
         // Get a reference to the shared data structures
         this.keyToDirtyLeafIndex = source.keyToDirtyLeafIndex;
         this.pathToDirtyKeyIndex = source.pathToDirtyKeyIndex;
@@ -323,6 +331,7 @@ public final class VirtualNodeCache {
             final @NonNull Executor cleaningPool) {
         this.hashChunkHeight = hashChunkHeight;
         this.hashChunkLoader = requireNonNull(hashChunkLoader);
+        this.preloadHashChunkRemappingFunction = this::preloadHashChunkMutation;
         this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
         this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
         this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
@@ -1013,34 +1022,35 @@ public final class VirtualNodeCache {
      */
     public VirtualHashChunk preloadHashChunk(final long path) {
         final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
-        return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
-                    Mutation<Long, VirtualHashChunk> nextMutation = mutation;
-                    while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
-                        nextMutation = nextMutation.next;
-                    }
-                    long sizeDelta = 0;
-                    if (nextMutation == null) {
-                        VirtualHashChunk hashChunk = loadHashChunk(hashChunkId);
-                        if (hashChunk == null) {
-                            final long hashChunkPath =
-                                    VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
-                            hashChunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
-                        }
-                        nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
-                        dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-                    } else if (nextMutation.version != fastCopyVersion.get()) {
-                        final VirtualHashChunk hashChunk = nextMutation.value.copy();
-                        nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
-                        dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-                    } else {
-                        assert nextMutation.notFiltered();
-                    }
-                    estimatedHashesSizeInBytes.addAndGet(sizeDelta);
-                    return nextMutation;
-                })
-                .value;
+        return idToDirtyHashChunkIndex.compute(hashChunkId, preloadHashChunkRemappingFunction).value;
+    }
+
+    private Mutation<Long, VirtualHashChunk> preloadHashChunkMutation(
+            final Long hashChunkId, final Mutation<Long, VirtualHashChunk> mutation) {
+        Mutation<Long, VirtualHashChunk> nextMutation = mutation;
+        while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
+            nextMutation = nextMutation.next;
+        }
+        long sizeDelta = 0;
+        if (nextMutation == null) {
+            VirtualHashChunk hashChunk = loadHashChunk(hashChunkId);
+            if (hashChunk == null) {
+                final long hashChunkPath = VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
+                hashChunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
+            }
+            nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
+            dirtyHashChunks.add(nextMutation);
+            sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        } else if (nextMutation.version != fastCopyVersion.get()) {
+            final VirtualHashChunk hashChunk = nextMutation.value.copy();
+            nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
+            dirtyHashChunks.add(nextMutation);
+            sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        } else {
+            assert nextMutation.notFiltered();
+        }
+        estimatedHashesSizeInBytes.addAndGet(sizeDelta);
+        return nextMutation;
     }
 
     /**

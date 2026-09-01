@@ -7,7 +7,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Objects;
 
 /**
  * Main class responsible for throttling transactions by gasLimit. Keeps track of the instance the
@@ -19,6 +21,11 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     private final String throttleName;
     private final LeakyBucketThrottle delegate;
     private Instant lastDecisionTime;
+
+    @Nullable
+    private ThrottleUsageSnapshot cachedUsageSnapshot;
+
+    private boolean usageSnapshotValid;
 
     /**
      * Creates a new instance of the throttle with capacity - the total amount of gas allowed per
@@ -50,6 +57,7 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
         if (throttleLimit < 0) {
             throw new IllegalArgumentException("Throttle limit must be non-negative, but was " + throttleLimit);
         }
+        invalidateUsageSnapshot();
         lastDecisionTime = now;
         return delegate.allow(throttleLimit, elapsedNanos);
     }
@@ -61,6 +69,7 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     public void leakUntil(@NonNull final Instant now) {
         requireNonNull(now);
         final var elapsedNanos = nanosBetween(lastDecisionTime, now);
+        invalidateUsageSnapshot();
         lastDecisionTime = now;
         delegate.leakFor(elapsedNanos);
     }
@@ -158,6 +167,7 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      * @param value - the amount to release
      */
     public void leakUnusedGasPreviouslyReserved(long value) {
+        invalidateUsageSnapshot();
         delegate().bucket().leak(value);
     }
 
@@ -171,33 +181,50 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     }
 
     public ThrottleUsageSnapshot usageSnapshot() {
-        return new ThrottleUsageSnapshot(
-                delegate.bucket().capacityUsed(),
-                lastDecisionTime == null
-                        ? null
-                        : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano()));
+        if (!usageSnapshotValid) {
+            final var used = delegate.bucket().capacityUsed();
+            final var decisionTime = lastDecisionTime == null
+                    ? null
+                    : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano());
+            if (cachedUsageSnapshot == null
+                    || cachedUsageSnapshot.used() != used
+                    || !Objects.equals(cachedUsageSnapshot.lastDecisionTime(), decisionTime)) {
+                cachedUsageSnapshot = new ThrottleUsageSnapshot(used, decisionTime);
+            }
+            usageSnapshotValid = true;
+        }
+        return requireNonNull(cachedUsageSnapshot);
     }
 
     public void resetUsageTo(@NonNull final ThrottleUsageSnapshot usageSnapshot) {
         requireNonNull(usageSnapshot);
+        invalidateUsageSnapshot();
         lastDecisionTime = usageSnapshot.lastDecisionTime() == null
                 ? null
                 : Instant.ofEpochSecond(
                         usageSnapshot.lastDecisionTime().seconds(),
                         usageSnapshot.lastDecisionTime().nanos());
         delegate.bucket().resetUsed(usageSnapshot.used());
+        cachedUsageSnapshot = usageSnapshot;
+        usageSnapshotValid = true;
     }
 
     public void resetUsage() {
         resetLastAllowedUse();
+        invalidateUsageSnapshot();
         delegate.bucket().resetUsed(0);
     }
 
     public void reclaimLastAllowedUse() {
+        invalidateUsageSnapshot();
         delegate.reclaimLastAllowedUse();
     }
 
     public void resetLastAllowedUse() {
         delegate.resetLastAllowedUse();
+    }
+
+    private void invalidateUsageSnapshot() {
+        usageSnapshotValid = false;
     }
 }

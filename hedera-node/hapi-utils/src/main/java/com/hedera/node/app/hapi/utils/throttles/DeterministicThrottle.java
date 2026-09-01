@@ -26,6 +26,11 @@ public class DeterministicThrottle implements CongestibleThrottle {
 
     private final BucketThrottle delegate;
 
+    @Nullable
+    private ThrottleUsageSnapshot cachedUsageSnapshot;
+
+    private boolean usageSnapshotValid;
+
     public static DeterministicThrottle withTps(final int tps) {
         return new DeterministicThrottle(BucketThrottle.withTps(tps), null);
     }
@@ -105,6 +110,7 @@ public class DeterministicThrottle implements CongestibleThrottle {
      * @return whether the requests can be allowed
      */
     public boolean allowInstantaneous(final int numReqs) {
+        invalidateUsageSnapshot();
         return delegate.allowInstantaneous(numReqs);
     }
 
@@ -113,6 +119,7 @@ public class DeterministicThrottle implements CongestibleThrottle {
      * @param numReqs the number of requests to leak
      */
     public void leakInstantaneous(final int numReqs) {
+        invalidateUsageSnapshot();
         delegate.leakInstantaneous(numReqs);
     }
 
@@ -130,6 +137,7 @@ public class DeterministicThrottle implements CongestibleThrottle {
             throw new IllegalArgumentException(
                     "Throttle timeline must advance, but " + now + " is not after " + lastDecisionTime);
         }
+        invalidateUsageSnapshot();
         lastDecisionTime = now;
         return delegate.allow(numReqs, elapsedNanos);
     }
@@ -141,6 +149,7 @@ public class DeterministicThrottle implements CongestibleThrottle {
      * @param amount the amount of capacity to leak
      */
     public void leakCapacity(final long amount) {
+        invalidateUsageSnapshot();
         delegate.leakCapacity(amount);
     }
 
@@ -148,6 +157,7 @@ public class DeterministicThrottle implements CongestibleThrottle {
      * Leaks capacity from the bucket equal to the last allowed use.
      */
     public void reclaimLastAllowedUse() {
+        invalidateUsageSnapshot();
         delegate.reclaimLastAllowedUse();
     }
 
@@ -183,11 +193,19 @@ public class DeterministicThrottle implements CongestibleThrottle {
     }
 
     public ThrottleUsageSnapshot usageSnapshot() {
-        return new ThrottleUsageSnapshot(
-                delegate.bucket().capacityUsed(),
-                lastDecisionTime == null
-                        ? null
-                        : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano()));
+        if (!usageSnapshotValid) {
+            final var used = delegate.bucket().capacityUsed();
+            final var decisionTime = lastDecisionTime == null
+                    ? null
+                    : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano());
+            if (cachedUsageSnapshot == null
+                    || cachedUsageSnapshot.used() != used
+                    || !Objects.equals(cachedUsageSnapshot.lastDecisionTime(), decisionTime)) {
+                cachedUsageSnapshot = new ThrottleUsageSnapshot(used, decisionTime);
+            }
+            usageSnapshotValid = true;
+        }
+        return requireNonNull(cachedUsageSnapshot);
     }
 
     /**
@@ -238,16 +256,20 @@ public class DeterministicThrottle implements CongestibleThrottle {
      */
     public void resetUsageTo(@NonNull final ThrottleUsageSnapshot usageSnapshot) {
         requireNonNull(usageSnapshot);
+        invalidateUsageSnapshot();
         lastDecisionTime = usageSnapshot.lastDecisionTime() == null
                 ? null
                 : Instant.ofEpochSecond(
                         usageSnapshot.lastDecisionTime().seconds(),
                         usageSnapshot.lastDecisionTime().nanos());
         delegate.bucket().resetUsed(usageSnapshot.used());
+        cachedUsageSnapshot = usageSnapshot;
+        usageSnapshotValid = true;
     }
 
     public void resetUsage() {
         resetLastAllowedUse();
+        invalidateUsageSnapshot();
         delegate.bucket().resetUsed(0L);
         lastDecisionTime = null;
     }
@@ -332,7 +354,12 @@ public class DeterministicThrottle implements CongestibleThrottle {
             throw new IllegalArgumentException(
                     "Throttle timeline must advance, but " + now + " is not after " + lastDecisionTime);
         }
+        invalidateUsageSnapshot();
         lastDecisionTime = now;
         delegate.leakFor(elapsedNanos);
+    }
+
+    private void invalidateUsageSnapshot() {
+        usageSnapshotValid = false;
     }
 }

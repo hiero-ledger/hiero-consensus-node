@@ -296,9 +296,10 @@ public class BlockStreamBuilder
      */
     private List<AccountAmount> paidStakingRewards = new LinkedList<>();
     /**
-     * The automatic token associations resulting from the transaction.
+     * The automatic token associations resulting from the transaction. Not final: {@link #resetForNextUserTxn()}
+     * replaces this list so in-flight {@link TransactionResult}s keep the previous contents.
      */
-    private final List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
+    private List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
 
     /**
      * The next hook ID after the hook dispatch.
@@ -536,7 +537,7 @@ public class BlockStreamBuilder
         tokenTransferLists = new LinkedList<>();
         assessedCustomFees = new LinkedList<>();
         paidStakingRewards = new LinkedList<>();
-        automaticTokenAssociations.clear();
+        automaticTokenAssociations = new LinkedList<>();
         nextHookId = null;
         blockNumber = null;
         contractOpType = null;
@@ -990,6 +991,7 @@ public class BlockStreamBuilder
     public BlockStreamBuilder syncBodyIdFromRecordId() {
         this.signedTx = StreamBuilder.signedTxWith(
                 inProgressBody().copyBuilder().transactionID(transactionId).build());
+        this.serializedSignedTx = null;
         return this;
     }
 
@@ -1627,10 +1629,10 @@ public class BlockStreamBuilder
     private BlockItem transactionResultBlockItem() {
         if (!automaticTokenAssociations.isEmpty()) {
             automaticTokenAssociations.sort(TOKEN_ASSOCIATION_COMPARATOR);
-            transactionResultBuilder.automaticTokenAssociations(automaticTokenAssociations);
+            transactionResultBuilder.automaticTokenAssociations(List.copyOf(automaticTokenAssociations));
         }
         if (!assessedCustomFees.isEmpty()) {
-            transactionResultBuilder.assessedCustomFees(assessedCustomFees);
+            transactionResultBuilder.assessedCustomFees(List.copyOf(assessedCustomFees));
         }
         return BlockItem.newBuilder()
                 .transactionResult(

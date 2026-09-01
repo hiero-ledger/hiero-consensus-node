@@ -9,7 +9,11 @@ import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -41,6 +45,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -140,6 +145,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var stakePeriodStartBefore = account.stakePeriodStart();
 
         randomStakeNodeChanges();
+        final var accountStore = spy(writableAccountStore);
+        given(context.writableStore(WritableAccountStore.class)).willReturn(accountStore);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
         mockEntityIdFactory();
 
@@ -162,6 +169,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(stakePeriodStartAfter).isNotEqualTo(stakePeriodStartBefore).isEqualTo(expectedStakePeriodStart);
         // staking metadata is updated, so stakeAtStartOfLastRewardedPeriod will be set to -1
         assertThat(stakeAtStartOfLastRewardedPeriodAfter).isEqualTo(-1);
+        verify(accountStore, times(1)).put(argThat(updated -> payerId.equals(updated.accountId())));
     }
 
     @Test
@@ -566,10 +574,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                         .atStartOfDay(ZoneOffset.UTC)
                         .toInstant());
         given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
-        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
-                .willReturn(recordBuilder);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
-        mockEntityIdFactory();
 
         subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
 
@@ -1127,12 +1132,13 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
                 .stakedAccountId(ownerId)
                 .build());
+        final var accountStore = spy(writableAccountStore);
 
         given(context.consensusTime())
                 .willReturn(LocalDate.ofEpochDay(stakePeriodStart)
                         .atStartOfDay(ZoneOffset.UTC)
                         .toInstant());
-        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.writableStore(WritableAccountStore.class)).willReturn(accountStore);
         stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
 
         final var originalPayer = writableAccountStore.get(payerId);
@@ -1145,9 +1151,11 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var modifiedPayer = writableAccountStore.get(payerId);
         final var modifiedOwner = writableAccountStore.get(ownerId);
 
+        assertThat(modifiedOwner.tinybarBalance()).isEqualTo(ownerBalance + rewards.get(ownerId));
         assertThat(modifiedOwner.stakedToMe()).isEqualTo(ownerAccountBefore.stakedToMe() - HBARS_TO_TINYBARS);
         // stakePeriodStart is updated everytime when reward is applied
         assertThat(modifiedOwner.stakePeriodStart()).isEqualTo(stakePeriodStart - 1);
+        verify(accountStore, times(3)).put(argThat(updated -> ownerId.equals(updated.accountId())));
 
         assertThat(modifiedPayer.stakedToMe()).isEqualTo(originalPayer.stakedToMe());
         assertThat(modifiedPayer.stakePeriodStart()).isEqualTo(stakePeriodStart);
@@ -1272,6 +1280,93 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // stakePeriodStart is not updated here
         assertThat(modifiedPayer.stakedToMe()).isEqualTo(originalPayer.stakedToMe());
         assertThat(modifiedPayer.stakePeriodStart()).isEqualTo(stakePeriodStart);
+    }
+
+    @Test
+    void explicitRewardReceiverPreservesBalanceAndMetadataUpdates() {
+        final var initialBalance = 55L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(initialBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withStakedNodeId(node1Id.number())
+                .withDeleted(false)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore));
+
+        final var nextDayInstant = originalInstant.plus(2, ChronoUnit.DAYS);
+        given(context.consensusTime()).willReturn(nextDayInstant);
+        stakePeriodManager.setCurrentStakePeriodFor(nextDayInstant);
+        mockEntityIdFactory();
+
+        final var rewards = subject.applyStakingRewards(context, Set.of(payerId), emptyMap());
+
+        assertThat(rewards).containsOnlyKeys(payerId);
+        final var finalAccount = writableAccountStore.get(payerId);
+        assertThat(finalAccount.tinybarBalance()).isEqualTo(initialBalance + rewards.get(payerId));
+        assertThat(finalAccount.stakedToMe()).isEqualTo(payerAccountBefore.stakedToMe());
+        assertThat(finalAccount.declineReward()).isFalse();
+        assertThat(finalAccount.stakedNodeId()).isEqualTo(node1Id.number());
+        assertThat(finalAccount.stakeAtStartOfLastRewardedPeriod())
+                .isEqualTo(roundedToHbar(totalStake(payerAccountBefore)));
+        assertThat(finalAccount.stakePeriodStart()).isEqualTo(stakePeriodManager.currentStakePeriod() - 1);
+    }
+
+    @Test
+    void multipleAccountChangesAndDeclineTransitionUseOneMetadataWrite() {
+        final var initialBalance = 55L * HBARS_TO_TINYBARS;
+        final var initialStakedToMe = 2L * HBARS_TO_TINYBARS;
+        final var finalBalanceBeforeReward = 54L * HBARS_TO_TINYBARS;
+        final var finalStakedToMe = 3L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(initialBalance)
+                .withStakeAtStartOfLastRewardPeriod(initialBalance / 5)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withStakedNodeId(node1Id.number())
+                .withStakedToMe(initialStakedToMe)
+                .withDeleted(false)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore));
+        final var node0Before = writableStakingInfoState.get(node0Id);
+        final var node1Before = writableStakingInfoState.get(node1Id);
+
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(finalBalanceBeforeReward)
+                .stakedToMe(finalStakedToMe)
+                .stakedNodeId(node0Id.number())
+                .declineReward(true)
+                .build());
+        final var accountStore = spy(writableAccountStore);
+        given(context.writableStore(WritableAccountStore.class)).willReturn(accountStore);
+
+        final var nextDayInstant = originalInstant.plus(2, ChronoUnit.DAYS);
+        given(context.consensusTime()).willReturn(nextDayInstant);
+        stakePeriodManager.setCurrentStakePeriodFor(nextDayInstant);
+        mockEntityIdFactory();
+
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+
+        assertThat(rewards).containsOnlyKeys(payerId);
+        final var finalAccount = writableAccountStore.get(payerId);
+        assertThat(finalAccount.tinybarBalance()).isEqualTo(finalBalanceBeforeReward + rewards.get(payerId));
+        assertThat(finalAccount.stakedToMe()).isEqualTo(finalStakedToMe);
+        assertThat(finalAccount.declineReward()).isTrue();
+        assertThat(finalAccount.stakedNodeId()).isEqualTo(node0Id.number());
+        assertThat(finalAccount.stakeAtStartOfLastRewardedPeriod()).isEqualTo(-1L);
+        assertThat(finalAccount.stakePeriodStart()).isEqualTo(stakePeriodManager.currentStakePeriod());
+
+        final var originalTotalStake = roundedToHbar(initialBalance + initialStakedToMe);
+        final var finalTotalStake = roundedToHbar(finalAccount.tinybarBalance() + finalStakedToMe);
+        assertThat(writableStakingInfoState.get(node1Id).stakeToReward())
+                .isEqualTo(node1Before.stakeToReward() - originalTotalStake);
+        assertThat(writableStakingInfoState.get(node0Id).stakeToNotReward())
+                .isEqualTo(node0Before.stakeToNotReward() + finalTotalStake);
+        verify(accountStore, times(2)).put(argThat(updated -> payerId.equals(updated.accountId())));
     }
 
     private void mockEntityIdFactory() {

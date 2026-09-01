@@ -619,7 +619,8 @@ public final class IngestChecker {
         }
 
         // Expand the signatures
-        final var expandedSigs = new HashSet<ExpandedSignaturePair>();
+        final var expandedSigs =
+                HashSet.<ExpandedSignaturePair>newHashSet((int) Math.min(Integer.MAX_VALUE, 2L * sigPairs.size()));
         signatureExpander.expand(sigPairs, expandedSigs);
         if (!isHollow(account)) {
             signatureExpander.expand(payerKey, sigPairs, expandedSigs);
@@ -672,6 +673,8 @@ public final class IngestChecker {
         if (cached.state != state) {
             cached.state = state;
             cached.factory = new ReadableStoreFactoryImpl(state);
+        } else {
+            cached.factory.dropCachedStores();
         }
         return cached.factory;
     }

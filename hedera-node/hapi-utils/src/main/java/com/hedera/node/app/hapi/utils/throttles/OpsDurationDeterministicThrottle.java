@@ -9,7 +9,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Objects;
 
 /**
  * Main class responsible for throttling the transactions by "ops duration".
@@ -21,6 +23,11 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
     private final long capacityFreedPerSecond;
     private final DiscreteLeakyBucket bucket;
     private Instant lastDecisionTime;
+
+    @Nullable
+    private ThrottleUsageSnapshot cachedUsageSnapshot;
+
+    private boolean usageSnapshotValid;
 
     public OpsDurationDeterministicThrottle(
             final String name, final long nominalCapacity, final long capacityFreedPerSecond) {
@@ -38,6 +45,7 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
         if (elapsedNanos < 0L) {
             throw new IllegalArgumentException("Throttle timeline must advance, but " + now + " is not after " + now);
         }
+        invalidateUsageSnapshot();
         lastDecisionTime = now;
 
         bucket.leak(effectiveLeak(elapsedNanos));
@@ -96,26 +104,41 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
     }
 
     public ThrottleUsageSnapshot usageSnapshot() {
-        return new ThrottleUsageSnapshot(
-                bucket.capacityUsed(),
-                lastDecisionTime == null
-                        ? null
-                        : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano()));
+        if (!usageSnapshotValid) {
+            final var used = bucket.capacityUsed();
+            final var decisionTime = lastDecisionTime == null
+                    ? null
+                    : new Timestamp(lastDecisionTime.getEpochSecond(), lastDecisionTime.getNano());
+            if (cachedUsageSnapshot == null
+                    || cachedUsageSnapshot.used() != used
+                    || !Objects.equals(cachedUsageSnapshot.lastDecisionTime(), decisionTime)) {
+                cachedUsageSnapshot = new ThrottleUsageSnapshot(used, decisionTime);
+            }
+            usageSnapshotValid = true;
+        }
+        return requireNonNull(cachedUsageSnapshot);
     }
 
     public void resetUsageTo(@NonNull final ThrottleUsageSnapshot usageSnapshot) {
         requireNonNull(usageSnapshot);
+        invalidateUsageSnapshot();
         lastDecisionTime = usageSnapshot.lastDecisionTime() == null
                 ? null
                 : Instant.ofEpochSecond(
                         usageSnapshot.lastDecisionTime().seconds(),
                         usageSnapshot.lastDecisionTime().nanos());
         bucket.resetUsed(usageSnapshot.used());
+        cachedUsageSnapshot = usageSnapshot;
+        usageSnapshotValid = true;
     }
 
     private long effectiveLeak(final long elapsedNanos) {
         return productWouldOverflow(elapsedNanos, capacityFreedPerSecond)
                 ? Long.MAX_VALUE / SECONDS_TO_NANOSECONDS
                 : elapsedNanos * capacityFreedPerSecond / SECONDS_TO_NANOSECONDS;
+    }
+
+    private void invalidateUsageSnapshot() {
+        usageSnapshotValid = false;
     }
 }
