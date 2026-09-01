@@ -212,7 +212,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                         NodeSelector.allNodes(),
                         "Successfully downloaded and verified WRAPS proving key on retry \\(hash=\\S+\\)",
                         Duration.ofSeconds(30)),
-                // Verify the extracted v1.0.0 WRAPS artifact set exists at the correct path
+                // Verify the extracted v1.6.0 WRAPS artifact set exists at the correct path
                 doingContextual(spec -> {
                     for (final var node : spec.getNetworkNodes()) {
                         final var keysDir =

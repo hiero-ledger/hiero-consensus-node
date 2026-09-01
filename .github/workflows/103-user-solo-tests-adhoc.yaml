@@ -44,7 +44,7 @@ on:
         type: string
         default: ""
       cutover-upgrade-075-version:
-        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.6."
+        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.1."
         required: false
         type: string
         default: ""
@@ -54,12 +54,12 @@ on:
         type: boolean
         default: true
       tss-starting-tag:
-        description: "[075-to-076-tss] Consensus-node release tag for the initial 0.75 network deploy. Leave blank to default to v0.75.0-rc.6."
+        description: "[075-to-076-tss] Consensus-node release tag for the initial 0.75 network deploy. Leave blank to default to v0.75.1."
         required: false
         type: string
         default: ""
       tss-upgrade-tag:
-        description: "[075-to-076-tss] Consensus-node release tag to upgrade the 0.75 network to. Blank → v0.76.0-rc.1; 'local' → the local build from the checked-out ref; or any release tag."
+        description: "[075-to-076-tss] Consensus-node release tag to upgrade the 0.75 network to. Blank → v0.76.1; 'local' → the local build from the checked-out ref; or any release tag."
         required: false
         type: string
         default: ""
@@ -460,7 +460,7 @@ jobs:
         env:
           CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
           KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
-          UPGRADE_075_VERSION: ${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}
+          UPGRADE_075_VERSION: ${{ inputs.cutover-upgrade-075-version || 'v0.75.1' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
@@ -628,7 +628,7 @@ jobs:
 
       - name: Run 0.75 -> 0.76 TSS Upgrade Scenario
         env:
-          DEPLOY_RELEASE_TAG: ${{ inputs.tss-starting-tag || 'v0.75.0-rc.6' }}
+          DEPLOY_RELEASE_TAG: ${{ inputs.tss-starting-tag || 'v0.75.1' }}
           UPGRADE_TAG: ${{ inputs.tss-upgrade-tag }}
         run: |
           set -eo pipefail
