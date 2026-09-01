@@ -277,14 +277,18 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
      * would then leave two embedded Hedera instances live in this JVM. A shared subprocess network is
      * fine, as its nodes run in their own processes.
      *
+     * <p>Three things keep this from tripping: the class is ordered {@code @Order(Integer.MIN_VALUE)},
+     * it is not {@code @HapiTestLifecycle} (whose {@code beforeAll} builds the shared network), and it
+     * holds no other kind of {@code HapiTest} method (whose {@code beforeEach} would build it too).
+     *
      * @param method the test method about to build a per-method network
+     * @throws IllegalStateException if a shared embedded network is already running
      */
     private static void assertNoSharedEmbeddedNetwork(@NonNull final Method method) {
         if (SHARED_NETWORK.get() instanceof EmbeddedNetwork) {
-            throw new IllegalStateException("Cannot build a per-method network for '" + method.getName()
-                    + "' while a shared embedded network is running; classes with @GenesisHapiTest or"
-                    + " @RestartHapiTest methods must be annotated @Order(Integer.MIN_VALUE) so they run"
-                    + " before any shared network exists");
+            throw new IllegalStateException(
+                    "A shared embedded network is already running, cannot build a per-method network for "
+                            + method.getName());
         }
     }
 
