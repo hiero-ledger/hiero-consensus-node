@@ -6,8 +6,10 @@ import static com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder.PATH_
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.virtualmap.MerklePathUtils;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -408,6 +410,45 @@ class TopToBottomTraversalOrderPrefetchTest {
             // Pre-fetch should NOT be seeded: chunk 2 is past oldLastLeafPath
             assertEquals(
                     1, getActiveChunks(order).size(), "No pre-fetch when next chunk's leaves are past oldLastLeafPath");
+        }
+
+        @Test
+        @DisplayName("Internals whose subtree is entirely past oldLastLeafPath are not seeded")
+        void internalsEntirelyPastOldRangeNotSeeded() throws Exception {
+            // Chunk 1 spans leaves 1023..1534; put oldLastLeafPath mid-chunk so 1301..1534 are past it.
+            final long oldLast = 1300L;
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, oldLast, CHUNK_FIRST, CHUNK_LAST);
+
+            final var chunk = getActiveChunks(order).peekFirst();
+            assertNotNull(chunk);
+            // Invariant: every seeded internal has at least one leaf within the old range.
+            for (final long internal : chunk.internals) {
+                final long leftmostLeaf = MerklePathUtils.getLeftGrandChildPath(
+                        internal, chunk.chunkLastRank - MerklePathUtils.getRank(internal));
+                assertTrue(
+                        leftmostLeaf <= oldLast,
+                        "Internal " + internal + " has all leaves past oldLastLeafPath=" + oldLast + " (leftmostLeaf="
+                                + leftmostLeaf + ") and must not be seeded");
+            }
+            assertFalse(chunk.internals.isEmpty(), "In-range leaves exist, so some internals must be seeded");
+        }
+
+        @Test
+        @DisplayName("Straddling old range still completes with all leaves in order")
+        void straddlingOldRangeCompletes() {
+            // oldLast mid-chunk: in-range leaves classified via internals, past-range leaves dirty by
+            // position. The seed filter must not break classification of the in-range portion.
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, 1300L, CHUNK_FIRST, CHUNK_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+            assertEquals(CHUNK_LAST - CHUNK_FIRST + 1, leaves.size(), "All leaves must be sent");
+            assertEquals(CHUNK_FIRST, leaves.get(0));
+            assertEquals(CHUNK_LAST, leaves.get(leaves.size() - 1));
+            for (int i = 1; i < leaves.size(); i++) {
+                assertTrue(leaves.get(i) > leaves.get(i - 1), "Leaves strictly ascending");
+            }
         }
     }
 

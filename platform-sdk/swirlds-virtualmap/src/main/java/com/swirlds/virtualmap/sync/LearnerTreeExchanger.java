@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.sync;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
@@ -159,7 +157,7 @@ public final class LearnerTreeExchanger {
             handleResponse(response);
         } else {
             // Eager, order-independent store: stale-key tracking + leaf store, done in parallel on this
-            // receiver the moment the leaf arrives. Only the ordered hash-feed (supplyDirtyLeaf, on the
+            // receiver the moment the leaf arrives. Only the ordered hash-feed (dirtyLeafReceived, on the
             // applier) is deferred. nodeReceived is a no-op for leaf paths, so it is not needed here.
             if (!response.isClean() && teacherMetadata.getLastLeafPath() > 0) {
                 final VirtualLeafBytes<?> leaf = response.leafData();
@@ -203,21 +201,27 @@ public final class LearnerTreeExchanger {
                 drainedAny = true;
             }
             if (!drainedAny) {
-                // When every receiver task has finished, no more responses will ever arrive. Each
-                // receiver publishes into the concurrent `responses` map before it counts the latch
-                // down, so once the count is zero every received leaf is already in the map; if the
-                // FIFO head is still missing here it genuinely never arrived (a protocol error) and we
-                // exit rather than hang. lastLeafSent additionally guards against an early exit before
-                // any leaf request has been sent.
+                // Terminal check. lastLeafSent guards against an early exit before any leaf request
+                // was sent; the latch reaching zero means every receiver has finished, so — because
+                // each receiver publishes into `responses` before it counts down — every response
+                // that will ever arrive is already in the map.
                 if (lastLeafSent.get() && receiveTasksDone.getCount() == 0) {
-                    if (!anticipatedLeafPaths.isEmpty()) {
-                        logger.error(
-                                RECONNECT.getMarker(),
-                                "Applier exiting with {} undrained leaf path(s); head={}",
-                                anticipatedLeafPaths.size(),
-                                anticipatedLeafPaths.peek());
+                    // Re-attempt the drain now, after observing the  terminal condition — this read cannot be stale,
+                    // since no receiver can publish once the count is zero.
+                    // Loop back so a successful drain here is followed by a normal drain pass rather than an immediate
+                    // exit.
+                    if (anticipatedLeafPaths.isEmpty()) {
+                        return; // fully drained — clean completion
                     }
-                    break;
+                    final Long head = anticipatedLeafPaths.peek();
+                    if (head != null && responses.containsKey(head)) {
+                        continue; // head is now present — drain it on the next pass
+                    }
+                    // Terminal condition holds and the FIFO head is genuinely absent: no receiver can
+                    // ever publish it. This is a protocol violation (or lost response) — fail loudly
+                    // rather than returning with an unsupplied leaf and a silently corrupt tree.
+                    throw new MerkleSynchronizationException("Reconnect ended with " + anticipatedLeafPaths.size()
+                            + " undrained leaf path(s); FIFO head " + head + " never received");
                 }
                 LockSupport.parkNanos(50_000L); // head in flight; nothing to drain this pass
             }
@@ -244,7 +248,7 @@ public final class LearnerTreeExchanger {
                 // The store (stale-key tracking + updateLeaf) already ran eagerly in responseReceived.
                 // Here, on the applier in FIFO order, do only the ordered hash-feed. May block if
                 // hashing is slower than ingest.
-                vmapLearner.supplyDirtyLeaf(leaf);
+                vmapLearner.dirtyLeafReceived(leaf);
             }
             stats.incrementLeafData(isClean);
         } else {

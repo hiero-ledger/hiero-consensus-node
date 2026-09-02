@@ -79,7 +79,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     static final class ChunkState {
 
-        /** Node path of this chunk's root */
+        /**
+         * Node path of this chunk's root
+         */
         final long chunkRootPath;
 
         /**
@@ -89,7 +91,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
          */
         final long chunkLastLeafPath;
 
-        /** The leaf rank of this chunk (either firstLeafRank or lastLeafRank) */
+        /**
+         * The leaf rank of this chunk (either firstLeafRank or lastLeafRank)
+         */
         final int chunkLastRank;
 
         /**
@@ -121,24 +125,34 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         /**
          * Creates a fully-initialized chunk state with its initial internals already seeded.
          *
-         * @param chunkRootPath  the root path of this chunk
-         * @param chunkLastRank  the leaf rank of this chunk
+         * @param chunkRootPath    the root path of this chunk
+         * @param chunkLastRank    the leaf rank of this chunk
+         * @param oldFirstLeafPath the first leaf path of the old range (teacher's leaf path range)
+         * @param oldLastLeafPath  the last leaf path of the old range (teacher's leaf path range)
          */
-        ChunkState(final long chunkRootPath, final int chunkLastRank) {
+        ChunkState(
+                final long chunkRootPath,
+                final int chunkLastRank,
+                final long oldFirstLeafPath,
+                final long oldLastLeafPath) {
             this.chunkRootPath = chunkRootPath;
             this.chunkLastRank = chunkLastRank;
             final int chunkRootRank = MerklePathUtils.getRank(chunkRootPath);
             this.chunkLastLeafPath =
                     MerklePathUtils.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 
-            // Seed initial internals at the midpoint of the chunk
             final int chunkHeight = chunkLastRank - chunkRootRank;
             final int skipRanks = chunkHeight / 2;
             this.chunkFirstCheckedRank = chunkRootRank + skipRanks;
             final long firstPath = MerklePathUtils.getLeftGrandChildPath(chunkRootPath, skipRanks);
             final long lastPath = MerklePathUtils.getRightGrandChildPath(chunkRootPath, skipRanks);
             for (long path = firstPath; path <= lastPath; path++) {
-                internals.add(path);
+                // Seed an internal only if part of its leaf subtree is within the old range. If its
+                // leaves are entirely before oldFirstLeafPath or after oldLastLeafPath they are sent
+                // dirty by position (fast path) and this internal's response is never consulted.
+                if (!allLeavesOutsideOldRange(path, chunkLastRank, oldFirstLeafPath, oldLastLeafPath)) {
+                    internals.add(path);
+                }
             }
         }
     }
@@ -188,14 +202,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     private final Deque<ChunkState> activeChunks = new ConcurrentLinkedDeque<>();
 
     /**
-     * The largest {@code chunkLastLeafPath} among all chunks that have finished processing
-     * and been removed from {@link #activeChunks}. Included in error diagnostics if
-     * {@link #nodeReceived} encounters a path with no owning chunk. Only increases over
-     * time, since chunks are processed left-to-right in ascending path order.
-     */
-    private volatile long lastPoppedChunkRightmost = -1;
-
-    /**
      * Set to {@code true} when the current chunk's leaf phase stalls (parent status unknown);
      * cleared to {@code false} only inside {@link #getNextLeafPathToSend()}, when a leaf becomes
      * sendable or the chunk completes.
@@ -241,7 +247,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             final long startingLeaf = Math.max(firstLeafPath, oldFirstLeafPath);
             final int chunkLastRank = MerklePathUtils.getRank(startingLeaf);
             final long chunkRootPath = MerklePathUtils.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
-            activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank));
+            activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank, oldFirstLeafPath, oldLastLeafPath));
 
             logger.debug(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
         }
@@ -269,17 +275,22 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             }
         }
 
-        // No active chunk owns this path — its chunk was already completed and popped.
-        // This is a benign race: the sender thread popped the chunk (all leaves resolved)
-        // while in-flight internal responses from the teacher were still in the receiver
-        // pipeline. The information is stale and safe to discard.
+        // No active chunk owns this path. Reachable only for INTERNAL responses (nodeReceived
+        // returns early for leaves before findOwningChunk), and it is safe:
+        //
+        // A chunk completes via clean-skip — skipCleanPaths resolves its remaining leaves without
+        // sending them and WITHOUT waiting on the internals it already requested. So a chunk can be
+        // complete and popped while some of its internal responses are still in flight; response
+        // reordering under load widens this window.
+        //
+        // Discarding is correct: a late internal response only writes cleanPaths/someDirtyPaths,
+        // which gate FUTURE leaf sends for this chunk. A popped chunk has none, so the write is
+        // inert. Returning null (vs. throwing) is what keeps this race from killing reconnect.
         logger.trace(
                 RECONNECT.getMarker(),
-                "Ignoring stale nodeReceived for path {} (rank {}): owning chunk already popped "
-                        + "(lastPoppedRightmost={}, activeChunks={})",
+                "Ignoring stale nodeReceived for path {} (rank {}): owning chunk already popped " + "(activeChunks={})",
                 path,
                 rank,
-                lastPoppedChunkRightmost,
                 activeChunks.size());
         return null;
     }
@@ -309,7 +320,11 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             final long lastChunkInternal =
                     Math.min(firstLeafPath - 1, MerklePathUtils.getParentPath(chunk.chunkLastLeafPath));
             for (long p = left; p <= right; p++) {
-                if (p <= lastChunkInternal) {
+                // Also skip drill-down children whose subtree is entirely outside the old range —
+                // a dirty internal straddling a boundary produces children on both sides, and the
+                // out-of-range ones classify only fast-path leaves.
+                if (p <= lastChunkInternal
+                        && !allLeavesOutsideOldRange(p, chunk.chunkLastRank, oldFirstLeafPath, oldLastLeafPath)) {
                     chunk.internals.add(p);
                 }
             }
@@ -396,8 +411,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // triggering its "no owning chunk" IllegalStateException. Response reordering under
             // load makes such late arrivals routine, not exceptional.
             activeChunks.pollFirst();
-            //noinspection NonAtomicOperationOnVolatileField
-            lastPoppedChunkRightmost = Math.max(lastPoppedChunkRightmost, chunk.chunkLastLeafPath);
 
             leafPath = chunk.chunkLastLeafPath + 1;
             if (leafPath > lastLeafPath) {
@@ -475,7 +488,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             assert lastChunk.chunkLastRank == firstLeafRank;
             nextChunkLastRank = lastLeafRank;
         }
-        return new ChunkState(nextChunkRootPath, nextChunkLastRank);
+        return new ChunkState(nextChunkRootPath, nextChunkLastRank, oldFirstLeafPath, oldLastLeafPath);
     }
 
     /**
@@ -585,5 +598,32 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             parentPath = MerklePathUtils.getParentPath(parentPath);
         }
         return false;
+    }
+
+    /**
+     * Returns {@code true} if every leaf beneath {@code internalPath} lies entirely outside the old
+     * leaf range {@code [oldFirstLeafPath, oldLastLeafPath]} — all such leaves are sent dirty by
+     * position via the fast path in {@link #getNextLeafPathToSend()} and never trigger an internal
+     * query, so the teacher's response for this internal is never consulted and requesting it only
+     * wastes bandwidth.
+     *
+     * <p>Makes explicit an assumption the traversal already relies on: leaves before
+     * {@code oldFirstLeafPath} or after {@code oldLastLeafPath} are resolved purely by position.
+     *
+     * <p>Conservative: skips an internal only when its ENTIRE subtree is on one side of the old range.
+     * A straddling internal is kept, so this can never drop an internal needed to classify a leaf.
+     *
+     * @param internalPath an internal node path within a chunk
+     * @param leafRank     the leaf rank of the chunk containing this internal ({@code chunkLastRank})
+     */
+    private static boolean allLeavesOutsideOldRange(
+            final long internalPath, final int leafRank, final long oldFirstLeafPath, final long oldLastLeafPath) {
+        final int ranksToLeaf = leafRank - MerklePathUtils.getRank(internalPath);
+        if (ranksToLeaf < 0) {
+            return false; // at or below the leaf rank — geometry does not apply; keep it
+        }
+        final long leftmostLeaf = MerklePathUtils.getLeftGrandChildPath(internalPath, ranksToLeaf);
+        final long rightmostLeaf = MerklePathUtils.getRightGrandChildPath(internalPath, ranksToLeaf);
+        return (leftmostLeaf > oldLastLeafPath) || (rightmostLeaf < oldFirstLeafPath);
     }
 }

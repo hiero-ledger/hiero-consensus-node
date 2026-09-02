@@ -38,7 +38,6 @@ import org.hiero.base.crypto.Hash;
  * <ul>
  *     <li>Constructor {@link #VirtualMapLearner(VirtualMap)}</li>
  *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long)}.</li>
- *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
  *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and return new {@link VirtualMap}.</li>
  *     <li>If reconnect fails before successful completion, the caller/reconnect orchestration code is responsible for aborting the reconnect attempt and cleaning up resources associated with the failed attempt via {@link #abortOnException()}.</li>
  * </ul>
@@ -175,7 +174,7 @@ public final class VirtualMapLearner {
      * starts the background hashing thread, and starts a background thread to delete old leaves
      * that fall outside the new leaf path range.
      *
-     * <p><b>Must</b> be called before any {@link #onDirtyLeaf(VirtualLeafBytes)} and {@link #finish()} calls.
+     * <p><b>Must</b> be called before any {@link #finish()} calls.
      *
      * @param firstLeafPath first leaf path in the teacher tree
      * @param lastLeafPath  last leaf path in the teacher tree
@@ -200,36 +199,11 @@ public final class VirtualMapLearner {
     }
 
     /**
-     * Called when a dirty leaf is received from the teacher. Registers the leaf for stale-key
-     * removal tracking and feeds it into the background hashing pipeline.
-     * May block if the hashing thread is slower than the incoming data rate.
-     *
-     * @param leaf the leaf record received from the teacher; must not be null
-     */
-    public void onDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
-        assert stage.get() == Stage.INITIALIZED : "reconnect is not initialized yet";
-        checkOldLeafToBeDeleted(leaf);
-        reconnectFlusher.updateLeaf(leaf);
-
-        // Feeds a leaf record received from the teacher into the reconnect hashing pipeline.
-        // May block if the hashing thread is slower than the incoming data rate.
-        try {
-            reconnectIterator.supply(leaf);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new MerkleSynchronizationException(
-                    "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
-        } catch (final Exception e) {
-            throw new MerkleSynchronizationException("Failed to handle a leaf during reconnect on the learner", e);
-        }
-    }
-
-    /**
      * Order-independent half of dirty-leaf handling: stale-key delete tracking and the leaf store.
      * Both go through the thread-safe {@link ReconnectHashLeafFlusher} (never the single-threaded
      * hashing pipeline) and tolerate out-of-order calls, so this may be called eagerly from any
      * receiver thread the moment a leaf arrives, in parallel. The companion ordered half is
-     * {@link #supplyDirtyLeaf(VirtualLeafBytes)}.
+     * {@link #dirtyLeafReceived(VirtualLeafBytes)}.
      *
      * @param leaf the leaf record received from the teacher; must not be null
      */
@@ -248,7 +222,7 @@ public final class VirtualMapLearner {
      *
      * @param leaf the leaf record received from the teacher; must not be null
      */
-    public void supplyDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+    public void dirtyLeafReceived(@NonNull final VirtualLeafBytes<?> leaf) {
         try {
             reconnectIterator.supply(leaf);
         } catch (final MerkleSynchronizationException e) {
