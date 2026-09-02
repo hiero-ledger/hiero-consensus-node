@@ -58,9 +58,12 @@ message TransactionResult {
      * <p>
      * The time index, agreed by all network nodes, when the "parent"
      * transaction, if any, for this transaction reached consensus.<br/>
-     * This SHALL NOT be set on a user-submitted transaction.<br/>
-     * This SHALL be set on an internal "child" transaction initiated as
-     * part of completing a user-submitted transaction.
+     * The parent of an internal "child" transaction SHALL be the
+     * transaction that spawned it, which MAY itself be an inner
+     * transaction of an `AtomicBatchTransactionBody`.<br/>
+     * The parent of an inner transaction SHALL be the atomic batch
+     * transaction that contains it.<br/>
+     * This SHALL NOT be set on any other user-submitted transaction.
      */
     proto.Timestamp parent_consensus_timestamp = 3;
 

@@ -138,8 +138,11 @@ message TransactionRecord {
     /**
      * A consensus timestamp for a child record.
      * <p>
-     * This SHALL be the consensus timestamp of a user transaction that
-     * spawned an internal child transaction.
+     * This SHALL be the consensus timestamp of the "parent" transaction
+     * that spawned this transaction.<br/>
+     * For an inner transaction of an `AtomicBatchTransactionBody`, the
+     * parent SHALL be the atomic batch transaction that contains it.<br/>
+     * This SHALL NOT be set for any other user-submitted transaction.
      */
     Timestamp parent_consensus_timestamp = 15;
 
