@@ -125,9 +125,6 @@ assert 'dashboard-style metric name survives verbatim' \
 assert 'the fixture scrape target is up' \
 	vm 'up{job="selftest"} == 1' ''
 
-assert 'the log pipeline is visible as a healthy scrape target' \
-	vm 'up{job="alloy"} == 1' ''
-
 # --- logs ------------------------------------------------------------------
 
 # Selecting on a LOG_LABELS key proves those labels became real *stream*

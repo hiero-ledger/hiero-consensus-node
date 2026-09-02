@@ -42,9 +42,9 @@ Then open Grafana at <http://localhost:3000> and use **Explore**. Two
 datasources are provisioned: `grafanacloud-prom` (metrics) and
 `grafanacloud-logs` (logs). No login is required.
 
-Out of the box the stack scrapes itself and tails `./logs`, and the `app` scrape
-target is red — there is nothing on `host.docker.internal:9999` yet. Configuring
-it is the next section.
+Out of the box the stack tails `./logs`, and the `app` scrape target is red —
+there is nothing on `host.docker.internal:9999` yet. Configuring it is the
+next section.
 
 ## Configuring it
 

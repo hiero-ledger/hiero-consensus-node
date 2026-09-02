@@ -20,15 +20,3 @@ scrape_configs:
     static_configs:
       - targets: %{SCRAPE_TARGETS}
         labels: %{METRIC_LABELS}
-
-  # The metrics backend itself.
-  - job_name: victoriametrics
-    static_configs:
-      - targets: ["victoriametrics:8428"]
-        labels: %{METRIC_LABELS}
-
-  # Log-pipeline health.
-  - job_name: alloy
-    static_configs:
-      - targets: ["alloy:12345"]
-        labels: %{METRIC_LABELS}

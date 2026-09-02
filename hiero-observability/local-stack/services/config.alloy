@@ -57,8 +57,7 @@ loki.process "logs" {
 	forward_to = [loki.write.loki.receiver]
 }
 
-// 7. Alloy's own metrics are served on --server.http.listen-addr and scraped by
-//    VictoriaMetrics; nothing is pushed from here.
+// 7. Push the finished entries to Loki.
 loki.write "loki" {
 	endpoint {
 		url = "http://loki:3100/loki/api/v1/push"
