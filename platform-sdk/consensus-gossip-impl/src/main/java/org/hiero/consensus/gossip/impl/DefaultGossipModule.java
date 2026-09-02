@@ -40,6 +40,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * Default implementation of {@link GossipModule}.
@@ -73,6 +74,7 @@ public final class DefaultGossipModule implements GossipModule {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
@@ -98,7 +100,8 @@ public final class DefaultGossipModule implements GossipModule {
                 selfId,
                 appVersion,
                 intakeEventCounter,
-                fallenBehindMonitor);
+                fallenBehindMonitor,
+                statusMonitorModule);
         gossipWiring.bind(gossip);
     }
 

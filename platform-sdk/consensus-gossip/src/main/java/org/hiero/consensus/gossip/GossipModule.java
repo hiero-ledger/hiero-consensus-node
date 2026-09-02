@@ -30,6 +30,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * Gossip module interface.
@@ -68,6 +69,7 @@ public interface GossipModule {
             @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull FallenBehindMonitor fallenBehindMonitor,
             @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull StatusMonitorModule statusMonitorModule,
             @NonNull Map<String, Object> additionalParameters);
 
     /**

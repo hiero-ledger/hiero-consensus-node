@@ -34,6 +34,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.monitoring.FallenBehindStatus;
+import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.actions.FallenBehindAction;
 
 /**
  * Conversation logic for an RPC exchange between two nodes. At this moment mostly concerned with performing a sync,
@@ -130,6 +132,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private volatile boolean communicationOverload = false;
 
+    @NonNull
+    private final StatusMonitorModule statusMonitorModule;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -146,6 +151,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      *                                      behind
      * @param syncConfig                    sync configuration
      * @param broadcastConfig               broadcast configuration
+     * @param statusMonitorModule           the status monitor module
      */
     public RpcPeerHandler(
             @NonNull final ShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -159,7 +165,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             @NonNull final SyncGuard syncGuard,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SyncConfig syncConfig,
-            @NonNull final BroadcastConfig broadcastConfig) {
+            @NonNull final BroadcastConfig broadcastConfig,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -174,6 +181,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.lastReceiveEventFinished = time.nanoTime();
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
+        this.statusMonitorModule = Objects.requireNonNull(statusMonitorModule);
     }
 
     /**
@@ -420,6 +428,10 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
                 }
                 this.syncMetrics.reportSyncPhase(peerId, SyncPhase.SELF_FALLEN_BEHIND);
                 sender.breakConversation();
+
+                if (fallenBehindMonitor.hasFallenBehind()) {
+                    statusMonitorModule.platformStatusActionInputWire().put(new FallenBehindAction());
+                }
             }
 
             return;

@@ -9,10 +9,15 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
+import com.swirlds.platform.components.AppNotifier;
+import com.swirlds.platform.listeners.ReconnectCompleteNotification;
+import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
+import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -22,8 +27,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
@@ -31,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -38,8 +42,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.SignedStateFileReader;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 
@@ -47,9 +51,8 @@ import org.hiero.consensus.system.SystemExitUtils;
  * Orchestrates the reconnect process when a node falls behind.
  *
  * <p>Once started the controller runs in a continuous loop, waiting for the node to fall behind, then attempting
- * to reconnect until successful or until configured thresholds are exceeded. Each reconnect attempt involves
- * preparing the current state, obtaining a new state from a peer, validating it, and loading it into
- * the platform components.
+ * to reconnect until successful or until configured thresholds are exceeded. Each reconnect attempt involves preparing
+ * the current state, obtaining a new state from a peer, validating it, and loading it into the platform components.
  *
  * <p>This class blocks the caller until the fall behind condition is detected.
  * Callers are responsible to call this in a separated thread.
@@ -57,7 +60,7 @@ import org.hiero.consensus.system.SystemExitUtils;
  * @see FallenBehindMonitor
  * @see BlockingResourceProvider
  */
-public class ReconnectController implements Runnable {
+public class ReconnectController implements StateWriteToDiskCompleteListener, Runnable {
 
     private static final Logger logger = LogManager.getLogger(ReconnectController.class);
 
@@ -65,23 +68,25 @@ public class ReconnectController implements Runnable {
     private final SignedStateValidator signedStateValidator;
     private final Platform platform;
     private final Configuration configuration;
-    private final ReconnectCoordinator reconnectCoordinator;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider;
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
-    private final Time time;
-    private final Instant startupTime;
+    private final ConsensusLayer consensusLayer;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AtomicBoolean run = new AtomicBoolean(true);
+    private final ReconnectCoordinator reconnectCoordinator;
+    private volatile long reconnectRoundNumber;
+    private volatile boolean waitingForReconnectStateOnDisk = false;
 
     public ReconnectController(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final Platform platform,
+            @NonNull final ConsensusLayer consensusLayer,
             @NonNull final ReconnectCoordinator reconnectCoordinator,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
@@ -91,24 +96,23 @@ public class ReconnectController implements Runnable {
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SignedStateValidator signedStateValidator) {
         this.roster = requireNonNull(roster);
-        this.reconnectCoordinator = requireNonNull(reconnectCoordinator);
         this.peerReservedSignedStateResultProvider = requireNonNull(peerReservedSignedStateResultProvider);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
         this.reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
+        this.consensusLayer = requireNonNull(consensusLayer);
+        this.reconnectCoordinator = reconnectCoordinator;
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.savedStateController = requireNonNull(savedStateController);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
-        this.time = requireNonNull(time);
         this.selfId = selfId;
-        this.startupTime = time.now();
     }
 
     /**
-     * Initiates graceful shutdown of the controller.
-     * Does not guarantee stopping if the thread where the controller is running is blocked
+     * Initiates graceful shutdown of the controller. Does not guarantee stopping if the thread where the controller is
+     * running is blocked
      */
     public void stopReconnectLoop() {
         run.set(false);
@@ -131,14 +135,10 @@ public class ReconnectController implements Runnable {
         try {
             while (run.get()) {
                 fallenBehindMonitor.awaitFallenBehind(); // Block until the monitor notifies the node is behind
-                exitIf();
-                reconnectCoordinator.submitStatusAction(new FallenBehindAction());
-                logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
-                reconnectCoordinator.pauseGossip();
-                fallenBehindMonitor.awaitGossipPaused();
-                logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
-                reconnectCoordinator.clear();
-                logger.info(RECONNECT.getMarker(), "Queues have been cleared");
+                exitIfReconnectDisabled();
+                logger.info(RECONNECT.getMarker(), "Preparing for reconnect, destroying the consensus layer");
+                waitingForReconnectStateOnDisk = true;
+                consensusLayer.destroy();
 
                 final State currentState = stateLifecycleManager.getMutableState();
                 currentState.getHash(); // hash the state
@@ -148,11 +148,9 @@ public class ReconnectController implements Runnable {
                     if (result.success()) {
                         // reset the monitor to the initial state
                         fallenBehindMonitor.clear();
-                        logger.info(RECONNECT.getMarker(), "Reconnect almost done resuming gossip");
-                        reconnectCoordinator.resumeGossip();
+                        logger.info(RECONNECT.getMarker(), "Reconnect state acquired");
                         break;
                     }
-                    reconnectCoordinator.clear();
                     exitIfMaxRetriesOrWait(++failedReconnectsInARow, result.throwable());
                 } while (run.get());
             }
@@ -187,33 +185,60 @@ public class ReconnectController implements Runnable {
         // unblocked
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         try (final LockedResource<ReservedSignedStateResult> reservedStateResource =
-                        requireNonNull(peerReservedSignedStateResultProvider.waitForResource());
+                requireNonNull(peerReservedSignedStateResultProvider.waitForResource());
                 final ReservedSignedStateResult result = requireNonNull(reservedStateResource.getResource())) {
             if (result.isError()) {
                 return AttemptReconnectResult.error(requireNonNull(result.throwable()));
             }
-
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
+
             // We validate the data in the peer state relative to our current state
             final SignedStateValidationData data = new SignedStateValidationData(currentState, roster);
-            SignedStateFileReader.registerServiceStates(
-                    result.reservedSignedState().get());
-            signedStateValidator.validate(result.reservedSignedState().get(), roster, data);
+            final SignedState acquiredState = result.reservedSignedState().get();
+            reconnectRoundNumber = acquiredState.getRound();
+
+            SignedStateFileReader.registerServiceStates(acquiredState);
+            signedStateValidator.validate(acquiredState, roster, data);
             logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
-            loadState(result.reservedSignedState().get());
-            // Notify any listeners that the reconnect has been completed
-            reconnectCoordinator.sendReconnectCompleteNotification(
-                    result.reservedSignedState().get());
+
+            initializeState(acquiredState);
+            savedStateController.reconnectStateReceived(
+                    acquiredState.reserve("savedStateController.reconnectStateReceived"));
+            reconnectCoordinator.loadReconnectState(acquiredState);
+
             return AttemptReconnectResult.ok();
         } catch (final RuntimeException e) {
             return AttemptReconnectResult.error(e);
         }
     }
 
+    @Override
+    public void notify(@NonNull final StateWriteToDiskCompleteNotification notification) {
+        if (notification.getRoundNumber() < reconnectRoundNumber) {
+            return;
+        }
+
+        if (waitingForReconnectStateOnDisk) {
+            // TODO recreate the consensus layer
+
+            // Notify any listeners that the reconnect has been completed
+            sendReconnectCompleteNotification(result.reservedSignedState().get());
+            waitingForReconnectStateOnDisk = false;
+        }
+    }
+
+    private void sendReconnectCompleteNotification(@NonNull final SignedState signedState) {
+        buildingBlocks
+                .notifierWiring()
+                .getInputWire(AppNotifier::sendReconnectCompleteNotification)
+                .put(new ReconnectCompleteNotification(
+                        signedState.getRound(), signedState.getConsensusTimestamp(), signedState.getState()));
+    }
+
     /**
-     * Loads the received signed state into the platform
+     * Initializes the received signed state.
      */
-    private void loadState(@NonNull final SignedState signedState) {
+    private void initializeState(@NonNull final SignedState signedState) {
         // the state was received, so now we load its data into different objects
         logger.info(STATE_HASH.getMarker(), "RECONNECT: loadState: reloading state");
         logger.debug(RECONNECT.getMarker(), "`loadState` : reloading state");
@@ -239,11 +264,6 @@ public class ReconnectController implements Runnable {
         }
 
         stateLifecycleManager.initWithState(state);
-        // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
-        // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-        // TODO ensure the state is saved to disk and then reconstruct the consensus layer
-        savedStateController.reconnectStateReceived(signedState.reserve("savedStateController.reconnectStateReceived"));
-        reconnectCoordinator.loadReconnectState(configuration, signedState);
     }
 
     /**
@@ -281,19 +301,11 @@ public class ReconnectController implements Runnable {
     /**
      * Kills the node if the reconnect time window has elapsed.
      */
-    private void exitIf() {
+    private void exitIfReconnectDisabled() {
         if (!reconnectConfig.active()) {
             logger.error(
                     RECONNECT.getMarker(), "Node {} has fallen behind, reconnect is disabled, will die", selfId.id());
             SystemExitUtils.exitSystem(SystemExitCode.BEHIND_RECONNECT_DISABLED);
-        } else if (reconnectConfig.reconnectWindowSeconds() >= 0
-                && reconnectConfig.reconnectWindowSeconds()
-                        < Duration.between(startupTime, time.now()).toSeconds()) {
-            logger.error(
-                    RECONNECT.getMarker(),
-                    "Node {} has fallen behind, reconnect is disabled outside of time window, will die",
-                    selfId.id());
-            SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
         }
     }
 

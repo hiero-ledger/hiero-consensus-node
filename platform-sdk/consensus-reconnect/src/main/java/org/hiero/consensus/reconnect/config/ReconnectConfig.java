@@ -10,10 +10,6 @@ import java.time.Duration;
  *
  * @param active                                 Determines what a node will do when it falls behind. If true, it will
  *                                               attempt a reconnect, if false, it will die. Is reconnect enabled?
- * @param reconnectWindowSeconds                 Defines a window of time after the node starts up when the node is
- *                                               allowed to reconnect. If -1 then a node is always allowed to reconnect.
- *                                               Respects {@link #active} -- if active is false then reconnect is never
- *                                               allowed.
  * @param socketTimeout                          Socket timeout for input streams used during reconnect.
  * @param maxAckDelay                            The maximum amount of time to wait for an ACK message. If no ACK is
  *                                               received and sufficient time passes then send the potentially redundant
@@ -28,7 +24,6 @@ import java.time.Duration;
 @ConfigData("reconnect")
 public record ReconnectConfig(
         @ConfigProperty(defaultValue = "true") boolean active,
-        @ConfigProperty(defaultValue = "-1") int reconnectWindowSeconds,
         @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
         @ConfigProperty(defaultValue = "10ms") Duration maxAckDelay,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,

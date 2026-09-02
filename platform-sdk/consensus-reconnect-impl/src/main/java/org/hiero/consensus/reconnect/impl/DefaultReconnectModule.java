@@ -16,6 +16,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
@@ -46,6 +47,7 @@ public class DefaultReconnectModule implements ReconnectModule {
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
             @NonNull final Platform platform,
+            @NonNull final ConsensusLayer consensusLayer,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId) {
@@ -78,6 +80,7 @@ public class DefaultReconnectModule implements ReconnectModule {
                 time,
                 currentRoster,
                 platform,
+                consensusLayer,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 buildingBlocks.savedStateController(),

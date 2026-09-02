@@ -100,7 +100,9 @@ public class ConsensusLayerImpl implements ConsensusLayer {
     }
 
     @Override
-    public void destroy() {}
+    public void destroy() {
+        // TODO implement this
+    }
 
     @Override
     public void requestNextRound(@Nullable final Roster newRoster, @Nullable final Instant freezeTime) {

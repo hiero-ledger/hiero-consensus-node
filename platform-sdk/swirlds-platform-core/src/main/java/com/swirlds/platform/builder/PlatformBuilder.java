@@ -198,8 +198,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks);
 
         // Future work - capture the reconnect module, add a start() method to it, and call it later
-        final boolean reconnectActive =
-                configuration.getConfigData(ReconnectConfig.class).active();
+        final boolean reconnectActive = configuration.getConfigData(ReconnectConfig.class).active();
         if (reconnectActive) {
             factory.setupReconnectModule(platform, buildingBlocks);
         }

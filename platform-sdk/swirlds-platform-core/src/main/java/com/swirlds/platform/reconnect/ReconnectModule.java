@@ -12,6 +12,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
+import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.main.model.NodeId;
@@ -33,6 +34,7 @@ public interface ReconnectModule {
      * @param currentRoster the current roster of the network
      * @param buildingBlocks the building blocks for the consensus layer
      * @param platform the platform to use for performing platform operations
+     * @param consensusLayer the consensus layer to use for performing consensus operations
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
      * @param consensusStateEventHandler the handler for consensus state events
      * @param selfId the ID of this node
@@ -46,6 +48,7 @@ public interface ReconnectModule {
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
             @NonNull final Platform platform,
+            @NonNull final ConsensusLayer consensusLayer,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId);

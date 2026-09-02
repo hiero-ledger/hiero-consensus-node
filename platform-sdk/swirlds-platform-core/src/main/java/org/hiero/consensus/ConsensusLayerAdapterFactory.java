@@ -77,6 +77,7 @@ import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
@@ -402,7 +403,8 @@ public class ConsensusLayerAdapterFactory {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
+            @NonNull final StatusMonitorModule statuSMonitorModule) {
         final GossipModule module = createModule(GossipModule.class, configuration);
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
@@ -420,6 +422,7 @@ public class ConsensusLayerAdapterFactory {
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 stateLifecycleManager,
+                statuSMonitorModule,
                 additionalProperties);
         return module;
     }

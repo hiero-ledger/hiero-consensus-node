@@ -47,6 +47,7 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -84,6 +85,7 @@ class ReconnectControllerTest {
     private Configuration configuration;
     private Roster roster;
     private Platform platform;
+    private ConsensusLayer consensusLayer;
     private ReconnectCoordinator reconnectCoordinator;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private SavedStateController savedStateController;
@@ -151,6 +153,7 @@ class ReconnectControllerTest {
 
         // Mock Platform
         platform = mock(Platform.class);
+        consensusLayer = mock(ConsensusLayer.class);
 
         // Mock ReconnectCoordinator
         reconnectCoordinator = mock(ReconnectCoordinator.class);
@@ -203,6 +206,7 @@ class ReconnectControllerTest {
                 Time.getCurrent(),
                 roster,
                 platform,
+                consensusLayer,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -222,6 +226,7 @@ class ReconnectControllerTest {
                 time,
                 roster,
                 platform,
+                consensusLayer,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -462,8 +467,7 @@ class ReconnectControllerTest {
         verify(reconnectCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
         verify(reconnectCoordinator, times(1)).pauseGossip();
         verify(reconnectCoordinator, atLeast(1)).clear();
-        verify(reconnectCoordinator, times(1)).loadReconnectState(any(), any());
-        verify(reconnectCoordinator, times(1)).submitStatusAction(any(ReconnectCompleteAction.class));
+        verify(reconnectCoordinator, times(1)).loadReconnectState(any());
         verify(reconnectCoordinator, times(1)).resumeGossip();
     }
 
@@ -604,43 +608,6 @@ class ReconnectControllerTest {
         final int pauseIndex = operations.indexOf("pauseGossip");
         final int resumeIndex = operations.indexOf("resumeGossip");
         assertTrue(pauseIndex < resumeIndex, "pauseGossip should come before resumeGossip");
-    }
-
-    @Test
-    @DisplayName("ReconnectCompleteAction is submitted with correct round")
-    void testReconnectCompleteActionSubmitted() throws InterruptedException {
-        final ReconnectController controller = createController();
-        final AtomicReference<ReconnectCompleteAction> capturedAction = new AtomicReference<>();
-
-        // Capture the submitted action
-        doAnswer(inv -> {
-                    final Object arg = inv.getArgument(0);
-                    if (arg instanceof ReconnectCompleteAction action) {
-                        capturedAction.set(action);
-                    }
-                    return null;
-                })
-                .when(reconnectCoordinator)
-                .submitStatusAction(any());
-
-        final var scenario = new ReconnectScenario(controller);
-        scenario.start()
-                .reportFallenBehind(nodeIds[1], nodeIds[2])
-                .waitForReconnectToRequestState()
-                .provideState()
-                .waitForReconnectToReceiveState()
-                .syncRun(() -> {
-                    controller.stopReconnectLoop();
-                    scenario.interruptControllerThread();
-                })
-                .waitForFinish(LONG_TIMEOUT);
-
-        // Verify the action was submitted with correct round
-        assertNotNull(capturedAction.get(), "ReconnectCompleteAction should have been submitted");
-        assertEquals(
-                testSignedState.getRound(),
-                capturedAction.get().reconnectStateRound(),
-                "Action should have correct round");
     }
 
     @Test

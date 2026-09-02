@@ -38,9 +38,7 @@ class CatastrophicFailureStatusLogicTests {
         assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
         assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
         assertNoTransition(logic, new FallenBehindAction(), logic.getStatus());
-        assertNoTransition(logic, new ReconnectCompleteAction(0), logic.getStatus());
-        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
-        assertNoTransition(logic, new FreezeCompleteAction(0, true), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(), logic.getStatus());
         assertNoTransition(logic, new CatastrophicFailureAction(), logic.getStatus());
         assertNoTransition(
                 logic,

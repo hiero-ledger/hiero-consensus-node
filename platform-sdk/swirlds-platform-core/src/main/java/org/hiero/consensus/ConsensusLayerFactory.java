@@ -182,10 +182,10 @@ public class ConsensusLayerFactory {
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor = createFallenBehindMonitor();
-        final GossipModule gossipModule = createGossipModule(
-                intakeEventCounter, latestCompleteStateNexus, reservedSignedStateResultPromise, fallenBehindMonitor);
-
         final StatusMonitorModule statusMonitorModule = createStatusMonitorModule(freezePeriodChecker);
+        final GossipModule gossipModule = createGossipModule(
+                intakeEventCounter, latestCompleteStateNexus, reservedSignedStateResultPromise, fallenBehindMonitor, statusMonitorModule);
+
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
         final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring = createConsensusEventStreamWiring(
@@ -295,7 +295,8 @@ public class ConsensusLayerFactory {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         final GossipModule module = createModule(GossipModule.class, configuration);
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
@@ -312,8 +313,10 @@ public class ConsensusLayerFactory {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
+                // TODO figure out what to do with this stateLifecyleManager
 //                stateLifecycleManager,
                 null,
+                statusMonitorModule,
                 additionalProperties);
         return module;
     }

@@ -20,6 +20,11 @@ import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
+/**
+ * A proxy protocol for reconnect that makes decisions about teaching that can be made by the consensus layer. If the
+ * consensus layer has no reason to reject the teach request, it will delegate to the execution protocol to make the
+ * final decision and execute the protocol.
+ */
 public class ReconnectProxyProtocol implements PeerProtocol {
 
     private static final Logger logger = LogManager.getLogger();
@@ -108,7 +113,8 @@ public class ReconnectProxyProtocol implements PeerProtocol {
     }
 
     @Override
-    public void runProtocol(@NonNull final Connection connection) throws NetworkProtocolException, IOException, InterruptedException {
+    public void runProtocol(@NonNull final Connection connection)
+            throws NetworkProtocolException, IOException, InterruptedException {
         executionProtocol.runProtocol(connection);
     }
 

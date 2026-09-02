@@ -29,8 +29,6 @@ import org.hiero.consensus.uptime.UptimeTracker;
  * The default implementation of the {@link PlatformMonitor}.
  */
 public class DefaultPlatformMonitor implements PlatformMonitor {
-    /** The types of ISSs that should trigger a catastrophic failure */
-    private static final Set<IssType> CATASTROPHIC_ISS_TYPES = Set.of(IssType.SELF_ISS, IssType.CATASTROPHIC_ISS);
 
     /** Time source for the platform monitor */
     private final Time time;
@@ -44,7 +42,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     private Instant lastQuiescenceCommandTime;
     /** Checks if a time is in the freeze period */
     @NonNull
-    private FreezePeriodChecker freezePeriodChecker;
+    private final FreezePeriodChecker freezePeriodChecker;
 
     /**
      * Create a new platform monitor.

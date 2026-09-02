@@ -37,7 +37,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
- * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
+ * This protocol is responsible for synchronizing an out of date state either local acting as learner or remote acting as teacher
  * with one particular peer in the network.
  */
 public class ReconnectPeerProtocol implements PeerProtocol {

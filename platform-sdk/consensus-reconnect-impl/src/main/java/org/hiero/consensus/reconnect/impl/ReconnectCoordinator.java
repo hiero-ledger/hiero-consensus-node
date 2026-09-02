@@ -51,58 +51,6 @@ public class ReconnectCoordinator {
     }
 
     /**
-     * Safely clears the system in preparation for reconnect. After this method is called, there should be no work
-     * sitting in any of the wiring queues, and all internal data structures within wiring components that need to be
-     * cleared to prepare for a reconnect should be cleared.
-     */
-    public void clear() {
-        // Important: the order of the lines within this function are important. Do not alter the order of these
-        // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
-        // whether to change the order of these lines.
-
-        // Phase 0: flush the status state machine.
-        // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        buildingBlocks.statusMonitorModule().flush();
-
-        // Phase 1: squelch
-        // Break cycles in the system. Flush squelched components just in case there is a task being executed when
-        // squelch is activated.
-        buildingBlocks.hashgraphModule().startSquelching();
-        buildingBlocks.hashgraphModule().flush();
-        buildingBlocks.eventCreatorModule().startSquelching();
-        buildingBlocks.eventCreatorModule().flush();
-
-        // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
-        // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
-        // be handled.
-        buildingBlocks.transactionHandlingModule().startSquelching();
-        buildingBlocks.transactionHandlingModule().flush();
-
-        // Phase 2: flush
-        // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
-        buildingBlocks.eventIntakeModule().flush();
-        buildingBlocks.pcesModule().flush();
-        buildingBlocks.gossipModule().flush();
-        buildingBlocks.hashgraphModule().flush();
-        buildingBlocks.transactionHandlingModule().flush();
-        buildingBlocks.eventCreatorModule().flush();
-        buildingBlocks.stateModule().flush();
-
-        // Phase 3: stop squelching
-        // Once everything has been flushed out of the system, it's safe to stop squelching.
-        buildingBlocks.hashgraphModule().stopSquelching();
-        buildingBlocks.eventCreatorModule().stopSquelching();
-        buildingBlocks.transactionHandlingModule().stopSquelching();
-
-        // Phase 4: clear
-        // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
-        buildingBlocks.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
-        buildingBlocks.gossipModule().clearInputWire().inject(NoInput.getInstance());
-        buildingBlocks.stateModule().clearInputWire().inject(NoInput.getInstance());
-        buildingBlocks.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
-    }
-
-    /**
      * Resume gossiping.
      */
     public void resumeGossip() {
@@ -130,10 +78,9 @@ public class ReconnectCoordinator {
     /**
      * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
      *
-     * @param configuration the configuration to read necessary config values from
      * @param signedState the signed state to load into the platform
      */
-    public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
+    public void loadReconnectState(@NonNull final SignedState signedState) {
         buildingBlocks
                 .issDetectionModule()
                 .overridingStateInputWire()
@@ -149,22 +96,6 @@ public class ReconnectCoordinator {
         buildingBlocks.stateModule().sendState(signedState);
 
         final State state = signedState.getState();
-
-        final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
-        buildingBlocks.hashgraphModule().consensusSnapshotOverrideInputWire().inject(consensusSnapshot);
-
-        final ReadableRosterStore rosterStore =
-                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
-        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
-        this.injectRosterHistory(rosterHistory);
-
-        final int roundsNonAncient =
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-        buildingBlocks
-                .initialEventWindowDispatcher()
-                .getInputWire()
-                .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-        buildingBlocks.gossipModule().flush();
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);

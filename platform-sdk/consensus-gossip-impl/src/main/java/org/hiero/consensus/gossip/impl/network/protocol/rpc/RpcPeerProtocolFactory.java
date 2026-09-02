@@ -36,6 +36,7 @@ import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * Implementation of a factory for rpc protocol, encompassing new sync and broadcast atm
@@ -70,6 +71,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
 
     private final FallenBehindMonitor fallenBehindMonitor;
     private final Consumer<PlatformEvent> receivedEventHandler;
+    private final StatusMonitorModule statusMonitorModule;
 
     private volatile boolean started;
 
@@ -93,6 +95,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
      * @param selfId id of the current node
      * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
+     * @param statusMonitorModule module to report platform status to
      */
     public RpcPeerProtocolFactory(
             @NonNull final Configuration configuration,
@@ -106,7 +109,8 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final Consumer<PlatformEvent> receivedEventHandler) {
+            @NonNull final Consumer<PlatformEvent> receivedEventHandler,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
 
         this.synchronizer = synchronizer;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -131,6 +135,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), rosterSize);
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
+        this.statusMonitorModule = statusMonitorModule;
     }
 
     /**
@@ -163,7 +168,8 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
                 syncGuard,
                 fallenBehindMonitor,
                 syncConfig,
-                broadcastConfig);
+                broadcastConfig,
+                statusMonitorModule);
 
         peerProtocol.setRpcPeerHandler(handler);
         allRpcPeers.add(handler);

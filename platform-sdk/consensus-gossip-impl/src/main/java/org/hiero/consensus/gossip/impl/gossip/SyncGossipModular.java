@@ -44,6 +44,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * Utility class for wiring various subcomponents of gossip module. In particular, it abstracts away specific protocols
@@ -63,6 +64,7 @@ public class SyncGossipModular implements Gossip {
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
     private Consumer<SyncProgress> syncProgressHandler;
+    private final StatusMonitorModule statusMonitorModule;
 
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
@@ -88,7 +90,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -139,7 +142,9 @@ public class SyncGossipModular implements Gossip {
                 syncMetrics,
                 selfId,
                 fallenBehindMonitor,
-                event -> receivedEventHandler.accept(event));
+                event -> receivedEventHandler.accept(event),
+                statusMonitorModule);
+        this.statusMonitorModule = statusMonitorModule;
 
         proxyProtocolFactory = new ReconnectProxyProtocolFactory(
                 metrics,

@@ -32,6 +32,7 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -106,7 +107,8 @@ class RpcPeerHandlerTest {
                 syncGuard,
                 fallenBehindManager,
                 configuration.getConfigData(SyncConfig.class),
-                configuration.getConfigData(BroadcastConfig.class));
+                configuration.getConfigData(BroadcastConfig.class),
+                mock(StatusMonitorModule.class));
     }
 
     @Test
