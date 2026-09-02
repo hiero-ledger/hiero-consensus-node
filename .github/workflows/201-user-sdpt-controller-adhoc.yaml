@@ -40,19 +40,14 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      crypto-bench-merkle-db-java-args:
-        required: true
-        default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
-        description: "JMH javaargs"
-        type: string
       crypto-bench-merkle-db-test-params:
         required: true
-        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=60"
+        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
         description: "Test params"
         type: string
       duration-minutes:
         required: false
-        default: "120"
+        default: "1440"
         description: "Expected duration of all tests in minutes"
         type: string
       disable-notifications:
@@ -84,7 +79,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Verify Tag
@@ -115,7 +110,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -123,7 +118,7 @@ jobs:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -131,7 +126,7 @@ jobs:
     name: Extract Chewie Properties
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -197,16 +192,18 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       ref: "${{ inputs.ref || github.ref }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
-      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
+      crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
       duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
       chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -226,7 +223,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
 
@@ -296,7 +293,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
-          COMMIT=$(git rev-list -n 1 "${{ inputs.ref || github.ref }}")
+          COMMIT=$(git rev-list -n 1 "${{ github.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
           echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
@@ -376,7 +373,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-gomplate: "true"
