@@ -19,7 +19,10 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeTlsMode;
+import com.hedera.services.bdd.spec.SpecOperation;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,7 +35,10 @@ import org.junit.jupiter.api.Tag;
  * Verifies that a consensus node can publish its block stream to a block node whose APIs are secured with TLS.
  *
  * <p>Each block node API is configured independently in {@code block-nodes.json}, so TLS may be required on the
- * publish API alone, on every API, or on neither. Simulators present a self-signed certificate that the consensus node
+ * publish API alone, on the service API alone, on every API, or on neither. The suite covers every state the file
+ * can express: each acceptance criterion of the issue, the service-only mirror of the publish-only case, and the two
+ * ways a certificate can fail verification (a fingerprint that does not match, and no fingerprint at all against a
+ * self-signed certificate). Simulators present a self-signed certificate that the consensus node
  * trusts by pinning its SHA-384 fingerprint, which is how an operator would configure a block node fronted by a
  * TLS-terminating proxy.
  *
@@ -97,6 +103,41 @@ public class BlockNodeTlsSuite {
     @Order(2)
     final Stream<DynamicTest> publishOverTlsWithAllApisSecured() {
         return streamsSuccessfullyToBlockNodeZero();
+    }
+
+    /**
+     * Mirror of the publish-only case: the service API (server status) requires TLS while the publish API stays
+     * plaintext. This is the only end-to-end proof that the service client negotiates TLS on its own, rather than as
+     * a side effect of the publish client doing so.
+     */
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, tls = BlockNodeTlsMode.SERVICE_ONLY)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockNode.globalCoolDownSeconds", "1",
+                            "blockNode.basicNodeCoolDownSeconds", "1",
+                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                        })
+            })
+    @Order(5)
+    final Stream<DynamicTest> statusOverTlsWithPlaintextPublishApi() {
+        // A node is only ever selected for streaming after its status probe succeeded, so a successful stream
+        // already implies the TLS-only service listener answered; the explicit assertion makes that visible.
+        final List<SpecOperation> ops = new ArrayList<>(List.of(streamingSuccessOps()));
+        ops.add(awaitBlockNodeCommsLogContainsText(
+                byNodeId(0), "Received the following block node server status", LOG_WAIT));
+        return hapiTest(ops.toArray(SpecOperation[]::new));
     }
 
     /**
@@ -185,6 +226,46 @@ public class BlockNodeTlsSuite {
             })
     @Order(4)
     final Stream<DynamicTest> mismatchedCertificateFingerprintIsRejected() {
+        return fallsBackToTheVerifiablePeer();
+    }
+
+    /**
+     * Negative case: the consensus node is configured for TLS with no fingerprint, so it must validate the block
+     * node's certificate against the platform trust store. The simulator's certificate is self-signed and chains to
+     * nothing the platform trusts, so the handshake must fail. This proves the unpinned path really validates rather
+     * than accepting any certificate.
+     */
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, tls = BlockNodeTlsMode.ALL_NO_FINGERPRINT),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, tls = BlockNodeTlsMode.NONE)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockNode.globalCoolDownSeconds", "1",
+                            "blockNode.basicNodeCoolDownSeconds", "1",
+                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                        })
+            })
+    @Order(6)
+    final Stream<DynamicTest> unpinnedTlsRejectsSelfSignedCertificate() {
+        return fallsBackToTheVerifiablePeer();
+    }
+
+    /**
+     * Shared body for the negative cases: block node 0 is configured so that its certificate cannot be verified and
+     * block node 1 is plaintext. The consensus node must never stream to node 0 and must use node 1 instead.
+     */
+    private Stream<DynamicTest> fallsBackToTheVerifiablePeer() {
         final AtomicInteger untrustedPort = new AtomicInteger();
         final AtomicInteger trustedPort = new AtomicInteger();
         final AtomicReference<Set<Long>> untrustedBlocks = new AtomicReference<>();
@@ -218,24 +299,33 @@ public class BlockNodeTlsSuite {
      * actually arrive there, with no connection errors along the way.
      */
     private Stream<DynamicTest> streamsSuccessfullyToBlockNodeZero() {
+        return hapiTest(streamingSuccessOps());
+    }
+
+    /**
+     * The operations behind {@link #streamsSuccessfullyToBlockNodeZero()}, exposed so a test can append its own
+     * assertions while still running as a single spec.
+     */
+    private SpecOperation[] streamingSuccessOps() {
         final AtomicInteger streamingPort = new AtomicInteger();
         final AtomicReference<Set<Long>> received = new AtomicReference<>();
-        return hapiTest(
-                doingContextual(spec -> streamingPort.set(spec.getBlockNodePortById(0))),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), activeConnectionText(streamingPort.get()), LOG_WAIT)),
-                awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Sending request to block node (type: END_OF_BLOCK)", LOG_WAIT),
-                blockNode(0).getReceivedBlockNumbersExposing(received::set),
-                doingContextual(spec -> assertThat(received.get())
-                        .as("the TLS-secured block node should have received blocks")
-                        .isNotEmpty()),
-                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Error received", Duration.ZERO),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Exception caught in connection worker thread", Duration.ZERO),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Failed to read block node configuration from", Duration.ZERO));
+        return new SpecOperation[] {
+            doingContextual(spec -> streamingPort.set(spec.getBlockNodePortById(0))),
+            waitUntilNextBlocks(5).withBackgroundTraffic(true),
+            sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
+                    byNodeId(0), activeConnectionText(streamingPort.get()), LOG_WAIT)),
+            awaitBlockNodeCommsLogContainsText(
+                    byNodeId(0), "Sending request to block node (type: END_OF_BLOCK)", LOG_WAIT),
+            blockNode(0).getReceivedBlockNumbersExposing(received::set),
+            doingContextual(spec -> assertThat(received.get())
+                    .as("the TLS-secured block node should have received blocks")
+                    .isNotEmpty()),
+            assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Error received", Duration.ZERO),
+            assertBlockNodeCommsLogDoesNotContainText(
+                    byNodeId(0), "Exception caught in connection worker thread", Duration.ZERO),
+            assertBlockNodeCommsLogDoesNotContainText(
+                    byNodeId(0), "Failed to read block node configuration from", Duration.ZERO)
+        };
     }
 
     private static String activeConnectionText(final int port) {

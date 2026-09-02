@@ -327,14 +327,20 @@ public class BlockNodeNetwork {
                 switch (tlsMode) {
                     case NONE -> false;
                     case PUBLISH_ONLY -> streaming;
-                    case ALL, ALL_BAD_FINGERPRINT -> true;
+                    case SERVICE_ONLY -> !streaming;
+                    case ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT -> true;
                 };
         if (!enabled) {
             return null;
         }
-        final String fingerprint = tlsMode == BlockNodeTlsMode.ALL_BAD_FINGERPRINT
-                ? UNMATCHED_FINGERPRINT
-                : SelfSignedCert.shared().sha384Fingerprint();
+        // null leaves the fingerprint unset, which makes the consensus node fall back to the platform trust store
+        final String fingerprint =
+                switch (tlsMode) {
+                    case ALL_BAD_FINGERPRINT -> UNMATCHED_FINGERPRINT;
+                    case ALL_NO_FINGERPRINT -> null;
+                    case NONE, PUBLISH_ONLY, SERVICE_ONLY, ALL ->
+                        SelfSignedCert.shared().sha384Fingerprint();
+                };
         return BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
                 .certificateSha384(fingerprint)

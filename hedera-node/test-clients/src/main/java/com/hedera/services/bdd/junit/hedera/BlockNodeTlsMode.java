@@ -15,12 +15,22 @@ public enum BlockNodeTlsMode {
     /** Only the streaming (publish) API is served over TLS; the service API stays plaintext. */
     PUBLISH_ONLY,
 
-    /** Every API is served over TLS. */
+    /** Only the service API is served over TLS; the streaming (publish) API stays plaintext. */
+    SERVICE_ONLY,
+
+    /** Every API is served over TLS, and the consensus node pins the simulator's certificate fingerprint. */
     ALL,
 
     /**
      * Every API is served over TLS, but the consensus node is configured with a fingerprint that does not match the
      * certificate the block node presents. Used to verify that a mismatched certificate is rejected.
      */
-    ALL_BAD_FINGERPRINT
+    ALL_BAD_FINGERPRINT,
+
+    /**
+     * Every API is served over TLS, but the consensus node is configured with no fingerprint at all, so it must
+     * validate the simulator's self-signed certificate against the platform trust store. Used to verify that the
+     * unpinned path really validates, and therefore rejects a certificate that chains to nothing it trusts.
+     */
+    ALL_NO_FINGERPRINT
 }

@@ -205,7 +205,11 @@ public class SimulatedBlockNodeServer {
      * @return the TLS settings for the streaming API, or null if it is served in plaintext
      */
     private static @Nullable Tls streamingTls(@NonNull final BlockNodeTlsMode tlsMode) {
-        return tlsMode == BlockNodeTlsMode.NONE ? null : SelfSignedCert.shared().serverTls();
+        return switch (tlsMode) {
+            case NONE, SERVICE_ONLY -> null;
+            case PUBLISH_ONLY, ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT ->
+                SelfSignedCert.shared().serverTls();
+        };
     }
 
     /**
@@ -213,9 +217,11 @@ public class SimulatedBlockNodeServer {
      * @return the TLS settings for the service API, or null if it is served in plaintext
      */
     private static @Nullable Tls serviceTls(@NonNull final BlockNodeTlsMode tlsMode) {
-        return tlsMode == BlockNodeTlsMode.NONE || tlsMode == BlockNodeTlsMode.PUBLISH_ONLY
-                ? null
-                : SelfSignedCert.shared().serverTls();
+        return switch (tlsMode) {
+            case NONE, PUBLISH_ONLY -> null;
+            case SERVICE_ONLY, ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT ->
+                SelfSignedCert.shared().serverTls();
+        };
     }
 
     /**
