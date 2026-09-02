@@ -19,12 +19,6 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      by {@code virtualMap.percentHashThreads} and {@link Runtime#availableProcessors()}.
  * @param reconnectMode
  *      Reconnect mode. For the list of accepted values, see {@link VirtualMapReconnectMode}.
- * @param inMemorySizeThreshold
- *      When estimated virtual map size in bytes exceeds {@link #copyFlushCandidateThreshold}, the map is
- *      flushed to its data source. However, if the number of entities in the map is smaller than this
- *      in-memory threshold, the flush is not performed, but the map is merged to the newer copy with
- *      compaction instead. If the threshold is zero, all flushes are performed as expected regardless
- *      of the current virtual map size (in entities, not in bytes).
  * @param reconnectFlushInterval
  *      During reconnect, virtual nodes are periodically flushed to disk after they are hashed. This
  *      interval indicates the number of nodes to hash before they are flushed to disk. If zero, all
@@ -36,9 +30,13 @@ import com.swirlds.config.api.validation.annotation.Min;
  * 		The number of threads to devote to cache cleaning. If not set, defaults to the number of threads implied by
  *      {@code virtualMap.percentCleanerThreads} and {@link Runtime#availableProcessors()}.
  * @param copyFlushCandidateThreshold
- *      Virtual map copy flush threshold. A copy can be flushed to disk only if its size exceeds this
- *      threshold. If in-memory mode is enabled by setting {@link #inMemorySizeThreshold}, make sure the
- *      flush threshold is at least 2.5-3 times larger than the size of max map elements in bytes.
+ *      Virtual map copy flush threshold, in bytes. If estimated copy size exceeds the threshold,
+ *      and it contains less than {@link #percentFlushGarbageThreshold} redundant data, it will be
+ *      flushed to disk.
+ * @param percentFlushGarbageThreshold
+ *      When estimated copy size exceeds {@link #copyFlushCandidateThreshold}, and ratio of redundant data
+ *      in the copy to estimated copy size exceeds this threshold, in percent, the copy gets garbage collected,
+ *      i.e. all redundant data is purged from it. Then the copy can be merged into the newer copy.
  * @param familyThrottleThreshold
  *      Virtual map family throttle threshold. When estimated size of all unreleased copies of the same virtual
  *      root exceeds this threshold, virtual pipeline starts applying backpressure on creating new root copies.
@@ -59,12 +57,11 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @ConfigProperty(defaultValue = PULL_TOP_TO_BOTTOM) String reconnectMode,
-        @Min(0) @ConfigProperty(defaultValue = "0") long inMemorySizeThreshold,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,
-        @Min(0) @Max(200) @ConfigProperty(defaultValue = "100") double percentFlushGarbageThreshold,
+        @Min(0) @Max(100) @ConfigProperty(defaultValue = "50") double percentFlushGarbageThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @Min(1) @ConfigProperty(defaultValue = "37748736") int valueParseMaxSizeBytes,
