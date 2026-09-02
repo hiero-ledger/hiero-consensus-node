@@ -16,6 +16,7 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.TEST_NETWORK;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.yaml.snakeyaml.nodes.Tag.MAP;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
@@ -54,7 +55,7 @@ public class NodeRoutingRegressionTest {
 
     /**
      * Verifies that account-creation requests succeed when routed explicitly to both nodes in a
-     * gap topology. Uses nodes 0 and 3 from the embedded 4-node network (nodeIds 0 and 3,
+     * gap topology. Uses nodes 0 and 3 from the test 4-node network (nodeIds 0 and 3,
      * accounts 3 and 6, skipping nodeIds 1 and 2).
      *
      * <p>Without the fix, {@code toSpecProperties()} includes {@code #id} suffixes, causing
@@ -103,7 +104,7 @@ public class NodeRoutingRegressionTest {
     }
 
     /**
-     * Builds a gap-topology config from the embedded network (nodes 0 and 3 only, skipping 1 and 2),
+     * Builds a gap-topology config from the network (nodes 0 and 3 only, skipping 1 and 2),
      * writes it to a fresh working directory, copies the genesis key material, and populates the
      * node account string references for use in routing subsequent commands.
      */
@@ -115,16 +116,16 @@ public class NodeRoutingRegressionTest {
             throws IOException {
         final var defaultWorkDir = Path.of(DEFAULT_WORKING_DIR.get());
 
-        // Read the embedded network's config to get actual host:port info
-        final var embeddedConfigFile = defaultWorkDir.resolve("config.yml");
+        // Read the network's config to get actual host:port info
+        final var currentConfigFile = defaultWorkDir.resolve("config.yml");
         final var yamlIn = new Yaml(new Constructor(GlobalConfig.class, new LoaderOptions()));
-        final GlobalConfig embeddedGlobal;
-        try (final var in = Files.newInputStream(embeddedConfigFile)) {
-            embeddedGlobal = yamlIn.load(in);
+        final GlobalConfig global;
+        try (final var in = Files.newInputStream(currentConfigFile)) {
+            global = yamlIn.load(in);
         }
-        final var embeddedNet = embeddedGlobal.getNetworks().get(TEST_NETWORK);
-        final var allNodes = embeddedNet.getNodes();
-        assertTrue(allNodes.size() >= 4, "Expected at least 4 embedded nodes to form a gap topology");
+        final var network = global.getNetworks().get(TEST_NETWORK);
+        final var allNodes = network.getNodes();
+        assertTrue(allNodes.size() >= 4, "Expected at least 4 nodes to form a gap topology");
 
         // Take nodes at indices 0 and 3: their nodeIds skip 1 and 2, so accounts are non-sequential
         final var gapNodes = List.of(allNodes.get(0), allNodes.get(3));
@@ -132,9 +133,9 @@ public class NodeRoutingRegressionTest {
         node3Account.set(String.valueOf(gapNodes.get(1).getAccount()));
 
         final var gapNet = new NetConfig();
-        gapNet.setShard(embeddedNet.getShard());
-        gapNet.setRealm(embeddedNet.getRealm());
-        gapNet.setDefaultPayer(embeddedNet.getDefaultPayer());
+        gapNet.setShard(network.getShard());
+        gapNet.setRealm(network.getRealm());
+        gapNet.setDefaultPayer(network.getDefaultPayer());
         gapNet.setNodes(gapNodes);
         gapNet.setDefaultNodeAccount((int) gapNodes.getFirst().getAccount());
 
@@ -154,7 +155,7 @@ public class NodeRoutingRegressionTest {
 
         // Write the gap config.yml
         final var yamlOut = new Yaml();
-        final var doc = yamlOut.dumpAs(gapGlobal, org.yaml.snakeyaml.nodes.Tag.MAP, null);
+        final var doc = yamlOut.dumpAs(gapGlobal, MAP, null);
         final var configFile = gapDir.resolve("config.yml");
         Files.writeString(configFile, doc);
 
