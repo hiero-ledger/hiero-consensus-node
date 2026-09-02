@@ -11,10 +11,12 @@ import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.N
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.OTHER_NODE;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.SAME_NODE;
 import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -24,9 +26,12 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -38,7 +43,11 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableQueueState;
+import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.ListReadableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -46,9 +55,11 @@ import java.time.InstantSource;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -299,6 +310,122 @@ final class RecordCacheImplTest extends AppTestBase {
                 .transactionID(transactionReceiptEntry.transactionId())
                 .receipt(TransactionReceipt.newBuilder().status(transactionReceiptEntry.status()))
                 .build();
+    }
+
+    @Nested
+    @DisplayName("Receipt queue diagnostics")
+    final class ReceiptQueueDiagnosticsTests {
+        @Test
+        @DisplayName("Reports repeated restored IDs and verifies the committed queue head")
+        void reportsRepeatedRestoredIdsAndCommittedQueueHead() {
+            final var validStart = instantSource.instant().minus(181, ChronoUnit.SECONDS);
+            final var txnId = TransactionID.newBuilder()
+                    .transactionValidStart(new Timestamp(validStart.getEpochSecond(), validStart.getNano()))
+                    .accountID(PAYER_ACCOUNT_ID)
+                    .build();
+            final var receipt = new TransactionReceiptEntry(1L, txnId, SUCCESS);
+            final var repeatedReceiptBatch = new TransactionReceiptEntries(List.of(receipt, receipt));
+            final var state = Objects.requireNonNull(wsa.getState());
+            final WritableQueueState<TransactionReceiptEntries> queue =
+                    state.getWritableStates(RecordCacheService.NAME).getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            queue.add(repeatedReceiptBatch);
+            ((ListWritableQueueState<?>) queue).commit();
+            given(networkInfo.nodeInfo(1L)).willReturn(nodeInfo);
+            given(nodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+
+            final var logCaptor = new LogCaptor(LogManager.getLogger(RecordCacheImpl.class));
+            try {
+                final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+                cache.commitReceipts(
+                        state,
+                        instantSource.instant(),
+                        new ImmediateStateChangeListener(),
+                        mock(BlockStreamManager.class),
+                        RECORDS);
+
+                assertThat(logCaptor.infoLogs())
+                        .anyMatch(log -> log.contains(
+                                "found 1 transaction IDs with multiple receipt entries (1 repeated entries)"));
+                assertThat(logCaptor.warnLogs()).singleElement().satisfies(log -> {
+                    assertThat(log).contains("not cached for either payer or submitting node");
+                    assertThat(log).contains("commitSupported=true");
+                    assertThat(log).contains("everyPollReturnedExpectedHead=true");
+                    assertThat(log).contains("receiptIndexAnomalyCount=1");
+                    assertThat(log).contains("rebuiltQueueReceiptCount=2");
+                    assertThat(log).contains("persistedHeadMatchesExpected=true");
+                    assertThat(log).contains("persistedHeadMatchesFirstRemovedBatch=false");
+                    assertThat(log).contains("consecutiveSameAnomalousQueueHeadObservations=1");
+                });
+                assertThat(state.getReadableStates(RecordCacheService.NAME)
+                                .<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID)
+                                .peek())
+                        .isNull();
+            } finally {
+                logCaptor.stopCapture();
+            }
+        }
+
+        @Test
+        @DisplayName("Reports an anomalous queue head replayed across purges")
+        void reportsAnomalousQueueHeadReplayAcrossPurges() {
+            final var validStart = instantSource.instant().minus(181, ChronoUnit.SECONDS);
+            final var txnId = TransactionID.newBuilder()
+                    .transactionValidStart(new Timestamp(validStart.getEpochSecond(), validStart.getNano()))
+                    .accountID(PAYER_ACCOUNT_ID)
+                    .build();
+            final var receipt = new TransactionReceiptEntry(1L, txnId, SUCCESS);
+            final var repeatedReceiptBatch = new TransactionReceiptEntries(List.of(receipt, receipt));
+            final var state = Objects.requireNonNull(wsa.getState());
+            final WritableQueueState<TransactionReceiptEntries> queue =
+                    state.getWritableStates(RecordCacheService.NAME).getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            queue.add(repeatedReceiptBatch);
+            ((ListWritableQueueState<?>) queue).commit();
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            given(networkInfo.nodeInfo(1L)).willReturn(nodeInfo);
+            given(nodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+
+            final var persistentBackingQueue = new LinkedList<TransactionReceiptEntries>();
+            persistentBackingQueue.add(repeatedReceiptBatch);
+            final var replayingState = mock(State.class);
+            final var writableStates = mock(WritableStates.class);
+            final var readableStates = mock(ReadableStates.class);
+            given(replayingState.getWritableStates(RecordCacheService.NAME)).willReturn(writableStates);
+            given(writableStates.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID))
+                    .willAnswer(ignored -> new ListWritableQueueState<>(
+                            TRANSACTION_RECEIPTS_STATE_ID, "replaying writable queue", persistentBackingQueue));
+            given(replayingState.getReadableStates(RecordCacheService.NAME)).willReturn(readableStates);
+            given(readableStates.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID))
+                    .willAnswer(ignored -> new ListReadableQueueState<>(
+                            TRANSACTION_RECEIPTS_STATE_ID, "replaying readable queue", persistentBackingQueue));
+
+            final var logCaptor = new LogCaptor(LogManager.getLogger(RecordCacheImpl.class));
+            try {
+                final var blockStreamManager = mock(BlockStreamManager.class);
+                cache.commitReceipts(
+                        replayingState,
+                        instantSource.instant(),
+                        new ImmediateStateChangeListener(),
+                        blockStreamManager,
+                        RECORDS);
+                cache.commitReceipts(
+                        replayingState,
+                        instantSource.instant(),
+                        new ImmediateStateChangeListener(),
+                        blockStreamManager,
+                        RECORDS);
+
+                assertThat(logCaptor.warnLogs()).hasSize(2).allSatisfy(log -> {
+                    assertThat(log).contains("commitSupported=false");
+                    assertThat(log).contains("everyPollReturnedExpectedHead=true");
+                    assertThat(log).contains("persistedHeadMatchesExpected=false");
+                    assertThat(log).contains("persistedHeadMatchesFirstRemovedBatch=true");
+                });
+                assertThat(logCaptor.warnLogs().get(0)).contains("consecutiveSameAnomalousQueueHeadObservations=1");
+                assertThat(logCaptor.warnLogs().get(1)).contains("consecutiveSameAnomalousQueueHeadObservations=2");
+            } finally {
+                logCaptor.stopCapture();
+            }
+        }
     }
 
     @Nested
