@@ -236,7 +236,7 @@ public class NetworkSimulationTest {
 
     @Test
     @Disabled("This test has no assertions, its only goal to speed up certain testing")
-    void sizeComparison() {
+    void ententeSizeComparison() {
         final int maxParents = 4;
         final int maxNumNodes = 20;
 
@@ -271,7 +271,7 @@ public class NetworkSimulationTest {
 
     @Test
     @Disabled("This test has no assertions, its only goal to speed up certain testing")
-    void sizeParentMatrix() {
+    void ententeSizeParentMatrix() {
         final int maxNumNodes = 20;
 
         final Duration tick = Duration.of(300, ChronoUnit.MICROS);

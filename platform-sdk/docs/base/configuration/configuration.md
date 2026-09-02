@@ -2,7 +2,7 @@
 
 # Swirlds Configuration
 
-This documentation gives an overview of the configuration API. The API is used
+This documentation gives an overview to the config API of [SwirldsLabs](https://swirldslabs.com). The API is used
 internally to configure the
 platform and any services. Next to this the API can be used to configure an application that is using the platform.
 
@@ -355,7 +355,7 @@ Implementations of all 3 interfaces must be registered before a configuration ha
 The `swirlds-config-impl` module already does this for several of the internal implementations. Custom implementations
 can easily be registered when creating a `com.swirlds.config.api.Configuration` instance:
 
-**IMPORTANT:** _By introducing the platform context (historical Platform issue #5852), the API
+**IMPORTANT:** _By [introducing the platform context](https://github.com/swirlds/swirlds-platform/issues/5852) the API
 that is used to setup the config API will change. Therefore I will add the documentation of that
 point later._
 
@@ -420,7 +420,7 @@ public class FruitConfigConverter implements ConfigConverter<Fruit> {
 }
 ```
 
-**IMPORTANT:** _By introducing the platform context (historical Platform issue #5852), the API
+**IMPORTANT:** _By [introducing the platform context](https://github.com/swirlds/swirlds-platform/issues/5852) the API
 that is used to add custom config converters to the config will change. Therefore I will add the documentation of that
 point later._
 
