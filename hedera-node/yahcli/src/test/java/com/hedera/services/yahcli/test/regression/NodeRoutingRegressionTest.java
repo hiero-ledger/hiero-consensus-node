@@ -3,28 +3,31 @@ package com.hedera.services.yahcli.test.regression;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.rm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.DEFAULT_WORKING_DIR;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.TEST_NETWORK;
-import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.yahcli.config.domain.GlobalConfig;
 import com.hedera.services.yahcli.config.domain.NetConfig;
-import com.hedera.services.yahcli.config.domain.NodeConfig;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -42,48 +45,73 @@ import org.yaml.snakeyaml.constructor.Constructor;
  * retired), so real accounts are non-sequential (3, 4, 7, 8, 9, …). Sequential fallback numbering
  * (3, 4, 5, 6, 7, …) diverges at the first gap, routing gRPC calls to the wrong node, which then
  * rejects transactions with {@code INVALID_NODE_ACCOUNT}.
+ *
+ * <p>Unit-level assertions for {@code toSpecProperties()} live in
+ * {@code com.hedera.services.yahcli.test.config.NetConfigTest}.
  */
 @Tag(REGRESSION)
 public class NodeRoutingRegressionTest {
 
     /**
-     * Verifies that a crypto transfer actually succeeds when the yahcli config uses nodes with
-     * non-sequential nodeIds (a gap topology). Uses nodes 0 and 3 from the embedded 4-node
-     * network (nodeIds 0 and 3, accounts 3 and 6, skipping nodeIds 1 and 2).
+     * Verifies that account-creation requests succeed when routed explicitly to both nodes in a
+     * gap topology. Uses nodes 0 and 3 from the embedded 4-node network (nodeIds 0 and 3,
+     * accounts 3 and 6, skipping nodeIds 1 and 2).
      *
      * <p>Without the fix, {@code toSpecProperties()} includes {@code #id} suffixes, causing
-     * {@link NodeConnectInfo} to fall back to sequential accounts 3 and 4. When {@code nodeAccounts}
-     * (built from {@code toNodeInfos()}, which correctly strips suffixes) cycles to account 6,
-     * {@code HapiClients.stubId()} finds no stub for account 6 and throws, causing yahcli to exit
-     * non-zero and the test to fail.
+     * {@link NodeConnectInfo} to assign sequential stub accounts 3 and 4. Routing to node account 6
+     * then finds no matching stub and throws, making yahcli exit non-zero.
      *
-     * <p>With the fix, stubs are keyed by accounts 3 and 6 correctly, so routing to account 6
-     * succeeds and the crypto transfer completes.
+     * <p>With the fix, stubs are keyed by accounts 3 and 6 correctly, so both account-creation
+     * requests succeed and the resulting accounts carry the expected 1-hbar balance.
      */
     @HapiTest
-    final Stream<DynamicTest> cryptoTransferSucceedsWhenNodeIdsHaveGaps() {
+    final Stream<DynamicTest> accountCreationSucceedsWhenRoutedToGapNodes() {
         final var gapConfigPath = new AtomicReference<String>();
         final var gapWorkDirPath = new AtomicReference<String>();
+        final var node0Account = new AtomicReference<String>();
+        final var node3Account = new AtomicReference<String>();
+        final var acctViaNode0 = new AtomicLong();
+        final var acctViaNode3 = new AtomicLong();
 
         return hapiTest(
                 doingContextual(spec -> {
                     try {
-                        setupGapWorkDir(gapConfigPath, gapWorkDirPath);
+                        setupGapWorkDir(gapConfigPath, gapWorkDirPath, node0Account, node3Account);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }),
-                sourcingContextual(spec -> yahcliIvy("scenarios", "--crypto")
+                // Create an account routed explicitly to node 0 (account 3 in gap topology)
+                sourcingContextual(spec -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
                         .withConfigLoc(gapConfigPath.get())
-                        .withWorkingDir(gapWorkDirPath.get())));
+                        .withWorkingDir(gapWorkDirPath.get())
+                        .withNodeAccount(node0Account.get())
+                        .exposingOutputTo(newAccountCapturer(acctViaNode0::set))),
+                // Create an account routed explicitly to node 3 (account 6 in gap topology — the gap node)
+                sourcingContextual(spec -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
+                        .withConfigLoc(gapConfigPath.get())
+                        .withWorkingDir(gapWorkDirPath.get())
+                        .withNodeAccount(node3Account.get())
+                        .exposingOutputTo(newAccountCapturer(acctViaNode3::set))),
+                // Verify both accounts were created with the expected 1-hbar balance
+                sourcingContextual(spec -> getAccountInfo(
+                                asAccountString(spec.accountIdFactory().apply(acctViaNode0.get())))
+                        .has(accountWith().balance(ONE_HBAR))),
+                sourcingContextual(spec -> getAccountInfo(
+                                asAccountString(spec.accountIdFactory().apply(acctViaNode3.get())))
+                        .has(accountWith().balance(ONE_HBAR))));
     }
 
     /**
      * Builds a gap-topology config from the embedded network (nodes 0 and 3 only, skipping 1 and 2),
-     * writes it to a fresh working directory, and copies the genesis key material.
+     * writes it to a fresh working directory, copies the genesis key material, and populates the
+     * node account string references for use in routing subsequent commands.
      */
     private static void setupGapWorkDir(
-            AtomicReference<String> gapConfigPath, AtomicReference<String> gapWorkDirPath) throws IOException {
+            AtomicReference<String> gapConfigPath,
+            AtomicReference<String> gapWorkDirPath,
+            AtomicReference<String> node0Account,
+            AtomicReference<String> node3Account) throws IOException {
         final var defaultWorkDir = Path.of(DEFAULT_WORKING_DIR.get());
 
         // Read the embedded network's config to get actual host:port info
@@ -99,6 +127,8 @@ public class NodeRoutingRegressionTest {
 
         // Take nodes at indices 0 and 3: their nodeIds skip 1 and 2, so accounts are non-sequential
         final var gapNodes = List.of(allNodes.get(0), allNodes.get(3));
+        node0Account.set(String.valueOf(gapNodes.get(0).getAccount()));
+        node3Account.set(String.valueOf(gapNodes.get(1).getAccount()));
 
         final var gapNet = new NetConfig();
         gapNet.setShard(embeddedNet.getShard());
@@ -129,13 +159,5 @@ public class NodeRoutingRegressionTest {
 
         gapConfigPath.set(configFile.toString());
         gapWorkDirPath.set(gapDir.toString());
-    }
-
-    private static NodeConfig nodeConfig(int id, long account, String ip) {
-        final var n = new NodeConfig();
-        n.setId(id);
-        n.setAccount(account);
-        n.setIpv4Addr(ip);
-        return n;
     }
 }
