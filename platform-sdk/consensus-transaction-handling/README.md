@@ -20,27 +20,27 @@ for the state pipeline it feeds, see
 ## Dependency Rules
 
 May depend on:
-- Supporting modules: `consensus-model`, `consensus-metrics`, `consensus-platformstate`,
-`consensus-utility`
+- Supporting modules: `consensus-model`, `consensus-metrics`, `consensus-utility`
 - Functional-api module: `consensus-hashgraph`
 - Self-contained functional module: `consensus-status-monitor`
-- Structural-transitional module: `consensus-state`
+- Structural-transitional modules: `consensus-event-stream`, `consensus-platformstate`,
+`consensus-state`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`consensus-wiring-framework`
+`consensus-wiring-framework`, `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
 Must not depend on:
 - Any `consensus-*-impl` module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
-Accepted exceptions:
-- `requires transitive com.swirlds.state.api`, `com.swirlds.state.impl`, `com.swirlds.virtualmap` —
-otherwise permitted only in `consensus-state` and `consensus-state-management`. The handler applies
-transactions directly to the state's merkle tree and virtual map, so these types appear in this
-module's signatures. Accepted during modularization; resolves when the module moves to the execution
-layer.
-- `requires org.hiero.consensus.event.stream` — `consensus-event-stream` is itself treated like an
-impl module (nothing should depend on it). `DefaultTransactionHandler` reads `EventStreamWiringConfig`
-to drive the legacy running event hash for the soon-to-be-retired consensus event stream
+`swirlds-state-api`, `swirlds-state-impl`, and `swirlds-virtualmap` are needed because the handler
+applies transactions directly to the state's merkle tree and virtual map, so these types appear in
+this module's signatures.
+
+`consensus-event-stream` is reached because `DefaultTransactionHandler` reads
+`EventStreamWiringConfig` to drive the legacy running event hash for the soon-to-be-retired
+consensus event stream
 ([`DefaultTransactionHandler.java`](src/main/java/org/hiero/consensus/transaction/handling/internal/DefaultTransactionHandler.java));
 the coupling disappears when the event stream is deleted.
+
+No known violations.
