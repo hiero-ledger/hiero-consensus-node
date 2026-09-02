@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
@@ -83,13 +84,13 @@ public class NodeRoutingRegressionTest {
                     }
                 }),
                 // Create an account routed explicitly to node 0 (account 3 in gap topology)
-                doAdhoc(() -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
+                sourcing(() -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
                         .withConfigLoc(gapConfigPath.get())
                         .withWorkingDir(gapWorkDirPath.get())
                         .withNodeAccount(node0Account.get())
                         .exposingOutputTo(newAccountCapturer(acctViaNode0::set))),
                 // Create an account routed explicitly to node 3 (account 6 in gap topology — the gap node)
-                doAdhoc(() -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
+                sourcing(() -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
                         .withConfigLoc(gapConfigPath.get())
                         .withWorkingDir(gapWorkDirPath.get())
                         .withNodeAccount(node3Account.get())
