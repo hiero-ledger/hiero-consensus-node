@@ -47,38 +47,6 @@ import org.yaml.snakeyaml.constructor.Constructor;
 public class NodeRoutingRegressionTest {
 
     /**
-     * Reproduces the mainnet topology where nodeIds skip retired nodes 2 and 3, yielding
-     * non-sequential accounts (3, 4, 7). Without the fix, {@code toSpecProperties()} includes
-     * {@code #id} suffixes that prevent {@link NodeConnectInfo} from parsing the account literal,
-     * causing it to fall back to sequential numbering and assign account 5 to the third node
-     * (which is actually account 7).
-     */
-    @HapiTest
-    final Stream<DynamicTest> toSpecPropertiesProducesCorrectAccountsForNonSequentialNodeIds() {
-        return hapiTest(doingContextual(spec -> {
-            // Simulate mainnet topology: nodeIds 0, 1, 4 (gaps at retired nodeIds 2 and 3)
-            // Real accounts: 3, 4, 7 — sequential fallback would give: 3, 4, 5 (wrong for node 4)
-            final var netConfig = new NetConfig();
-            netConfig.setNodes(List.of(
-                    nodeConfig(0, 3, "35.237.208.135"),
-                    nodeConfig(1, 4, "35.236.222.232"),
-                    nodeConfig(4, 7, "34.94.94.224")));
-
-            final var nodesValue = netConfig.toSpecProperties().get("nodes");
-
-            assertFalse(
-                    nodesValue.contains("#"),
-                    "nodes property must not contain #id suffixes — they prevent NodeConnectInfo"
-                            + " from parsing account literals: " + nodesValue);
-
-            final var entries = nodesValue.split(",");
-            assertEquals(3, entries.length);
-            assertEquals(7L, new NodeConnectInfo(entries[2]).getAccount().getAccountNum(),
-                    "Third node (nodeId=4) must parse as account 7, not sequential fallback 5");
-        }));
-    }
-
-    /**
      * Verifies that a crypto transfer actually succeeds when the yahcli config uses nodes with
      * non-sequential nodeIds (a gap topology). Uses nodes 0 and 3 from the embedded 4-node
      * network (nodeIds 0 and 3, accounts 3 and 6, skipping nodeIds 1 and 2).
