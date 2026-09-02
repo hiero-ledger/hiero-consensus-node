@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.spi.test.fixtures {
+    exports com.hedera.node.app.spi.fixtures;
     exports com.hedera.node.app.spi.fixtures.fees;
     exports com.hedera.node.app.spi.fixtures.ids;
     exports com.hedera.node.app.spi.fixtures.info;
     exports com.hedera.node.app.spi.fixtures.util;
     exports com.hedera.node.app.spi.fixtures.workflows;
-    exports com.hedera.node.app.spi.fixtures;
 
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token; // TMP until FakePreHandleContext can be removed

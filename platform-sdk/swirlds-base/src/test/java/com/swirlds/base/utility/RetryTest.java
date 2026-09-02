@@ -96,7 +96,7 @@ class RetryTest {
             return val == value;
         });
 
-        await().atMost(2, TimeUnit.SECONDS).until(() -> Retry.check(checkFn, 2, 5, 100));
+        await().atMost(125, TimeUnit.MILLISECONDS).until(() -> Retry.check(checkFn, 2, 5, 100));
         verify(checkFn, Mockito.times(2)).apply(2);
 
         //noinspection unchecked
@@ -111,7 +111,7 @@ class RetryTest {
         reset(checkFn);
         counter.set(0);
         await().pollDelay(10, TimeUnit.MILLISECONDS)
-                .atMost(2, TimeUnit.SECONDS)
+                .atMost(25, TimeUnit.MILLISECONDS)
                 .until(() -> Retry.check(checkFn, 1, 5, 100));
         verify(checkFn, Mockito.times(1)).apply(1);
     }

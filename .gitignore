@@ -1108,18 +1108,4 @@ snyk/
 
 ### Solo Testing Output
 /hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/
-
-### Besu proof generator/verifier (now developed out-of-tree; no longer tracked)
-/besu-proof-generator-verifier/
-
-### Proofs generator module (now developed out-of-tree; no longer tracked)
-/hedera-node/proofs-generator/
-
-### TSS startup assets — directory is checked in (README explains layout), but the
-### large dev-local binaries inside it (WRAPS archive + extracted artifacts) are
-### NOT tracked. The warm-cache fixtures are tracked in gzipped form (~4.5 MB
-### each, ~10x smaller than raw); the uncompressed .json variants are local-only.
-/hedera-node/test-clients/tss-startup-assets/*
-!/hedera-node/test-clients/tss-startup-assets/README.md
-!/hedera-node/test-clients/tss-startup-assets/*-genesis-network.json.gz
 /hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/

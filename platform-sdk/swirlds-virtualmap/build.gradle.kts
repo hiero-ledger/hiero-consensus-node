@@ -31,8 +31,6 @@ jmhModuleInfo {
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.merkledb")
-    requires("com.swirlds.merkledb")
-    requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")

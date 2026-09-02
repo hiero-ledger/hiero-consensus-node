@@ -34,7 +34,6 @@ module com.hedera.node.app.service.clpr.impl {
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.roster;
     requires com.sun.jna;
-    requires java.net.http;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.nativelib.secp256k1;
