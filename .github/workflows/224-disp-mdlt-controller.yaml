@@ -62,7 +62,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
-      ref: ${{ inputs.build-tag }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -70,7 +70,10 @@ jobs:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
-      ref: ${{ inputs.build-tag }}
+      # .citr-env is repo policy (which solo / block-node / NLG versions CITR deploys with), not
+      # build content, so read it from the workflow ref. An older build tag predates keys the current
+      # 855 requires - reading it from the tag is what broke MDLT dispatches.
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
