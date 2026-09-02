@@ -68,6 +68,20 @@ A TLS block has two fields:
 | `{ "enabled": true, "certificateSha384": "..." }`  | TLS. The certificate is accepted if and only if its SHA-384 hash matches. Neither the trust store nor hostname verification is consulted, which is what allows a self-signed certificate to be used without distributing trust material. |
 | `{ "enabled": false, "certificateSha384": "..." }` | Rejected as contradictory; the node is skipped with a warning.                                                                                                                                                                           |
 
+#### When both APIs share a port
+
+`servicePort` defaults to `streamingPort`, in which case a single listener serves both APIs and cannot be both
+TLS and plaintext. So when the two ports are the same:
+
+- an omitted `serviceTls` **inherits** `streamingTls`, the same way an omitted `servicePort` inherits
+  `streamingPort`. Declaring only `streamingTls` therefore secures both APIs rather than leaving the service
+  API dialling a TLS listener in plaintext.
+- a `serviceTls` that is present and differs from `streamingTls` is rejected as contradictory, and the node is
+  skipped with a warning.
+
+Securing only the publish API (`streamingTls` on, `serviceTls` off) therefore requires giving the service API
+its own `servicePort`.
+
 The Consensus Node only verifies the Block Node's identity; it does not present a client certificate, so
 mutual TLS is not supported. TLS on the Block Node side is expected to be terminated in front of the Block
 Node itself.

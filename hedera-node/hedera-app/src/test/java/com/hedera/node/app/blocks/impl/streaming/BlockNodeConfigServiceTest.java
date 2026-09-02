@@ -915,6 +915,62 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
     }
 
+    @Test
+    void testLoadConfiguration_omittedServicePortInheritsStreamingTls() throws Throwable {
+        // Only streamingTls is declared and servicePort is omitted, so both APIs land on 8443. The service client
+        // must not be left dialling that TLS listener in plaintext.
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true }
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.servicePort()).isEqualTo(nodeConfig.streamingPort());
+        assertThat(nodeConfig.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testLoadConfiguration_sharedPortWithContradictoryTlsSkipsOnlyThatNode() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true },
+                            "serviceTls": { "enabled": false }
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
+    }
+
     // Utilities =========
 
     void invoke_loadConfiguration() throws Throwable {

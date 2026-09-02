@@ -365,4 +365,144 @@ class BlockNodeConfigurationTest {
         assertThat(secured.hashCode()).isNotEqualTo(plaintext.hashCode());
         assertThat(secured.toString()).contains("streamingTls=", "serviceTls=");
     }
+
+    @Test
+    void testSharedEndpointInheritsStreamingTlsWhenServiceTlsOmitted() {
+        // servicePort omitted -> one listener serves both APIs, so the service API must not fall back to plaintext
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder()
+                        .enabled(true)
+                        .certificateSha384("a".repeat(96))
+                        .build())
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.servicePort()).isEqualTo(config.streamingPort());
+        assertThat(config.serviceTls()).isEqualTo(config.streamingTls());
+        assertThat(config.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testExplicitServicePortEqualToStreamingPortAlsoInherits() {
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .servicePort(8443)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder().enabled(true).build())
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.serviceTls()).isEqualTo(config.streamingTls());
+    }
+
+    @Test
+    void testSharedEndpointSentinelServicePortAlsoInherits() {
+        // "servicePort": -1 is the sentinel some deployments emit for "same as the streaming port"
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .servicePort(-1)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder().enabled(true).build())
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.servicePort()).isEqualTo(8443);
+        assertThat(config.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testSharedEndpointRejectsContradictoryServiceTls() {
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder().enabled(true).build())
+                .serviceTls(BlockNodeTlsConfig.newBuilder().enabled(false).build())
+                .build();
+
+        assertThatThrownBy(() -> BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("share port 8443")
+                .hasMessageContaining("identical TLS settings");
+    }
+
+    @Test
+    void testSharedEndpointRejectsPlaintextStreamingWithTlsService() {
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8080)
+                .priority(0)
+                .serviceTls(BlockNodeTlsConfig.newBuilder().enabled(true).build())
+                .build();
+
+        assertThatThrownBy(() -> BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("identical TLS settings");
+    }
+
+    @Test
+    void testSharedEndpointRejectsDifferentFingerprints() {
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder()
+                        .enabled(true)
+                        .certificateSha384("a".repeat(96))
+                        .build())
+                .serviceTls(BlockNodeTlsConfig.newBuilder()
+                        .enabled(true)
+                        .certificateSha384("b".repeat(96))
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("identical TLS settings");
+    }
+
+    @Test
+    void testSharedEndpointAcceptsMatchingServiceTls() {
+        final BlockNodeTlsConfig tls = BlockNodeTlsConfig.newBuilder()
+                .enabled(true)
+                .certificateSha384("a".repeat(96))
+                .build();
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .priority(0)
+                .streamingTls(tls)
+                .serviceTls(tls)
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.streamingTls().enabled()).isTrue();
+        assertThat(config.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testSeparatePortsKeepIndependentTlsSettings() {
+        // acceptance criterion 1: TLS on the publish API only, which is only expressible with distinct ports
+        final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .streamingPort(8443)
+                .servicePort(8080)
+                .priority(0)
+                .streamingTls(BlockNodeTlsConfig.newBuilder().enabled(true).build())
+                .build();
+
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
+
+        assertThat(config.streamingTls().enabled()).isTrue();
+        assertThat(config.serviceTls()).isSameAs(BlockNodeTlsConfiguration.DISABLED);
+    }
 }

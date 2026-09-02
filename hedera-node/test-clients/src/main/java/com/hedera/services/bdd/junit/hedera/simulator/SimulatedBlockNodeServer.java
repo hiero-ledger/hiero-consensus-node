@@ -225,7 +225,14 @@ public class SimulatedBlockNodeServer {
      */
     public void start() throws IOException {
         streamingServer.start();
-        serviceServer.start();
+        try {
+            serviceServer.start();
+        } catch (final Exception e) {
+            // The streaming server is already listening. Leaving it bound would strand its port for the rest of the
+            // JVM, because the caller only records this server once both halves have started.
+            stopQuietly(streamingServer, port);
+            throw e;
+        }
         log.info(
                 "Simulated block node server started on streaming port {}, service port {} (tls={})",
                 port,
