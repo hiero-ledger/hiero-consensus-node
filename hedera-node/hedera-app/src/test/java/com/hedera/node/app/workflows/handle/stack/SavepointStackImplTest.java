@@ -1257,6 +1257,68 @@ class SavepointStackImplTest extends StateTestBase {
                     .containsExactly(BATCH_ID.copyBuilder().nonce(1).build(), BATCH_ID, INNER_A_ID);
         }
 
+        @Test
+        @DisplayName("a late-flushed preceding record reports its own inner transaction as its parent")
+        void lateFlushedPrecedingReportsItsOwnBatchInnerAsParent() {
+            final var stack = batchRootStack();
+
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            innerB.createSavepoint();
+            precedingDispatchIn(innerB);
+            innerB.commit();
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            // batch@0, innerA@1, innerB@2, preceding@3 -- the preceding record belongs to innerB, so its parent
+            // consensus time is innerB's, not the batch's
+            assertThat(parentConsensusNanosFrom(stack)).containsExactly(null, 0, 0, 2);
+        }
+
+        @Test
+        @DisplayName("an early-flushed preceding record reports its own inner transaction as its parent")
+        void earlyFlushedPrecedingReportsItsOwnBatchInnerAsParent() {
+            final var stack = batchRootStack();
+
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            precedingDispatchIn(innerA);
+            innerA.commitFullStack();
+            batchInnerStackIn(stack, INNER_B_ID).commitFullStack();
+            stack.commitFullStack();
+
+            // batch@0, preceding@1, innerA@2, innerB@3 -- the preceding record is flushed ahead of innerA but still
+            // belongs to it, so it reports innerA's consensus time even though that is later than its own
+            assertThat(parentConsensusNanosFrom(stack)).containsExactly(null, 2, 0, 0);
+        }
+
+        @Test
+        @DisplayName("a child record continues to report its own inner transaction as its parent")
+        void childReportsItsOwnBatchInnerAsParent() {
+            final var stack = batchRootStack();
+
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            initialized(innerB.createRemovableChildBuilder());
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(parentConsensusNanosFrom(stack)).containsExactly(null, 0, 0, 2);
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch of the batch itself reports the batch as its parent")
+        void precedingOutsideAnyBatchInnerReportsTheBatchAsParent() {
+            final var stack = batchRootStack();
+
+            precedingDispatchIn(stack);
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            stack.commitFullStack();
+
+            // preceding@-1, batch@0, innerA@1 -- a record flushed ahead of the user transaction is not given a
+            // parent consensus time at all, which this fix leaves untouched
+            assertThat(parentConsensusNanosFrom(stack)).containsExactly(null, null, 0);
+        }
+
         private SavepointStackImpl batchRootStack() {
             final var stack = SavepointStackImpl.newRootStack(
                     baseState,
@@ -1289,6 +1351,23 @@ class SavepointStackImplTest extends StateTestBase {
             final var builder = initialized(precedingStack.getBaseBuilder(StreamBuilder.class));
             precedingStack.commitFullStack();
             return builder;
+        }
+
+        /**
+         * Returns each record's {@code parentConsensusTimestamp} as nanos relative to the user transaction, or null
+         * where the field is unset.
+         */
+        private List<Integer> parentConsensusNanosFrom(final SavepointStackImpl stack) {
+            final List<TransactionRecord> records = new ArrayList<>();
+            stack.buildHandleOutput(
+                            Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()), ExchangeRateSet.DEFAULT)
+                    .recordSourceOrThrow()
+                    .forEachTxnRecord(records::add);
+            return records.stream()
+                    .map(record -> record.parentConsensusTimestamp() == null
+                            ? null
+                            : record.parentConsensusTimestampOrThrow().nanos() - VALID_START.nanos())
+                    .toList();
         }
 
         private List<TransactionID> idsFrom(final SavepointStackImpl stack) {

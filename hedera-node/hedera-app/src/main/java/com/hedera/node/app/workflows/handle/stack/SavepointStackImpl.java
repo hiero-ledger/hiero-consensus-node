@@ -569,6 +569,23 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             }
         }
 
+        // The consensus time of each batch inner transaction, so that a synthetic record dispatched by an inner
+        // can report that inner as its parent whichever side of it the record was flushed onto; an early-flushed
+        // preceding record is reached before its inner, so these cannot be discovered as we go
+        final Map<TransactionID, Instant> batchInnerConsensusTimes;
+        if (batchInnerIdsByBuilder == null) {
+            batchInnerConsensusTimes = null;
+        } else {
+            batchInnerConsensusTimes = new HashMap<>();
+            for (int j = 0; j < n; j++) {
+                final var candidate = builders.get(j);
+                if (candidate.category() == BATCH_INNER) {
+                    batchInnerConsensusTimes.put(
+                            candidate.transactionID(), consensusTime.plusNanos((long) j - indexOfParentBuilder));
+                }
+            }
+        }
+
         int nextNonceOffset = 1;
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
@@ -603,7 +620,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                         builder.parentConsensus(consensusTime).exchangeRate(null);
                         parentConsensusTime = consensusNow;
                     }
-                    case PRECEDING -> builder.parentConsensus(consensusTime).exchangeRate(null);
+                    case PRECEDING ->
+                        builder.parentConsensus(
+                                        precedingParentConsensus(builder, consensusTime, batchInnerConsensusTimes))
+                                .exchangeRate(null);
                     case CHILD -> builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
@@ -670,6 +690,30 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             return baseBuilder.transactionID();
         }
         return state instanceof SavepointStackImpl parent ? parent.enclosingBatchInnerTxnId() : null;
+    }
+
+    /**
+     * Returns the consensus time a preceding builder should report as its parent; that is, the consensus time of the
+     * batch inner transaction that dispatched it, or this stack's top-level consensus time if it was not dispatched
+     * within a batch inner transaction.
+     *
+     * @param builder the preceding builder
+     * @param topLevelConsensusTime the consensus time of this stack's top-level transaction
+     * @param batchInnerConsensusTimes the consensus time of each batch inner transaction, if this is a batch
+     * @return the consensus time to report as the builder's parent
+     */
+    private Instant precedingParentConsensus(
+            @NonNull final StreamBuilder builder,
+            @NonNull final Instant topLevelConsensusTime,
+            @Nullable final Map<TransactionID, Instant> batchInnerConsensusTimes) {
+        if (batchInnerIdsByBuilder == null || batchInnerConsensusTimes == null) {
+            return topLevelConsensusTime;
+        }
+        final var batchInnerId = batchInnerIdsByBuilder.get(builder);
+        if (batchInnerId == null) {
+            return topLevelConsensusTime;
+        }
+        return batchInnerConsensusTimes.getOrDefault(batchInnerId, topLevelConsensusTime);
     }
 
     /**

@@ -203,6 +203,10 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                                         final var evmId = spec.registry().getTxnId(evmInner);
                                         final var creation = onlyCreationOf(evmRecords, lazyCreatedId);
                                         assertIdentity(creation.getTransactionID(), evmId);
+                                        assertEquals(
+                                                evmRecords.get().getFirst().getConsensusTimestamp(),
+                                                creation.getParentConsensusTimestamp(),
+                                                "the creation should report its inner transaction as its parent");
                                     }))));
         }
 
@@ -617,6 +621,10 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                     otherTxnId.getAccountID(),
                     creation.getTransactionID().getAccountID(),
                     "the creation must not carry the other inner transaction's payer");
+            assertEquals(
+                    ownerRecords.get().getFirst().getConsensusTimestamp(),
+                    creation.getParentConsensusTimestamp(),
+                    "the creation should report its own inner transaction as its parent");
         });
     }
 
