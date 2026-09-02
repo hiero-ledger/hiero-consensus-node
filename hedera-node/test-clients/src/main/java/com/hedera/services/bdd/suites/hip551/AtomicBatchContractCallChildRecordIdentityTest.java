@@ -56,11 +56,6 @@ import org.junit.jupiter.api.Tag;
  * commits. It therefore lands <i>after</i> the inner transaction that produced it, unlike the alias auto-creation of
  * a {@code CryptoTransfer}, which lands before. Ownership consequently cannot be inferred from position, and the
  * cases below pin down every arrangement where that mattered.
- * <p>
- * <b>Note on the nested groups.</b> {@link TrailingContractCall} holds arrangements that remain legal under builds
- * that restrict a batch to a single EVM transaction which must be the final inner transaction. {@link AnyPosition}
- * holds arrangements that such a build rejects with {@code INVALID_TRANSACTION_BODY} before reaching the record
- * stream; run that group only where the restriction is absent.
  */
 @Tag(ATOMIC_BATCH)
 public class AtomicBatchContractCallChildRecordIdentityTest {
@@ -78,7 +73,7 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     private static final long DEPOSIT = ONE_HBAR;
 
     // ---------------------------------------------------------------------------------------------------------
-    // Arrangements that remain legal when a batch may hold only one EVM transaction, in final position
+    // The ContractCall is the last inner transaction, so no sibling follows it
     // ---------------------------------------------------------------------------------------------------------
     @Nested
     @DisplayName("ContractCall as the final inner transaction")
@@ -101,9 +96,8 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                     withAddressOfKey(
                             hollowKey,
                             address -> blockingOrder(
-                                    // The earlier inner auto-creates an aliased account of its own, which is what used
-                                    // to
-                                    // leave a stale identity behind for the trailing call to inherit
+                                    // The earlier inner auto-creates an aliased account of its own, so two
+                                    // synthetic creations are in play and each must land on its own inner
                                     atomicBatch(
                                                     cryptoTransfer(tinyBarsFromAccountToAlias(
                                                                     TRANSFER_PAYER, aliasKey, ONE_HBAR))
@@ -191,7 +185,7 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                                             .signedByPayerAnd(BATCH_OPERATOR)
                                             .via(outerBatch),
                                     createdAccount(address, lazyCreatedId),
-                                    // Before the fix this creation was filed under the OUTER batch transaction
+                                    // The creation belongs to the inner transaction, not to the enclosing batch
                                     getTxnRecord(outerBatch)
                                             .andAllChildRecords()
                                             .hasNonStakingChildRecordCount(0),
@@ -319,11 +313,11 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     }
 
     // ---------------------------------------------------------------------------------------------------------
-    // Arrangements a single-trailing-EVM-transaction build rejects up front; run only where that is not enforced
+    // The ContractCall is followed by at least one further inner transaction
     // ---------------------------------------------------------------------------------------------------------
     @Nested
-    @DisplayName("ContractCall in any position (requires no single-trailing-EVM restriction)")
-    class AnyPosition {
+    @DisplayName("ContractCall preceding other inner transactions")
+    class ContractCallBeforeOtherInners {
 
         @HapiTest
         @DisplayName("Lazy creation from a leading ContractCall is not filed under the following inner")
@@ -621,6 +615,8 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                     otherTxnId.getAccountID(),
                     creation.getTransactionID().getAccountID(),
                     "the creation must not carry the other inner transaction's payer");
+            // HIP-551: parentConsensusTimestamp is the consensus timestamp of the parent transaction, which for a
+            // record produced by an inner transaction is that inner transaction, not the enclosing batch
             assertEquals(
                     ownerRecords.get().getFirst().getConsensusTimestamp(),
                     creation.getParentConsensusTimestamp(),
