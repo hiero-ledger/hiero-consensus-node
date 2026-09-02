@@ -865,22 +865,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             throw new IllegalStateException("The copy has already been flushed");
         }
 
+        // This copy is being merged. Typically, this indicates estimated copy size is
+        // below the flush threshold. However, it may be above the threshold, if there
+        // is a lot of redundant data (obsolete mutations in the node cache).
         if (estimatedSizeExceedsFlushThreshold()) {
-            assert estimatedGarbageSizeExceedsThreshold();
-//            logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
-//                    "GC before v{}: est={} grb={}",
-//                    cache.getFastCopyVersion(),
-//                    cache.getEstimatedSize(),
-//                    cache.getEstimatedGarbageSize());
-            // Virtual map copy is requested to merge, but its estimated size exceeds the flush
-            // threshold. This is clear indication of in-memory mode, when the map is too small
-            // (in number of entities, not size in bytes) to be flushed. In this mode, let's
-            // get rid of all garbage in the node cache before merging to the next copy
+            assert estimatedGarbageSizeExceedsGarbageThreshold();
+            // The size of the copy is large, and it contains lots of redundant data. It's
+            // time to collect garbage. Live data set after garbage collection will be
+            // merged into the next virtual map copy
             garbageCollect();
-//            logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
-//                    "GC after v{}: est={}",
-//                    cache.getFastCopyVersion(),
-//                    cache.getEstimatedSize());
         }
 
         final long start = System.currentTimeMillis();
@@ -890,7 +883,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         final long end = System.currentTimeMillis();
         statistics.recordMerge(end - start);
-        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merged v{} in {} ms", getFastCopyVersion(), end - start);
+        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merged v{} in {} ms", getFastCopyVersion(), end - start);
     }
 
     /**
@@ -948,16 +941,27 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         if (!estimatedSizeExceedsFlushThreshold()) {
             return false;
         }
-        return !estimatedGarbageSizeExceedsThreshold();
+        // The copy is large enough, it should be either flushed or merged after GC
+        return !estimatedGarbageSizeExceedsGarbageThreshold();
     }
 
+    /**
+     * Returns {@code true}, if estimated size of the current virtual map copy
+     * exceeds the flush threshold. See {@link VirtualMapConfig#copyFlushCandidateThreshold()}
+     * for details.
+     */
     private boolean estimatedSizeExceedsFlushThreshold() {
         final long threshold = flushCandidateThreshold.get();
         assert threshold > 0;
         return estimatedSize() >= threshold;
     }
 
-    private boolean estimatedGarbageSizeExceedsThreshold() {
+    /**
+     * Returns {@code true}, if estimated size of redundant data in the current virtual map copy
+     * exceeds the garbage threshold. See {@link VirtualMapConfig#percentFlushGarbageThreshold()}
+     * for details.
+     */
+    private boolean estimatedGarbageSizeExceedsGarbageThreshold() {
         final double percent = virtualMapConfig.percentFlushGarbageThreshold();
         if (percent > 99.99) {
             // Avoid cache.getEstimatedGarbageSize() below as it may be costly
@@ -1050,7 +1054,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         flushLatch.countDown();
         statistics.recordFlush(end - start);
-        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed v{} in {} ms", cache.getFastCopyVersion(), end - start);
+        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed v{} in {} ms", cache.getFastCopyVersion(), end - start);
     }
 
     private void flush(VirtualNodeCache cacheToFlush, VirtualDataSource ds) {
@@ -1080,6 +1084,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
     }
 
+    /**
+     * Removes all redundant data from this virtual map copy. After garbage collection, the
+     * copy can be merged.
+     *
+     * <p>Important note: all deleted mutations in the node cache for this copy are considered
+     * redundant and will be removed. However, the data source may contain values for these
+     * deleted keys, so all deleted keys are first flushed to the data source.
+     */
     private void garbageCollect() {
         assert isDestroyed();
         assert isImmutable();
@@ -1091,9 +1103,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         try {
             final Stream<VirtualLeafBytes> deletedLeaves = cache.deletedLeaves();
-//            long end = System.currentTimeMillis();
-//            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "GCed1 v{} in {} ms", getFastCopyVersion(), end - start);
-//            start = end;
             dataSource.saveRecords(
                     dataSource.getFirstLeafPath(),
                     dataSource.getLastLeafPath(),
@@ -1101,9 +1110,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     Stream.empty(),
                     deletedLeaves,
                     false);
-//            end = System.currentTimeMillis();
-//            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "GCed2 v{} in {} ms", getFastCopyVersion(), end - start);
-//            start = end;
         } catch (final IOException z) {
             logger.error(EXCEPTION.getMarker(), "Error while deleting leaves from data source", z);
             throw new UncheckedIOException(z);
@@ -1111,7 +1117,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         cache.garbageCollect();
 
         final long end = System.currentTimeMillis();
-        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "GCed v{} in {} ms", getFastCopyVersion(), end - start);
+        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "GCed v{} in {} ms", getFastCopyVersion(), end - start);
     }
 
     @Override

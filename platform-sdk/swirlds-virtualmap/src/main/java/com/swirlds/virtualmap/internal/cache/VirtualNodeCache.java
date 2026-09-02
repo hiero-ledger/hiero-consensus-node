@@ -456,10 +456,27 @@ public final class VirtualNodeCache {
         }
     }
 
+    /**
+     * Removes all redundant mutations from this cache copy.
+     *
+     * <p>There are two types of redundant mutations. First, a mutation can be overridden by
+     * a mutation for the same key/path/id in a newer version. It doesn't make sense to keep
+     * the older mutation in the cache, it would be filtered later anyway. Second, deleted
+     * mutations are also considered redundant, even if there are no newer mutations. Such
+     * deleted mutations are used to get a stream of deleted leaves to flush into the data
+     * source before GC. See comments in VirtualMap.garbageCollect() for details.
+     *
+     * <p>All non-redundant mutations are added to new concurrent arrays. These arrays will
+     * later be used to merge the cache copy to a newer copy.
+     *
+     * <p>Index maps are updated, too. For every key/path/id in this cache copy, only the
+     * latest mutation is left in the chain of mutations in the index map. If the latest
+     * mutation is marked as deleted, the corresponding entry is removed from the map
+     * completely.
+     */
     public void garbageCollect() {
         // Cache garbage collection. All redundant mutations are purged. A mutation is redundant,
-        // if the same key / path / chunk ID is updated in multiple versions. This may only happen
-        // if this cache copy is a merged copy
+        // if the same key / path / chunk ID is updated in multiple versions
 
         // Only the oldest copies can be garbage collected, similar to flushes
         final VirtualNodeCache n = next.get();
@@ -473,15 +490,20 @@ public final class VirtualNodeCache {
 
         // Dirty leaves
         purgeOnGC(keyToDirtyLeafIndex, dirtyLeaves);
+        // purgeOnGC() marks mutations as filtered and removes them from the index map, but
+        // it doesn't update the concurrent array. A new array needs to be created from all
+        // mutations not marked as filtered in purgeOnGC()
         //noinspection NonAtomicOperationOnVolatileField
         dirtyLeaves = new ConcurrentArray<>(dirtyLeaves.stream()
                 // notFiltered also covers all deleted mutations
                 .filter(Mutation::notFiltered));
         // parallelTraverse() seems faster than to add peek() to the stream to calculate the size
         try {
-            dirtyLeaves.parallelTraverse(cleaningPool, (_, m) -> {
-                estimatedLeavesSizeInBytes.addAndGet(m.value.getSizeInBytes());
-            }).getAndRethrow();
+            dirtyLeaves
+                    .parallelTraverse(cleaningPool, (_, m) -> {
+                        estimatedLeavesSizeInBytes.addAndGet(m.value.getSizeInBytes());
+                    })
+                    .getAndRethrow();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
@@ -495,9 +517,11 @@ public final class VirtualNodeCache {
                 // notFiltered also covers all deleted mutations
                 .filter(Mutation::notFiltered));
         try {
-            dirtyLeafPaths.parallelTraverse(cleaningPool, (_, m) -> {
-                estimatedLeavesSizeInBytes.addAndGet(m.value.length());
-            }).getAndRethrow();
+            dirtyLeafPaths
+                    .parallelTraverse(cleaningPool, (_, m) -> {
+                        estimatedLeavesSizeInBytes.addAndGet(m.value.length());
+                    })
+                    .getAndRethrow();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
@@ -511,9 +535,12 @@ public final class VirtualNodeCache {
                 // notFiltered also covers all deleted mutations
                 .filter(Mutation::notFiltered));
         try {
-            dirtyHashChunks.parallelTraverse(cleaningPool, (_, m) -> {
-                estimatedHashesSizeInBytes.addAndGet((long) m.value.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
-            }).getAndRethrow();
+            dirtyHashChunks
+                    .parallelTraverse(cleaningPool, (_, m) -> {
+                        estimatedHashesSizeInBytes.addAndGet(
+                                (long) m.value.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
+                    })
+                    .getAndRethrow();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
@@ -1107,12 +1134,14 @@ public final class VirtualNodeCache {
                         }
                         nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
-                        estimatedHashesSizeInBytes.addAndGet((long) hashChunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
+                        estimatedHashesSizeInBytes.addAndGet(
+                                (long) hashChunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
                     } else if (nextMutation.version != fastCopyVersion.get()) {
                         final VirtualHashChunk hashChunk = nextMutation.value.copy();
                         nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
-                        estimatedHashesSizeInBytes.addAndGet((long) hashChunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
+                        estimatedHashesSizeInBytes.addAndGet(
+                                (long) hashChunk.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
                     } else {
                         assert nextMutation.notFiltered();
                     }
@@ -1388,9 +1417,13 @@ public final class VirtualNodeCache {
         assert leafIndexesAreImmutable.get() && hashesAreImmutable.get();
         long size = estimatedGarbageSizeInBytes.get();
         if (size <= 0) {
-            estimateGarbage(dirtyLeaves, keyToDirtyLeafIndex, estimatedGarbageSizeInBytes, l -> (long) l.getSizeInBytes());
+            estimateGarbage(
+                    dirtyLeaves, keyToDirtyLeafIndex, estimatedGarbageSizeInBytes, l -> (long) l.getSizeInBytes());
             estimateGarbage(dirtyLeafPaths, pathToDirtyKeyIndex, estimatedGarbageSizeInBytes, Bytes::length);
-            estimateGarbage(dirtyHashChunks, idToDirtyHashChunkIndex, estimatedGarbageSizeInBytes,
+            estimateGarbage(
+                    dirtyHashChunks,
+                    idToDirtyHashChunkIndex,
+                    estimatedGarbageSizeInBytes,
                     h -> (long) h.getChunkSize() * DEFAULT_DIGEST_TYPE.digestLength());
             size = estimatedGarbageSizeInBytes.get();
         }

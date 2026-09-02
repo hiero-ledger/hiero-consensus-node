@@ -765,7 +765,8 @@ class VirtualMapTests extends VirtualTestBase {
                     "Node cache size must increase");
         }
 
-        final long value = (long) metric.get(ValueType.VALUE);;
+        final long value = (long) metric.get(ValueType.VALUE);
+        ;
 
         final VirtualMap lastMap = map0;
         lastMap.enableFlush();
