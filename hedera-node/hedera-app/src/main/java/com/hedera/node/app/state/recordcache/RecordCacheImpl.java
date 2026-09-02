@@ -17,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
@@ -44,9 +45,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
@@ -82,6 +85,8 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class RecordCacheImpl implements HederaRecordCache {
     private static final Logger logger = LogManager.getLogger(RecordCacheImpl.class);
+    private static final int MAX_REPEATED_TRANSACTION_IDS_TO_LOG = 20;
+    private static final int MAX_RECEIPT_INDEX_ANOMALIES_TO_LOG = 20;
     /**
      * Comparator for sorting {@link TransactionReceiptEntry} by the transaction valid start timestamp.
      */
@@ -133,6 +138,48 @@ public class RecordCacheImpl implements HederaRecordCache {
     private final List<TransactionReceiptEntry> transactionReceipts = new ArrayList<>();
 
     /**
+     * Counts transaction IDs that occurred more than once in the receipt queue used to rebuild this cache. This map
+     * intentionally excludes IDs that occurred only once, so it retains exactly the evidence needed to distinguish a
+     * duplicated state entry from a queue-pop/commit problem without duplicating the entire in-memory transaction index.
+     */
+    private final Map<TransactionID, Integer> repeatedTransactionIdsInRebuiltQueue;
+
+    /** The anomalous queue head observed on the preceding purge, used to identify cross-round replay. */
+    @Nullable
+    private TransactionReceiptEntries previousAnomalousQueueHead;
+
+    /** Number of consecutive purges that have observed the same anomalous queue head. */
+    private long consecutiveSameAnomalousQueueHeadObservations;
+
+    private record ReceiptIndexAnomaly(
+            @NonNull TransactionID transactionId,
+            @NonNull ResponseCodeEnum status,
+            long submittingNodeId,
+            @NonNull AccountID transactionPayer,
+            @NonNull AccountID submittingNodeAccount,
+            int payerIndexSizeBeforeRemoval,
+            int submittingNodeIndexSizeBeforeRemoval,
+            boolean historyPresent,
+            int historyRecordSourceCount,
+            @Nullable Integer rebuiltQueueReceiptCount) {}
+
+    private record ReceiptQueuePurgeDiagnostics(
+            @NonNull Timestamp earliestValidStart,
+            int removedBatchCount,
+            int expiredReceiptCount,
+            int emptyBatchCount,
+            int receiptIndexAnomalyCount,
+            boolean everyPollReturnedExpectedHead,
+            @NonNull List<ReceiptIndexAnomaly> receiptIndexAnomalies,
+            @Nullable TransactionReceiptEntries firstRemovedBatch,
+            @Nullable TransactionReceiptEntries firstAnomalousBatch,
+            @Nullable TransactionReceiptEntries headAfterPurge) {
+        private boolean hasReceiptIndexAnomalies() {
+            return receiptIndexAnomalyCount > 0;
+        }
+    }
+
+    /**
      * Contains history of transactions submitted with the same "base" {@link TransactionID};
      * i.e., with the same payer and valid start time.
      * <p>
@@ -149,8 +196,8 @@ public class RecordCacheImpl implements HederaRecordCache {
      * @param nodeIds The set of node ids that have submitted a properly screened transaction
      * @param recordSources The sources of records for the relevant base {@link TransactionID}
      */
-    private record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
-            implements ReceiptSource {
+    private record HistorySource(
+            @NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources) implements ReceiptSource {
         public HistorySource() {
             this(new HashSet<>(), new ArrayList<>());
         }
@@ -255,10 +302,17 @@ public class RecordCacheImpl implements HederaRecordCache {
         this.networkInfo = requireNonNull(networkInfo);
 
         deduplicationCache.clear();
-        final var iter = getReadableQueue(workingStateAccessor).iterator();
+        final Map<TransactionID, Integer> repeatedTransactionIds = new HashMap<>();
+        long receiptBatchCount = 0;
+        long receiptEntryCount = 0;
+        long repeatedReceiptEntryCount = 0;
+        final var readableQueue = getReadableQueue(workingStateAccessor);
+        final var iter = readableQueue.iterator();
         while (iter.hasNext()) {
+            receiptBatchCount++;
             final var roundReceipts = iter.next();
             for (final var receipt : roundReceipts.entries()) {
+                receiptEntryCount++;
                 final var txnId = receipt.transactionIdOrThrow();
                 // We group history by the base transaction ID, which is the transaction ID with a nonce of 0
                 final var baseTxnId = txnId.nonce() == 0
@@ -280,11 +334,30 @@ public class RecordCacheImpl implements HederaRecordCache {
                     historySource.recordSources().add(new PartialRecordSource());
                 }
                 ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
-                payerTxnIds
-                        .computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
-                        .add(txnId);
+                final var payerTransactions =
+                        payerTxnIds.computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>());
+                if (!payerTransactions.add(txnId)) {
+                    repeatedReceiptEntryCount++;
+                    repeatedTransactionIds.compute(txnId, (ignored, count) -> count == null ? 2 : count + 1);
+                }
             }
         }
+        repeatedTransactionIdsInRebuiltQueue = Map.copyOf(repeatedTransactionIds);
+        final var mostRepeatedTransactionIds = repeatedTransactionIds.entrySet().stream()
+                .sorted(Map.Entry.<TransactionID, Integer>comparingByValue().reversed())
+                .limit(MAX_REPEATED_TRANSACTION_IDS_TO_LOG)
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .toList();
+        logger.info(
+                "Rebuilt record cache from receipt queue type {} with {} batches and {} receipt entries; "
+                        + "found {} transaction IDs with multiple receipt entries ({} repeated entries), top {} are {}",
+                readableQueue.getClass().getName(),
+                receiptBatchCount,
+                receiptEntryCount,
+                repeatedTransactionIds.size(),
+                repeatedReceiptEntryCount,
+                MAX_REPEATED_TRANSACTION_IDS_TO_LOG,
+                mostRepeatedTransactionIds);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -362,12 +435,28 @@ public class RecordCacheImpl implements HederaRecordCache {
         }
         final var states = state.getWritableStates(NAME);
         final var queue = states.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
-        purgeExpiredReceiptEntries(queue, consensusNow);
+        final var purgeDiagnostics = purgeExpiredReceiptEntries(queue, consensusNow);
+        TransactionReceiptEntries addedReceiptBatch = null;
         if (!transactionReceipts.isEmpty()) {
-            queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts)));
+            addedReceiptBatch = new TransactionReceiptEntries(new ArrayList<>(transactionReceipts));
+            queue.add(addedReceiptBatch);
         }
+        final boolean commitSupported = states instanceof CommittableWritableStates;
         if (states instanceof CommittableWritableStates committable) {
             committable.commit();
+        }
+        if (purgeDiagnostics.hasReceiptIndexAnomalies()) {
+            logReceiptQueueDiagnosticsAfterCommit(
+                    state,
+                    consensusNow,
+                    states.getClass().getName(),
+                    queue.getClass().getName(),
+                    commitSupported,
+                    addedReceiptBatch,
+                    purgeDiagnostics);
+        } else {
+            previousAnomalousQueueHead = null;
+            consecutiveSameAnomalousQueueHeadObservations = 0;
         }
         if (streamMode != RECORDS) {
             final var changes = immediateStateChangeListener.getQueueStateChanges();
@@ -395,7 +484,7 @@ public class RecordCacheImpl implements HederaRecordCache {
     /**
      * Removes all expired {@link TransactionID}s from the cache.
      */
-    private void purgeExpiredReceiptEntries(
+    private ReceiptQueuePurgeDiagnostics purgeExpiredReceiptEntries(
             @NonNull final WritableQueueState<TransactionReceiptEntries> queue,
             @NonNull final Instant consensusTimestamp) {
         // Compute the earliest valid start timestamp that is still within the max transaction duration window.
@@ -403,12 +492,25 @@ public class RecordCacheImpl implements HederaRecordCache {
         final var earliestValidStart = new Timestamp(
                 consensusTimestamp.getEpochSecond() - config.transactionMaxValidDuration(),
                 consensusTimestamp.getNano());
+        int removedBatchCount = 0;
+        int expiredReceiptCount = 0;
+        int emptyBatchCount = 0;
+        int receiptIndexAnomalyCount = 0;
+        boolean everyPollReturnedExpectedHead = true;
+        final List<ReceiptIndexAnomaly> receiptIndexAnomalies = new ArrayList<>();
+        TransactionReceiptEntries firstRemovedBatch = null;
+        TransactionReceiptEntries firstAnomalousBatch = null;
         // Loop in order and expunge the entry if even the latest TransactionReceiptEntry is expired
         TransactionReceiptEntries roundReceipts;
         while ((roundReceipts = queue.peek()) != null) {
             if (roundReceipts.entries().isEmpty()) {
                 logger.warn("Unexpected empty round receipts in the queue, removing them");
-                queue.poll();
+                emptyBatchCount++;
+                removedBatchCount++;
+                if (firstRemovedBatch == null) {
+                    firstRemovedBatch = roundReceipts;
+                }
+                everyPollReturnedExpectedHead &= Objects.equals(roundReceipts, queue.poll());
                 continue;
             }
             final var latestReceiptValidStart = roundReceipts.entries().stream()
@@ -419,28 +521,56 @@ public class RecordCacheImpl implements HederaRecordCache {
             // If even the latest valid start time is before the earliest valid start, then all transaction
             // ids used in this round are expired and cannot be duplicated
             if (isBefore(latestReceiptValidStart, earliestValidStart)) {
+                removedBatchCount++;
+                expiredReceiptCount += roundReceipts.entries().size();
+                if (firstRemovedBatch == null) {
+                    firstRemovedBatch = roundReceipts;
+                }
                 // Remove all in-memory context for these transaction ids.  Note that all transactions are added
                 // to this map keyed to the "user transaction" ID, so removing the entry here removes both "parent"
                 // and "child" transaction records associated with that ID.
                 for (final var receipt : roundReceipts.entries()) {
                     final var txnId = receipt.transactionIdOrThrow();
-                    historySources.remove(
-                            txnId.nonce() == 0
-                                    ? txnId
-                                    : txnId.copyBuilder().nonce(0).build());
+                    final var baseTxnId = txnId.nonce() == 0
+                            ? txnId
+                            : txnId.copyBuilder().nonce(0).build();
+                    final var removedHistory = historySources.remove(baseTxnId);
                     // Remove from the payer to transaction index
-                    var payerId = txnId.accountIDOrThrow();
+                    final var transactionPayer = txnId.accountIDOrThrow();
+                    var payerId = transactionPayer;
+                    final var payerIndexBeforeRemoval = payerTxnIds.get(transactionPayer);
+                    final int payerIndexSizeBeforeRemoval =
+                            payerIndexBeforeRemoval == null ? 0 : payerIndexBeforeRemoval.size();
                     var txnIds = payerTxnIds.computeIfAbsent(payerId, ignored -> new HashSet<>());
                     if (!txnIds.remove(txnId)) {
                         // The submitting node account must have been the payer
-                        payerId = requireNonNull(networkInfo.nodeInfo(receipt.nodeId()))
+                        final var submittingNodeAccount = requireNonNull(networkInfo.nodeInfo(receipt.nodeId()))
                                 .accountId();
+                        payerId = submittingNodeAccount;
+                        final var submittingNodeIndexBeforeRemoval = payerTxnIds.get(submittingNodeAccount);
+                        final int submittingNodeIndexSizeBeforeRemoval =
+                                submittingNodeIndexBeforeRemoval == null ? 0 : submittingNodeIndexBeforeRemoval.size();
                         txnIds = payerTxnIds.computeIfAbsent(payerId, ignored -> new HashSet<>());
                         if (!txnIds.remove(txnId) && receipt.status() != DUPLICATE_TRANSACTION) {
-                            logger.warn(
-                                    "Non-duplicate {} not cached for either payer or submitting node {}",
-                                    txnId,
-                                    payerId);
+                            receiptIndexAnomalyCount++;
+                            if (firstAnomalousBatch == null) {
+                                firstAnomalousBatch = roundReceipts;
+                            }
+                            if (receiptIndexAnomalies.size() < MAX_RECEIPT_INDEX_ANOMALIES_TO_LOG) {
+                                receiptIndexAnomalies.add(new ReceiptIndexAnomaly(
+                                        txnId,
+                                        receipt.status(),
+                                        receipt.nodeId(),
+                                        transactionPayer,
+                                        submittingNodeAccount,
+                                        payerIndexSizeBeforeRemoval,
+                                        submittingNodeIndexSizeBeforeRemoval,
+                                        removedHistory != null,
+                                        removedHistory == null
+                                                ? 0
+                                                : removedHistory.recordSources().size(),
+                                        repeatedTransactionIdsInRebuiltQueue.get(txnId)));
+                            }
                         }
                     }
                     if (txnIds.isEmpty()) {
@@ -448,11 +578,103 @@ public class RecordCacheImpl implements HederaRecordCache {
                     }
                 }
                 // Remove the round receipts from the queue
-                queue.poll();
+                everyPollReturnedExpectedHead &= Objects.equals(roundReceipts, queue.poll());
             } else {
                 break;
             }
         }
+        return new ReceiptQueuePurgeDiagnostics(
+                earliestValidStart,
+                removedBatchCount,
+                expiredReceiptCount,
+                emptyBatchCount,
+                receiptIndexAnomalyCount,
+                everyPollReturnedExpectedHead,
+                List.copyOf(receiptIndexAnomalies),
+                firstRemovedBatch,
+                firstAnomalousBatch,
+                queue.peek());
+    }
+
+    private void logReceiptQueueDiagnosticsAfterCommit(
+            @NonNull final State state,
+            @NonNull final Instant consensusTimestamp,
+            @NonNull final String writableStatesType,
+            @NonNull final String writableQueueType,
+            final boolean commitSupported,
+            @Nullable final TransactionReceiptEntries addedReceiptBatch,
+            @NonNull final ReceiptQueuePurgeDiagnostics diagnostics) {
+        final var anomalousQueueHead = diagnostics.firstAnomalousBatch();
+        if (Objects.equals(previousAnomalousQueueHead, anomalousQueueHead)) {
+            consecutiveSameAnomalousQueueHeadObservations++;
+        } else {
+            previousAnomalousQueueHead = anomalousQueueHead;
+            consecutiveSameAnomalousQueueHeadObservations = 1;
+        }
+
+        TransactionReceiptEntries persistedHeadAfterCommit = null;
+        boolean persistedHeadReadSucceeded = false;
+        String readableQueueType = "unavailable";
+        try {
+            final var readableQueue =
+                    state.getReadableStates(NAME).<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            readableQueueType = readableQueue.getClass().getName();
+            persistedHeadAfterCommit = readableQueue.peek();
+            persistedHeadReadSucceeded = true;
+        } catch (final RuntimeException e) {
+            logger.warn("Unable to read the receipt queue head after committing anomaly diagnostics", e);
+        }
+
+        final var expectedHeadAfterCommit =
+                diagnostics.headAfterPurge() == null ? addedReceiptBatch : diagnostics.headAfterPurge();
+        logger.warn(
+                "Non-duplicate transaction receipts not cached for either payer or submitting node; "
+                        + "receipt queue diagnostics: consensusTimestamp={}, earliestValidStart={}, stateType={}, "
+                        + "writableStatesType={}, writableQueueType={}, readableQueueType={}, commitSupported={}, "
+                        + "removedBatchCount={}, expiredReceiptCount={}, emptyBatchCount={}, "
+                        + "everyPollReturnedExpectedHead={}, receiptIndexAnomalyCount={}, loggedAnomalyCount={}, "
+                        + "firstRemovedBatch={}, firstAnomalousBatch={}, headAfterPurge={}, addedReceiptBatch={}, "
+                        + "expectedHeadAfterCommit={}, persistedHeadReadSucceeded={}, persistedHeadAfterCommit={}, "
+                        + "persistedHeadMatchesExpected={}, persistedHeadMatchesFirstRemovedBatch={}, "
+                        + "consecutiveSameAnomalousQueueHeadObservations={}, anomalies={}",
+                consensusTimestamp,
+                diagnostics.earliestValidStart(),
+                state.getClass().getName(),
+                writableStatesType,
+                writableQueueType,
+                readableQueueType,
+                commitSupported,
+                diagnostics.removedBatchCount(),
+                diagnostics.expiredReceiptCount(),
+                diagnostics.emptyBatchCount(),
+                diagnostics.everyPollReturnedExpectedHead(),
+                diagnostics.receiptIndexAnomalyCount(),
+                diagnostics.receiptIndexAnomalies().size(),
+                describeBatch(diagnostics.firstRemovedBatch()),
+                describeBatch(diagnostics.firstAnomalousBatch()),
+                describeBatch(diagnostics.headAfterPurge()),
+                describeBatch(addedReceiptBatch),
+                describeBatch(expectedHeadAfterCommit),
+                persistedHeadReadSucceeded,
+                describeBatch(persistedHeadAfterCommit),
+                persistedHeadReadSucceeded && Objects.equals(expectedHeadAfterCommit, persistedHeadAfterCommit),
+                persistedHeadReadSucceeded && Objects.equals(diagnostics.firstRemovedBatch(), persistedHeadAfterCommit),
+                consecutiveSameAnomalousQueueHeadObservations,
+                diagnostics.receiptIndexAnomalies());
+    }
+
+    @NonNull
+    private static String describeBatch(@Nullable final TransactionReceiptEntries batch) {
+        if (batch == null) {
+            return "null";
+        }
+        final var entries = batch.entries();
+        final var firstTransactionId =
+                entries.isEmpty() ? null : entries.getFirst().transactionId();
+        final var lastTransactionId =
+                entries.isEmpty() ? null : entries.getLast().transactionId();
+        return "{valueHash=" + Integer.toHexString(batch.hashCode()) + ", size=" + entries.size()
+                + ", firstTransactionId=" + firstTransactionId + ", lastTransactionId=" + lastTransactionId + "}";
     }
     // ---------------------------------------------------------------------------------------------------------------
     // Implementation methods of RecordCache
