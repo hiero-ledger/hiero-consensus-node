@@ -11,6 +11,8 @@ module com.hedera.node.yahcli {
             info.picocli;
     opens com.hedera.services.yahcli.commands.clpr to
             info.picocli;
+    opens com.hedera.services.yahcli.commands.contracts to
+            info.picocli;
     opens com.hedera.services.yahcli.commands.fees to
             info.picocli;
     opens com.hedera.services.yahcli.commands.files to
