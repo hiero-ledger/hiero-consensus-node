@@ -18,6 +18,7 @@ jmhModuleInfo {
 description = "Default Consensus Event Creator Implementation"
 
 testModuleInfo {
+    requires("com.hedera.node.hapi")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")

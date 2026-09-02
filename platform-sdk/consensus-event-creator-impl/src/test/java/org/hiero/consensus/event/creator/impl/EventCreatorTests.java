@@ -27,6 +27,7 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
@@ -62,7 +63,7 @@ class EventCreatorTests {
                     .build());
         }
 
-        final Roster roster = new Roster(rosterEntries);
+        final RosterWrapper roster = RosterWrapper.of(new Roster(rosterEntries));
 
         manager = new DefaultEventCreationManager(
                 configuration, metrics, time, () -> false, creator, roster, NodeId.of(1));

@@ -63,6 +63,7 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -108,6 +109,9 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private final RosterHistory rosterHistory;
+
+    @NonNull
+    private final RosterWrapper currentRoster;
 
     @NonNull
     private final KeysAndCerts keysAndCerts;
@@ -170,6 +174,7 @@ public class ConsensusLayerFactory {
         metrics = inputs.metrics();
         time = inputs.time();
         rosterHistory = inputs.rosterHistory();
+        currentRoster = RosterWrapper.of(rosterHistory.getCurrentRoster());
         keysAndCerts = inputs.keysAndCerts();
         selfId = inputs.selfId();
         recycleBin = inputs.recycleBin();
@@ -507,7 +512,7 @@ public class ConsensusLayerFactory {
                 time,
                 secureRandom,
                 keysAndCerts,
-                rosterHistory.getCurrentRoster(),
+                currentRoster,
                 selfId,
                 executionLayer,
                 executionLayer);

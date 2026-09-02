@@ -34,6 +34,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -75,11 +76,13 @@ public class FalconWiring implements TimeTickReceiver {
             @NonNull final Roster roster,
             @NonNull final SecureRandom secureRandom) {
 
+        final RosterWrapper rosterWrapper = RosterWrapper.of(roster);
+
         final Metrics metrics = new NoOpMetrics();
 
         model = WiringModelBuilder.create(metrics, time)
                 .deterministic()
-                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                .withUncaughtExceptionHandler((_, e) -> fail("Unexpected exception in wiring framework", e))
                 .build();
 
         final EventIntakeWiringConfig eventIntakeConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
@@ -102,10 +105,10 @@ public class FalconWiring implements TimeTickReceiver {
         final BytesSigner byteSigner = _ -> DEFAULT_SIGNATURE;
         final EventTransactionSupplier transactionSupplier = List::of;
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, byteSigner, roster, selfId, transactionSupplier);
+                configuration, metrics, time, secureRandom, byteSigner, rosterWrapper, selfId, transactionSupplier);
         final SignatureTransactionCheck signatureTransactionCheck = () -> false;
         final EventCreationManager eventCreationManager = new DefaultEventCreationManager(
-                configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
+                configuration, metrics, time, signatureTransactionCheck, eventCreator, rosterWrapper, selfId);
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, eventCreationConfig.eventCreationManager());
         eventCreationManagerWiring.bind(eventCreationManager);

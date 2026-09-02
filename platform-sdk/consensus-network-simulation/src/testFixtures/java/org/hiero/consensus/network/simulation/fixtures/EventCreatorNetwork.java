@@ -29,6 +29,7 @@ import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -60,6 +61,7 @@ public class EventCreatorNetwork {
         // Build a roster with real keys
         roster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
                 .getRoster();
+        final RosterWrapper rosterWrapper = RosterWrapper.of(roster);
 
         eventCreators = new HashMap<>();
         time = new FakeTime(Instant.parse("2026-01-01T00:00:00Z"), Duration.ZERO);
@@ -83,12 +85,12 @@ public class EventCreatorNetwork {
                     time,
                     nodeRandom,
                     signer,
-                    roster,
+                    rosterWrapper,
                     nodeId,
                     () -> List.of(new TimestampedTransaction(Bytes.EMPTY, time.now())));
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
-                    configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
+                    configuration, metrics, time, () -> false, eventCreator, rosterWrapper, nodeId);
 
             // Set platform status to ACTIVE so events can be created
             eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);

@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -30,6 +29,8 @@ import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
@@ -127,17 +128,17 @@ class TipsetWeightCalculatorTests {
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
 
-        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
+        final RosterWrapper roster = RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount));
 
         final Map<NodeId, Long> weightMap = new HashMap<>();
         long totalWeight = 0;
-        for (final RosterEntry address : roster.rosterEntries()) {
-            weightMap.put(NodeId.of(address.nodeId()), address.weight());
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
+            weightMap.put(address.nodeId(), address.weight());
             totalWeight += address.weight();
         }
 
         final NodeId selfId =
-                NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+                roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -153,8 +154,8 @@ class TipsetWeightCalculatorTests {
         Tipset previousSnapshot = calculator.getSnapshot();
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
-            final NodeId creator = NodeId.of(
-                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+            final NodeId creator =
+                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
             final long nGen;
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
@@ -166,8 +167,8 @@ class TipsetWeightCalculatorTests {
             final Set<NodeId> desiredOtherParents = new HashSet<>();
             final int maxParentCount = random.nextInt(nodeCount);
             for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
-                final NodeId parent = NodeId.of(
-                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+                final NodeId parent =
+                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
 
                 // We are only trying to generate a random number of parents, the exact count is unimportant.
                 // So it doesn't matter if the actual number of parents is less than the number we requested.
@@ -272,13 +273,14 @@ class TipsetWeightCalculatorTests {
     @DisplayName("Selfish Node Test")
     public void selfishNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
-        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
+        final RosterWrapper roster =
+                RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED));
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+        final NodeId nodeA = roster.rosterEntries().get(0).nodeId();
+        final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
+        final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
+        final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -484,7 +486,7 @@ class TipsetWeightCalculatorTests {
     public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
         // In this test, we simulate from the perspective of node A.
         // All nodes have 1 weight except for D, which has 0 weight.
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -492,26 +494,24 @@ class TipsetWeightCalculatorTests {
         final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        roster = Roster.newBuilder()
-                .rosterEntries(roster.rosterEntries().stream()
-                        .map(entry -> {
-                            if (entry.nodeId() == nodeD.id()) {
-                                return entry.copyBuilder().weight(0).build();
-                            } else {
-                                return entry;
-                            }
-                        })
-                        .toList())
-                .build();
+        final RosterWrapper rosterWrapper = RosterWrapper.of(new Roster(roster.rosterEntries().stream()
+                .map(entry -> {
+                    if (entry.nodeId() == nodeD.id()) {
+                        return entry.copyBuilder().weight(0).build();
+                    } else {
+                        return entry;
+                    }
+                })
+                .toList()));
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, rosterWrapper);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(configuration, time, roster, nodeA, builder, childlessEventTracker);
+                new TipsetWeightCalculator(configuration, time, rosterWrapper, nodeA, builder, childlessEventTracker);
 
         final Tipset snapshot1 = calculator.getSnapshot();
 
@@ -579,12 +579,13 @@ class TipsetWeightCalculatorTests {
     public void ancientParentTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
+        final RosterWrapper roster =
+                RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED));
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+        final NodeId nodeA = roster.rosterEntries().get(0).nodeId();
+        final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
+        final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
+        final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
