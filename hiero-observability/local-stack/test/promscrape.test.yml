@@ -1,0 +1,39 @@
+# Test-only VictoriaMetrics scrape config. Selected via PROMSCRAPE_CONFIG in
+# test/selftest.env - the same override mechanism documented in the README
+# for end users, just pointed at a test-owned file instead of a developer's.
+#
+# Duplicates the `app` / `victoriametrics` / `alloy` jobs from
+# `services/promscrape.yml` rather than including it, because VictoriaMetrics
+# has no config-include directive. Keep the two files in sync if a shared job
+# changes. Adds one job of its own, for the fixture this test spins up
+# (`selftest-metrics`, in docker-compose.test.yml).
+
+global:
+  scrape_interval: %{SCRAPE_INTERVAL}
+
+scrape_configs:
+  # The application under observation. Empty during a selftest.
+  - job_name: app
+    static_configs:
+      - targets: %{SCRAPE_TARGETS}
+        labels: %{METRIC_LABELS}
+
+  # The metrics backend itself.
+  - job_name: victoriametrics
+    static_configs:
+      - targets: ["victoriametrics:8428"]
+        labels: %{METRIC_LABELS}
+
+  # Log-pipeline health.
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+        labels: %{METRIC_LABELS}
+
+  # Fixture served by selftest-metrics. Only exists in this file, so the
+  # target is hardcoded rather than threaded through a shared env var.
+  - job_name: selftest
+    metrics_path: /metrics.txt
+    static_configs:
+      - targets: ["selftest-metrics:8080"]
+        labels: %{METRIC_LABELS}

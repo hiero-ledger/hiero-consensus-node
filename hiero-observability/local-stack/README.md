@@ -53,12 +53,12 @@ Everything is driven by environment variables, and the rule is always the same:
 > **The committed file is the one nobody edits. The gitignored file holds only
 > your overrides.**
 
-|         What          |      Committed       |         Your override         |                 Mechanism                 |
-|-----------------------|----------------------|-------------------------------|-------------------------------------------|
-| Variables             | `defaults.env`       | `local.env`                   | `--env-file` twice, the later file wins   |
-| Metrics scrape config | `promscrape.yml`     | `promscrape.local.yml`        | `PROMSCRAPE_CONFIG` points at your copy   |
-| Log pipeline          | `alloy/config.alloy` | `alloy/config.local.alloy`    | Alloy merges every `*.alloy` in `alloy/`  |
-| Compose itself        | `docker-compose.yml` | `docker-compose.override.yml` | Compose loads it automatically if present |
+| What                  | Committed                 | Your override                   | Mechanism                                   |
+|-----------------------|---------------------------|---------------------------------|---------------------------------------------|
+| Variables             | `defaults.env`            | `local.env`                     | `--env-file` twice, the later file wins     |
+| Metrics scrape config | `services/promscrape.yml` | `services/promscrape.local.yml` | `PROMSCRAPE_CONFIG` points at your copy     |
+| Log pipeline          | `services/config.alloy`   | `services/config.local.alloy`   | Alloy merges every `*.alloy` in `services/` |
+| Compose itself        | `docker-compose.yml`      | `docker-compose.override.yml`   | Compose loads it automatically if present   |
 
 All four override files are gitignored. In the common case you only ever touch
 `local.env`.
@@ -86,9 +86,9 @@ Anything `SCRAPE_TARGETS` cannot express — a different `metrics_path`, per-job
 intervals, service discovery — is a copy of the scrape config:
 
 ```sh
-cp promscrape.yml promscrape.local.yml
-# edit promscrape.local.yml, then in local.env:
-PROMSCRAPE_CONFIG=./promscrape.local.yml
+cp services/promscrape.yml services/promscrape.local.yml
+# edit services/promscrape.local.yml, then in local.env:
+PROMSCRAPE_CONFIG=./services/promscrape.local.yml
 ```
 
 ### Point it at a run's log output
@@ -145,43 +145,115 @@ literally, with no error. If you add a placeholder, give it a default there too.
 
 ## Day-to-day commands
 
-|     `make`      |                           Raw equivalent                            |
-|-----------------|---------------------------------------------------------------------|
-| `make up`       | `docker compose --env-file defaults.env --env-file local.env up -d` |
-| `make down`     | `... down`                                                          |
-| `make reset`    | `... down -v` — also deletes all stored metrics and logs            |
-| `make restart`  | `... up -d --force-recreate` — after editing a config file          |
-| `make logs`     | `... logs -f`                                                       |
-| `make ps`       | `... ps`                                                            |
-| `make selftest` | see below                                                           |
+`make` is a convenience only — every target below has a raw `docker compose`
+equivalent, for Windows users without `make` or anyone who'd rather not use it.
 
-`make up` creates an empty `local.env` if it is missing; the raw command needs
-that file to exist, because Compose fails on a missing `--env-file`.
+Each block below is self-contained and runnable as-is from anywhere, including
+the repo root — the `make` targets use `-C` and the raw `docker compose`
+equivalents start with their own `cd`.
 
-Editing `local.env`, `promscrape.local.yml` or `alloy/config.local.alloy`
-requires `make restart` (or `up -d --force-recreate`) to take effect.
-
-## Selftest
+### Start the stack
 
 ```sh
-make selftest
+make -C hiero-observability/local-stack up
 ```
 
-This starts a throwaway copy of the stack alongside whatever you have running,
-points it at purpose-built fixtures, and asserts that metric names, static
-labels, stream labels, `log_name` derivation and multi-line grouping all survive
-the pipeline intact. It then tears itself down, including its volumes.
+```sh
+cd hiero-observability/local-stack
+touch local.env                       # only needed once; Compose fails on a missing --env-file
+mkdir -p logs
+docker compose --env-file defaults.env --env-file local.env up -d
+```
 
-It runs its assertions **inside a container** on the Compose network, so it
-needs no `bash`, `curl` or `jq` on your machine, and it uses its own Compose
-project and ephemeral host ports, so it cannot disturb or be disturbed by your
-running stack.
+### Stop the stack, keep the data
 
-The metric-name assertions are the point of the exercise: they query
-`selftest_requests_total`, `selftest_blockStream_round_duration_seconds` and
-`selftest_platform_trans_per_sec` by their exact strings, so anything that
-rewrites a `_total` suffix or a camelCase segment in transit fails loudly here
-instead of silently blanking every panel of a dashboard later.
+```sh
+make -C hiero-observability/local-stack down
+```
+
+```sh
+cd hiero-observability/local-stack
+docker compose --env-file defaults.env --env-file local.env down
+```
+
+### Stop the stack and delete all stored data
+
+```sh
+make -C hiero-observability/local-stack reset
+```
+
+```sh
+cd hiero-observability/local-stack
+docker compose --env-file defaults.env --env-file local.env down -v
+```
+
+### Recreate the containers, after editing a config file
+
+```sh
+make -C hiero-observability/local-stack restart
+```
+
+```sh
+cd hiero-observability/local-stack
+docker compose --env-file defaults.env --env-file local.env up -d --force-recreate
+```
+
+Editing `local.env`, `services/promscrape.local.yml` or
+`services/config.local.alloy` requires this (or `make restart`) to take
+effect — config files are only read at container start.
+
+### Follow the stack logs
+
+```sh
+make -C hiero-observability/local-stack logs
+```
+
+```sh
+cd hiero-observability/local-stack
+docker compose --env-file defaults.env --env-file local.env logs -f
+```
+
+### Show container status
+
+```sh
+make -C hiero-observability/local-stack ps
+```
+
+```sh
+cd hiero-observability/local-stack
+docker compose --env-file defaults.env --env-file local.env ps
+```
+
+### Run the automated end-to-end assertions
+
+```sh
+make -C hiero-observability/local-stack selftest
+```
+
+```sh
+cd hiero-observability/local-stack
+
+docker compose -p observability-stack-selftest \
+  -f docker-compose.yml -f test/docker-compose.test.yml \
+  --env-file defaults.env --env-file test/selftest.env \
+  up -d --wait --wait-timeout 120 \
+  victoriametrics loki alloy selftest-metrics selftest-log-writer
+
+docker compose -p observability-stack-selftest \
+  -f docker-compose.yml -f test/docker-compose.test.yml \
+  --env-file defaults.env --env-file test/selftest.env \
+  run --rm -T selftest-assert
+
+docker compose -p observability-stack-selftest \
+  -f docker-compose.yml -f test/docker-compose.test.yml \
+  --env-file defaults.env --env-file test/selftest.env \
+  down -v --remove-orphans
+```
+
+Runs as its own Compose project against ephemeral host ports, so it cannot
+disturb or be disturbed by a stack already running from `make up`. See
+`test/test.mk` for the exact version (teardown-on-failure, log dump on a
+failed assertion) and `docs/development.md` for what it asserts and why.
 
 ## Windows
 
@@ -228,3 +300,8 @@ clean.
 Dashboards. The stack ships none and provisions none yet — use Grafana Explore
 for now. Pointing it at a directory of existing dashboards, and replaying the
 metrics *file* a finished run produced, are tracked separately in `docs/`.
+
+## Development
+
+For architecture rationale, the directory layout, and how the automated
+selftest works, see [`docs/development.md`](docs/development.md).

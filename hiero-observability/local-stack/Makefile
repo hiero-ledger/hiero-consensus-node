@@ -4,15 +4,12 @@
 # `docker compose` equivalent of every target, which is what Windows users
 # without make should use.
 
-COMPOSE  := docker compose --env-file defaults.env --env-file local.env
+COMPOSE := docker compose --env-file defaults.env --env-file local.env
 
-# The selftest runs as its own Compose project so it cannot disturb a running
-# stack, and deliberately without local.env: it asserts that the *committed*
-# defaults work, not that one developer's configuration does.
-SELFTEST := docker compose -p local-stack-selftest --env-file defaults.env --env-file selftest/selftest.env
-ST_UNITS := victoriametrics loki alloy selftest-metrics selftest-log-writer
+# The `selftest` target itself lives in test/test.mk - see docs/development.md.
+include test/test.mk
 
-.PHONY: help up down reset restart logs ps selftest
+.PHONY: help up down reset restart logs ps
 
 help:
 	@printf 'Targets:\n'
@@ -48,13 +45,3 @@ logs: local.env
 
 ps: local.env
 	$(COMPOSE) ps
-
-# --wait fails if a container exits, so the fixtures stay alive. The trap
-# guarantees teardown on every path, including a failing `up`, and the backend
-# logs are dumped before teardown so a failure is debuggable.
-selftest:
-	@set -u; \
-	trap '$(SELFTEST) --profile selftest --profile assert down -v --remove-orphans >/dev/null 2>&1' EXIT INT TERM; \
-	$(SELFTEST) --profile selftest up -d --wait --wait-timeout 120 $(ST_UNITS) || exit 1; \
-	$(SELFTEST) --profile selftest --profile assert run --rm -T selftest-assert \
-	  || { $(SELFTEST) logs --no-color --tail=100 alloy victoriametrics loki; exit 1; }

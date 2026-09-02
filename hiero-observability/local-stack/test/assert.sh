@@ -92,7 +92,7 @@ assert() {
 
 # ---------------------------------------------------------------------------
 
-printf '\n=== local-stack selftest ===\n\n'
+printf '\n=== observability-stack selftest ===\n\n'
 
 wait_for victoriametrics "$VM/health" || true
 wait_for loki "$LOKI/ready" || true

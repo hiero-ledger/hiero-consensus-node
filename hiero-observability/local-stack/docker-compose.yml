@@ -7,6 +7,11 @@
 # or in `docker-compose.override.yml`, which Compose loads automatically if it
 # exists. Both are gitignored.
 
+# Fixes the Compose project name (container/network/volume name prefix)
+# regardless of what directory this repo is cloned into. Without this,
+# Compose falls back to the current directory's basename.
+name: observability-stack
+
 networks:
   observability:
     driver: bridge
@@ -16,9 +21,6 @@ volumes:
   grafana-data:
   loki-data:
   alloy-data:
-  # LOGS_DIR points at this during `make selftest`, so the fixture never writes
-  # into anyone's working tree.
-  selftest-logs:
 
 services:
   # ---------------------------------------------------------------------------
@@ -39,7 +41,6 @@ services:
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL}
       SCRAPE_TARGETS: ${SCRAPE_TARGETS}
       METRIC_LABELS: ${METRIC_LABELS}
-      SELFTEST_TARGETS: ${SELFTEST_TARGETS}
     volumes:
       - ${PROMSCRAPE_CONFIG}:/etc/vm/promscrape.yml:ro
       - victoriametrics-data:/victoria-metrics-data
@@ -67,7 +68,7 @@ services:
       LOKI_DATASOURCE_NAME: ${LOKI_DATASOURCE_NAME}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL}
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./services/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT}:3000"
@@ -89,7 +90,7 @@ services:
     environment:
       LOGS_RETENTION: ${LOGS_RETENTION}
     volumes:
-      - ./loki-config.yml:/etc/loki/config.yml:ro
+      - ./services/loki-config.yml:/etc/loki/config.yml:ro
       - loki-data:/loki
     ports:
       - "${LOKI_PORT}:3100"
@@ -107,14 +108,18 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
       # A directory, not a file: Alloy merges every *.alloy in it, which is what
-      # makes alloy/config.local.alloy work as an override.
+      # makes services/config.local.alloy work as an override.
       - /etc/alloy
     environment:
       LOG_INCLUDE: ${LOG_INCLUDE}
       LOG_LABELS: ${LOG_LABELS}
       LOG_MULTILINE_START: ${LOG_MULTILINE_START}
     volumes:
-      - ./alloy:/etc/alloy:ro
+      # The whole services/ directory, not just config.alloy: Alloy only reads
+      # *.alloy files from it and ignores loki-config.yml/promscrape.yml/grafana/,
+      # so sharing the directory costs nothing and keeps config.local.alloy
+      # sitting next to the file it overrides.
+      - ./services:/etc/alloy:ro
       - ${LOGS_DIR}:/logs:ro
       # Positions must survive a restart, or every restart re-ingests every file.
       - alloy-data:/var/lib/alloy/data
@@ -122,57 +127,5 @@ services:
       - "${ALLOY_PORT}:12345"
     depends_on:
       - loki
-    networks:
-      - observability
-
-  # ---------------------------------------------------------------------------
-  # Selftest fixtures and assertions. See `make selftest`.
-  # ---------------------------------------------------------------------------
-  selftest-metrics:
-    image: busybox:1.38.0
-    profiles: [selftest]
-    command: ["httpd", "-f", "-v", "-p", "8080", "-h", "/www"]
-    volumes:
-      - ./selftest/metrics.txt:/www/metrics.txt:ro
-    networks:
-      - observability
-
-  selftest-log-writer:
-    image: busybox:1.38.0
-    profiles: [selftest]
-    volumes:
-      # Read-write here only; alloy keeps :ro.
-      - ${LOGS_DIR}:/logs
-    # Every `$` is doubled so Compose does not interpolate it. The trailing
-    # timestamped line closes the stack-trace block with a firstline match
-    # instead of leaving it to stage.multiline's max_wait_time.
-    command:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        T=$$(date '+%Y-%m-%d %H:%M:%S')
-        printf '%s INFO  selftest line one\n' "$$T" > /logs/selftest.log
-        printf '%s INFO  selftest line two\n' "$$T" >> /logs/selftest.log
-        printf '%s INFO  selftest line three\n' "$$T" >> /logs/selftest.log
-        printf '%s DEBUG selftest line four\n' "$$T" >> /logs/selftest.log
-        printf '%s WARN  selftest line five\n' "$$T" >> /logs/selftest.log
-        printf '%s ERROR selftest request failed\njava.lang.RuntimeException: selftest failure\n\tat com.example.Alpha.one(Alpha.java:11)\n\tat com.example.Beta.two(Beta.java:22)\n\tat com.example.Gamma.three(Gamma.java:33)\n' "$$T" >> /logs/selftest.log
-        printf '%s INFO  selftest trailer\n' "$$T" >> /logs/selftest.log
-        exec sleep infinity
-    networks:
-      - observability
-
-  selftest-assert:
-    image: curlimages/curl:8.21.0
-    profiles: [assert]
-    entrypoint: ["/bin/sh"]
-    command: ["/assert.sh"]
-    volumes:
-      - ./selftest/assert.sh:/assert.sh:ro
-    depends_on:
-      - victoriametrics
-      - loki
-      - alloy
     networks:
       - observability
