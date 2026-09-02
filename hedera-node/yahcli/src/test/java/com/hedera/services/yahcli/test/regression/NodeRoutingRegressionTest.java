@@ -7,14 +7,14 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.DEFAULT_WORKING_DIR;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.TEST_NETWORK;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newAccountCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -74,7 +74,7 @@ public class NodeRoutingRegressionTest {
         final var acctViaNode3 = new AtomicLong();
 
         return hapiTest(
-                doingContextual(spec -> {
+                doAdhoc(() -> {
                     try {
                         setupGapWorkDir(gapConfigPath, gapWorkDirPath, node0Account, node3Account);
                     } catch (IOException e) {
@@ -82,13 +82,13 @@ public class NodeRoutingRegressionTest {
                     }
                 }),
                 // Create an account routed explicitly to node 0 (account 3 in gap topology)
-                sourcingContextual(spec -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
+                doAdhoc(() -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
                         .withConfigLoc(gapConfigPath.get())
                         .withWorkingDir(gapWorkDirPath.get())
                         .withNodeAccount(node0Account.get())
                         .exposingOutputTo(newAccountCapturer(acctViaNode0::set))),
                 // Create an account routed explicitly to node 3 (account 6 in gap topology — the gap node)
-                sourcingContextual(spec -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
+                doAdhoc(() -> yahcliAccounts("create", "-d", "hbar", "-a", "1")
                         .withConfigLoc(gapConfigPath.get())
                         .withWorkingDir(gapWorkDirPath.get())
                         .withNodeAccount(node3Account.get())
@@ -111,7 +111,8 @@ public class NodeRoutingRegressionTest {
             AtomicReference<String> gapConfigPath,
             AtomicReference<String> gapWorkDirPath,
             AtomicReference<String> node0Account,
-            AtomicReference<String> node3Account) throws IOException {
+            AtomicReference<String> node3Account)
+            throws IOException {
         final var defaultWorkDir = Path.of(DEFAULT_WORKING_DIR.get());
 
         // Read the embedded network's config to get actual host:port info
@@ -135,7 +136,7 @@ public class NodeRoutingRegressionTest {
         gapNet.setRealm(embeddedNet.getRealm());
         gapNet.setDefaultPayer(embeddedNet.getDefaultPayer());
         gapNet.setNodes(gapNodes);
-        gapNet.setDefaultNodeAccount((int) gapNodes.get(0).getAccount());
+        gapNet.setDefaultNodeAccount((int) gapNodes.getFirst().getAccount());
 
         final var gapGlobal = new GlobalConfig();
         gapGlobal.setNetworks(Map.of(TEST_NETWORK, gapNet));
