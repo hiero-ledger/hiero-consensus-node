@@ -69,6 +69,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.workflows.AuthorizationChecker;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -134,6 +135,9 @@ class IngestCheckerTest extends AppTestBase {
     private Authorizer authorizer;
 
     @Mock(strictness = LENIENT)
+    private AuthorizationChecker authorizationChecker;
+
+    @Mock(strictness = LENIENT)
     private BlockHashSigner blockHashSigner;
 
     @Mock
@@ -196,6 +200,7 @@ class IngestCheckerTest extends AppTestBase {
                 dispatcher,
                 feeManager,
                 authorizer,
+                authorizationChecker,
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
@@ -278,6 +283,7 @@ class IngestCheckerTest extends AppTestBase {
                 dispatcher,
                 feeManager,
                 authorizer,
+                authorizationChecker,
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
