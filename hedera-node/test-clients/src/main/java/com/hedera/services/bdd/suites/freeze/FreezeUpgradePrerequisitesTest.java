@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.BYTES_4K;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeAbort;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
@@ -39,6 +40,9 @@ public class FreezeUpgradePrerequisitesTest implements LifecycleTest {
     @HapiTest
     final Stream<DynamicTest> freezeUpgradeIsRejectedWithoutPreparedUpgrade() {
         return hapiTest(
+                // Clear any upgrade prepared by an earlier spec sharing this network, so the condition
+                // under test - that no upgrade has been prepared - holds regardless of execution order.
+                freezeAbort().payingWith(GENESIS),
                 buildUpgradeZipFrom(FAKE_ASSETS_LOC),
                 // Stage 0.0.150 so the pre-handle file-hash check passes, without a PREPARE_UPGRADE.
                 sourcing(() -> updateSpecialFile(
