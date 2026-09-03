@@ -5,6 +5,8 @@ import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.createRosterWrapper;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -128,7 +130,7 @@ class TipsetWeightCalculatorTests {
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
 
-        final RosterWrapper roster = RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount));
+        final RosterWrapper roster = randomRoster(random, nodeCount);
 
         final Map<NodeId, Long> weightMap = new HashMap<>();
         long totalWeight = 0;
@@ -273,8 +275,7 @@ class TipsetWeightCalculatorTests {
     @DisplayName("Selfish Node Test")
     public void selfishNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
-        final RosterWrapper roster =
-                RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED));
+        final RosterWrapper roster = randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
         final NodeId nodeA = roster.rosterEntries().get(0).nodeId();
@@ -486,15 +487,15 @@ class TipsetWeightCalculatorTests {
     public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
+        final Roster pbjRoster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
         // In this test, we simulate from the perspective of node A.
         // All nodes have 1 weight except for D, which has 0 weight.
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+        final NodeId nodeA = NodeId.of(pbjRoster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(pbjRoster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(pbjRoster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(pbjRoster.rosterEntries().get(3).nodeId());
 
-        final RosterWrapper rosterWrapper = RosterWrapper.of(new Roster(roster.rosterEntries().stream()
+        final RosterWrapper roster = createRosterWrapper(pbjRoster.rosterEntries().stream()
                 .map(entry -> {
                     if (entry.nodeId() == nodeD.id()) {
                         return entry.copyBuilder().weight(0).build();
@@ -502,16 +503,16 @@ class TipsetWeightCalculatorTests {
                         return entry;
                     }
                 })
-                .toList()));
+                .toList());
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, rosterWrapper);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(configuration, time, rosterWrapper, nodeA, builder, childlessEventTracker);
+                new TipsetWeightCalculator(configuration, time, roster, nodeA, builder, childlessEventTracker);
 
         final Tipset snapshot1 = calculator.getSnapshot();
 
@@ -579,8 +580,7 @@ class TipsetWeightCalculatorTests {
     public void ancientParentTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        final RosterWrapper roster =
-                RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED));
+        final RosterWrapper roster = randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         final NodeId nodeA = roster.rosterEntries().get(0).nodeId();
         final NodeId nodeB = roster.rosterEntries().get(1).nodeId();

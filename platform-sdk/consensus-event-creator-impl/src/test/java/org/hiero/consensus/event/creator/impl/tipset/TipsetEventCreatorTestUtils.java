@@ -61,7 +61,7 @@ public class TipsetEventCreatorTestUtils {
     public static EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
@@ -93,7 +93,7 @@ public class TipsetEventCreatorTestUtils {
                 time,
                 secureRandom,
                 signer,
-                RosterWrapper.of(roster),
+                RosterWrapper.of(pbjRoster),
                 nodeId,
                 transactionSupplier);
     }
@@ -105,27 +105,28 @@ public class TipsetEventCreatorTestUtils {
     public static Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        final RosterWrapper rosterWrapper = RosterWrapper.of(roster);
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        for (final RosterEntryWrapper address : rosterWrapper.rosterEntries()) {
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
 
             final NodeId selfId = address.nodeId();
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
+            final EventCreator eventCreator =
+                    buildEventCreator(random, time, pbjRoster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, rosterWrapper);
+            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    configuration, time, rosterWrapper, selfId, tipsetTracker, childlessEventTracker);
+                    configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
             final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(

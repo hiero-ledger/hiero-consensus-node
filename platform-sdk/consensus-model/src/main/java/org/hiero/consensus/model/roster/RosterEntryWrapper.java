@@ -18,7 +18,10 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class RosterEntryWrapper {
 
+    @NonNull
     private final RosterEntry rosterEntry;
+
+    @NonNull
     private final NodeId nodeId;
 
     @Nullable

@@ -12,6 +12,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for the {@link RosterEntryWrapper} class.
+ */
 class RosterEntryWrapperTest {
 
     private static RosterEntryWrapper wrap(final Bytes gossipCaCertificate) {
@@ -21,6 +24,11 @@ class RosterEntryWrapperTest {
                 .build());
     }
 
+    /**
+     * Test that a valid gossip CA certificate is correctly decoded and returned by the wrapper.
+     *
+     * @throws CertificateEncodingException if there is an error encoding the certificate
+     */
     @Test
     void gossipCaCertificateIsDecoded() throws CertificateEncodingException {
         final X509Certificate certificate = PreGeneratedX509Certs.getSigCert(7);

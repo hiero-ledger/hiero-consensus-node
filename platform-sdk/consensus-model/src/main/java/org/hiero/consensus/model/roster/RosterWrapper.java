@@ -12,11 +12,18 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class RosterWrapper {
 
+    @NonNull
     private final Roster roster;
 
+    @NonNull
     private final List<RosterEntryWrapper> rosterEntries;
 
-    // We use a lookup table, because searching in a small array of primitives is usually faster than HashMap-lookups.
+    /*
+      This array is used to find the index of an entry based on its NodeId (stored as a long).
+      We use a lookup table, because searching in a small array of primitives
+      is usually faster than HashMap-lookups.
+    */
+    @NonNull
     private final long[] idLookupTable;
 
     private final long totalWeight;
@@ -52,6 +59,7 @@ public class RosterWrapper {
      *
      * @return the list of {@link RosterEntryWrapper} instances
      */
+    @NonNull
     public List<RosterEntryWrapper> rosterEntries() {
         return rosterEntries;
     }
@@ -97,6 +105,7 @@ public class RosterWrapper {
      * @return the corresponding {@link RosterEntryWrapper}
      * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
      */
+    @NonNull
     public RosterEntryWrapper getRosterEntry(@NonNull final NodeId nodeId) {
         final int index = getIndex(nodeId);
         if (index == -1) {
@@ -120,6 +129,7 @@ public class RosterWrapper {
      *
      * @return the underlying {@link Roster}
      */
+    @NonNull
     public Roster toPbj() {
         return roster;
     }

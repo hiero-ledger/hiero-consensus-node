@@ -4,6 +4,7 @@ package org.hiero.consensus.event.creator.impl.tipset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.event.creator.impl.util.CollectionsUtilities.permutations;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 
 import java.util.HashMap;
 import java.util.List;
@@ -12,7 +13,6 @@ import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class TipsetTests {
 
         final int nodeCount = 100;
 
-        final RosterWrapper roster = RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount));
+        final RosterWrapper roster = randomRoster(random, nodeCount);
 
         final Tipset tipset = new Tipset(roster);
         assertThat(tipset.size()).isEqualTo(nodeCount);
@@ -59,7 +59,7 @@ class TipsetTests {
 
         final int nodeCount = 100;
 
-        final RosterWrapper roster = RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount));
+        final RosterWrapper roster = randomRoster(random, nodeCount);
 
         // Given:
         final Tipset emptyTipset = new Tipset(roster);
@@ -135,8 +135,7 @@ class TipsetTests {
 
         final int nodeCount = 100;
 
-        final RosterWrapper roster =
-                RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED));
+        final RosterWrapper roster = randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         final NodeId selfId =
                 roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
@@ -188,7 +187,7 @@ class TipsetTests {
         final Random random = getRandomPrintSeed();
         final int nodeCount = 100;
 
-        final RosterWrapper roster = RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount));
+        final RosterWrapper roster = randomRoster(random, nodeCount);
 
         final Map<NodeId, Long> weights = new HashMap<>();
         for (final RosterEntryWrapper address : roster.rosterEntries()) {

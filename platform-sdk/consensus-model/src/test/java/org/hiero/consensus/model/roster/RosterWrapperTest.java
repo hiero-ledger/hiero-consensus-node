@@ -11,6 +11,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for the {@link RosterWrapper} class.
+ */
 class RosterWrapperTest {
 
     private static final NodeId NODE_3 = NodeId.of(3);
@@ -20,6 +23,9 @@ class RosterWrapperTest {
 
     private RosterWrapper roster;
 
+    /**
+     * Sets up a test roster with three entries before each test.
+     */
     @BeforeEach
     void setUp() {
         final RosterEntry entry3 = entry(NODE_3, 10);
@@ -32,6 +38,9 @@ class RosterWrapperTest {
         return RosterEntry.newBuilder().nodeId(nodeId.id()).weight(weight).build();
     }
 
+    /**
+     * Test that the index of each node in the roster follows the order of the entries.
+     */
     @Test
     void indexFollowsRosterOrder() {
         assertThat(roster.getIndex(NODE_3)).isEqualTo(0);
@@ -43,6 +52,10 @@ class RosterWrapperTest {
         assertThat(roster.contains(ABSENT_NODE)).isFalse();
     }
 
+    /**
+     * Test that the roster entry for a given node ID can be looked up correctly,
+     * and that looking up an absent node throws an exception.
+     */
     @Test
     void rosterEntryIsLookedUpByNodeId() {
         assertThat(roster.getRosterEntry(NODE_7).nodeId()).isEqualTo(NODE_7);
@@ -51,6 +64,9 @@ class RosterWrapperTest {
         assertThatThrownBy(() -> roster.getRosterEntry(ABSENT_NODE)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Test that the total weight of the roster sums all entries correctly.
+     */
     @Test
     void totalWeightSumsAllEntries() {
         assertThat(roster.totalWeight()).isEqualTo(60L);

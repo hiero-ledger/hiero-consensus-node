@@ -6,12 +6,11 @@ plugins {
 }
 
 jmhModuleInfo {
-    requires("com.hedera.node.hapi")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.event.creator.impl")
     requires("org.hiero.consensus.fakes")
-    requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.hiero.consensus.model.test.fixtures")
     requires("jmh.core")
 }
 

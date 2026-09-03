@@ -29,6 +29,7 @@ import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
@@ -44,7 +45,7 @@ public class EventCreatorNetwork {
     final Map<NodeId, DefaultEventCreationManager> eventCreators;
     final DefaultOrphanBuffer orphanBuffer;
     final FakeTime time;
-    final Roster roster;
+    final Roster pbjRoster;
     final PlatformContext platformContext;
     final SimulatedBroadcast network;
 
@@ -59,9 +60,9 @@ public class EventCreatorNetwork {
     public EventCreatorNetwork(
             final long seed, final int numNodes, final Configuration configuration, final NetworkLatency latency) {
         // Build a roster with real keys
-        roster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
+        pbjRoster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
                 .getRoster();
-        final RosterWrapper rosterWrapper = RosterWrapper.of(roster);
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
 
         eventCreators = new HashMap<>();
         time = new FakeTime(Instant.parse("2026-01-01T00:00:00Z"), Duration.ZERO);
@@ -73,7 +74,7 @@ public class EventCreatorNetwork {
         final Metrics metrics = platformContext.getMetrics();
 
         // Create an event creator for each node
-        for (final RosterEntry entry : roster.rosterEntries()) {
+        for (final RosterEntry entry : pbjRoster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final SecureRandom nodeRandom = DeterministicSecureRandom.getInstance(seed);
             final KeyPair keyPair = SigningFactory.generateKeyPair(SigningSchema.ED25519, nodeRandom);
@@ -85,12 +86,12 @@ public class EventCreatorNetwork {
                     time,
                     nodeRandom,
                     signer,
-                    rosterWrapper,
+                    roster,
                     nodeId,
                     () -> List.of(new TimestampedTransaction(Bytes.EMPTY, time.now())));
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
-                    configuration, metrics, time, () -> false, eventCreator, rosterWrapper, nodeId);
+                    configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
 
             // Set platform status to ACTIVE so events can be created
             eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);
@@ -98,9 +99,8 @@ public class EventCreatorNetwork {
             eventCreators.put(nodeId, eventCreationManager);
         }
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
-        final List<NodeId> ids = roster.rosterEntries().stream()
-                .map(entry -> NodeId.of(entry.nodeId()))
-                .toList();
+        final List<NodeId> ids =
+                roster.rosterEntries().stream().map(RosterEntryWrapper::nodeId).toList();
         network = new SimulatedBroadcast(time.now(), ids);
         network.setLatency(latency);
     }
@@ -110,8 +110,8 @@ public class EventCreatorNetwork {
      *
      * @return the roster
      */
-    public Roster getRoster() {
-        return roster;
+    public Roster getPbjRoster() {
+        return pbjRoster;
     }
 
     /**

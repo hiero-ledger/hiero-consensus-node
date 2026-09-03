@@ -3,6 +3,7 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -26,7 +27,6 @@ import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +57,7 @@ class TipsetTrackerTests {
         final Random random = getRandomPrintSeed();
 
         final int nodeCount = random.nextInt(10, 20);
-        final RosterWrapper roster = RosterWrapper.of(RosterFactory.randomRoster(random, nodeCount));
+        final RosterWrapper roster = randomRoster(random, nodeCount);
         final NodeId selfId = NodeId.of(random.nextLong(nodeCount));
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();

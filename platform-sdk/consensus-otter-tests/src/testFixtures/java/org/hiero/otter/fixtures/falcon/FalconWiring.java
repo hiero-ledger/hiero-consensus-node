@@ -66,17 +66,17 @@ public class FalconWiring implements TimeTickReceiver {
      * @param configuration the configuration for the wiring
      * @param time the time source
      * @param selfId the ID of the current node
-     * @param roster the roster of nodes
+     * @param pbjRoster the roster of nodes
      * @param secureRandom the secure random number generator
      */
     public FalconWiring(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final SecureRandom secureRandom) {
 
-        final RosterWrapper rosterWrapper = RosterWrapper.of(roster);
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
 
         final Metrics metrics = new NoOpMetrics();
 
@@ -96,7 +96,7 @@ public class FalconWiring implements TimeTickReceiver {
         final long transactionOffsetNanos = 0L;
         final HashgraphWiringConfig hashgraphConfig = configuration.getConfigData(HashgraphWiringConfig.class);
         final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
-                configuration, metrics, time, roster, selfId, freezePeriodChecker, transactionOffsetNanos);
+                configuration, metrics, time, pbjRoster, selfId, freezePeriodChecker, transactionOffsetNanos);
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, hashgraphConfig.consensusEngine());
         consensusEngineWiring.bind(consensusEngine);
 
@@ -105,10 +105,10 @@ public class FalconWiring implements TimeTickReceiver {
         final BytesSigner byteSigner = _ -> DEFAULT_SIGNATURE;
         final EventTransactionSupplier transactionSupplier = List::of;
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, byteSigner, rosterWrapper, selfId, transactionSupplier);
+                configuration, metrics, time, secureRandom, byteSigner, roster, selfId, transactionSupplier);
         final SignatureTransactionCheck signatureTransactionCheck = () -> false;
         final EventCreationManager eventCreationManager = new DefaultEventCreationManager(
-                configuration, metrics, time, signatureTransactionCheck, eventCreator, rosterWrapper, selfId);
+                configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, eventCreationConfig.eventCreationManager());
         eventCreationManagerWiring.bind(eventCreationManager);
