@@ -38,6 +38,9 @@ public class ChildFeeContext implements FeeContext {
     private final AppKeyVerifier verifier;
 
     private final int signatureMapSize;
+    // The number of signatures to charge for when there is no verifier to consult (e.g. an externally
+    // supplied signature map, as with the HSS signSchedule(address,bytes) system contract call).
+    private final int signatureCount;
     private final HederaFunctionality functionality;
 
     public ChildFeeContext(
@@ -51,6 +54,7 @@ public class ChildFeeContext implements FeeContext {
             @NonNull final Instant consensusNow,
             @Nullable final AppKeyVerifier verifier,
             final int signatureMapSize,
+            final int signatureCount,
             @NonNull final HederaFunctionality functionality) {
         this.feeManager = requireNonNull(feeManager);
         this.context = requireNonNull(context);
@@ -62,6 +66,7 @@ public class ChildFeeContext implements FeeContext {
         this.consensusNow = requireNonNull(consensusNow);
         this.verifier = verifier;
         this.signatureMapSize = signatureMapSize;
+        this.signatureCount = signatureCount;
         this.functionality = requireNonNull(functionality);
     }
 
@@ -102,7 +107,7 @@ public class ChildFeeContext implements FeeContext {
 
     @Override
     public int numTxnSignatures() {
-        return verifier == null ? 0 : verifier.numSignaturesVerified();
+        return verifier == null ? signatureCount : verifier.numSignaturesVerified();
     }
 
     @Override

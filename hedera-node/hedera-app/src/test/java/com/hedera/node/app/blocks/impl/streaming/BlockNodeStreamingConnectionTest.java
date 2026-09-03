@@ -39,6 +39,7 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -177,7 +178,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 blockNode,
@@ -224,7 +229,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
         verify(grpcServiceClient).publishBlockStream(connection);
         verify(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
     }
 
     @Test

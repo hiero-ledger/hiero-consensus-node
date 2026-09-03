@@ -59,22 +59,11 @@ about what lives inside each module belongs in the per-topic files.
 - [`consensus-hashgraph`](../../../consensus-hashgraph) — run the
   hashgraph consensus algorithm; emit consensus rounds with timestamps
   and round metadata. See [`topics/hashgraph.md`](topics/hashgraph.md).
-- [`consensus-roster`](../../../consensus-roster) — roster representation
-  and lookup; rosters are carried as round metadata so every module agrees
-  on which roster applies to which round. See
-  [`topics/hashgraph.md`](topics/hashgraph.md) (round metadata) and
-  [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md)
-  (where rosters cross the boundary).
 - [`consensus-reconnect`](../../../consensus-reconnect) — recover a node
   that has fallen behind to the point where gossip alone cannot catch it
   up; the orchestration entry point lives in
   [`swirlds-platform-core`](../../../swirlds-platform-core). See
   [`topics/reconnect.md`](topics/reconnect.md).
-- [`consensus-state`](../../../consensus-state) — Consensus-side state
-  structures shared at the boundary with Execution. See
-  [`topics/signed-state-management.md`](topics/signed-state-management.md)
-  and
-  [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
 - [`swirlds-platform-core`](../../../swirlds-platform-core) — the wiring
   root: where Consensus modules are composed into a running platform and
   where the Consensus / Execution boundary is drawn today
@@ -85,13 +74,16 @@ about what lives inside each module belongs in the per-topic files.
 
 Supporting modules — [`consensus-model`](../../../consensus-model),
 [`consensus-utility`](../../../consensus-utility),
-[`consensus-metrics`](../../../consensus-metrics),
+[`consensus-metrics`](../../../consensus-metrics) — provide the shared
+data model, helpers, and metrics consumed by the modules above.
+
+Structural-transitional modules —
 [`consensus-event-stream`](../../../consensus-event-stream),
 [`consensus-platformstate`](../../../consensus-platformstate),
-[`consensus-concurrent`](../../../consensus-concurrent) — provide the
-shared data model, helpers, metrics, event streaming, platform-state
-structures, and concurrency primitives consumed by the modules above. The
-topic files cite them where relevant.
+[`consensus-roster`](../../../consensus-roster),
+[`consensus-state`](../../../consensus-state) — carry event streaming
+and state-adjacent structures on the Consensus side until they move to
+Execution or are retired. The topic files cite them where relevant.
 
 GUI, otter, and sloth modules (`consensus-gui`,
 `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`)
