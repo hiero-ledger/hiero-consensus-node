@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
@@ -64,6 +65,8 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChange;
@@ -174,7 +177,8 @@ public class BaseTranslator {
 
     /**
      * Sets the contents of a file identified by the given number.
-     * @param num the file number
+     *
+     * @param num     the file number
      * @param content the content to set
      */
     public void setFile(long num, @NonNull final Bytes content) {
@@ -184,7 +188,8 @@ public class BaseTranslator {
 
     /**
      * Appends content to a file identified by the given number.
-     * @param num the file number
+     *
+     * @param num     the file number
      * @param content the content to append
      */
     public void appendToFile(long num, @NonNull final Bytes content) {
@@ -194,6 +199,7 @@ public class BaseTranslator {
 
     /**
      * Retrieves the contents of a file identified by the given number.
+     *
      * @param num the file number
      * @return the contents of the file, or an empty Bytes if not found
      */
@@ -203,6 +209,7 @@ public class BaseTranslator {
 
     /**
      * Checks if the contents of a file identified by the given number are known.
+     *
      * @param num the file number
      * @return true if the contents are known, false otherwise
      */
@@ -213,9 +220,9 @@ public class BaseTranslator {
     /**
      * Tracks the initcode for a contract creation at the given time.
      *
-     * @param now the consensus timestamp of the transaction
+     * @param now      the consensus timestamp of the transaction
      * @param initcode the initcode
-     * @param isEthTx whether the creation is from an Ethereum transaction
+     * @param isEthTx  whether the creation is from an Ethereum transaction
      */
     public void trackInitcode(@NonNull final Timestamp now, @NonNull final ExecutedInitcode initcode, boolean isEthTx) {
         requireNonNull(now);
@@ -308,7 +315,7 @@ public class BaseTranslator {
     /**
      * Determines if the given number was created in the ongoing transactional unit.
      *
-     * @param num the number to query
+     * @param num  the number to query
      * @return true if the number was created
      */
     public boolean entityCreatedThisUnit(final long num) {
@@ -318,7 +325,7 @@ public class BaseTranslator {
     /**
      * Tracks the association of a token with an account.
      *
-     * @param tokenID the token to track
+     * @param tokenID   the token to track
      * @param accountID the account to track
      */
     public void trackAssociation(@NonNull final TokenID tokenID, @NonNull final AccountID accountID) {
@@ -328,7 +335,7 @@ public class BaseTranslator {
     /**
      * Tracks the dissociation of a token from an account.
      *
-     * @param tokenID the token to track
+     * @param tokenID   the token to track
      * @param accountID the account to track
      */
     public void trackDissociation(@NonNull final TokenID tokenID, @NonNull final AccountID accountID) {
@@ -338,7 +345,7 @@ public class BaseTranslator {
     /**
      * Initializes the total supply of the given token.
      *
-     * @param tokenId the token to initialize
+     * @param tokenId     the token to initialize
      * @param totalSupply the total supply to set
      */
     public void initTotalSupply(@NonNull final TokenID tokenId, final long totalSupply) {
@@ -348,7 +355,7 @@ public class BaseTranslator {
     /**
      * Adjusts the total supply of the given token by the given amount and returns the new total supply.
      *
-     * @param tokenId the token to adjust
+     * @param tokenId    the token to adjust
      * @param adjustment the amount to adjust by
      * @return the new total supply
      */
@@ -360,7 +367,7 @@ public class BaseTranslator {
      * Determines if the given token was already associated with the given account before the ongoing
      * transactional unit being translated into records.
      *
-     * @param tokenId the token to query
+     * @param tokenId   the token to query
      * @param accountId the account to query
      * @return true if the token was already associated with the account
      */
@@ -374,7 +381,7 @@ public class BaseTranslator {
      * Provides the next {@code n} serial numbers that were minted for the given token in the transactional unit.
      *
      * @param tokenId the token to query
-     * @param n the number of serial numbers to provide
+     * @param n       the number of serial numbers to provide
      * @return the next {@code n} serial numbers that were minted for the token
      */
     public List<Long> nextNMints(@NonNull final TokenID tokenId, final int n) {
@@ -414,7 +421,7 @@ public class BaseTranslator {
      * and the consumption order doesn't match sorted order.
      *
      * @param type the type of entity
-     * @param num the specific entity number to consume
+     * @param num  the specific entity number to consume
      * @return true if the number was found and consumed
      */
     public boolean consumeCreatedNum(@NonNull final EntityType type, final long num) {
@@ -452,15 +459,19 @@ public class BaseTranslator {
 
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
+     *
      * @param resultBuilder the builder to populate with created IDs
-     * @param stateChanges the state changes to process
+     * @param parts         the block transaction data parts
+     * @param stateChanges  the state changes to process
      */
     public void addCreatedIdsTo(
             @NonNull final ContractFunctionResult.Builder resultBuilder,
+            @NonNull final BlockTransactionParts parts,
             @NonNull final List<StateChange> stateChanges) {
         requireNonNull(resultBuilder);
+        requireNonNull(parts);
         requireNonNull(stateChanges);
-        final var createdIds = stateChanges.stream()
+        var createdIds = stateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
@@ -468,6 +479,22 @@ public class BaseTranslator {
                 .map(MapChangeKey::contractIdKeyOrThrow)
                 .sorted(CONTRACT_ID_COMPARATOR)
                 .toList();
+        if (createdIds.size() > 1 && parts.isBatchScoped() && parts.traces() != null) {
+            // If there are few createdIds, we are in a batch and have traces, try to recover createdContractIDs from
+            // traces first.
+            // This will cover the situation when we have multiple transactions in a batch that each create
+            // nested contracts. 'stateChanges' will hold the final createdContractIDs for all transactions,
+            // and we need to derive createdContractIDs for transactions that are in the middle of the batch.
+            createdIds = parts.traces().stream()
+                    .filter(TraceData::hasEvmTraceData)
+                    .map(TraceData::evmTraceDataOrThrow)
+                    .flatMap(e -> e.contractActions().stream())
+                    .filter(e -> ContractActionType.CREATE.equals(e.callType()))
+                    .filter(ContractAction::hasRecipientContract)
+                    .map(ContractAction::recipientContractOrThrow)
+                    .sorted(CONTRACT_ID_COMPARATOR)
+                    .toList();
+        }
         resultBuilder.createdContractIDs(createdIds);
     }
 
@@ -475,7 +502,7 @@ public class BaseTranslator {
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
      *
      * @param resultBuilder the builder to populate with created IDs
-     * @param stateChanges the state changes to process
+     * @param stateChanges  the state changes to process
      */
     public void addCreatedEvmAddressTo(
             @NonNull final ContractFunctionResult.Builder resultBuilder,
@@ -505,7 +532,7 @@ public class BaseTranslator {
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
      *
-     * @param resultBuilder the builder to populate with created IDs
+     * @param resultBuilder      the builder to populate with created IDs
      * @param contractNonceInfos the contract nonce infos to maybe add (from a {@link EvmTransactionResult})
      */
     public void addChangedContractNonces(
@@ -524,11 +551,11 @@ public class BaseTranslator {
     /**
      * Given a {@link BlockTransactionParts} and a {@link Spec}, translates the implied {@link SingleTransactionRecord}.
      *
-     * @param parts the parts of the transaction
-     * @param spec the specification of the transaction record
+     * @param parts                 the parts of the transaction
+     * @param spec                  the specification of the transaction record
      * @param remainingStateChanges the remaining state changes for this transactional unit
-     * @param followingUnitTraces any traces following this transaction in its unit
-     * @param executingHookId if not null, the hook execution id of these parts
+     * @param followingUnitTraces   any traces following this transaction in its unit
+     * @param executingHookId       if not null, the hook execution id of these parts
      * @return the translated record
      */
     public SingleTransactionRecord recordFrom(
@@ -644,7 +671,7 @@ public class BaseTranslator {
                 .filter(ScopedTraceData::hasEvmTraceData)
                 .toList();
         for (final var evmTraceData : evmTraces) {
-            if (!evmTraceData.contractSlotUsages().isEmpty()) {
+            if (!evmTraceData.contractSlotUsages().isEmpty() && parts.status() != REVERTED_SUCCESS) {
                 final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {
@@ -780,7 +807,8 @@ public class BaseTranslator {
 
     /**
      * Returns the written keys from the given {@link ContractSlotUsage}.
-     * @param slotUsage the contract slot usage to extract written keys from
+     *
+     * @param slotUsage    the contract slot usage to extract written keys from
      * @param stateChanges the state changes to search for written keys
      * @return a list of written keys
      */
@@ -835,6 +863,7 @@ public class BaseTranslator {
 
     /**
      * Initializes a {@link ContractFunctionResult.Builder} from the given {@link EvmTransactionResult}.
+     *
      * @param result the EVM transaction result to initialize from
      * @return a builder for the contract function result
      */
@@ -856,8 +885,9 @@ public class BaseTranslator {
 
     /**
      * Maps the given traces to verbose logs in the provided {@link ContractFunctionResult.Builder}.
+     *
      * @param resultBuilder the builder to populate with verbose logs
-     * @param traces the list of traces to map to verbose logs
+     * @param traces        the list of traces to map to verbose logs
      */
     public static void mapTracesToVerboseLogs(
             @NonNull final ContractFunctionResult.Builder resultBuilder, @Nullable List<TraceData> traces) {
@@ -882,6 +912,7 @@ public class BaseTranslator {
 
     /**
      * Determines if the given {@link TraceData} implies that there are logs present in the V6 function result.
+     *
      * @param traceData the trace data to check
      * @return true if the trace data implies logs, false otherwise
      */
@@ -899,7 +930,7 @@ public class BaseTranslator {
     /**
      * Converts a concise EVM transaction log into a verbose {@link ContractLoginfo}.
      *
-     * @param log the concise EVM transaction log to convert
+     * @param log     the concise EVM transaction log to convert
      * @param besuLog the Besu log associated with the EVM transaction log
      * @return the verbose {@link ContractLoginfo} representation of the log
      */
@@ -915,6 +946,7 @@ public class BaseTranslator {
 
     /**
      * Updates the active exchange rates with the contents of the given state change.
+     *
      * @param change the state change to update from
      */
     public void updateActiveRates(@NonNull final StateChange change) {
@@ -929,6 +961,7 @@ public class BaseTranslator {
 
     /**
      * Returns the active exchange rates.
+     *
      * @return the active exchange rates
      */
     public ExchangeRateSet activeRates() {
@@ -937,6 +970,7 @@ public class BaseTranslator {
 
     /**
      * Updates the nonces for accounts after processing the given transactional unit.
+     *
      * @param unit the transactional unit to process
      */
     public void updateNoncesAfter(@NonNull final BlockTransactionalUnit unit) {
@@ -1127,7 +1161,7 @@ public class BaseTranslator {
      * This method tries to identify missing mapUpdate state changes with NftID, in case of mixed mint, burn, and wipe
      * transactions in atomic batch. If such, it will use mapDelete changes to fill missing ones.
      *
-     * @param unit The block transactional unit.
+     * @param unit                 The block transactional unit.
      * @param deletedMintSerialNos Map derived from all mapDelete state changes with NftID key in the given unit.
      */
     private void maybeDeletedSerialsInBatch(
@@ -1185,8 +1219,8 @@ public class BaseTranslator {
      * within a single batch transaction (all modifying the same account), the final state change might
      * contain a greater nonce value than what appears in any individual transaction body.
      *
-     * @param accountID The Ethereum transaction sender account
-     * @param nonce The nonce value from the Ethereum transaction body
+     * @param accountID             The Ethereum transaction sender account
+     * @param nonce                 The nonce value from the Ethereum transaction body
      * @param remainingStateChanges The current state changes to examine
      * @return true if the signer nonce from state changes is greater than the one in the transaction body
      */
@@ -1199,7 +1233,7 @@ public class BaseTranslator {
     /**
      * Retrieves the Ethereum nonce for a given account.
      *
-     * @param senderId the account ID to get the nonce for
+     * @param senderId              the account ID to get the nonce for
      * @param remainingStateChanges the state changes to search for the account
      * @return the Ethereum nonce for the account
      */
