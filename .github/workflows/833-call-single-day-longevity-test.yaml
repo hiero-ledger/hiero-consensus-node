@@ -472,30 +472,6 @@ jobs:
 
           task
 
-      - name: Add Mirror Node
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
-          task solo:mirror-node
-
-      - name: Add Explorer
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          #FIXME export EXPLORER_VERSION="${{ inputs.explorerref }}"
-          task solo:explorer
-
-      - name: Add Relay
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          export RELAY_VERSION="${{ inputs.relayref }}"
-          task solo:relay
-
       - name: Add BlockNodes
         run: |
           set +x
@@ -605,6 +581,30 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
           task start
+
+      - name: Add Mirror Node
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
+          task solo:mirror-node
+
+      - name: Add Explorer
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          #FIXME export EXPLORER_VERSION="${{ inputs.explorerref }}"
+          task solo:explorer
+
+      - name: Add Relay
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export RELAY_VERSION="${{ inputs.relayref }}"
+          task solo:relay
 
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
