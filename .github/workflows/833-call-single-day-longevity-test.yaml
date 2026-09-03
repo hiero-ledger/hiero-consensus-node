@@ -48,6 +48,21 @@ on:
         type: string
         required: true
         default: ""
+      mirrorref:
+        description: "Mirror version"
+        type: string
+        required: true
+        default: ""
+      explorerref:
+        description: "Explorer version"
+        type: string
+        required: false
+        default: ""
+      relayref:
+        description: "Relay version"
+        type: string
+        required: true
+        default: ""
       nlg-version:
         required: true
         default: "0.14.3"
@@ -459,14 +474,26 @@ jobs:
 
       - name: Add Mirror Node
         run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
           task solo:mirror-node
 
       - name: Add Explorer
         run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          #FIXME export EXPLORER_VERSION="${{ inputs.explorerref }}"
           task solo:explorer
 
       - name: Add Relay
         run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export RELAY_VERSION="${{ inputs.relayref }}"
           task solo:relay
 
       - name: Add BlockNodes
