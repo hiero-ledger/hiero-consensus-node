@@ -528,6 +528,7 @@ jobs:
 
       - name: Build Success Slack Payload
         env:
+          SLACK_COLOR: "#00FF00"
           XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
@@ -697,6 +698,7 @@ jobs:
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
+          SLACK_COLOR: "#FF0000"
           XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info  || ''}}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
