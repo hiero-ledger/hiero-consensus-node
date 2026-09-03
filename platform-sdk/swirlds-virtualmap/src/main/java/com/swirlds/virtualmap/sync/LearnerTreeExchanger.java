@@ -182,39 +182,39 @@ public final class LearnerTreeExchanger {
      *                         no further responses will arrive, so once the FIFO is drained the loop exits
      */
     void applierLoop(final CountDownLatch receiveTasksDone) {
-        while (!Thread.currentThread().isInterrupted()) {
+        // Phase 1 — steady state. Drain the FIFO head whenever its response has been published,
+        // otherwise spin. Runs until either the work group interrupts us (a sibling task failed) or
+        // every receiver has finished (latch zero) after the last leaf request was sent. The latter is
+        // the terminal condition: each receiver publishes into `responses` before counting the latch
+        // down, so once the count is zero every response that will ever arrive is already in the map.
+        while (!Thread.currentThread().isInterrupted() && (!lastLeafSent.get() || receiveTasksDone.getCount() != 0)) {
             final Long head = anticipatedLeafPaths.peek();
-
-            // No head, or head not yet published: nothing to drain right now.
             final PullVirtualTreeResponse r = (head == null) ? null : responses.remove(head);
             if (r == null) {
-                // Terminate only once every receiver has finished. Each receiver publishes into
-                // `responses` (responseReceived) before it counts the latch down (its finally block),
-                // so when the count is zero every response that will ever arrive is already in the map,
-                // and both maps are frozen. lastLeafSent guards against a spurious early exit before any
-                // leaf request was sent.
-                if (lastLeafSent.get() && receiveTasksDone.getCount() == 0) {
-                    // Re-read AFTER observing the terminal condition: the peek/remove above may have
-                    // raced a concurrent publish-then-countdown and be stale. If a head is present now,
-                    // it can't be — no receiver can publish once the latch is zero — so loop once more to
-                    // drain it. If it's genuinely absent, the response was lost: fail the reconnect rather
-                    // than leave a leaf unsupplied (a silently corrupt tree).
-                    if (anticipatedLeafPaths.isEmpty()) {
-                        return; // fully drained — clean completion
-                    }
-                    if (responses.containsKey(anticipatedLeafPaths.peek())) {
-                        continue; // head arrived in the race window — drain it next iteration
-                    }
-                    throw new MerkleSynchronizationException("Reconnect ended with " + anticipatedLeafPaths.size()
-                            + " undrained leaf path(s); FIFO head " + anticipatedLeafPaths.peek() + " never received");
-                }
-                LockSupport.parkNanos(50_000L); // head still in flight; nothing to drain this pass
+                LockSupport.parkNanos(50_000L); // head not yet received; nothing to drain this pass
                 continue;
             }
-
-            // Head is present: apply it in FIFO order, then advance.
             handleResponse(r);
             anticipatedLeafPaths.remove();
+        }
+
+        // If we exited because of an interrupt (sibling failure), the work group is tearing down —
+        // do not drain; just return and let it complete.
+        if (Thread.currentThread().isInterrupted()) {
+            return;
+        }
+
+        // Phase 2 — drain the tail. The terminal condition held on exit, so both maps are frozen: no
+        // receiver can publish again. Every remaining anticipated path must therefore already have its
+        // response in the map. A missing one is a lost response / protocol violation — fail the
+        // reconnect rather than leave a leaf unsupplied (a silently corrupt tree).
+        for (Long path = anticipatedLeafPaths.poll(); path != null; path = anticipatedLeafPaths.poll()) {
+            final PullVirtualTreeResponse r = responses.remove(path);
+            if (r == null) {
+                throw new MerkleSynchronizationException(
+                        "Reconnect ended with an undrained leaf path " + path + " whose response was never received");
+            }
+            handleResponse(r);
         }
     }
 
