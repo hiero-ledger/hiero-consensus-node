@@ -8,9 +8,14 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
@@ -19,6 +24,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -125,6 +131,34 @@ public class QueryPaymentSuite {
                         .setNode(NODE)
                         .fee(10L)
                         .hasAnswerOnlyPrecheck(INVALID_RECEIVING_NODE_ACCOUNT));
+    }
+
+    // A query payment must be a pure HBAR transfer; a payment carrying token transfers is rejected at precheck,
+    // because the query path does not validate the token leg (signatures, association, balance).
+    @HapiTest
+    final Stream<DynamicTest> queryPaymentWithTokenTransfersIsRejected() {
+        return hapiTest(
+                cryptoCreate("a").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("b").balance(ONE_HBAR),
+                tokenCreate("t").treasury("a").initialSupply(1000L),
+                getAccountInfo(GENESIS)
+                        .withPayment(cryptoTransfer((spec, builder) -> {
+                                    final var payer = spec.registry().getAccountID("a");
+                                    final var receiver = spec.registry().getAccountID("b");
+                                    final var node = asAccount(spec, Long.parseLong(NODE));
+                                    final var token = spec.registry().getTokenID("t");
+                                    builder.setTransfers(TransferList.newBuilder()
+                                            .addAccountAmounts(adjust(payer, -ONE_HBAR))
+                                            .addAccountAmounts(adjust(node, ONE_HBAR)));
+                                    builder.addTokenTransfers(TokenTransferList.newBuilder()
+                                            .setToken(token)
+                                            .addTransfers(adjust(payer, -1L))
+                                            .addTransfers(adjust(receiver, 1L)));
+                                })
+                                .payingWith("a")
+                                .signedBy("a"))
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(INVALID_QUERY_HEADER));
     }
 
     private TransferList multiAccountPaymentToNode003(HapiSpec spec, String first, String second, long amount) {
