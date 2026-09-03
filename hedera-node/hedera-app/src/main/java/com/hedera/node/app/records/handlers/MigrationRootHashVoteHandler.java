@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -37,6 +37,11 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 public class MigrationRootHashVoteHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(MigrationRootHashVoteHandler.class);
 
+    private static final int SHA_384_HASH_LENGTH = 48;
+    // Far beyond any realistic number of wrapped record blocks; also keeps the leaf count clear of
+    // overflow as it is incremented per queued hash during finalization.
+    private static final long MAX_INTERMEDIATE_LEAF_COUNT = 1L << 40;
+
     private final BlockRecordManager blockRecordManager;
 
     @Inject
@@ -47,6 +52,12 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
+        final var op = context.body().migrationRootHashVoteOrThrow();
+        // Reject structurally inconsistent vote bodies up front so they are never stored, tallied, or
+        // fed into the streaming hasher during finalization.
+        if (!isStructurallyValid(op)) {
+            throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        }
     }
 
     @Override
@@ -74,11 +85,8 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                         .map(Bytes::toHex)
                         .collect(Collectors.joining(", ")),
                 op.wrappedIntermediateBlockRootsLeafCount());
-        if (!store.putVoteIfAbsent(nodeId, op)) {
-            log.info("Ignoring duplicate migration root hash vote from node{}", nodeId);
-            return;
-        }
-
+        // Confirm the submitting node is an active-roster member with positive weight BEFORE persisting
+        // its vote, so an ineligible node cannot accumulate entries in the durable vote list.
         final var rosterStore = context.storeFactory().readableStore(ReadableRosterStore.class);
         final var activeRoster = rosterStore.getActiveRoster();
         if (activeRoster == null || activeRoster.rosterEntries().isEmpty()) {
@@ -86,7 +94,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         }
         final var nodeWeight = activeRoster.rosterEntries().stream()
                 .filter(entry -> entry.nodeId() == nodeId)
-                .mapToLong(entry -> entry.weight())
+                .mapToLong(RosterEntry::weight)
                 .findFirst()
                 .orElse(0L);
         if (nodeWeight <= 0) {
@@ -105,14 +113,24 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return;
         }
 
+        if (!store.putVoteIfAbsent(nodeId, op, activeRoster.rosterEntries().size())) {
+            log.info("Ignoring duplicate migration root hash vote from node{}", nodeId);
+            return;
+        }
+
         final var weightByNode = activeRoster.rosterEntries().stream()
                 .collect(Collectors.toMap(RosterEntry::nodeId, RosterEntry::weight));
         final var tallyByVote = new HashMap<MigrationRootHashVoteTransactionBody, Long>();
-        for (final var vote : store.votes()) {
-            final var votingNodeId = vote.nodeIdOrElse(NodeId.DEFAULT).id();
+        for (final var storedVote : store.votes()) {
+            // Skip stored entries that carry no vote body or no node id, so they cannot be miscounted
+            // toward this vote (a missing node id would otherwise default to node 0 and be credited its weight)
+            if (!storedVote.hasVote() || !storedVote.hasNodeId()) {
+                continue;
+            }
+            final var votingNodeId = storedVote.nodeIdOrThrow().id();
             final var votingWeight = weightByNode.getOrDefault(votingNodeId, 0L);
             if (votingWeight > 0) {
-                tallyByVote.merge(vote.voteOrElse(op), votingWeight, Long::sum);
+                tallyByVote.merge(storedVote.voteOrThrow(), votingWeight, Long::sum);
             }
         }
         final var tallyWeight = Optional.ofNullable(tallyByVote.get(op)).orElse(0L);
@@ -124,6 +142,15 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                 totalWeight);
         // Network consensus requires at least (totalWeight / 3) + 1
         if (tallyWeight * 3 <= totalWeight) {
+            return;
+        }
+
+        // Defense-in-depth: never feed a structurally inconsistent winning vote into the streaming hasher,
+        // which would otherwise fold past the available pending state and crash the handle thread.
+        if (!isStructurallyValid(op)) {
+            log.error(
+                    "Ignoring migration root hash vote finalization from node{} because the winning vote body is structurally invalid",
+                    nodeId);
             return;
         }
 
@@ -170,5 +197,34 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                 previousWrappedRecordBlockRootHash.toHex(),
                 finalizedIntermediateState.stream().map(Bytes::toHex).collect(Collectors.joining(", ")),
                 finalizedLeafCount);
+    }
+
+    /**
+     * Returns whether a vote body is internally consistent: both the previous root hash and every
+     * intermediate-state hash must be the expected SHA-384 length, the leaf count must be a sane
+     * non-negative value, and the number of intermediate hashes must equal the number of set bits in
+     * the leaf count (the pending-subtree invariant the streaming hasher relies on).
+     *
+     * @param op the vote body
+     * @return true if the body is structurally consistent
+     */
+    private static boolean isStructurallyValid(@NonNull final MigrationRootHashVoteTransactionBody op) {
+        if (op.previousWrappedRecordBlockRootHash().length() != SHA_384_HASH_LENGTH) {
+            return false;
+        }
+        final var leafCount = op.wrappedIntermediateBlockRootsLeafCount();
+        if (leafCount < 0 || leafCount > MAX_INTERMEDIATE_LEAF_COUNT) {
+            return false;
+        }
+        final var intermediateHashes = op.wrappedIntermediatePreviousBlockRootHashes();
+        if (intermediateHashes.size() != Long.bitCount(leafCount)) {
+            return false;
+        }
+        for (final var hash : intermediateHashes) {
+            if (hash.length() != SHA_384_HASH_LENGTH) {
+                return false;
+            }
+        }
+        return true;
     }
 }
