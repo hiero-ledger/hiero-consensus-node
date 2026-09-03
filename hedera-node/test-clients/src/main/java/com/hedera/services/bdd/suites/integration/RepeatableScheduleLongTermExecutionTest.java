@@ -9,18 +9,22 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemFileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
@@ -28,10 +32,12 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeAbort;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordFeeAmount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FREEZE_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_DELETE_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
@@ -65,6 +71,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_P
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -105,6 +112,12 @@ public class RepeatableScheduleLongTermExecutionTest {
     public static final String BASIC_XFER = "basicXfer";
     public static final String CREATE_TX = "createTxn";
     public static final String SIGN_TX = "sign_tx";
+
+    // Relative expiry (seconds after the anchor txn) shared by the scheduled transactions in these
+    // tests; generous so the topic is deleted well before the shared expiry second is reached.
+    private static final long EXPIRY_OFFSET_SECS = 20;
+    // Virtual seconds to advance before firing the user txn that drives the scheduled-execution scan.
+    private static final long SCAN_TRIGGER_SLEEP_SECS = 25;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
@@ -745,6 +758,242 @@ public class RepeatableScheduleLongTermExecutionTest {
                             triggeredTx.getResponseRecord().getReceipt().getStatus(),
                             SCHEDULED_TRANSACTION_MUST_NOT_SUCCEED);
                 })));
+    }
+
+    /**
+     * A long-term {@code ConsensusSubmitMessage} whose topic is deleted before expiry executes to a
+     * failed {@code INVALID_TOPIC_ID} scheduled record; another schedule due in the same second
+     * (created afterwards, so ordered after it) still executes normally.
+     */
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> scheduledSubmitToDeletedTopicFailsButSameSecondScheduleExecutes() {
+        return hapiTest(
+                // Admin key so the deleted topic can be removed; the live topic is immutable (no admin key).
+                newKeyNamed("topicAdminKey"),
+                cryptoCreate("deletedTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("liveTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("schedulePayer").balance(ONE_HUNDRED_HBARS),
+                // No submit key on either topic, so the scheduled submit needs no submit-key signature.
+                createTopic("deletedTopic").adminKeyName("topicAdminKey"),
+                createTopic("liveTopic"),
+                // Anchor txn that both schedules' relative expiry is measured from.
+                cryptoCreate("expiryBase").via("expiryBase"),
+                // This schedule is created first -> lower order number -> processed first at expiry T.
+                scheduleCreate(
+                                "deletedTopicSchedule",
+                                submitMessageTo("deletedTopic").message("msg1"))
+                        .designatingPayer("deletedTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("deletedTopicCreate"),
+                scheduleSign("deletedTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("deletedTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                // The second schedule shares the SAME expiry second but a higher order number.
+                scheduleCreate("liveTopicSchedule", submitMessageTo("liveTopic").message("msg2"))
+                        .designatingPayer("liveTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("liveTopicCreate"),
+                scheduleSign("liveTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("liveTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                // Delete the topic BEFORE expiry (admin key signs automatically from the registry).
+                deleteTopic("deletedTopic").hasKnownStatus(SUCCESS),
+                // Advance past the shared expiry second and fire a user txn to drive the scan.
+                sleepForSeconds(SCAN_TRIGGER_SLEEP_SECS),
+                cryptoCreate("trigger"),
+                // The other schedule still executes: its message was submitted (seqNo 1).
+                getTopicInfo("liveTopic").hasSeqNo(1L),
+                // The deleted-topic schedule executed and failed cleanly with INVALID_TOPIC_ID.
+                getTxnRecord("deletedTopicCreate")
+                        .scheduled()
+                        .hasPriority(recordWith().status(INVALID_TOPIC_ID)),
+                // Both schedules were purged from state.
+                getScheduleInfo("deletedTopicSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getScheduleInfo("liveTopicSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> earlierDeletedTopicScheduleDoesNotDropLaterSchedule() {
+        return hapiTest(
+                newKeyNamed("topicAdminKey"),
+                cryptoCreate("deletedTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("liveTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("schedulePayer").balance(ONE_HUNDRED_HBARS),
+                createTopic("deletedTopic").adminKeyName("topicAdminKey"),
+                createTopic("liveTopic"),
+                cryptoCreate("expiryBase").via("expiryBase"),
+                // The live-topic schedule is created first; the deleted-topic schedule is then created
+                // with an EARLIER expiry second so it is processed first within the same scan window.
+                scheduleCreate("liveTopicSchedule", submitMessageTo("liveTopic").message("msg2"))
+                        .designatingPayer("liveTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("liveTopicCreate"),
+                scheduleSign("liveTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("liveTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                scheduleCreate(
+                                "deletedTopicSchedule",
+                                submitMessageTo("deletedTopic").message("msg1"))
+                        .designatingPayer("deletedTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS - 2)
+                        .recordingScheduledTxn()
+                        .via("deletedTopicCreate"),
+                scheduleSign("deletedTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("deletedTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                deleteTopic("deletedTopic").hasKnownStatus(SUCCESS),
+                sleepForSeconds(SCAN_TRIGGER_SLEEP_SECS),
+                cryptoCreate("trigger"),
+                getTopicInfo("liveTopic").hasSeqNo(1L),
+                getTxnRecord("deletedTopicCreate")
+                        .scheduled()
+                        .hasPriority(recordWith().status(INVALID_TOPIC_ID)));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> earlierDeletedTopicScheduleDoesNotDropLaterCryptoTransfer() {
+        return hapiTest(
+                newKeyNamed("topicAdminKey"),
+                cryptoCreate("deletedTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("liveTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("schedulePayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("transferReceiver").balance(0L),
+                createTopic("deletedTopic").adminKeyName("topicAdminKey"),
+                cryptoCreate("expiryBase").via("expiryBase"),
+                // The transfer schedule already exists before the deleted-topic schedule is created.
+                scheduleCreate(
+                                "liveTopicSchedule",
+                                cryptoTransfer(tinyBarsFromTo("liveTopicPayer", "transferReceiver", 1L)))
+                        .designatingPayer("liveTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("liveTopicCreate"),
+                scheduleSign("liveTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("liveTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                scheduleCreate(
+                                "deletedTopicSchedule",
+                                submitMessageTo("deletedTopic").message("msg1"))
+                        .designatingPayer("deletedTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS - 2)
+                        .recordingScheduledTxn()
+                        .via("deletedTopicCreate"),
+                scheduleSign("deletedTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("deletedTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                deleteTopic("deletedTopic").hasKnownStatus(SUCCESS),
+                sleepForSeconds(SCAN_TRIGGER_SLEEP_SECS),
+                cryptoCreate("trigger"),
+                // The transfer still executes despite the earlier-sorted deleted-topic schedule failing.
+                getAccountBalance("transferReceiver").hasTinyBars(1L),
+                getTxnRecord("deletedTopicCreate")
+                        .scheduled()
+                        .hasPriority(recordWith().status(INVALID_TOPIC_ID)));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> withoutTopicDeletionBothScheduledMessagesExecute() {
+        return hapiTest(
+                newKeyNamed("topicAdminKey"),
+                cryptoCreate("deletedTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("liveTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("schedulePayer").balance(ONE_HUNDRED_HBARS),
+                createTopic("deletedTopic").adminKeyName("topicAdminKey"),
+                createTopic("liveTopic"),
+                cryptoCreate("expiryBase").via("expiryBase"),
+                scheduleCreate(
+                                "deletedTopicSchedule",
+                                submitMessageTo("deletedTopic").message("msg1"))
+                        .designatingPayer("deletedTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("deletedTopicCreate"),
+                scheduleSign("deletedTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("deletedTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                scheduleCreate("liveTopicSchedule", submitMessageTo("liveTopic").message("msg2"))
+                        .designatingPayer("liveTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("liveTopicCreate"),
+                scheduleSign("liveTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("liveTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                // Control: the topic is not deleted.
+                sleepForSeconds(SCAN_TRIGGER_SLEEP_SECS),
+                cryptoCreate("trigger"),
+                // With no topic deletion, both schedules execute in the same scan interval.
+                getTopicInfo("deletedTopic").hasSeqNo(1L),
+                getTopicInfo("liveTopic").hasSeqNo(1L));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> withoutTopicDeletionScheduledCryptoTransferExecutes() {
+        return hapiTest(
+                newKeyNamed("topicAdminKey"),
+                cryptoCreate("deletedTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("liveTopicPayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("schedulePayer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("transferReceiver").balance(0L),
+                createTopic("deletedTopic").adminKeyName("topicAdminKey"),
+                cryptoCreate("expiryBase").via("expiryBase"),
+                scheduleCreate(
+                                "liveTopicSchedule",
+                                cryptoTransfer(tinyBarsFromTo("liveTopicPayer", "transferReceiver", 1L)))
+                        .designatingPayer("liveTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS)
+                        .recordingScheduledTxn()
+                        .via("liveTopicCreate"),
+                scheduleSign("liveTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("liveTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                scheduleCreate(
+                                "deletedTopicSchedule",
+                                submitMessageTo("deletedTopic").message("msg1"))
+                        .designatingPayer("deletedTopicPayer")
+                        .payingWith("schedulePayer")
+                        .waitForExpiry()
+                        .withRelativeExpiry("expiryBase", EXPIRY_OFFSET_SECS - 2)
+                        .recordingScheduledTxn()
+                        .via("deletedTopicCreate"),
+                scheduleSign("deletedTopicSchedule")
+                        .payingWith("schedulePayer")
+                        .alsoSigningWith("deletedTopicPayer")
+                        .hasKnownStatus(SUCCESS),
+                // Control: the topic is not deleted.
+                sleepForSeconds(SCAN_TRIGGER_SLEEP_SECS),
+                cryptoCreate("trigger"),
+                getAccountBalance("transferReceiver").hasTinyBars(1L));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
