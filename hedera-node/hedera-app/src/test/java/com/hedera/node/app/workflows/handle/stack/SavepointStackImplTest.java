@@ -461,6 +461,41 @@ class SavepointStackImplTest extends StateTestBase {
                 .isNull());
     }
 
+    @Test
+    void suppressesOnlyBlockOutputInBothMode() {
+        final var txnId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT,
+                () -> true);
+        stack.getBaseBuilder(StreamBuilder.class)
+                .transactionID(txnId)
+                .signedTx(SignedTransaction.DEFAULT)
+                .status(SUCCESS)
+                .exchangeRate(ExchangeRateSet.DEFAULT);
+        stack.commitFullStack();
+
+        final var handleOutput = stack.buildHandleOutput(
+                Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()),
+                ExchangeRateSet.DEFAULT,
+                BLOCK_NUMBER);
+
+        assertThat(handleOutput.blockRecordSourceOrThrow().blockItems()).isEmpty();
+        assertThat(handleOutput.recordSourceOrThrow().identifiedReceipts())
+                .singleElement()
+                .extracting(receipt -> receipt.txnId())
+                .isEqualTo(txnId);
+        assertThat(handleOutput.preferredRecordSource()).isSameAs(handleOutput.recordSourceOrThrow());
+    }
+
     @Nested
     @DisplayName("Tests for adding new savepoints to the stack")
     class SavepointTests {
