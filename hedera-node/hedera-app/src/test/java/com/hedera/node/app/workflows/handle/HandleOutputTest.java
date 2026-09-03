@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
@@ -46,11 +47,21 @@ class HandleOutputTest {
     }
 
     @Test
-    void returnsBlockRecordSourceWhenPresentOtherwiseRecordSource() {
-        final var withBlockSource = new HandleOutput(blockRecordSource, recordSource, LAST_TIME);
-        assertEquals(blockRecordSource, withBlockSource.preferringBlockRecordSource());
+    void prefersBlockRecordSourceWhenItHasOutputs() {
+        given(blockRecordSource.hasOutputs()).willReturn(true);
+        final var withBothSources = new HandleOutput(blockRecordSource, recordSource, LAST_TIME);
+        assertEquals(blockRecordSource, withBothSources.preferredRecordSource());
+    }
 
-        final var withoutBlockSource = new HandleOutput(null, recordSource, LAST_TIME);
-        assertEquals(recordSource, withoutBlockSource.preferringBlockRecordSource());
+    @Test
+    void fallsBackToRecordSourceWhenBlockSourceHasNoOutputs() {
+        final var withSuppressedBlockOutput = new HandleOutput(blockRecordSource, recordSource, LAST_TIME);
+        assertEquals(recordSource, withSuppressedBlockOutput.preferredRecordSource());
+    }
+
+    @Test
+    void prefersTheOnlyAvailableSource() {
+        assertEquals(blockRecordSource, new HandleOutput(blockRecordSource, null, LAST_TIME).preferredRecordSource());
+        assertEquals(recordSource, new HandleOutput(null, recordSource, LAST_TIME).preferredRecordSource());
     }
 }
