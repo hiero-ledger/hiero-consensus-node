@@ -15,6 +15,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -69,13 +70,45 @@ public interface SystemContractOperations {
      * @return the result of the dispatch
      */
     @NonNull
+    default <T extends StreamBuilder> T dispatch(
+            @NonNull TransactionBody syntheticBody,
+            @NonNull VerificationStrategy strategy,
+            @NonNull AccountID syntheticPayerId,
+            @NonNull Class<T> streamBuilderType,
+            @NonNull Set<Key> authorizingKeys,
+            @NonNull UsePresetTxnId usePresetTxnId) {
+        return dispatch(
+                syntheticBody,
+                strategy,
+                syntheticPayerId,
+                streamBuilderType,
+                authorizingKeys,
+                usePresetTxnId,
+                DispatchMetadata.EMPTY_METADATA);
+    }
+
+    /**
+     * Same as the overload above, but attaches {@code extraMetadata} to the dispatch so the handler that
+     * executes it can distinguish it from a top-level HAPI transaction of the same shape.
+     *
+     * @param syntheticBody the synthetic transaction to dispatch
+     * @param strategy the non-cryptographic signature verification to use
+     * @param syntheticPayerId the payer of the synthetic transaction
+     * @param streamBuilderType the class of the stream builder to use
+     * @param authorizingKeys the keys authorizing the dispatch
+     * @param usePresetTxnId whether to set the expected transaction ID in the dispatch body
+     * @param extraMetadata the metadata to expose to the dispatched handler
+     * @return the result of the dispatch
+     */
+    @NonNull
     <T extends StreamBuilder> T dispatch(
             @NonNull TransactionBody syntheticBody,
             @NonNull VerificationStrategy strategy,
             @NonNull AccountID syntheticPayerId,
             @NonNull Class<T> streamBuilderType,
             @NonNull Set<Key> authorizingKeys,
-            @NonNull UsePresetTxnId usePresetTxnId);
+            @NonNull UsePresetTxnId usePresetTxnId,
+            @NonNull DispatchMetadata extraMetadata);
 
     /**
      * Externalizes the preemption of the given {@code syntheticTransaction} hat would have otherwise been

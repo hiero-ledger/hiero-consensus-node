@@ -21,12 +21,14 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ACCOUNT_SERVICE_STAKING_UPDATE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
@@ -41,6 +43,7 @@ import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -287,7 +290,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var builderAccount = builder.build();
         validateFields(op, context, accountStore);
 
-        validateTrue(!updateAccount.smartContract(), INVALID_ACCOUNT_ID);
+        // A CryptoUpdate may not name a contract account, with one narrow exception (HIP-1522): a staking-only
+        // update dispatched by the Hedera Account Service system contract, which is how a contract configures
+        // its own staking from the EVM. Short-circuits for every other account, so nothing else changes.
+        validateTrue(!updateAccount.smartContract() || isAccountServiceStakingUpdate(context, op), INVALID_ACCOUNT_ID);
 
         // get needed configs for validation
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
@@ -370,5 +376,57 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 op.stakedNodeId(),
                 accountStore,
                 context.networkInfo());
+    }
+
+    /**
+     * Returns whether this dispatch is the Hedera Account Service system contract configuring an account's
+     * staking (HIP-1522), and is therefore permitted to name a contract account.
+     *
+     * <p>Both halves are required. The marker alone is not enough — the body is re-checked here, so a
+     * mis-plumbed marker still cannot mutate a contract's non-staking fields. And the body shape alone is not
+     * enough — the marker is in-process {@link DispatchMetadata} with no wire representation, constructed
+     * fresh per dispatch and not inherited by grandchildren, so a top-level HAPI {@code CryptoUpdate} always
+     * runs without it and continues to fail with {@code INVALID_ACCOUNT_ID}.
+     *
+     * @param context the handle context
+     * @param op the body being handled
+     * @return whether the contract-account restriction should be relaxed for this dispatch
+     */
+    private boolean isAccountServiceStakingUpdate(
+            @NonNull final HandleContext context, @NonNull final CryptoUpdateTransactionBody op) {
+        final var isMarked = context.dispatchMetadata()
+                .getMetadata(ACCOUNT_SERVICE_STAKING_UPDATE, Boolean.class)
+                .orElse(Boolean.FALSE);
+        return isMarked && isStakingOnly(op);
+    }
+
+    /**
+     * Returns whether the given body mutates staking fields only; that is, whether it sets nothing beyond
+     * {@code decline_reward} and the {@code staked_id} oneof. (The account being updated is the target of the
+     * mutation, not part of it, so it is preserved.)
+     *
+     * <p>This is deliberately written as a projection compared for equality with the original, rather than as a
+     * conjunction of "field X is unset" checks. {@link CryptoUpdateTransactionBody#equals(Object)} compares every
+     * field, including unknown ones, so a field added to the protobuf later is rejected by default instead of
+     * silently becoming permissible. Four of the body's fields — {@code proxy_fraction},
+     * {@code hook_ids_to_delete}, {@code hook_creation_details} and {@code delegation_address} — have no
+     * {@code hasX()} accessor at all, which is exactly where a hand-written check goes wrong.
+     *
+     * @param op the body to inspect
+     * @return whether the body mutates staking fields only
+     */
+    @VisibleForTesting
+    public static boolean isStakingOnly(@NonNull final CryptoUpdateTransactionBody op) {
+        requireNonNull(op);
+        final var stakingOnly = CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(op.accountIDToUpdate())
+                .declineReward(op.declineReward());
+        // PBJ emits no setter for the oneof itself, so re-project whichever arm is set (if either)
+        if (op.hasStakedAccountId()) {
+            stakingOnly.stakedAccountId(op.stakedAccountIdOrThrow());
+        } else if (op.hasStakedNodeId()) {
+            stakingOnly.stakedNodeId(op.stakedNodeIdOrThrow());
+        }
+        return stakingOnly.build().equals(op);
     }
 }

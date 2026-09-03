@@ -28,6 +28,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synt
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,7 +51,9 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
+import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -121,6 +124,12 @@ class HandleHederaNativeOperationsTest {
     @Mock
     EntityIdFactory entityIdFactory;
 
+    @Mock
+    private ReadableStakingInfoStore stakingInfoStore;
+
+    @Mock
+    private ReadableNetworkStakingRewardsStore stakingRewardsStore;
+
     private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private HandleHederaNativeOperations subject;
@@ -134,6 +143,82 @@ class HandleHederaNativeOperationsTest {
         subject = new HandleHederaNativeOperations(context, A_SECP256K1_KEY, entityIdFactory);
         deletedAccount = AccountID.newBuilder().accountNum(1L).build();
         beneficiaryAccount = AccountID.newBuilder().accountNum(2L).build();
+    }
+
+    @Test
+    void exposesTheStakingStoresAndConsensusTime() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableStakingInfoStore.class)).willReturn(stakingInfoStore);
+        given(storeFactory.readableStore(ReadableNetworkStakingRewardsStore.class))
+                .willReturn(stakingRewardsStore);
+        final var now = Instant.ofEpochSecond(1_700_000_000L);
+        given(context.consensusNow()).willReturn(now);
+
+        assertSame(stakingInfoStore, subject.readableStakingInfoStore());
+        assertSame(stakingRewardsStore, subject.readableNetworkStakingRewardsStore());
+        assertEquals(now, subject.currentConsensusTime());
+    }
+
+    @Test
+    void summarizesStakingInfoFromStateAndConfig() {
+        final var now = Instant.ofEpochSecond(1_700_000_000L);
+        final var config = HederaTestConfigBuilder.createConfig();
+        given(context.configuration()).willReturn(config);
+        given(context.consensusNow()).willReturn(now);
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableStakingInfoStore.class)).willReturn(stakingInfoStore);
+        given(storeFactory.readableStore(ReadableNetworkStakingRewardsStore.class))
+                .willReturn(stakingRewardsStore);
+        given(stakingRewardsStore.isStakingRewardsActivated()).willReturn(false);
+        final var account = Account.newBuilder()
+                .accountId(beneficiaryAccount)
+                .declineReward(true)
+                .stakedToMe(123L)
+                .build();
+
+        final var info = subject.stakingInfoOf(account);
+
+        // Delegates to the same AccountSummariesApi helper CryptoGetInfo uses, so the two views agree
+        assertTrue(info.declineReward());
+        assertEquals(123L, info.stakedToMe());
+        assertFalse(info.hasStakedNodeId());
+        assertFalse(info.hasStakedAccountId());
+    }
+
+    @Test
+    void derivesStakePeriodStartForAnAccountStakedToANode() {
+        // The case above exercises only the two fields summarizeStakingInfo copies verbatim. Everything the
+        // accessor actually assembles - the two config values, the rewards flag, the staking info store and
+        // the consensus time - is consumed only under `hasStakedNodeId() && != SENTINEL_NODE_ID`, so without
+        // a node-staked account those arguments could be transposed and no test would notice.
+        final var now = Instant.ofEpochSecond(1_700_000_000L);
+        final var config = HederaTestConfigBuilder.createConfig();
+        given(context.configuration()).willReturn(config);
+        given(context.consensusNow()).willReturn(now);
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableStakingInfoStore.class)).willReturn(stakingInfoStore);
+        given(storeFactory.readableStore(ReadableNetworkStakingRewardsStore.class))
+                .willReturn(stakingRewardsStore);
+        given(stakingRewardsStore.isStakingRewardsActivated()).willReturn(false);
+        final long stakePeriodStartDay = 19_000L;
+        final var account = Account.newBuilder()
+                .accountId(beneficiaryAccount)
+                .declineReward(false)
+                .stakedNodeId(3L)
+                .stakePeriodStart(stakePeriodStartDay)
+                .build();
+
+        final var info = subject.stakingInfoOf(account);
+
+        assertEquals(3L, info.stakedNodeIdOrThrow());
+        // staking.periodMins defaults to 1440, so periods are whole UTC days. Passing
+        // rewardHistoryNumStoredPeriods here instead would take the non-daily branch of
+        // StakingRewardsApi#epochSecondAtStartOfPeriod and yield a wildly different second.
+        assertEquals(
+                stakePeriodStartDay * 86_400L, info.stakePeriodStartOrThrow().seconds());
+        // Rewards are inactive, so nothing has accrued
+        assertEquals(0L, info.pendingReward());
+        assertFalse(info.hasStakedAccountId());
     }
 
     @Test

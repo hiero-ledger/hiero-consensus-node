@@ -10,12 +10,16 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.he
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TRANSACTION_MAX_BYTES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallFactory;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.staking.StakingTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -100,5 +104,42 @@ class HasSystemContractTest {
         final var expected = haltResult(INVALID_OPERATION, frame.getRemainingGas());
         final var result = subject.computeFully(HAS_CONTRACT_ID, Bytes.of(input), frame);
         assertSamePrecompileResult(expected, result);
+    }
+
+    @Test
+    @DisplayName("every IHRC632 staking selector is eligible for the HAS proxy redirect")
+    void stakingFacadeSelectorsAreRedirectEligible() {
+        // HAS_PROXY_ELIGIBLE_CALL_DATA_PREFIXES is a hand-written list of hex literals that has to agree with
+        // the selectors StakingTranslator derives from its ABI signatures. Nothing else ties the two
+        // together, and a drifted literal fails silently: the redirect never fires, so an EOA calling
+        // IHRC632(self).setDeclineReward(true) is dispatched as a plain call to a codeless account, which
+        // succeeds with empty output while changing nothing.
+        for (final var method : new SystemContractMethod[] {
+            StakingTranslator.STAKE_TO_NODE_PROXY,
+            StakingTranslator.STAKE_TO_ACCOUNT_PROXY,
+            StakingTranslator.UNSTAKE_PROXY,
+            StakingTranslator.SET_DECLINE_REWARD_PROXY,
+            StakingTranslator.STAKE_TO_NODE_AND_DECLINE_REWARD_PROXY,
+            StakingTranslator.GET_STAKING_INFO_PROXY
+        }) {
+            assertTrue(
+                    HasSystemContract.isPayloadEligibleForHasProxyRedirect(Bytes.of(method.selector())),
+                    () -> "%s is declared CallVia.PROXY but its selector is not in the redirect allowlist"
+                            .formatted(method.signature()));
+        }
+    }
+
+    @Test
+    @DisplayName("a non-facade staking selector is not redirect eligible")
+    void explicitStakingSelectorsAreNotRedirectEligible() {
+        // The explicit IHederaAccountService forms name their target, so they are meaningless on a redirect
+        // and must not widen the set of calldata diverted away from an account's own code.
+        for (final var method : new SystemContractMethod[] {
+            StakingTranslator.STAKE_TO_NODE, StakingTranslator.UNSTAKE, StakingTranslator.GET_STAKING_INFO
+        }) {
+            assertFalse(
+                    HasSystemContract.isPayloadEligibleForHasProxyRedirect(Bytes.of(method.selector())),
+                    () -> "%s should not be in the redirect allowlist".formatted(method.signature()));
+        }
     }
 }
