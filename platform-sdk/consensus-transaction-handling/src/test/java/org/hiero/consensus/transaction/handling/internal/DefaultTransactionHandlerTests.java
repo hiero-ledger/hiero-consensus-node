@@ -24,7 +24,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -120,8 +120,8 @@ class DefaultTransactionHandlerTests {
                         handlerOutput.stateForPrehandle().get(),
                         "the same signed state should be used for hashing and prehandle outside a freeze round");
 
-            verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), never())
-                    .put(any());
+                verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), never())
+                        .put(any());
 
                 assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
                 assertSame(
@@ -237,7 +237,7 @@ class DefaultTransactionHandlerTests {
                 verify(tester.getStateEventHandler()).onFreezeStateCopied(prehandleState.getState());
 
                 verify(tester.getStatusMonitorModule().platformStatusActionInputWire())
-                                    .put(any(FreezePeriodEnteredAction.class));
+                        .put(any(FreezePeriodEnteredAction.class));
                 assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
                 assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
 

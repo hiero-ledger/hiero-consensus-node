@@ -62,6 +62,22 @@ public final class Git {
     }
 
     /**
+     * The committer date (YYYY-MM-DD) of the current {@code HEAD} commit — the checkout a run was
+     * performed against. Used as the {@code last_reviewed} date for documents that anchor no source
+     * (there is no per-source commit to derive from, but the review still happened against this commit).
+     *
+     * @return the {@code HEAD} committer date, or {@code null} if git is unavailable or the repo has no
+     *     commits.
+     */
+    public String headCommitDate() {
+        if (!available) {
+            return null;
+        }
+        final String out = run(List.of("git", "log", "-1", "--format=%cs"));
+        return out == null || out.isBlank() ? null : out.strip();
+    }
+
+    /**
      * The path a now-gone file was most recently renamed to, if git can trace it and the target still
      * exists. Follows the cited path's history for rename ({@code R}) commits; the newest one names the
      * current location. Returns {@code null} when git is unavailable, no rename is recorded, or the traced

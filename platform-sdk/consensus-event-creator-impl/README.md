@@ -15,7 +15,7 @@ should depend on the API, not this module directly. For how the event creator wo
 May depend on:
 - `consensus-event-creator` (its API), any supporting module
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other `consensus-*-impl` modules
@@ -23,4 +23,7 @@ Must not depend on:
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-No known violations.
+Known violation — `requires org.hiero.consensus.roster`: `consensus-roster` is a
+structural-transitional module that nothing outside that category should depend on (rules 3 and
+7). This does not resolve on its own — the dependency has to be removed before `consensus-roster`
+can move to the execution layer.

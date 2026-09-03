@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -114,8 +115,8 @@ class TipsetTrackerTests {
             assertThat(newTipset.getTipSequenceNumberForNode(selfId))
                     .withFailMessage(String.format(
                             "The sequence number should always be %s for the self node, got %s instead",
-                            PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER, newTipset.getTipSequenceNumberForNode(selfId)))
-                    .isEqualTo(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
+                            EventConstants.SEQUENCE_NUMBER_UNDEFINED, newTipset.getTipSequenceNumberForNode(selfId)))
+                    .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.
@@ -154,7 +155,7 @@ class TipsetTrackerTests {
             tracker.setEventWindow(eventWindow);
             assertEquals(eventWindow, tracker.getEventWindow());
             for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {
-                if (descriptor.eventDescriptor().birthRound() < ancientThreshold) {
+                if (descriptor.birthRound() < ancientThreshold) {
                     assertNull(tracker.getTipset(descriptor));
                 } else {
                     assertTipsetEquality(roster, expectedTipsets.get(descriptor), tracker.getTipset(descriptor));

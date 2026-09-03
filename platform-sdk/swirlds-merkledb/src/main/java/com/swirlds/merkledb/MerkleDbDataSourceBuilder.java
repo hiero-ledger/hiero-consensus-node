@@ -7,6 +7,7 @@ import static org.hiero.base.file.FileUtils.hardLinkTree;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,7 +25,8 @@ import org.hiero.base.file.FileSystemManager;
  *
  * <p>When a MerkleDb data source builder creates a new data source, or restores a data source
  * from snapshot, it creates a new temp folder using {@link FileSystemManager} as the data
- * source storage dir.
+ * source storage dir. The exception is when a default DB folder name is configured: see
+ * {@link #MerkleDbDataSourceBuilder(String, Configuration, FileSystemManager, long)}.
  *
  * <p>When a data source snapshot is taken, or a data source is restored from a snapshot, the
  * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
@@ -34,7 +36,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     private static final Logger logger = LogManager.getLogger(MerkleDbDataSourceBuilder.class);
 
-    public static final String FOLDER_SUFFIX = "merkledb-";
+    /** Prefix of every temp data source storage dir created by this builder. */
+    public static final String FOLDER_PREFIX = "merkledb-";
 
     private final MerkleDbConfig configuration;
 
@@ -44,9 +47,12 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      * snapshot.
      *
      * <p>Also, this folder name (if not null or blank) is checked first, when a new data
-     * source is requested. If a folder with this nams exists in the file system manager's
+     * source is requested. If a folder with this name exists in the file system manager's
      * temp directory, this is considered a version upgrade, so the data source is created
      * directly from that folder rather than from scratch.
+     *
+     * <p>On the restore path the opposite applies: this folder is used as the storage dir only
+     * if it does <i>not</i> already exist, otherwise a new temp folder is created.
      */
     private final String defaultDbFolderName;
 
@@ -81,8 +87,20 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         this.initialCapacity = initialCapacity;
     }
 
+    /**
+     * Returns the number of MerkleDb data sources currently open in this JVM, across all builders.
+     *
+     * <p>Intended for leak detection in tests and benchmarks: after all virtual maps have been
+     * released and their data sources closed, this count is expected to drop back to zero.
+     *
+     * @return the number of currently open MerkleDb data sources
+     */
+    public static long getCountOfOpenDatabases() {
+        return MerkleDbDataSource.getCountOfOpenDatabases();
+    }
+
     private Path newTempDataSourceDir(final String label) {
-        return fileSystemManager.resolveNewTemp(FOLDER_SUFFIX + label);
+        return fileSystemManager.resolveNewTemp(FOLDER_PREFIX + label);
     }
 
     private Path snapshotDataDir(final Path snapshotDir, final String label) {
@@ -93,11 +111,14 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      * {@inheritDoc}
      *
      * <p>If the source directory is provided, this builder assumes the directory is a base
-     * snapshot dir. Data source dir is either baseDir/data/label (new naming schema) or
-     * baseDir/tables/label-ID (legacy naming).
+     * snapshot dir, as produced by {@link #snapshot(Path, VirtualDataSource)}, and it must
+     * contain a {@code data/label} sub-folder. That sub-folder is hard-linked into a new temp
+     * folder, which becomes the storage dir of the returned data source, so the snapshot itself
+     * is left untouched and survives {@link VirtualDataSource#close()}. If the sub-folder is
+     * missing, an {@link UncheckedIOException} is thrown.
      *
      * <p>If the source directory is null, a new empty data source is created in a temp
-     * directory.
+     * directory. In that case {@code initialCapacity} must be positive.
      */
     @NonNull
     @Override
@@ -126,8 +147,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                 // The folder may or may not exist
                 dataSourceDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
             }
-            // If the default DB dir is not set, or the folder doesn't exist, create a new
-            // temp folder and use it as the storage dir
+            // If the default DB dir is not set, create a new temp folder and use it as the
+            // storage dir
             if (dataSourceDir == null) {
                 dataSourceDir = newTempDataSourceDir(label);
             }
@@ -161,7 +182,13 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      * {@inheritDoc}
      *
      * <p>Data source snapshot is placed under "data/label" sub-folder in the provided
-     * {@code snapshotDir}.
+     * {@code snapshotDir}. If {@code snapshotDir} is null, a new temp folder is created and
+     * returned. The resulting layout is what {@link #build(String, Path, boolean, boolean)}
+     * expects as its source dir.
+     *
+     * <p><b>The caller owns the returned directory and is responsible for deleting it when it is
+     * no longer needed.</b> Closing the data source does not remove it: a snapshot is
+     * independent of the data source it was taken from.
      */
     @NonNull
     @Override
@@ -182,11 +209,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     }
 
     /**
-     * The builder first checks if "data/label" sub-folder exists in the snapshot dir and
-     * restores a data source from there. If the sub-folder doesn't exist, it may be an old
-     * snapshot with MerkleDb database metadata available. The metadata is used to find the
-     * folder for a data source with the given label. If database metadata file is not found,
-     * this method throws an IO exception.
+     * Restores a data source from the "data/label" sub-folder of the given snapshot dir. The
+     * sub-folder is hard-linked into a new temp folder, which becomes the storage dir of the
+     * returned data source; the snapshot dir itself is not modified and remains owned by the
+     * caller.
+     *
+     * <p>Initial capacity is not used here: it is read back from the snapshot metadata, so a
+     * builder created with capacity 0 can still restore.
+     *
+     * <p>If the "data/label" sub-folder does not exist, this method throws an
+     * {@link UncheckedIOException}.
      */
     @NonNull
     private MerkleDbDataSource restoreDataSource(

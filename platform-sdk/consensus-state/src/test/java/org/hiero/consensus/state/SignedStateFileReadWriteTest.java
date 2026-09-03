@@ -47,11 +47,9 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
@@ -235,8 +233,8 @@ class SignedStateFileReadWriteTest {
 
     private Configuration changeConfigAndConfigHolder(String directory, final boolean saveStateAsync) {
         return new TestConfigBuilder()
-                .withValue(PathsConfig_.SAVED_STATE_DIR, directory)
-                .withValue(StateConfig_.SAVE_STATE_ASYNC, saveStateAsync)
+                .withValue("paths.savedStateDir", directory)
+                .withValue("state.saveStateAsync", saveStateAsync)
                 .getOrCreateConfig();
     }
 }

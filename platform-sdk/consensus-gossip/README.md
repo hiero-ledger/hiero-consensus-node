@@ -12,9 +12,9 @@ network. For how gossip works, see the
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-state`, `consensus-utility`
+- `consensus-model`, `consensus-utility`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other functional-api modules
@@ -23,6 +23,9 @@ Must not depend on:
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-Known violations — `requires transitive com.swirlds.state.api`, `com.swirlds.state.impl`,
-`com.swirlds.virtualmap`: transitional; acceptable during modularization but not permitted
-in the final architecture.
+Known violations:
+- `requires transitive com.swirlds.state.api`, `com.swirlds.state.impl`, `com.swirlds.virtualmap` —
+transitional; acceptable during modularization but not permitted in the final architecture.
+- `requires org.hiero.consensus.state` — `consensus-state` is a structural-transitional module that
+nothing outside that category should depend on (rules 3 and 7). This does not resolve on its own —
+the dependency has to be removed before `consensus-state` can move to the execution layer.

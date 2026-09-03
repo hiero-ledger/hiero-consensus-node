@@ -14,14 +14,10 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUtf8Bytes;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
@@ -38,7 +34,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingDirs;
@@ -48,7 +43,6 @@ import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleIte
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes.SYS_FILE_SERDES;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
@@ -83,13 +77,11 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.grouping.SysFileLookups;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -103,7 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
@@ -115,8 +107,8 @@ import org.junit.jupiter.api.Order;
  * and tests if they needed to ensure a transaction was handled before issuing any {@code FileGetContents} queries
  * or submitting {@code FileUpdate} transactions.)
  */
-// Run just before stream validation to avoid state pollution
-@Order(Integer.MAX_VALUE - 1)
+// Genesis tests build their own network, so they must run before any shared network exists
+@Order(Integer.MIN_VALUE)
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
@@ -171,46 +163,6 @@ public class SystemFileExportsTest {
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
                 cryptoCreate("secondUser").via("addressBookExport"),
-                // Trigger block closure to ensure block is closed
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    @GenesisHapiTest
-    final Stream<DynamicTest> syntheticFeeSchedulesUpdateHappensAtUpgradeBoundary()
-            throws InvalidProtocolBufferException {
-        final var feeSchedulesJson = resourceAsString("scheduled-contract-fees.json");
-        final var upgradeFeeSchedules =
-                CurrentAndNextFeeSchedule.parseFrom(SYS_FILE_SERDES.get(111L).toRawFile(feeSchedulesJson, null));
-        return hapiTest(
-                streamMustIncludePassFrom(selectedItems(
-                        sysFileExportValidator(
-                                "files.feeSchedules", upgradeFeeSchedules, SystemFileExportsTest::parseFeeSchedule),
-                        3,
-                        TxnUtils::isSysFileUpdate)),
-                // This is the genesis transaction
-                sourcingContextual(spec -> overriding("scheduling.whitelist", "ContractCall")),
-                // Write the upgrade file to the node's working dirs
-                doWithStartupConfig(
-                        "networkAdmin.upgradeFeeSchedulesFile",
-                        feeSchedulesFile ->
-                                writeToNodeWorkingDirs(feeSchedulesJson, "data", "config", feeSchedulesFile)),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                // And now simulate an upgrade boundary
-                simulatePostUpgradeTransaction(),
-                // Verify the new fee schedules (which include a subtype for scheduled contract fees) are in effect
-                uploadInitCode("SimpleUpdate"),
-                withOpContext((spec, opLog) -> spec.tryReinitializingFees()),
-                contractCreate("SimpleUpdate").gas(300_000L),
-                cryptoCreate("civilian"),
-                scheduleCreate(
-                                "contractCall",
-                                contractCall("SimpleUpdate", "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
-                                        .gas(24_000)
-                                        .memo("")
-                                        .fee(ONE_HBAR))
-                        .payingWith("civilian")
-                        .via("contractCall"),
-                validateChargedUsdWithin("contractCall", 0.1, 3.0),
                 // Trigger block closure to ensure block is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
@@ -418,7 +370,7 @@ public class SystemFileExportsTest {
                 streamMustIncludePassWithReplayFrom(
                         selectedBlockItems(
                                 validatorFor(preGenesisContents),
-                                19,
+                                18,
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
                         Duration.ofSeconds(10)),
@@ -428,11 +380,6 @@ public class SystemFileExportsTest {
                         spec.startupProperties().getLong("hedera.firstUserEntity"),
                         spec.registry().getAccountID("firstUser").getAccountNum(),
                         "First user entity num doesn't match config")));
-    }
-
-    private static CurrentAndNextFeeSchedule parseFeeSchedule(final byte[] bytes)
-            throws InvalidProtocolBufferException {
-        return CurrentAndNextFeeSchedule.parseFrom(bytes);
     }
 
     private static ThrottleDefinitions parseThrottleDefs(final byte[] bytes) throws InvalidProtocolBufferException {

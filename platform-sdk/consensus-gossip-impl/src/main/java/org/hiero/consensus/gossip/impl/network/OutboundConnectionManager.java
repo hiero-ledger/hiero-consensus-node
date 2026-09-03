@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.gossip.config.SocketConfig;

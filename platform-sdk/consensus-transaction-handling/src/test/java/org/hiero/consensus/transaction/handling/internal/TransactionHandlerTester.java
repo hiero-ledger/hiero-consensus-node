@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -26,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
@@ -37,6 +36,7 @@ import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

@@ -78,7 +78,7 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "900") int saveStatePeriod,
         @ConfigProperty(defaultValue = "true") boolean saveStateAsync,
         @ConfigProperty(defaultValue = "750") long asyncSnapshotTimeout,
-        @ConfigProperty(defaultValue = "5") int signedStateDisk,
+        @ConfigProperty(defaultValue = "2") int signedStateDisk,
         @ConfigProperty(defaultValue = "false") boolean haltOnAnyIss,
         @ConfigProperty(defaultValue = "false") boolean automatedSelfIssRecovery,
         @ConfigProperty(defaultValue = "false") boolean haltOnCatastrophicIss,

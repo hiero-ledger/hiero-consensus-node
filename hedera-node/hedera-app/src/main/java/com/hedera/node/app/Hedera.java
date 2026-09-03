@@ -869,8 +869,13 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      * verifies the on-disk file, and downloads if needed.
      */
     private void ensureWrapsProvingKey() {
-        wrapsProvingKeyVerification.ensureProvingKey(
-                configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
+        final var config = configProvider.getConfiguration();
+        final var tssConfig = config.getConfigData(TssConfig.class);
+        final var downloader = new HttpWrapsProvingKeyDownloader(
+                tssConfig.wrapsProvingKeyConnectTimeout(),
+                tssConfig.wrapsProvingKeyResponseHeadersTimeout(),
+                tssConfig.wrapsProvingKeyStallTimeout());
+        wrapsProvingKeyVerification.ensureProvingKey(config, downloader);
     }
 
     /**

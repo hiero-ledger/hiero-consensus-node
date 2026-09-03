@@ -19,13 +19,12 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
-import org.bouncycastle.asn1.sec.SECNamedCurves;
-import org.bouncycastle.util.BigIntegers;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,8 +32,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class EthTxDataTest {
-    private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
-
     static final String SIGNATURE_ADDRESS = "a94f5374fce5edbc8e2a8697c15331677e6ebf0b";
     static final String SIGNATURE_PUBKEY = "033a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d";
     static final String RAW_TX_TYPE_0 =
@@ -85,7 +82,7 @@ class EthTxDataTest {
 
     @Test
     void detectsMissingCallData() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         assertTrue(subject.hasCallData());
         final var subjectWithEmptyData = subject.replaceCallData(new byte[0]);
         assertFalse(subjectWithEmptyData.hasCallData());
@@ -95,7 +92,7 @@ class EthTxDataTest {
 
     @Test
     void detectsMissingToAddress() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         assertTrue(subject.hasToAddress());
         final var subjectWithEmptyTo = subject.replaceTo(new byte[0]);
         assertFalse(subjectWithEmptyTo.hasToAddress());
@@ -105,14 +102,14 @@ class EthTxDataTest {
 
     @Test
     void effectiveValueIsNominalWhenReasonable() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         final var nominal = subject.value().divide(WEIBARS_IN_A_TINYBAR).longValueExact();
         assertEquals(nominal, subject.effectiveTinybarValue());
     }
 
     @Test
     void effectiveOfferedGasPriceIsNominalWhenReasonable() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         final var nominal = subject.getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
                 .divide(WEIBARS_IN_A_TINYBAR)
                 .longValueExact();
@@ -121,7 +118,7 @@ class EthTxDataTest {
 
     @Test
     void effectiveOfferedGasPriceAvoidsOverflow() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0))
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0))
                 .replaceValue(
                         BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE).multiply(WEIBARS_IN_A_TINYBAR));
         final var expected = Long.MAX_VALUE;
@@ -130,155 +127,174 @@ class EthTxDataTest {
 
     @Test
     void extractFrontierSignature() {
-        final var frontierTx = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var frontierTx = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         assertNotNull(frontierTx);
-        assertEquals(RAW_TX_TYPE_0, Hex.toHexString(frontierTx.rawTx()));
+        assertEquals(RAW_TX_TYPE_0, HexFormat.of().formatHex(frontierTx.rawTx()));
         assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, frontierTx.type());
-        assertEquals("012a", Hex.toHexString(frontierTx.chainId()));
+        assertEquals("012a", HexFormat.of().formatHex(frontierTx.chainId()));
         assertTrue(frontierTx.matchesChainId(CommonUtils.unhex("012a")));
         assertFalse(frontierTx.matchesChainId(CommonUtils.unhex("a210")));
         assertEquals(1, frontierTx.nonce());
-        assertEquals("2f", Hex.toHexString(frontierTx.gasPrice()));
+        assertEquals("2f", HexFormat.of().formatHex(frontierTx.gasPrice()));
         assertNull(frontierTx.maxPriorityGas());
         assertNull(frontierTx.maxGas());
         assertEquals(98_304L, frontierTx.gasLimit());
-        assertEquals("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181", Hex.toHexString(frontierTx.to()));
+        assertEquals("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181", HexFormat.of().formatHex(frontierTx.to()));
         assertEquals(BigInteger.ZERO, frontierTx.value());
-        assertEquals("7653", Hex.toHexString(frontierTx.callData()));
+        assertEquals("7653", HexFormat.of().formatHex(frontierTx.callData()));
         assertNull(frontierTx.accessList());
         assertEquals(0, frontierTx.recId());
-        assertEquals("0277", Hex.toHexString(frontierTx.v()));
+        assertEquals("0277", HexFormat.of().formatHex(frontierTx.v()));
         assertEquals(
-                "f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f", Hex.toHexString(frontierTx.r()));
+                "f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f",
+                HexFormat.of().formatHex(frontierTx.r()));
         assertEquals(
-                "0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792", Hex.toHexString(frontierTx.s()));
+                "0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792",
+                HexFormat.of().formatHex(frontierTx.s()));
         assertEquals(
                 "9ffbd69c44cf643ed8d1e756b505e545e3b5dd3a6b5ef9da1d8eca6679706594",
-                Hex.toHexString(frontierTx.getEthereumHash()));
+                HexFormat.of().formatHex(frontierTx.getEthereumHash()));
 
         final var frontierSigs = EthTxSigs.extractSignatures(frontierTx);
         assertNotNull(frontierSigs);
 
-        assertEquals(SIGNATURE_ADDRESS, Hex.toHexString(frontierSigs.address()));
-        assertEquals(SIGNATURE_PUBKEY, Hex.toHexString(frontierSigs.publicKey()));
+        assertEquals(SIGNATURE_ADDRESS, HexFormat.of().formatHex(frontierSigs.address()));
+        assertEquals(SIGNATURE_PUBKEY, HexFormat.of().formatHex(frontierSigs.publicKey()));
     }
 
     @Test
     void extractEIP155Signature() {
-        final var eip155Tx = EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO));
+        final var eip155Tx = EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO));
         assertNotNull(eip155Tx);
-        assertEquals(EIP155_DEMO, Hex.toHexString(eip155Tx.rawTx()));
+        assertEquals(EIP155_DEMO, HexFormat.of().formatHex(eip155Tx.rawTx()));
         assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, eip155Tx.type());
-        assertEquals("01", Hex.toHexString(eip155Tx.chainId()));
+        assertEquals("01", HexFormat.of().formatHex(eip155Tx.chainId()));
         assertEquals(9, eip155Tx.nonce());
-        assertEquals("04a817c800", Hex.toHexString(eip155Tx.gasPrice()));
+        assertEquals("04a817c800", HexFormat.of().formatHex(eip155Tx.gasPrice()));
         assertNull(eip155Tx.maxPriorityGas());
         assertNull(eip155Tx.maxGas());
         assertEquals(21_000L, eip155Tx.gasLimit());
-        assertEquals("3535353535353535353535353535353535353535", Hex.toHexString(eip155Tx.to()));
+        assertEquals("3535353535353535353535353535353535353535", HexFormat.of().formatHex(eip155Tx.to()));
         assertEquals(new BigInteger("0de0b6b3a7640000", 16), eip155Tx.value());
         assertEquals(0, eip155Tx.callData().length);
         assertNull(eip155Tx.accessList());
         assertEquals(0, eip155Tx.recId());
-        assertEquals("25", Hex.toHexString(eip155Tx.v()));
-        assertEquals("28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276", Hex.toHexString(eip155Tx.r()));
-        assertEquals("67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83", Hex.toHexString(eip155Tx.s()));
+        assertEquals("25", HexFormat.of().formatHex(eip155Tx.v()));
+        assertEquals(
+                "28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276",
+                HexFormat.of().formatHex(eip155Tx.r()));
+        assertEquals(
+                "67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83",
+                HexFormat.of().formatHex(eip155Tx.s()));
 
         final var eip155Sigs = EthTxSigs.extractSignatures(eip155Tx);
         assertNotNull(eip155Sigs);
-        assertEquals(EIP_155_DEMO_ADDRESS, Hex.toHexString(eip155Sigs.address()));
-        assertEquals(EIP_155_DEMO_PUBKEY, Hex.toHexString(eip155Sigs.publicKey()));
+        assertEquals(EIP_155_DEMO_ADDRESS, HexFormat.of().formatHex(eip155Sigs.address()));
+        assertEquals(EIP_155_DEMO_PUBKEY, HexFormat.of().formatHex(eip155Sigs.publicKey()));
     }
 
     @Test
     void extractEIP155SignatureWithNegativeRecoveryIdThrowsIAE() {
-        final var invalidRecoveryEip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+        final var invalidRecoveryEip155Tx = requireNonNull(
+                        EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
                 .replaceRecId(-1);
 
         final var sigs = EthTxSigs.extractSignatures(invalidRecoveryEip155Tx);
 
         // We changed the bytes signed in the test vector
-        assertNotEquals(EIP_155_DEMO_ADDRESS, Hex.toHexString(sigs.address()));
-        assertNotEquals(EIP_155_DEMO_PUBKEY, Hex.toHexString(sigs.publicKey()));
+        assertNotEquals(EIP_155_DEMO_ADDRESS, HexFormat.of().formatHex(sigs.address()));
+        assertNotEquals(EIP_155_DEMO_PUBKEY, HexFormat.of().formatHex(sigs.publicKey()));
     }
 
     @Test
     void extractSignatureThrowsWithInvalidR() {
-        final var rCurvePointAtNEip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
-                .replaceR(N.toByteArray());
+        final var rCurvePointAtNEip155Tx = requireNonNull(
+                        EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
+                .replaceR(EthTxSigs.SECP256K1_CURVE_N.toByteArray());
         assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(rCurvePointAtNEip155Tx));
-        final var rCurvePointAt0Eip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+        final var rCurvePointAt0Eip155Tx = requireNonNull(
+                        EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
                 .replaceR(BigInteger.ZERO.toByteArray());
         assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(rCurvePointAt0Eip155Tx));
     }
 
     @Test
     void extractSignatureThrowsWithInvalidS() {
-        final var sCurvePointAtNEip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
-                .replaceS(N.toByteArray());
+        final var sCurvePointAtNEip155Tx = requireNonNull(
+                        EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
+                .replaceS(EthTxSigs.SECP256K1_CURVE_N.toByteArray());
         assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(sCurvePointAtNEip155Tx));
-        final var sCurvePointAt0Eip155Tx = requireNonNull(EthTxData.populateEthTxData(Hex.decode(EIP155_DEMO)))
+        final var sCurvePointAt0Eip155Tx = requireNonNull(
+                        EthTxData.populateEthTxData(HexFormat.of().parseHex(EIP155_DEMO)))
                 .replaceS(BigInteger.ZERO.toByteArray());
         assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(sCurvePointAt0Eip155Tx));
     }
 
     @Test
     void extractBerlinSignature() {
-        final var berlinTx = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_1));
+        final var berlinTx = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_1));
         assertNotNull(berlinTx);
-        assertEquals(RAW_TX_TYPE_1, Hex.toHexString(berlinTx.rawTx()));
+        assertEquals(RAW_TX_TYPE_1, HexFormat.of().formatHex(berlinTx.rawTx()));
         assertEquals(EthTxData.EthTransactionType.EIP2930, berlinTx.type());
-        assertEquals("012a", Hex.toHexString(berlinTx.chainId()));
+        assertEquals("012a", HexFormat.of().formatHex(berlinTx.chainId()));
         assertEquals(5644, berlinTx.nonce());
-        assertEquals("a54f4c3c00", Hex.toHexString(berlinTx.gasPrice()));
+        assertEquals("a54f4c3c00", HexFormat.of().formatHex(berlinTx.gasPrice()));
         assertNull(berlinTx.maxPriorityGas());
         assertNull(berlinTx.maxGas());
         assertEquals(3_000_000L, berlinTx.gasLimit());
-        assertEquals("000000000000000000000000000000000000052d", Hex.toHexString(berlinTx.to()));
+        assertEquals("000000000000000000000000000000000000052d", HexFormat.of().formatHex(berlinTx.to()));
         assertEquals(new BigInteger("2540be400", 16), berlinTx.value());
-        assertEquals("123456", Hex.toHexString(berlinTx.callData()));
-        assertEquals("", Hex.toHexString(berlinTx.accessList()));
+        assertEquals("123456", HexFormat.of().formatHex(berlinTx.callData()));
+        assertEquals("", HexFormat.of().formatHex(berlinTx.accessList()));
         assertEquals(1, berlinTx.recId());
         assertNull(berlinTx.v());
-        assertEquals("abb9e9c510716df2988cf626734ee50dcd9f41d30d638220712b5fe33fe4c816", Hex.toHexString(berlinTx.r()));
-        assertEquals("249a72e1479b61e00d4f20308577bb63167d71b26138ee5229ca1cb3c49a2e53", Hex.toHexString(berlinTx.s()));
+        assertEquals(
+                "abb9e9c510716df2988cf626734ee50dcd9f41d30d638220712b5fe33fe4c816",
+                HexFormat.of().formatHex(berlinTx.r()));
+        assertEquals(
+                "249a72e1479b61e00d4f20308577bb63167d71b26138ee5229ca1cb3c49a2e53",
+                HexFormat.of().formatHex(berlinTx.s()));
 
         final var berlinSigs = EthTxSigs.extractSignatures(berlinTx);
         assertNotNull(berlinSigs);
-        assertEquals(SIGNATURE_ADDRESS, Hex.toHexString(berlinSigs.address()));
-        assertEquals(SIGNATURE_PUBKEY, Hex.toHexString(berlinSigs.publicKey()));
+        assertEquals(SIGNATURE_ADDRESS, HexFormat.of().formatHex(berlinSigs.address()));
+        assertEquals(SIGNATURE_PUBKEY, HexFormat.of().formatHex(berlinSigs.publicKey()));
     }
 
     @Test
     void extractLondonSignature() {
-        final var londonTx = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_2));
+        final var londonTx = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_2));
         assertNotNull(londonTx);
-        assertEquals(RAW_TX_TYPE_2, Hex.toHexString(londonTx.rawTx()));
+        assertEquals(RAW_TX_TYPE_2, HexFormat.of().formatHex(londonTx.rawTx()));
         assertEquals(EthTxData.EthTransactionType.EIP1559, londonTx.type());
-        assertEquals("012a", Hex.toHexString(londonTx.chainId()));
+        assertEquals("012a", HexFormat.of().formatHex(londonTx.chainId()));
         assertEquals(2, londonTx.nonce());
         assertNull(londonTx.gasPrice());
-        assertEquals("2f", Hex.toHexString(londonTx.maxPriorityGas()));
-        assertEquals("2f", Hex.toHexString(londonTx.maxGas()));
+        assertEquals("2f", HexFormat.of().formatHex(londonTx.maxPriorityGas()));
+        assertEquals("2f", HexFormat.of().formatHex(londonTx.maxGas()));
         assertEquals(98_304L, londonTx.gasLimit());
-        assertEquals("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181", Hex.toHexString(londonTx.to()));
+        assertEquals("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181", HexFormat.of().formatHex(londonTx.to()));
         assertEquals(new BigInteger("0de0b6b3a7640000", 16), londonTx.value());
-        assertEquals("123456", Hex.toHexString(londonTx.callData()));
-        assertEquals("", Hex.toHexString(londonTx.accessList()));
+        assertEquals("123456", HexFormat.of().formatHex(londonTx.callData()));
+        assertEquals("", HexFormat.of().formatHex(londonTx.accessList()));
         assertEquals(1, londonTx.recId());
         assertNull(londonTx.v());
-        assertEquals("df48f2efd10421811de2bfb125ab75b2d3c44139c4642837fb1fccce911fd479", Hex.toHexString(londonTx.r()));
-        assertEquals("1aaf7ae92bee896651dfc9d99ae422a296bf5d9f1ca49b2d96d82b79eb112d66", Hex.toHexString(londonTx.s()));
+        assertEquals(
+                "df48f2efd10421811de2bfb125ab75b2d3c44139c4642837fb1fccce911fd479",
+                HexFormat.of().formatHex(londonTx.r()));
+        assertEquals(
+                "1aaf7ae92bee896651dfc9d99ae422a296bf5d9f1ca49b2d96d82b79eb112d66",
+                HexFormat.of().formatHex(londonTx.s()));
 
         final var londonSigs = EthTxSigs.extractSignatures(londonTx);
         assertNotNull(londonSigs);
-        assertEquals(SIGNATURE_ADDRESS, Hex.toHexString(londonSigs.address()));
-        assertEquals(SIGNATURE_PUBKEY, Hex.toHexString(londonSigs.publicKey()));
+        assertEquals(SIGNATURE_ADDRESS, HexFormat.of().formatHex(londonSigs.address()));
+        assertEquals(SIGNATURE_PUBKEY, HexFormat.of().formatHex(londonSigs.publicKey()));
     }
 
     @Test
     void roundTripFrontier() {
-        final var expected = Hex.decode(RAW_TX_TYPE_0);
+        final var expected = HexFormat.of().parseHex(RAW_TX_TYPE_0);
         final var frontierTx = EthTxData.populateEthTxData(expected);
 
         assertNotNull(frontierTx);
@@ -287,7 +303,7 @@ class EthTxDataTest {
 
     @Test
     void roundTrip155() {
-        final var expected = Hex.decode(EIP155_DEMO);
+        final var expected = HexFormat.of().parseHex(EIP155_DEMO);
         final var tx155 = EthTxData.populateEthTxData(expected);
 
         assertNotNull(tx155);
@@ -298,7 +314,7 @@ class EthTxDataTest {
     // EIP-155 adds chainId in order to prevent replay attacks. This test checks if the encoding works without the
     // chainId
     void roundTrip155UnprotectedTx() {
-        final var expected = Hex.decode(EIP155_UNPROTECTED);
+        final var expected = HexFormat.of().parseHex(EIP155_UNPROTECTED);
         final var tx155 = EthTxData.populateEthTxData(expected);
 
         assertNotNull(tx155);
@@ -307,7 +323,7 @@ class EthTxDataTest {
 
     @Test
     void roundTrip2930() {
-        final var expected = Hex.decode(RAW_TX_TYPE_1);
+        final var expected = HexFormat.of().parseHex(RAW_TX_TYPE_1);
         final var tx2930 = EthTxData.populateEthTxData(expected);
 
         assertNotNull(tx2930);
@@ -316,7 +332,7 @@ class EthTxDataTest {
 
     @Test
     void roundTrip1559() {
-        final var expected = Hex.decode(RAW_TX_TYPE_2);
+        final var expected = HexFormat.of().parseHex(RAW_TX_TYPE_2);
         final var tx1559 = EthTxData.populateEthTxData(expected);
 
         assertNotNull(tx1559);
@@ -351,17 +367,82 @@ class EthTxDataTest {
         // type 3 TX (blobs) are rejected (just one test case suffices)
         assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {3}, size_13)));
         {
-            final var rawTx3 = Hex.decode(RAW_TX_TYPE_3);
+            final var rawTx3 = HexFormat.of().parseHex(RAW_TX_TYPE_3);
             rawTx3[1] += 1; // now total length is wrong, thus invalid RLP encoding
             assertNull(EthTxData.populateEthTxData(rawTx3));
         }
         // Unsupported Transaction Type
         assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {127}, size_13)));
         // Trimmed End Bytes
-        assertNull(EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_TRIMMED_LAST_BYTES)));
+        assertNull(EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0_TRIMMED_LAST_BYTES)));
 
         // poorly wrapped typed transaction
         assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, oneByte, oneByte)));
+
+        // Trailing bytes after a complete envelope - the mirror of "Trimmed End Bytes" above
+        assertNull(EthTxData.populateEthTxData(withSuffix(HexFormat.of().parseHex(RAW_TX_TYPE_0), new byte[] {0})));
+    }
+
+    /// Returns `data || suffix`.
+    private static byte[] withSuffix(final byte[] data, final byte[] suffix) {
+        final var suffixed = Arrays.copyOf(data, data.length + suffix.length);
+        System.arraycopy(suffix, 0, suffixed, data.length, suffix.length);
+        return suffixed;
+    }
+
+    /**
+     * Bytes past the end of the RLP envelope must be rejected outright, never left unread.
+     *
+     * <p>EIP-2718 requires the envelope to consume its whole input, and {@code ethereum_data} is specified as
+     * the complete transaction data. Since a record's {@code ethereum_hash} is {@code keccak256} of exactly
+     * those bytes, tolerating a longer framing would make the recorded hash depend on the framing rather than
+     * on the transaction: the fields, the signer and the operation would all be unchanged.
+     *
+     * <p>{@code 00}, {@code 01}, {@code 80} and {@code c0} are each well-formed RLP items on their own, so
+     * those are the trailers that parse cleanly and would slip past a weaker check. {@code ff} and
+     * {@code deadbeef} are malformed, covering the case where the trailer itself provokes a decoder error.
+     *
+     * @param suffixHex the hex-encoded trailer appended to each canonical transaction
+     */
+    @ParameterizedTest(name = "suffix=0x{0}")
+    @ValueSource(strings = {"00", "01", "80", "c0", "ff", "deadbeef", "ffffffffffffffffffffffff"})
+    void rejectsTrailingBytesAfterEnvelope(final String suffixHex) {
+        final var suffix = HexFormat.of().parseHex(suffixHex);
+        for (final var canonicalHex : List.of(
+                RAW_TX_TYPE_0,
+                RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111,
+                RAW_TX_TYPE_1,
+                RAW_TX_TYPE_2,
+                EIP155_DEMO,
+                EIP155_UNPROTECTED)) {
+            final var canonical = HexFormat.of().parseHex(canonicalHex);
+            assertNotNull(EthTxData.populateEthTxData(canonical), () -> canonicalHex + " must still parse");
+            assertNull(
+                    EthTxData.populateEthTxData(withSuffix(canonical, suffix)),
+                    () -> canonicalHex + " with trailing 0x" + suffixHex + " must be rejected");
+        }
+    }
+
+    /// A transaction's `ethereum_hash` must be fixed by the signed envelope alone.
+    @Test
+    void ethereumHashIsKeccakOfTheCanonicalEnvelope() {
+        for (final var canonicalHex :
+                List.of(RAW_TX_TYPE_0, RAW_TX_TYPE_1, RAW_TX_TYPE_2, EIP155_DEMO, EIP155_UNPROTECTED)) {
+            final var canonical = HexFormat.of().parseHex(canonicalHex);
+            final var parsed = requireNonNull(EthTxData.populateEthTxData(canonical));
+            assertArrayEquals(MiscCryptoUtils.keccak256DigestOf(canonical), parsed.getEthereumHash(), canonicalHex);
+        }
+    }
+
+    /// Guards the boundary from the accepting side: a programmatically built type-2 envelope parses, and the
+    /// same bytes plus one trailing zero do not. The other fixtures are hard-coded hex, so this is the only
+    /// case that proves the check tracks the encoded length rather than a fixture's known size.
+    @Test
+    void acceptsBuiltTypedEnvelopeButRejectsItWithOneTrailingByte() {
+        final var canonical = RLPEncoder.sequence(new byte[] {2}, Arrays.asList(normalRlpData()));
+
+        assertNotNull(EthTxData.populateEthTxData(canonical));
+        assertNull(EthTxData.populateEthTxData(Arrays.copyOf(canonical, canonical.length + 1)));
     }
 
     byte[][] normalRlpData() {
@@ -376,7 +457,9 @@ class EthTxDataTest {
 
     @Test
     void parsingErrors() {
-        final var wrongData = Hex.encode(ByteString.copyFromUtf8("wrong").toByteArray());
+        final var wrongData = HexFormat.of()
+                .formatHex(ByteString.copyFromUtf8("wrong").toByteArray())
+                .getBytes();
         final var negativeInteger = Integers.toBytes(Long.MIN_VALUE);
 
         // invalid nonce
@@ -413,42 +496,44 @@ class EthTxDataTest {
 
     @Test
     void roundTripTests() {
-        EthTxData parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        EthTxData parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         assertNotNull(parsed);
-        assertArrayEquals(Hex.decode(RAW_TX_TYPE_0), parsed.encodeTx());
+        assertArrayEquals(HexFormat.of().parseHex(RAW_TX_TYPE_0), parsed.encodeTx());
 
-        parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_1));
+        parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_1));
         assertNotNull(parsed);
-        assertArrayEquals(Hex.decode(RAW_TX_TYPE_1), parsed.encodeTx());
+        assertArrayEquals(HexFormat.of().parseHex(RAW_TX_TYPE_1), parsed.encodeTx());
 
-        parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_2));
+        parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_2));
         assertNotNull(parsed);
-        assertArrayEquals(Hex.decode(RAW_TX_TYPE_2), parsed.encodeTx());
+        assertArrayEquals(HexFormat.of().parseHex(RAW_TX_TYPE_2), parsed.encodeTx());
     }
 
     @Test
     void replaceEip2390CallData() {
-        final var parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_1));
+        final var parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_1));
         assertNotNull(parsed);
         final var noCallData = parsed.replaceCallData(new byte[0]);
         assertArrayEquals(
-                Hex.decode(
-                        RAW_TX_TYPE_1
-                                .replace("f873", "f870") // tx is shorter
-                                .replace("83123456", "80") // calldata changed
-                        ),
+                HexFormat.of()
+                        .parseHex(
+                                RAW_TX_TYPE_1
+                                        .replace("f873", "f870") // tx is shorter
+                                        .replace("83123456", "80") // calldata changed
+                                ),
                 noCallData.encodeTx());
     }
 
     @Test
     void replaceCallData() {
-        final var parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_2));
+        final var parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_2));
         assertNotNull(parsed);
         final var noCallData = parsed.replaceCallData(new byte[0]);
         assertArrayEquals(
-                Hex.decode(RAW_TX_TYPE_2
-                        .replace("f870", "f86d") // tx is shorter
-                        .replace("83123456", "80")), // calldata changed
+                HexFormat.of()
+                        .parseHex(RAW_TX_TYPE_2
+                                .replace("f870", "f86d") // tx is shorter
+                                .replace("83123456", "80")), // calldata changed
                 noCallData.encodeTx());
     }
 
@@ -480,11 +565,11 @@ class EthTxDataTest {
 
     @Test
     void toStringHashAndEquals() {
-        final var parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_2));
+        final var parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_2));
         assertNotNull(parsed);
-        final var parsedAgain = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_2));
+        final var parsedAgain = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_2));
         assertNotNull(parsedAgain);
-        final var parsed0 = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var parsed0 = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         assertNotNull(parsed0);
         assertDoesNotThrow(parsed::toString);
         assertDoesNotThrow(parsed0::toString);
@@ -497,11 +582,11 @@ class EthTxDataTest {
 
     @Test
     void toStringHashAndEqualsType1() {
-        final var parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_1));
+        final var parsed = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_1));
         assertNotNull(parsed);
-        final var parsedAgain = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_1));
+        final var parsedAgain = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_1));
         assertNotNull(parsedAgain);
-        final var parsed0 = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
+        final var parsed0 = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0));
         assertNotNull(parsed0);
         assertDoesNotThrow(parsed::toString);
         assertDoesNotThrow(parsed0::toString);
@@ -663,10 +748,10 @@ class EthTxDataTest {
         final var oneByte = new byte[] {1};
         // high bit of most significant byte is zero
         // 45 tinybar as weibar
-        final var smallGasPrice = Hex.decode("68c6171400");
+        final var smallGasPrice = HexFormat.of().parseHex("68c6171400");
         // high bit of most significant byte is one
         // 71 tinybar as weibar
-        final var largeGasPrice = Hex.decode("a54f4c3c00");
+        final var largeGasPrice = HexFormat.of().parseHex("a54f4c3c00");
 
         for (final var type : EthTxData.EthTransactionType.values()) {
             for (final var gasPrice : List.of(smallGasPrice, largeGasPrice)) {
@@ -700,7 +785,7 @@ class EthTxDataTest {
     void maxGasForDeterministicDeployerIsAsExpected() {
         final var oneByte = new byte[] {1};
         // 45 tinybar as weibar
-        final var smallGasPrice = Hex.decode("68c6171400");
+        final var smallGasPrice = HexFormat.of().parseHex("68c6171400");
         final var type = EthTransactionType.LEGACY_ETHEREUM;
         final EthTxData testTransaction = new EthTxData(
                 DETERMINISTIC_DEPLOYER_TRANSACTION,
@@ -768,20 +853,21 @@ class EthTxDataTest {
 
     @Test
     void populateEthTxDataComparedToUnsignedByteArrayNoExtraByteAdded() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
-        final byte[] passingChainId = BigIntegers.asUnsignedByteArray(BigInteger.valueOf(11155111L));
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
+        final byte[] passingChainId = EthTxData.asUnsignedByteArray(BigInteger.valueOf(11155111L));
         assertNotNull(subject);
-        assertEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(passingChainId));
+        assertEquals(HexFormat.of().formatHex(subject.chainId()), HexFormat.of().formatHex(passingChainId));
     }
 
     @Test
     // In this scenario we are adding unexpected byte at the beginning of the bytes array.
     // Issue is better described here: https://github.com/hashgraph/hedera-services/issues/15953
     void populateEthTxDataComparedToSignedByteArrayExtraByteAdded() {
-        final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
+        final var subject = EthTxData.populateEthTxData(HexFormat.of().parseHex(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotNull(subject);
-        assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
+        assertNotEquals(
+                HexFormat.of().formatHex(subject.chainId()), HexFormat.of().formatHex(failingChainId));
     }
 
     @ParameterizedTest(name = "v={0}")
@@ -825,11 +911,11 @@ class EthTxDataTest {
         final byte[] nonce = Integers.toBytes(1);
         final byte[] gasPrice = new byte[] {0x2f};
         final byte[] gasLimit = Integers.toBytes(98_304L);
-        final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
+        final byte[] to = HexFormat.of().parseHex("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
         final byte[] value = new byte[0];
         final byte[] callData = new byte[] {0x76, 0x53};
-        final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
-        final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+        final byte[] r = HexFormat.of().parseHex("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
+        final byte[] s = HexFormat.of().parseHex("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
         return RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s));
     }
 

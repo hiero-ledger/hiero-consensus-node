@@ -23,7 +23,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
-@Order(Integer.MIN_VALUE)
+// MIN_VALUE is reserved for genesis classes, which must run before any shared network exists
+@Order(Integer.MIN_VALUE + 1)
 public class CreateStakersTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
