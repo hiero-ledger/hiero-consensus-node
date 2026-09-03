@@ -200,31 +200,38 @@ public final class LearnerTreeExchanger {
                 anticipatedLeafPaths.remove();
                 drainedAny = true;
             }
-            if (!drainedAny) {
-                // Terminal check. lastLeafSent guards against an early exit before any leaf request
-                // was sent; the latch reaching zero means every receiver has finished, so — because
-                // each receiver publishes into `responses` before it counts down — every response
-                // that will ever arrive is already in the map.
-                if (lastLeafSent.get() && receiveTasksDone.getCount() == 0) {
-                    // Re-attempt the drain now, after observing the  terminal condition — this read cannot be stale,
-                    // since no receiver can publish once the count is zero.
-                    // Loop back so a successful drain here is followed by a normal drain pass rather than an immediate
-                    // exit.
-                    if (anticipatedLeafPaths.isEmpty()) {
-                        return; // fully drained — clean completion
-                    }
-                    final Long head = anticipatedLeafPaths.peek();
-                    if (head != null && responses.containsKey(head)) {
-                        continue; // head is now present — drain it on the next pass
-                    }
-                    // Terminal condition holds and the FIFO head is genuinely absent: no receiver can
-                    // ever publish it. This is a protocol violation (or lost response) — fail loudly
-                    // rather than returning with an unsupplied leaf and a silently corrupt tree.
+
+            if (drainedAny) {
+                continue; // made progress; try to drain more before considering termination
+            }
+
+            // Nothing drained this pass. Only terminate once every receiver has finished: each receiver
+            // publishes into `responses` (responseReceived) before it counts the latch down (its finally
+            // block), so when the count is zero every response that will ever arrive is already in the
+            // map. lastLeafSent guards against a spurious early exit before any leaf request was sent.
+            if (!(lastLeafSent.get() && receiveTasksDone.getCount() == 0)) {
+                LockSupport.parkNanos(50_000L); // head still in flight; nothing to drain this pass
+                continue;
+            }
+
+            // Terminal condition observed. The earlier responses.remove() that returned null may have
+            // raced a concurrent publish (a receiver could put() the head AND count down between our
+            // peek and our read of the count). Re-drain now, AFTER observing the count is zero — this
+            // read cannot be stale, since no receiver can publish once the latch is zero, so both maps
+            // are frozen. Drain the whole remaining backlog in FIFO order; any genuinely-missing head
+            // is a lost response / protocol violation and must fail the reconnect rather than leave a
+            // leaf unsupplied (a silently corrupt tree).
+            while (!anticipatedLeafPaths.isEmpty()) {
+                final Long head = anticipatedLeafPaths.peek();
+                final PullVirtualTreeResponse r = responses.remove(head);
+                if (r == null) {
                     throw new MerkleSynchronizationException("Reconnect ended with " + anticipatedLeafPaths.size()
                             + " undrained leaf path(s); FIFO head " + head + " never received");
                 }
-                LockSupport.parkNanos(50_000L); // head in flight; nothing to drain this pass
+                handleResponse(r);
+                anticipatedLeafPaths.remove();
             }
+            return; // fully drained — clean completion
         }
     }
 
