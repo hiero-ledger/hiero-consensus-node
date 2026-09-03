@@ -30,6 +30,10 @@ public enum SystemExitCode {
      */
     NODE_ID_NOT_PROVIDED(205),
     /**
+     * The node attempted a software upgrade while resuming from a state that is not a freeze state.
+     */
+    UPGRADE_FROM_NON_FREEZE_STATE(206),
+    /**
      * An exit was called but no code was supplied
      */
     NO_EXIT_CODE(254),
