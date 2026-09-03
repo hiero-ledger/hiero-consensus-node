@@ -539,7 +539,7 @@ jobs:
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${pod} -- bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); cat /proc/\$jpid/environ | strings | grep -v -E 'JAVA_OPTS|JAVA_TOOL_OPTIONS'> /tmp/env.sh"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${pod} -- bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); cat /proc/\${jpid}/environ | strings | grep -v -E 'JAVA_OPTS|JAVA_TOOL_OPTIONS'> /tmp/env.sh"
           done
 
       - name: Update RSA BlockNodes
@@ -606,9 +606,9 @@ jobs:
         run: |
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" get pods | grep 'network-node' | awk '{print $1}'`
           do
-            echo "Pod $pod"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec $pod -- bash -c "mount | grep '/dev/md0 on .*/data/saved'"
-            if [[ $? -ne 0 ]]
+            echo "Pod ${pod}"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${NAMESPACE}" exec ${pod} -- bash -c "mount | grep '/dev/md0 on .*/data/saved'"
+            if [[ ${?} -ne 0 ]]
             then
               echo "Error: /dev/md0 is not mounted for CN"
               exit 13
@@ -810,7 +810,7 @@ jobs:
           set +e
 
           check_status() {
-           logfile=$1
+           logfile=${1}
            ec=2 # continue
            grep -E 'Finished .*Test' ${logfile} >/dev/null
            if [[ ${?} -eq 0 ]]

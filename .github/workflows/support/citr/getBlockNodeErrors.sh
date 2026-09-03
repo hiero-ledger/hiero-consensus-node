@@ -1,6 +1,6 @@
-NAMESPACE=$1
+NAMESPACE=${1}
 BN_LOG=/opt/hiero/block-node/logs
-TOOLDIR=`dirname $0`
+TOOLDIR=`dirname ${0}`
 
 if [[ ! -d  podlog_${NAMESPACE} ]]
 then
@@ -10,7 +10,7 @@ fi
 for i in `sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} get pods | grep 'block-node-' | awk '{print $1}'`
 do
   sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} exec -it ${i} -- \
-  bash -c "grep -h -i -E 'error|exception|warn|severe' $BN_LOG/*.log" | grep -v error_prone_annotations > podlog_${NAMESPACE}/${i}-errors.log
+  bash -c "grep -h -i -E 'error|exception|warn|severe' ${BN_LOG}/*.log" | grep -v error_prone_annotations > podlog_${NAMESPACE}/${i}-errors.log
 done
 
 cat podlog_${NAMESPACE}/*block-node*-errors.log | grep -v -E 'exception[\=]null' |\
