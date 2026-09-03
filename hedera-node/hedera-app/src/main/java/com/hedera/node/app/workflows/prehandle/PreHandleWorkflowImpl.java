@@ -31,6 +31,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.state.DeduplicationCache;
+import com.hedera.node.app.workflows.AuthorizationChecker;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -91,6 +92,13 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     private final DeduplicationCache deduplicationCache;
 
     /**
+     * Shared privilege check (also used at ingest) for a privileged file operation whose payer lacks the required
+     * privilege. Such an operation is decidable from the payer and body, so if it reaches consensus the submitting
+     * node failed its due diligence and is charged accordingly.
+     */
+    private final AuthorizationChecker authorizationChecker;
+
+    /**
      * Creates a new instance of {@code PreHandleWorkflowImpl}.
      *
      * @param dispatcher         the {@link TransactionDispatcher} for invoking the {@link TransactionHandler} for each
@@ -106,13 +114,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final SignatureVerifier signatureVerifier,
             @NonNull final SignatureExpander signatureExpander,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final DeduplicationCache deduplicationCache) {
+            @NonNull final DeduplicationCache deduplicationCache,
+            @NonNull final AuthorizationChecker authorizationChecker) {
         this.dispatcher = requireNonNull(dispatcher);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.signatureExpander = requireNonNull(signatureExpander);
         this.configProvider = requireNonNull(configProvider);
         this.deduplicationCache = requireNonNull(deduplicationCache);
+        this.authorizationChecker = requireNonNull(authorizationChecker);
     }
 
     /**
@@ -324,11 +334,23 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
         // 2b. Call Pre-Transaction Handlers
         try {
-            // Check batch key on non-inner transactions,
+            // Pure checks already ran in preHandleTransaction before this method was called. Mirroring the
+            // ingest ordering (pure checks before privilege), reject a privileged file operation whose payer
+            // lacks the required privilege. That is decidable from the payer and body alone, so reaching
+            // consensus means the submitting node failed its due diligence and is charged. This must precede
+            // the batch-key check below, so a stray batch key on an unauthorized privileged file update cannot
+            // mask the authorization failure and shift the charge from the node to the payer.
+            final var fileAuthFailure = authorizationChecker.failureFor(payer, txInfo.functionality(), txInfo.txBody());
+            if (fileAuthFailure != null) {
+                return nodeDueDiligenceFailure(
+                        creatorInfo.accountId(), fileAuthFailure, txInfo, configuration.getVersion());
+            }
+            // A batch key is only valid on an inner transaction; on a top-level transaction it is the payer's
+            // own malformed request.
             if (innerTransaction == InnerTransaction.NO && txInfo.txBody().hasBatchKey()) {
                 throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
             }
-            // Gather the signatures from the transaction handler
+            // Then gather the signatures from the transaction handler
             dispatcher.dispatchPreHandle(context);
         } catch (PreCheckException preCheck) {
             // It is quite possible those semantic checks and other tasks will fail and throw a PreCheckException.
