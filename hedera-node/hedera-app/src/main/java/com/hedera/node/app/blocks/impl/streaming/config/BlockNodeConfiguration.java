@@ -44,6 +44,14 @@ public class BlockNodeConfiguration {
      * Custom Helidon client gRPC configuration.
      */
     private final BlockNodeHelidonGrpcConfiguration clientGrpcConfig;
+    /**
+     * TLS configuration for the streaming endpoint.
+     */
+    private final BlockNodeTlsConfiguration streamingTls;
+    /**
+     * TLS configuration for the service endpoint.
+     */
+    private final BlockNodeTlsConfiguration serviceTls;
 
     private BlockNodeConfiguration(final Builder builder) {
         requireNonNull(builder.address, "Address must be specified");
@@ -51,6 +59,8 @@ public class BlockNodeConfiguration {
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
         // default the service port to the streaming port
         final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
+        streamingTls = builder.streamingTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.streamingTls;
+        serviceTls = resolveServiceTls(builder, streamingTls, servicePort == builder.streamingPort);
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
@@ -77,6 +87,40 @@ public class BlockNodeConfiguration {
 
         streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
         serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
+    }
+
+    /**
+     * Determines the TLS settings for the service endpoint.
+     * <p>
+     * When the service port is not given its own value it defaults to the streaming port, which means a single
+     * listener serves both APIs. That listener either speaks TLS or it does not, so an unspecified service TLS block
+     * inherits the streaming one rather than silently defaulting to plaintext - which would have the consensus node
+     * dial a TLS listener over plaintext and fail every server-status call. For the same reason, service TLS settings
+     * that are explicitly given and contradict the streaming ones are rejected outright.
+     *
+     * @param builder the builder being validated
+     * @param streamingTls the already-resolved TLS settings for the streaming endpoint
+     * @param sharedEndpoint whether both APIs resolve to the same host and port
+     * @return the TLS settings for the service endpoint
+     */
+    private static @NonNull BlockNodeTlsConfiguration resolveServiceTls(
+            @NonNull final Builder builder,
+            @NonNull final BlockNodeTlsConfiguration streamingTls,
+            final boolean sharedEndpoint) {
+        if (!sharedEndpoint) {
+            // Separate listeners are secured independently.
+            return builder.serviceTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.serviceTls;
+        }
+        if (builder.serviceTls == null) {
+            return streamingTls;
+        }
+        if (!builder.serviceTls.equals(streamingTls)) {
+            throw new IllegalArgumentException("The streaming and service APIs share port " + builder.streamingPort
+                    + ", so they must have identical TLS settings, but the streaming endpoint declares "
+                    + streamingTls + " and the service endpoint declares " + builder.serviceTls
+                    + "; give the service API its own port or make the two settings match");
+        }
+        return builder.serviceTls;
     }
 
     public @NonNull BlockNodeEndpoint streamingEndpoint() {
@@ -119,6 +163,14 @@ public class BlockNodeConfiguration {
         return clientGrpcConfig;
     }
 
+    public @NonNull BlockNodeTlsConfiguration streamingTls() {
+        return streamingTls;
+    }
+
+    public @NonNull BlockNodeTlsConfiguration serviceTls() {
+        return serviceTls;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (o == null || getClass() != o.getClass()) {
@@ -131,7 +183,9 @@ public class BlockNodeConfiguration {
                 && Objects.equals(streamingEndpoint, that.streamingEndpoint)
                 && Objects.equals(serviceEndpoint, that.serviceEndpoint)
                 && Objects.equals(clientHttpConfig, that.clientHttpConfig)
-                && Objects.equals(clientGrpcConfig, that.clientGrpcConfig);
+                && Objects.equals(clientGrpcConfig, that.clientGrpcConfig)
+                && Objects.equals(streamingTls, that.streamingTls)
+                && Objects.equals(serviceTls, that.serviceTls);
     }
 
     @Override
@@ -143,7 +197,9 @@ public class BlockNodeConfiguration {
                 messageSizeSoftLimitBytes,
                 messageSizeHardLimitBytes,
                 clientHttpConfig,
-                clientGrpcConfig);
+                clientGrpcConfig,
+                streamingTls,
+                serviceTls);
     }
 
     @Override
@@ -155,7 +211,9 @@ public class BlockNodeConfiguration {
                 + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
                 + messageSizeHardLimitBytes + ", clientHttpConfig="
                 + clientHttpConfig + ", clientGrpcConfig="
-                + clientGrpcConfig + '}';
+                + clientGrpcConfig + ", streamingTls="
+                + streamingTls + ", serviceTls="
+                + serviceTls + '}';
     }
 
     public static @NonNull BlockNodeConfiguration from(
@@ -172,6 +230,13 @@ public class BlockNodeConfiguration {
         b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes));
         b.clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(config.clientGrpcConfig()));
         b.clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(config.clientHttpConfig()));
+        // Leave a TLS block unset when the file omits it; the constructor decides what an omitted block means.
+        if (config.streamingTls() != null) {
+            b.streamingTls(BlockNodeTlsConfiguration.from(config.streamingTls()));
+        }
+        if (config.serviceTls() != null) {
+            b.serviceTls(BlockNodeTlsConfiguration.from(config.serviceTls()));
+        }
 
         return b.build();
     }
@@ -189,6 +254,8 @@ public class BlockNodeConfiguration {
         private long messageSizeHardLimitBytes;
         private BlockNodeHelidonGrpcConfiguration clientGrpcConfig;
         private BlockNodeHelidonHttpConfiguration clientHttpConfig;
+        private BlockNodeTlsConfiguration streamingTls;
+        private BlockNodeTlsConfiguration serviceTls;
 
         private Builder() {
             // no-op
@@ -231,6 +298,16 @@ public class BlockNodeConfiguration {
 
         public @NonNull Builder clientGrpcConfig(@NonNull final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
             this.clientGrpcConfig = clientGrpcConfig;
+            return this;
+        }
+
+        public @NonNull Builder streamingTls(@NonNull final BlockNodeTlsConfiguration streamingTls) {
+            this.streamingTls = streamingTls;
+            return this;
+        }
+
+        public @NonNull Builder serviceTls(@NonNull final BlockNodeTlsConfiguration serviceTls) {
+            this.serviceTls = serviceTls;
             return this;
         }
 

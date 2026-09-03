@@ -99,6 +99,62 @@ message BlockNodeConfig {
      * Valid port range is 1 to 65535.
      */
     google.protobuf.Int32Value service_port = 8;
+
+    /**
+     * Optional TLS configuration for the streaming (publish) API endpoint.<br/>
+     * <p>
+     * If this field is present, the consensus node SHALL apply these settings when
+     * connecting to `streaming_port`.<br/>
+     * If this field is not present, the consensus node SHALL connect to
+     * `streaming_port` using plaintext.
+     */
+    BlockNodeTlsConfig streaming_tls = 9;
+
+    /**
+     * Optional TLS configuration for the service API endpoint.<br/>
+     * <p>
+     * If this field is present, the consensus node SHALL apply these settings when
+     * connecting to `service_port`.<br/>
+     * If this field is not present, the consensus node SHALL connect to
+     * `service_port` using plaintext.
+     */
+    BlockNodeTlsConfig service_tls = 10;
+}
+
+/**
+ * TLS settings for a single block node API endpoint.<br/>
+ *
+ * Each API a consensus node calls on a block node is configured independently, so
+ * TLS MAY be required for one API and not another.
+ * <p>
+ * Only the identity of the block node is verified; the consensus node does not
+ * present a client certificate.
+ */
+message BlockNodeTlsConfig {
+    /**
+     * Whether the consensus node SHALL use TLS when connecting to this endpoint.
+     */
+    bool enabled = 1;
+
+    /**
+     * Optional SHA-384 fingerprint of the certificate presented by this endpoint,
+     * hex-encoded.<br/>
+     * <p>
+     * SHA-384 matches the digest used by `grpc_certificate_hash` on a
+     * `Node`, so a single algorithm describes every certificate in the network.<br/>
+     * The value MUST be 96 hexadecimal characters, and MAY separate octets with
+     * a colon (`:`). Case is not significant.<br/>
+     * The hash SHALL be taken over the DER encoding of the certificate, which is what
+     * `openssl x509 -noout -fingerprint -sha384` reports.<br/>
+     * If present, the consensus node SHALL accept the endpoint's certificate if and
+     * only if the SHA-384 hash of that certificate matches this value; neither the
+     * platform trust store nor hostname verification SHALL be consulted. This permits
+     * the use of self-signed certificates.<br/>
+     * If absent, the endpoint's certificate SHALL be verified against the platform
+     * default trust store, with hostname verification.<br/>
+     * This field MUST NOT be present unless `enabled` is true.
+     */
+    google.protobuf.StringValue certificate_sha384 = 2;
 }
 
 /**

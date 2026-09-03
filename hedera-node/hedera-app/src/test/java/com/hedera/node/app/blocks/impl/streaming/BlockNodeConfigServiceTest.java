@@ -833,6 +833,144 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    @Test
+    void testLoadConfiguration_perApiTls() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9443,
+                            "servicePort": 9080,
+                            "priority": 1,
+                            "streamingTls": {
+                                "enabled": true,
+                                "certificateSha384": "%s"
+                            }
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9444,
+                            "servicePort": 9445,
+                            "priority": 2,
+                            "streamingTls": { "enabled": true },
+                            "serviceTls": { "enabled": true }
+                        }
+                    ]
+                }
+                """.formatted("a".repeat(96)));
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(2);
+
+        final BlockNodeConfiguration publishOnly = config.configs().stream()
+                .filter(c -> c.streamingPort() == 9443)
+                .findFirst()
+                .orElseThrow();
+        assertThat(publishOnly.streamingTls().enabled()).isTrue();
+        assertThat(publishOnly.streamingTls().certificateSha384()).hasSize(48);
+        assertThat(publishOnly.serviceTls().enabled()).isFalse();
+
+        final BlockNodeConfiguration allApis = config.configs().stream()
+                .filter(c -> c.streamingPort() == 9444)
+                .findFirst()
+                .orElseThrow();
+        assertThat(allApis.streamingTls().enabled()).isTrue();
+        assertThat(allApis.streamingTls().certificateSha384()).isNull();
+        assertThat(allApis.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testLoadConfiguration_invalidTlsSkipsOnlyThatNode() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9999,
+                            "priority": 1,
+                            "streamingTls": {
+                                "enabled": false,
+                                "certificateSha384": "%s"
+                            }
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """.formatted("a".repeat(96)));
+
+        invoke_loadConfiguration();
+
+        // the node with a fingerprint but no TLS is contradictory and is skipped; its sibling still loads
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
+    }
+
+    @Test
+    void testLoadConfiguration_omittedServicePortInheritsStreamingTls() throws Throwable {
+        // Only streamingTls is declared and servicePort is omitted, so both APIs land on 8443. The service client
+        // must not be left dialling that TLS listener in plaintext.
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true }
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.servicePort()).isEqualTo(nodeConfig.streamingPort());
+        assertThat(nodeConfig.serviceTls().enabled()).isTrue();
+    }
+
+    @Test
+    void testLoadConfiguration_sharedPortWithContradictoryTlsSkipsOnlyThatNode() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true },
+                            "serviceTls": { "enabled": false }
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
+    }
+
     // Utilities =========
 
     void invoke_loadConfiguration() throws Throwable {
