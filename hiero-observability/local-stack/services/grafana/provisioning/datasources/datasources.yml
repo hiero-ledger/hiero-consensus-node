@@ -1,5 +1,9 @@
 # Grafana expands $VAR from the *container's* environment, so every variable
 # used here must also appear in the grafana service's `environment:` block.
+#
+# This whole `services/grafana/provisioning` directory can be replaced: copy
+# it anywhere, edit your copy, and point GRAFANA_PROVISIONING_DIR at it in
+# `local.env`.
 apiVersion: 1
 
 datasources:

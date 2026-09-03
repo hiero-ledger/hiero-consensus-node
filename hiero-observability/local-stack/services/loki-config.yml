@@ -1,5 +1,8 @@
 # Loki - minimal single-binary, filesystem-backed configuration.
 #
+# DO NOT EDIT. Copy this file anywhere, edit your copy, and point LOKI_CONFIG
+# at it in `local.env`.
+#
 # Run with `-config.expand-env=true`, which expands ${VAR} from the container's
 # environment. Note that Loki uses ${VAR} while VictoriaMetrics uses %{VAR};
 # they are different syntaxes for different tools, do not unify them.

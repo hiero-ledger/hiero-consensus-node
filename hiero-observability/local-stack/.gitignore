@@ -1,10 +1,6 @@
 # Local overrides. The committed file is the one nobody edits; these hold only
 # your overrides. See README.md.
 local.env
-*.local.alloy
-promscrape.local.yml
-docker-compose.override.yml
-dashboards.local/
 
 # The repository root .gitignore ignores any directory named "logs" ([Ll]ogs/)
 # and every *.log file. Re-include the placeholder so the default LOGS_DIR

@@ -53,15 +53,13 @@ Everything is driven by environment variables, and the rule is always the same:
 > **The committed file is the one nobody edits. The gitignored file holds only
 > your overrides.**
 
-| What                  | Committed                 | Your override                   | Mechanism                                   |
-|-----------------------|---------------------------|---------------------------------|---------------------------------------------|
-| Variables             | `defaults.env`            | `local.env`                     | `--env-file` twice, the later file wins     |
-| Metrics scrape config | `services/promscrape.yml` | `services/promscrape.local.yml` | `PROMSCRAPE_CONFIG` points at your copy     |
-| Log pipeline          | `services/config.alloy`   | `services/config.local.alloy`   | Alloy merges every `*.alloy` in `services/` |
-| Compose itself        | `docker-compose.yml`      | `docker-compose.override.yml`   | Compose loads it automatically if present   |
+| What      | Committed      | Your override | Mechanism                                |
+|-----------|-----------------|----------------|-------------------------------------------|
+| Variables | `defaults.env`  | `local.env`    | `--env-file` twice, the later file wins   |
 
-All four override files are gitignored. In the common case you only ever touch
-`local.env`.
+Every config file the stack mounts into a container (VictoriaMetrics' scrape
+config, Alloy's pipeline, Loki's config, Grafana's provisioning directory) has
+its own override mechanism too — see "Overriding a config file" below.
 
 ### Point it at your metrics endpoint
 
@@ -82,14 +80,9 @@ it resolves on macOS, Windows and Linux alike.
 looks: production dashboards filter heavily on `environment`, so a dashboard
 reused locally shows nothing unless the series carry a matching label.
 
-Anything `SCRAPE_TARGETS` cannot express — a different `metrics_path`, per-job
-intervals, service discovery — is a copy of the scrape config:
-
-```sh
-cp services/promscrape.yml services/promscrape.local.yml
-# edit services/promscrape.local.yml, then in local.env:
-PROMSCRAPE_CONFIG=./services/promscrape.local.yml
-```
+Anything `SCRAPE_TARGETS` cannot express — a different `metrics_path`,
+per-job intervals, service discovery — needs a full scrape-config override;
+see "Overriding a config file" below.
 
 ### Point it at a run's log output
 
@@ -125,11 +118,12 @@ differently, override the regex.
 
 See `defaults.env` — it is the authoritative, commented list. In outline:
 
-- **Logs** — `LOGS_DIR`, `LOG_INCLUDE`, `LOG_MULTILINE_START`, `LOG_LABELS`
+- **Logs** — `LOGS_DIR`, `LOG_INCLUDE`, `LOG_MULTILINE_START`, `LOG_LABELS`,
+  `ALLOY_CONFIG`, `LOKI_CONFIG`
 - **Metrics** — `SCRAPE_TARGETS`, `SCRAPE_INTERVAL`, `METRIC_LABELS`,
   `PROMSCRAPE_CONFIG`
 - **Grafana** — `METRICS_DATASOURCE_NAME`, `METRICS_DATASOURCE_URL`,
-  `LOKI_DATASOURCE_NAME`
+  `LOKI_DATASOURCE_NAME`, `GRAFANA_PROVISIONING_DIR`
 - **Host ports** — `GRAFANA_PORT`, `VICTORIAMETRICS_PORT`, `LOKI_PORT`,
   `ALLOY_PORT`
 - **Retention** — `METRICS_RETENTION`, `LOGS_RETENTION`
@@ -142,6 +136,44 @@ carry a unit — a bare `15` means *fifteen months* to VictoriaMetrics.
 Every variable used anywhere has a value in `defaults.env`, and that is
 deliberate: VictoriaMetrics leaves an unset `%{VAR}` in its scrape config
 literally, with no error. If you add a placeholder, give it a default there too.
+
+## Overriding a config file
+
+Every config file (or directory) the stack mounts into a container has its own
+env var pointing at it, all following the same pattern: copy the committed
+file (or, for Grafana, the whole directory) anywhere you like, edit your copy,
+and point the variable at it in `local.env`.
+
+| Config              | Env var                   | Default                              |
+|---------------------|----------------------------|---------------------------------------|
+| Metrics scrape      | `PROMSCRAPE_CONFIG`       | `./services/promscrape.yml`          |
+| Log pipeline        | `ALLOY_CONFIG`            | `./services/config.alloy`            |
+| Log storage         | `LOKI_CONFIG`             | `./services/loki-config.yml`         |
+| Grafana provisioning (directory) | `GRAFANA_PROVISIONING_DIR` | `./services/grafana/provisioning` |
+
+For example, to change something `promscrape.yml`'s environment variables
+can't express:
+
+```sh
+cp services/promscrape.yml /somewhere/else/promscrape.yml
+# edit /somewhere/else/promscrape.yml, then in local.env:
+PROMSCRAPE_CONFIG=/somewhere/else/promscrape.yml
+```
+
+**Invariants** — violating these produces silent wrong behaviour:
+
+1. Every variable referenced anywhere must exist in `defaults.env`. VM leaves
+   an unset `%{FOO}` in the file *literally*, parsed as a plain scalar, with
+   no error.
+2. `METRIC_LABELS` / `SCRAPE_TARGETS` are injected structurally (VM expands
+   `%{ENV_VAR}` on the raw byte stream before YAML parsing), so they must stay
+   valid JSON.
+3. Datasource names must stay `grafanacloud-prom` / `grafanacloud-logs` —
+   existing production dashboards reference those as literal UIDs.
+4. The metrics datasource stays `type: prometheus` regardless of what's behind
+   it — VM speaks PromQL through Grafana's Prometheus plugin.
+5. Named volumes, never bind-mounts, for backend data (works identically
+   across OSes; `docker compose down -v` resets cleanly).
 
 ## Day-to-day commands
 
@@ -198,9 +230,9 @@ cd hiero-observability/local-stack
 docker compose --env-file defaults.env --env-file local.env up -d --force-recreate
 ```
 
-Editing `local.env`, `services/promscrape.local.yml` or
-`services/config.local.alloy` requires this (or `make restart`) to take
-effect — config files are only read at container start.
+Editing `local.env` or any file an override env var points at requires this
+(or `make restart`) to take effect — config files are only read at container
+start.
 
 ### Follow the stack logs
 
@@ -225,6 +257,20 @@ docker compose --env-file defaults.env --env-file local.env ps
 ```
 
 ### Run the automated end-to-end assertions
+
+`make selftest` spins up a throwaway, fully separate copy of the stack (its
+own Compose project, its own ephemeral host ports), feeds it purpose-built
+fixtures, and asserts that metric names, static labels, stream labels,
+`log_name` derivation and multi-line grouping all survive the pipeline
+intact, then tears itself down, including its volumes. This is the whole
+point of the exercise: it queries metric names like `selftest_requests_total`
+and camelCase `selftest_blockStream_round_duration_seconds` **exactly**, so
+anything that rewrites a `_total` suffix or a camelCase segment in transit
+fails loudly here instead of silently blanking a dashboard panel later. It
+runs its assertions **inside a container** on the Compose network (no
+`bash`/`curl`/`jq` needed on the host), and deliberately does not read
+`local.env` — it asserts that the *committed* defaults work, not one
+developer's configuration.
 
 ```sh
 make -C hiero-observability/local-stack selftest
@@ -253,7 +299,11 @@ docker compose -p observability-stack-selftest \
 Runs as its own Compose project against ephemeral host ports, so it cannot
 disturb or be disturbed by a stack already running from `make up`. See
 `test/test.mk` for the exact version (teardown-on-failure, log dump on a
-failed assertion) and `docs/development.md` for what it asserts and why.
+failed assertion), `test/assert.sh` for the assertions themselves, and
+`test/promscrape.test.yml` for the test-only scrape config (it duplicates the
+`app` job from `services/promscrape.yml` and adds one job of its own for the
+`selftest-metrics` fixture — VictoriaMetrics has no config-include directive,
+so keep the two in sync if you change the shared job).
 
 ## Windows
 
@@ -271,6 +321,13 @@ containers are not.
   stack from a WSL2 working directory. Tailing a bind mount from the Windows
   filesystem works but is slow and can miss change notifications, because
   inotify does not propagate cleanly through Docker Desktop's file sharing.
+- `.gitattributes` forces LF line endings in this directory — without it, Git
+  on Windows checks files out with CRLF, and every env var, `.sh` script and
+  YAML/HCL file in the stack silently corrupts with a trailing `\r`.
+- `test/assert.sh` runs **inside a container** on the Compose network rather
+  than as a host script, so it needs no `bash`/`curl` on the host and reaches
+  services by internal name instead of published host ports — this is also
+  why the selftest works the same way on Windows as anywhere else.
 
 ## Troubleshooting
 
@@ -298,10 +355,24 @@ clean.
 ## Not included
 
 Dashboards. The stack ships none and provisions none yet — use Grafana Explore
-for now. Pointing it at a directory of existing dashboards, and replaying the
-metrics *file* a finished run produced, are tracked separately in `docs/`.
+for now.
 
-## Development
+## Design notes
 
-For architecture rationale, the directory layout, and how the automated
-selftest works, see [`docs/development.md`](docs/development.md).
+- **VictoriaMetrics scrapes *and* stores metrics.** No Prometheus, no OTel
+  Collector in front of it. Routing metrics through a collector is a round
+  trip through the OTel data model, where `_total`/unit suffixes get
+  semantically stripped and reconstructed on the way back out — and the
+  reconstruction rules have changed across collector versions. Existing
+  dashboards query exact names (`platform_trans_per_sec`, camelCase
+  `blockStream_*`); if those shift, panels silently go blank. Scraping
+  natively makes that class of bug impossible, and comes with VM's `/targets`
+  page for free as the single most useful local debugging affordance.
+- **Alloy handles logs, not the OTel Collector.** Alloy writes to Loki's
+  native push API, where stream labels are just labels — OTLP would require
+  promoting attributes to stream labels via a Loki config surface that no
+  longer exists.
+- **No templating engine.** VM expands `%{ENV_VAR}`, Alloy reads
+  `sys.env()`, Loki supports `-config.expand-env=true`, Grafana provisioning
+  files expand `$VAR`. Every config file in this stack is a real, readable,
+  un-rendered file — don't reintroduce a render step.

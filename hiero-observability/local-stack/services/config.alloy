@@ -1,9 +1,7 @@
 // Log pipeline: tail files from /logs, group multi-line entries, push to Loki.
 //
-// DO NOT EDIT. This whole directory is mounted as Alloy's config directory and
-// Alloy merges every *.alloy file in it, so put your additions in
-// `config.local.alloy` alongside this file - it is gitignored. Component names
-// must stay unique across the merged files.
+// DO NOT EDIT. Copy this file anywhere, edit your copy, and point
+// ALLOY_CONFIG at it in `local.env`.
 
 // 1. Discover the files to tail. One glob, container-side path.
 local.file_match "logs" {

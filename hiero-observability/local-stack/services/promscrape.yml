@@ -1,8 +1,7 @@
 # VictoriaMetrics scrape configuration.
 #
-# DO NOT EDIT. Copy this file to `promscrape.local.yml` (alongside it, in
-# `services/`), edit the copy, and set PROMSCRAPE_CONFIG=./services/promscrape.local.yml
-# in `local.env`.
+# DO NOT EDIT. Copy this file anywhere, edit your copy, and point
+# PROMSCRAPE_CONFIG at it in `local.env`.
 #
 # %{VAR} placeholders are substituted by VictoriaMetrics on the raw file, before
 # it is parsed as YAML, which is why a JSON list or map lands here as a valid
