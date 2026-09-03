@@ -122,6 +122,20 @@ class FreezeUpgradePreparedUpgradeTest {
                 .has(responseCode(NO_UPGRADE_HAS_BEEN_PREPARED));
     }
 
+    /**
+     * A {@code FREEZE_ABORT} clears the recorded hash by writing {@link Bytes#EMPTY}. The store normalizes
+     * that back to null, but the handler treats an empty hash as "nothing prepared" in its own right so the
+     * guarantee does not depend on that normalization.
+     */
+    @Test
+    void rejectsFreezeUpgradeWhenPreparedHashWasCleared() {
+        given(freezeStore.updateFileHash()).willReturn(Bytes.EMPTY);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(NO_UPGRADE_HAS_BEEN_PREPARED));
+    }
+
     @Test
     void rejectsFreezeUpgradeWhenPreparedHashDiffersFromTransactionHash() {
         given(freezeStore.updateFileHash()).willReturn(UNRELATED_FILE_HASH);
