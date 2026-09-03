@@ -235,7 +235,7 @@ jobs:
           # (e.g. protobufjs 8.0.1 in lockfile vs 8.2.0 in manifest, caused by
           # pnpm.overrides being silently ignored in pnpm v11+).
           # --ignore-scripts skips unapproved build scripts (ERR_PNPM_IGNORED_BUILDS).
-          pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
+          pnpm add "@hiero-ledger/sdk@${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
           pnpm install --no-frozen-lockfile --ignore-scripts
           nohup pnpm start &
           server_pid=$!
