@@ -8,7 +8,10 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -40,7 +43,10 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -914,6 +920,98 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(rewards).hasSize(1);
         // because the transferId is owner for the deleted payer account
         assertThat(rewards).containsEntry(ownerId, 178900L);
+    }
+
+    @Test
+    void redirectsRewardForAccountDeletedInChildDispatch() {
+        // Same reward situation as rewardsUltimateBeneficiaryInsteadOfDeletedAccount, except the
+        // deleted -> beneficiary mapping is recorded on a CHILD dispatch builder (as happens for the
+        // inner CryptoDelete of an atomic batch), not on the root builder consulted by the redirect.
+        // The handler must fold the child mapping into the root builder, otherwise the redirect loop
+        // throws IllegalStateException and the batch is rolled back to a zero-fee FAIL_INVALID record.
+        final var accountBalance = 555L * HBARS_TO_TINYBARS;
+        final var ownerBalance = 111L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(true)
+                .build();
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(0)
+                .stakedNodeId(0L)
+                .build());
+        writableAccountStore.put(ownerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(ownerBalance + accountBalance)
+                .stakedNodeId(0L)
+                .build());
+        writableAccountStore.put(Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(800).build())
+                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+
+        // The root builder starts with an EMPTY deleted-account map; the mapping only exists on the
+        // child dispatch builder. Back the root builder mock with a real map so the fold is observable.
+        final Map<AccountID, AccountID> rootBeneficiaries = new HashMap<>();
+        given(recordBuilder.getNumberOfDeletedAccounts()).willAnswer(inv -> rootBeneficiaries.size());
+        given(recordBuilder.getDeletedAccountBeneficiaryFor(any()))
+                .willAnswer(inv -> rootBeneficiaries.get(inv.<AccountID>getArgument(0)));
+        doAnswer(inv -> {
+                    rootBeneficiaries.put(inv.getArgument(0), inv.getArgument(1));
+                    return null;
+                })
+                .when(recordBuilder)
+                .addBeneficiaryForDeletedAccount(any(), any());
+
+        // A child dispatch recorded (payer -> owner) on its own builder; expose it via forEachChildRecord.
+        final DeleteCapableTransactionStreamBuilder childBuilder = mock(DeleteCapableTransactionStreamBuilder.class);
+        doAnswer(inv -> {
+                    final BiConsumer<AccountID, AccountID> action = inv.getArgument(0);
+                    action.accept(payerId, ownerId);
+                    return null;
+                })
+                .when(childBuilder)
+                .forEachDeletedAccountBeneficiary(any());
+        doAnswer(inv -> {
+                    final Consumer<DeleteCapableTransactionStreamBuilder> consumer = inv.getArgument(1);
+                    consumer.accept(childBuilder);
+                    return null;
+                })
+                .when(context)
+                .forEachChildRecord(eq(DeleteCapableTransactionStreamBuilder.class), any());
+
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+
+        // The reward is redirected to the (non-deleted) beneficiary, exactly as in the non-batch case.
+        assertThat(rewards).hasSize(1);
+        assertThat(rewards).containsEntry(ownerId, 178900L);
+        // And the child dispatch's mapping was folded into the root builder.
+        assertThat(rootBeneficiaries).containsEntry(payerId, ownerId);
     }
 
     @Test
