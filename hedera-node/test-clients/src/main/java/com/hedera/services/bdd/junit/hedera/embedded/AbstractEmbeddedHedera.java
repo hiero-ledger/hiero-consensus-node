@@ -91,6 +91,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final Metrics metrics;
     protected final MetricRegistry metricRegistry;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    // Held so stop() can unregister it; otherwise the hook pins this instance for the life of the JVM
+    private final Thread shutdownHook = new Thread(executorService::shutdownNow);
 
     /**
      * A trigger for the Hedera platform to use when initializing the state.
@@ -153,7 +155,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         metricRegistry = NoOpMetricRegistries.create(defaultNodeId.id());
         state = new FakeState();
         rebuildHedera();
-        Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
     }
 
     @Override
@@ -198,6 +200,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
             metricRegistry.close();
         } catch (final IOException e) {
             log.warn("Failed to close metric registry of embedded node {}", defaultNodeId, e);
+        }
+        try {
+            Runtime.getRuntime().removeShutdownHook(shutdownHook);
+        } catch (final IllegalStateException ignore) {
+            // The JVM is already shutting down
         }
     }
 

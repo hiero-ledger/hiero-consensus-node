@@ -12,6 +12,7 @@ new modules, or deciding where a new dependency belongs.
 4. Test fixtures must not expose impl classes transitively to other modules.
 5. Classes in `internal` packages must not be used outside their defining module.
 6. Functional-api modules must not depend on each other.
+7. Structural-transitional modules may depend on one another; otherwise rule 3 applies to them.
 
 ### base-* Modules
 
@@ -24,9 +25,9 @@ their own, so they are described here.
 
 ### base-* vs consensus-* Primitives
 
-Some `base-*` modules have a `consensus-*` counterpart that occupies the same niche one layer
-up: `base-concurrent`/`consensus-concurrent`, `base-utility`/`consensus-utility`. Both hold
-primitives, but the dividing line is knowledge of the consensus layer:
+One `base-*` module has a `consensus-*` counterpart that occupies the same niche one layer
+up: `base-utility`/`consensus-utility`. Both hold primitives, but the dividing line is
+knowledge of the consensus layer:
 
 - A `base-*` module holds **layer-agnostic** primitives — no dependency on `consensus-model`
   or any other consensus type. They could be used by any project, consensus or not.
@@ -64,40 +65,39 @@ principles as `consensus-*` modules.
 
 - **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
   `hiero-metrics`
-- **Allowed in functional-api, functional-impl, self-contained functional, and fake modules only (not supporting modules):** `consensus-wiring-framework`
-- **Allowed in `consensus-platformstate`, `consensus-roster`, and `consensus-iss-detection` only:** `swirlds-state-api`, `swirlds-state-impl`
-- **Allowed in `consensus-state`, `consensus-state-management`, `consensus-transaction-handling`, and `consensus-fakes` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
-- **Transitional — currently present in `consensus-gossip`, `consensus-gossip-impl`, and `consensus-reconnect-impl` but not permitted in the final architecture:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
+- **Allowed in functional-api, functional-impl, self-contained functional, structural-transitional, and fake modules only (not supporting modules):** `consensus-wiring-framework`
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
 - **Prohibited everywhere — implementation modules; depend on the API instead:** `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
 ### consensus-* Module Categories
 
-**Supporting modules** — shared data model, helpers, metrics, and concurrency primitives
-consumed across the layer. They form a strict DAG; no circular dependencies are permitted. See
+**Supporting modules** — shared data model, helpers, and metrics consumed across the layer. They form a strict DAG; no circular dependencies are permitted. See
 each module's `README.md` for its description and dependency rules.
 
 - `consensus-model` — **foundation**: holds the consensus data structures all other modules build on. Must not depend on any other supporting module or any other consensus module.
-- Remaining supporting modules: `consensus-concurrent`, `consensus-metrics`, `consensus-roster`, `consensus-platformstate`, `consensus-utility`.
+- Remaining supporting modules: `consensus-metrics`, `consensus-utility`.
 
 **Functional-api modules** — the public-facing API of each business-logic topic:
-- `consensus-event-creator`, `consensus-event-intake`, `consensus-gossip`, `consensus-hashgraph`, `consensus-pces`, `consensus-reconnect`
+- `consensus-event-creator`, `consensus-event-intake`, `consensus-gossip`, `consensus-hashgraph`, `consensus-pces`
 
 **Functional-impl modules** — implementations of the functional APIs. May depend on their
 paired API and any supporting module. Must not depend on other impl modules:
-- `consensus-event-creator-impl`, `consensus-event-intake-impl`, `consensus-event-intake-concurrent`, `consensus-gossip-impl`, `consensus-hashgraph-impl`, `consensus-pces-impl`, `consensus-pces-noop-impl`, `consensus-reconnect-impl`
+- `consensus-event-creator-impl`, `consensus-event-intake-impl`, `consensus-event-intake-concurrent`, `consensus-gossip-impl`, `consensus-hashgraph-impl`, `consensus-pces-impl`, `consensus-pces-noop-impl`
 
 **Self-contained functional modules** — permanent modules that bundle their public API and
 implementation in one module rather than a split api/impl pair. Unlike structural-transitional
 modules, other modules are expected to depend on them; the implementation stays unexported:
 - `consensus-status-monitor`
 
-**Structural-transitional modules** — treated like impl modules (rule 3 applies); temporary, awaiting either a move to the execution layer or removal:
-- `consensus-state` — will move to the execution layer.
-- `consensus-state-management` — will move to the execution layer alongside the signed-state machinery it drives.
+**Structural-transitional modules** — treated like impl modules (rules 3 and 7 apply); temporary, awaiting either a move to the execution layer or removal:
+- `consensus-state` — will move to the execution layer alongside the signed-state machinery it drives.
+- `consensus-platformstate` — passive data module; will move to the execution layer alongside the platform state it wraps.
+- `consensus-roster` — passive data module; will move to the execution layer alongside the roster data it holds.
 - `consensus-transaction-handling` — will move to the execution layer.
 - `consensus-event-stream` — will be deleted once the consensus event stream is superseded by the block stream.
 - `consensus-iss-detection` — will move to the execution layer alongside the state machinery it validates.
+- `consensus-reconnect` — reconnect API; the entire reconnect function will move to the execution layer and eventually be replaced with block node reconnect.
+- `consensus-reconnect-impl` — reconnect implementation; moves with `consensus-reconnect`.
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
 - `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
