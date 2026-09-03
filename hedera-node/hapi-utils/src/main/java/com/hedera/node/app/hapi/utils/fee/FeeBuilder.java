@@ -21,6 +21,7 @@ import java.util.List;
  * calculate Fee for Crypto, File and Smart Contracts Transactions and Query
  */
 public class FeeBuilder {
+    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
     public static final long MAX_ENTITY_LIFETIME = 100L * 365L * 24L * 60L * 60L;
 
     public static final int LONG_SIZE = 8;
@@ -140,10 +141,13 @@ public class FeeBuilder {
         long networkFee = getComponentFeeInTinyCents(feeData.getNetworkdata(), feeMatrices.getNetworkdata());
         long nodeFee = getComponentFeeInTinyCents(feeData.getNodedata(), feeMatrices.getNodedata());
         long serviceFee = getComponentFeeInTinyCents(feeData.getServicedata(), feeMatrices.getServicedata());
-        // convert the Fee to tiny hbars
-        networkFee = FeeBuilder.getTinybarsFromTinyCents(exchangeRate, networkFee) * multiplier;
-        nodeFee = FeeBuilder.getTinybarsFromTinyCents(exchangeRate, nodeFee) * multiplier;
-        serviceFee = FeeBuilder.getTinybarsFromTinyCents(exchangeRate, serviceFee) * multiplier;
+        // convert the Fee to tiny hbars, clamping the congestion-multiplier scaling so a saturated conversion
+        // (from a degenerate rate) cannot wrap to a bogus, possibly negative, fee.
+        networkFee =
+                CommonUtils.clampedMultiply(FeeBuilder.getTinybarsFromTinyCents(exchangeRate, networkFee), multiplier);
+        nodeFee = CommonUtils.clampedMultiply(FeeBuilder.getTinybarsFromTinyCents(exchangeRate, nodeFee), multiplier);
+        serviceFee =
+                CommonUtils.clampedMultiply(FeeBuilder.getTinybarsFromTinyCents(exchangeRate, serviceFee), multiplier);
         return new FeeObject(nodeFee, networkFee, serviceFee);
     }
 
@@ -284,12 +288,16 @@ public class FeeBuilder {
     }
 
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {
-        final var aMultiplier = BigInteger.valueOf(aEquiv);
-        final var bDivisor = BigInteger.valueOf(bEquiv);
-        return BigInteger.valueOf(bAmount)
-                .multiply(aMultiplier)
-                .divide(bDivisor)
-                .longValueExact();
+        // A degenerate exchange rate would either divide by zero (non-positive divisor) or make the result
+        // free/negative (non-positive multiplier); saturate to Long.MAX_VALUE instead so a malformed rate
+        // yields an unpayable fee and cannot halt fee conversion network-wide.
+        if (aEquiv <= 0 || bEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
+        final var result =
+                BigInteger.valueOf(bAmount).multiply(BigInteger.valueOf(aEquiv)).divide(BigInteger.valueOf(bEquiv));
+        // longValueExact() throws when the result exceeds the long range; saturate to the maximum instead.
+        return result.compareTo(LONG_MAX) >= 0 ? Long.MAX_VALUE : result.longValue();
     }
 
     public static FeeData getFeeDataMatrices(

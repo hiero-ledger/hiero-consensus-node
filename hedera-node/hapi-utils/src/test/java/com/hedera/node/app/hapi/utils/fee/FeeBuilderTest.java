@@ -114,6 +114,46 @@ class FeeBuilderTest {
     }
 
     @Test
+    void getTinybarsFromTinyCentsSaturatesInsteadOfThrowing() {
+        // A zero centEquiv would divide by zero -> saturate to Long.MAX_VALUE instead of throwing.
+        var zeroCentRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(0).build();
+        assertEquals(Long.MAX_VALUE, FeeBuilder.getTinybarsFromTinyCents(zeroCentRate, 100L));
+
+        // A result beyond the long range would overflow longValueExact() -> saturate instead of throwing.
+        var skewedRate = ExchangeRate.newBuilder()
+                .setHbarEquiv(Integer.MAX_VALUE)
+                .setCentEquiv(1)
+                .build();
+        assertEquals(Long.MAX_VALUE, FeeBuilder.getTinybarsFromTinyCents(skewedRate, Long.MAX_VALUE / 2));
+    }
+
+    @Test
+    void getTinybarsFromTinyCentsSaturatesOnNonPositiveHbarEquiv() {
+        // A non-positive hbarEquiv would make the conversion free (== 0) or negative; saturate to
+        // Long.MAX_VALUE so a degenerate rate yields an unpayable fee rather than a wrong one.
+        var zeroHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(0).setCentEquiv(100).build();
+        assertEquals(Long.MAX_VALUE, FeeBuilder.getTinybarsFromTinyCents(zeroHbarRate, 100L));
+
+        var negativeHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(-5).setCentEquiv(100).build();
+        assertEquals(Long.MAX_VALUE, FeeBuilder.getTinybarsFromTinyCents(negativeHbarRate, 100L));
+    }
+
+    @Test
+    void getFeeObjectSaturatesMultiplierOnDegenerateRate() {
+        // A degenerate rate makes the per-component conversion saturate to Long.MAX_VALUE; multiplying by the
+        // congestion multiplier must clamp to Long.MAX_VALUE rather than wrap to a bogus (possibly negative) fee.
+        var zeroCentRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(0).build();
+        var feeObject = FeeBuilder.getFeeObject(feeData, feeMatrices, zeroCentRate, 10L);
+        assertEquals(Long.MAX_VALUE, feeObject.nodeFee());
+        assertEquals(Long.MAX_VALUE, feeObject.networkFee());
+        assertEquals(Long.MAX_VALUE, feeObject.serviceFee());
+    }
+
+    @Test
     void assertGetContractFunctionSize() {
         assertEquals(52, FeeBuilder.getContractFunctionSize(contractFunctionResult));
     }
