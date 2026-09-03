@@ -37,8 +37,8 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
     private static final Logger logger = LogManager.getLogger(DefaultKeyVerifier.class);
 
     private static final Comparator<Key> KEY_COMPARATOR = new KeyComparator();
-    private final long timeout;
-    private final Map<Key, SignatureVerificationFuture> keyVerifications;
+    private long timeout;
+    private Map<Key, SignatureVerificationFuture> keyVerifications;
 
     /**
      * Creates a {@link DefaultKeyVerifier}
@@ -47,6 +47,14 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
      * @param keyVerifications A {@link Map} with all data to verify signatures
      */
     public DefaultKeyVerifier(
+            @NonNull final HederaConfig config, @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
+        reset(config, keyVerifications);
+    }
+
+    /**
+     * Rebinds this verifier to the next parent user transaction. Handle is single-threaded.
+     */
+    public void reset(
             @NonNull final HederaConfig config, @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
         this.timeout = requireNonNull(config, "config must not be null").workflowVerificationTimeoutMS();
         this.keyVerifications = requireNonNull(keyVerifications, "keyVerifications must not be null");

@@ -65,15 +65,31 @@ import org.hiero.base.crypto.Hash;
  * A stack of savepoints scoped to a dispatch. Each savepoint captures the state of the {@link State} at the time
  * the savepoint was created and all the changes made to the state from the time savepoint was created, along with all
  * the stream builders created in the savepoint.
+ *
+ * <p>The handle scheduler is single-threaded. A root stack can be {@link #resetForNextUserTxn reset} and reused
+ * across sequential parent dispatches so {@link WritableStatesStack} adapters and the root {@link WrappedState}
+ * stay cached. Child stacks are not reused.
  */
 public class SavepointStackImpl implements HandleContext.SavepointStack, State {
-    private final State state;
+    private State state;
+    /**
+     * Root first-savepoint wrap, reused across sequential parent dispatches. Null on child stacks.
+     */
+    @Nullable
+    private WrappedState rootWrap;
+    /**
+     * Root USER stream builder, reused across sequential parent dispatches. Null on child stacks.
+     */
+    @Nullable
+    private StreamBuilder reusableRootBuilder;
+
     private final Deque<Savepoint> stack = new ArrayDeque<>();
     private final Map<String, WritableStatesStack> writableStatesMap = new HashMap<>();
+    private final Map<String, ReadableStates> readableStatesMap = new HashMap<>();
     /**
      * The stream builder for the transaction whose dispatch created this stack.
      */
-    private final StreamBuilder baseBuilder;
+    private StreamBuilder baseBuilder;
     // For the root stack of a user dispatch, the final sink of all created stream builders; otherwise null,
     // because child stacks flush their builders into the savepoint at the top of their parent stack
     @Nullable
@@ -86,9 +102,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
 
     private final StreamMode streamMode;
+    private final int maxBuildersBeforeUser;
+    private final int maxBuildersAfterUser;
+    private final int maxSerializedTraceDataBytes;
 
     private int numPresetIds;
-    private int noncesPerPresetId;
+    private int noncesToSkipPerPresetId;
     private boolean presetIdsAllowed;
 
     /**
@@ -163,10 +182,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.streamMode = requireNonNull(streamMode);
+        this.maxBuildersBeforeUser = maxBuildersBeforeUser;
+        this.maxBuildersAfterUser = maxBuildersAfterUser;
+        this.maxSerializedTraceDataBytes = maxSerializedTraceDataBytes;
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
-        // The +1 puts preset nonces strictly past the largest offset buildHandleOutput() can assign
-        noncesPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser + 1;
+        noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
         setupFirstSavepoint(USER);
         baseBuilder = createRootBaseBuilder(maxSerializedTraceDataBytes);
     }
@@ -195,9 +216,54 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.builderSink = null;
         this.immediateStateChangeListener = null;
         this.boundaryStateChangeListener = null;
+        this.maxBuildersBeforeUser = 0;
+        this.maxBuildersAfterUser = 0;
+        this.maxSerializedTraceDataBytes = 0;
         setupFirstSavepoint(category);
         baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
         presetIdsAllowed = false;
+    }
+
+    /**
+     * Resets this root stack for another sequential parent dispatch on the handle thread.
+     *
+     * <p>On success, savepoints and preset-id counters are replaced. The root stream builder is
+     * reset and re-added to the new first savepoint. Adapters already returned from
+     * {@link #getWritableStates(String)} and {@link #getReadableStates(String)} stay valid because
+     * they always delegate to {@link #peek()}.
+     *
+     * @return {@code true} if this stack was reset and is ready; {@code false} if the caller must
+     *     construct a new root stack (child stacks, or builder/stream configuration changed)
+     */
+    public boolean resetForNextUserTxn(
+            @NonNull final State state,
+            final int maxBuildersBeforeUser,
+            final int maxBuildersAfterUser,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final StreamMode streamMode,
+            final int maxSerializedTraceDataBytes) {
+        requireNonNull(state);
+        requireNonNull(boundaryStateChangeListener);
+        requireNonNull(immediateStateChangeListener);
+        requireNonNull(streamMode);
+        if (builderSink == null
+                || this.maxBuildersBeforeUser != maxBuildersBeforeUser
+                || this.maxBuildersAfterUser != maxBuildersAfterUser
+                || this.streamMode != streamMode
+                || this.boundaryStateChangeListener != boundaryStateChangeListener
+                || this.immediateStateChangeListener != immediateStateChangeListener
+                || this.maxSerializedTraceDataBytes != maxSerializedTraceDataBytes) {
+            return false;
+        }
+        this.state = state;
+        stack.clear();
+        builderSink.reset();
+        numPresetIds = 0;
+        presetIdsAllowed = true;
+        setupFirstSavepoint(USER);
+        baseBuilder = createRootBaseBuilder(this.maxSerializedTraceDataBytes);
+        return true;
     }
 
     @Override
@@ -323,7 +389,13 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     @Override
     @NonNull
     public ReadableStates getReadableStates(@NonNull String serviceName) {
-        return new ReadonlyStatesWrapper(getWritableStates(serviceName));
+        final var cached = readableStatesMap.get(serviceName);
+        if (cached != null) {
+            return cached;
+        }
+        final var created = new ReadonlyStatesWrapper(getWritableStates(serviceName));
+        readableStatesMap.put(serviceName, created);
+        return created;
     }
 
     /**
@@ -338,7 +410,13 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (stack.isEmpty()) {
             throw new IllegalStateException("The stack has already been committed");
         }
-        return writableStatesMap.computeIfAbsent(serviceName, s -> new WritableStatesStack(this, s));
+        final var cached = writableStatesMap.get(serviceName);
+        if (cached != null) {
+            return cached;
+        }
+        final var created = new WritableStatesStack(this, serviceName);
+        writableStatesMap.put(serviceName, created);
+        return created;
     }
 
     @NonNull
@@ -445,7 +523,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             presetIdsAllowed = false;
         }
         final var baseId = requireNonNull(baseBuilder.transactionID());
-        final var presetNonce = baseId.nonce() + numPresetIds * noncesPerPresetId;
+        final var presetNonce = baseId.nonce() + numPresetIds * noncesToSkipPerPresetId;
         if (baseId.nonce() < 0 && presetNonce >= 0) {
             throw new HandleException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
         }
@@ -641,25 +719,35 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (state instanceof SavepointStackImpl parent) {
             stack.push(new FirstChildSavepoint(new WrappedState(state), parent.peek(), category));
         } else {
-            stack.push(new FirstRootSavepoint(new WrappedState(state), requireNonNull(builderSink)));
+            stack.push(new FirstRootSavepoint(rootWrap(), requireNonNull(builderSink)));
         }
     }
 
+    @NonNull
+    private WrappedState rootWrap() {
+        if (rootWrap == null) {
+            rootWrap = new WrappedState(state);
+        } else {
+            rootWrap.resetForDelegate(state);
+        }
+        return rootWrap;
+    }
+
     private StreamBuilder createRootBaseBuilder(final int maxSerializedTraceDataBytes) {
-        final var builder =
-                switch (streamMode) {
-                    case RECORDS ->
-                        new RecordStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
-                    case BLOCKS ->
-                        new BlockStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
-                    case BOTH ->
-                        new PairedStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
-                };
-        peek().addFollowingOrThrow(builder);
-        return builder;
+        if (reusableRootBuilder == null) {
+            reusableRootBuilder = switch (streamMode) {
+                case RECORDS ->
+                    new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                case BLOCKS ->
+                    new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                case BOTH ->
+                    new PairedStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+            };
+        } else {
+            reusableRootBuilder.resetForNextUserTxn();
+        }
+        peek().addFollowingOrThrow(reusableRootBuilder);
+        return reusableRootBuilder;
     }
 
     @Override

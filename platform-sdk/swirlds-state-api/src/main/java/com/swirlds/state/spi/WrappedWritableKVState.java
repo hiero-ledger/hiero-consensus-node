@@ -17,7 +17,7 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * The {@link WritableKVState} to delegate to for all read operations on cache miss, and for
      * committing changes
      */
-    private final WritableKVState<K, V> delegate;
+    private WritableKVState<K, V> delegate;
 
     /**
      * Create a new instance that will treat the given {@code delegate} as the backend data source.
@@ -30,6 +30,17 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     public WrappedWritableKVState(@NonNull final WritableKVState<K, V> delegate) {
         super(delegate.getStateId(), null);
         this.delegate = Objects.requireNonNull(delegate);
+    }
+
+    /**
+     * Points this wrapper at a new backend and clears buffered reads and writes. Used when the
+     * wrapper is reused across sequential handle dispatches.
+     *
+     * @param newDelegate the backend to read from and commit to
+     */
+    public void retarget(@NonNull final WritableKVState<K, V> newDelegate) {
+        this.delegate = Objects.requireNonNull(newDelegate);
+        reset();
     }
 
     /** {@inheritDoc} */

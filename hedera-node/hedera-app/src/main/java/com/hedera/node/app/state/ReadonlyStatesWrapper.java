@@ -7,6 +7,8 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -16,6 +18,9 @@ import java.util.Set;
 public class ReadonlyStatesWrapper implements ReadableStates {
 
     private final WritableStates delegate;
+    private final Map<Integer, ReadableKVState<?, ?>> kvStates = new HashMap<>();
+    private final Map<Integer, ReadableSingletonState<?>> singletonStates = new HashMap<>();
+    private final Map<Integer, ReadableQueueState<?>> queueStates = new HashMap<>();
 
     /**
      * Create a new wrapper around the given {@code delegate}.
@@ -28,20 +33,41 @@ public class ReadonlyStatesWrapper implements ReadableStates {
 
     @NonNull
     @Override
+    @SuppressWarnings("unchecked")
     public <K, V> ReadableKVState<K, V> get(final int stateId) {
-        return new ReadonlyKVStateWrapper<>(delegate.get(stateId));
+        final var cached = kvStates.get(stateId);
+        if (cached != null) {
+            return (ReadableKVState<K, V>) cached;
+        }
+        final var created = new ReadonlyKVStateWrapper<K, V>(delegate.get(stateId));
+        kvStates.put(stateId, created);
+        return created;
     }
 
     @NonNull
     @Override
+    @SuppressWarnings("unchecked")
     public <T> ReadableSingletonState<T> getSingleton(final int stateId) {
-        return new ReadonlySingletonStateWrapper<>(delegate.getSingleton(stateId));
+        final var cached = singletonStates.get(stateId);
+        if (cached != null) {
+            return (ReadableSingletonState<T>) cached;
+        }
+        final var created = new ReadonlySingletonStateWrapper<T>(delegate.getSingleton(stateId));
+        singletonStates.put(stateId, created);
+        return created;
     }
 
     @NonNull
     @Override
+    @SuppressWarnings("unchecked")
     public <E> ReadableQueueState<E> getQueue(final int stateId) {
-        return new ReadonlyQueueStateWrapper<>(delegate.getQueue(stateId));
+        final var cached = queueStates.get(stateId);
+        if (cached != null) {
+            return (ReadableQueueState<E>) cached;
+        }
+        final var created = new ReadonlyQueueStateWrapper<E>(delegate.getQueue(stateId));
+        queueStates.put(stateId, created);
+        return created;
     }
 
     @Override

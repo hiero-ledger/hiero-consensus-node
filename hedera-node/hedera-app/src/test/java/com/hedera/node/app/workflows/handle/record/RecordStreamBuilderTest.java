@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
@@ -14,6 +15,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
@@ -104,5 +106,40 @@ public class RecordStreamBuilderTest {
         assertThat(record.contractCreateResult().logInfo()).isEmpty();
         assertThat(record.contractCreateResult().bloom()).isEqualTo(Bytes.EMPTY);
         assertThat(record.contractCreateResult().createdContractIDs()).isEmpty();
+    }
+
+    @Test
+    void syncBodyIdInvalidatesCachedSignedTransactionBytes() throws Exception {
+        final var initialBody = TransactionBody.DEFAULT;
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(initialBody))
+                .build();
+        final var updatedId = TransactionID.newBuilder().nonce(1).build();
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(signedTx)
+                .serializedSignedTx(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                .transactionID(updatedId);
+
+        builder.syncBodyIdFromRecordId();
+
+        final var serializedSignedTx = builder.build().transaction().signedTransactionBytes();
+        final var updatedSignedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+        final var updatedBody = TransactionBody.PROTOBUF.parse(updatedSignedTx.bodyBytes());
+        assertThat(updatedBody.transactionID()).isEqualTo(updatedId);
+    }
+
+    @Test
+    void resetForNextUserTxnClearsTxnScopedFields() {
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .signedTx(SIGNED_TX)
+                .transactionID(TransactionID.DEFAULT)
+                .status(SUCCESS)
+                .transactionFee(42L);
+
+        builder.resetForNextUserTxn();
+
+        assertThat(builder.transactionID()).isNull();
+        assertThat(builder.status()).isEqualTo(OK);
+        assertThat(builder.transactionFee()).isZero();
     }
 }

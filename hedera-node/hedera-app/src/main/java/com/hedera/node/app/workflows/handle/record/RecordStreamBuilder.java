@@ -167,7 +167,7 @@ public class RecordStreamBuilder
     private List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
 
     private List<AccountAmount> paidStakingRewards = new LinkedList<>();
-    private final TransactionRecord.Builder transactionRecordBuilder = TransactionRecord.newBuilder();
+    private TransactionRecord.Builder transactionRecordBuilder = TransactionRecord.newBuilder();
     private TransferList transferList = TransferList.DEFAULT;
 
     // fields needed for TransactionReceipt
@@ -175,7 +175,7 @@ public class RecordStreamBuilder
     private ExchangeRateSet exchangeRate = ExchangeRateSet.DEFAULT;
     private List<Long> serialNumbers = new LinkedList<>();
     private long newTotalSupply = 0L;
-    private final TransactionReceipt.Builder transactionReceiptBuilder = TransactionReceipt.newBuilder();
+    private TransactionReceipt.Builder transactionReceiptBuilder = TransactionReceipt.newBuilder();
     // Sidecar data, booleans are the migration flag
     @Nullable
     private List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges;
@@ -260,6 +260,49 @@ public class RecordStreamBuilder
         this.customizer = requireNonNull(customizer, "customizer must not be null");
         this.category = requireNonNull(category, "category must not be null");
         this.traceDataSizeLimiter = requireNonNull(traceDataSizeLimiter);
+    }
+
+    /**
+     * Restores txn-scoped fields to construction defaults so this builder can be reused as the
+     * root USER builder of the next sequential handle dispatch.
+     */
+    @Override
+    public void resetForNextUserTxn() {
+        signedTx = null;
+        serializedSignedTx = null;
+        consensusNow = Instant.EPOCH;
+        parentConsensus = null;
+        transactionID = null;
+        tokenTransferLists = new LinkedList<>();
+        assessedCustomFees = new LinkedList<>();
+        pendingAirdropRecords = new LinkedList<>();
+        automaticTokenAssociations = new LinkedList<>();
+        paidStakingRewards = new LinkedList<>();
+        transactionRecordBuilder = TransactionRecord.newBuilder();
+        transferList = TransferList.DEFAULT;
+        status = ResponseCodeEnum.OK;
+        exchangeRate = ExchangeRateSet.DEFAULT;
+        serialNumbers = new LinkedList<>();
+        newTotalSupply = 0L;
+        transactionReceiptBuilder = TransactionReceipt.newBuilder();
+        contractStateChanges = null;
+        contractActions = new LinkedList<>();
+        contractBytecodes = new LinkedList<>();
+        estimatedContractBytecodeSize = 0L;
+        deletedAccountBeneficiaries.clear();
+        explicitRewardReceiverIds = null;
+        transactionFee = 0L;
+        contractFunctionResult = null;
+        tokenID = null;
+        scheduleID = null;
+        tokenType = null;
+        function = null;
+        isContractCreate = false;
+        deltaStorageSlotsUpdated = 0;
+        opsDuration = 0L;
+        nextHookId = null;
+        highVolumePricingMultiplier = 0L;
+        traceDataSizeLimiter.reset();
     }
 
     /**
@@ -503,7 +546,7 @@ public class RecordStreamBuilder
         final var body =
                 inProgressBody().copyBuilder().transactionID(newTransactionID).build();
         this.signedTx = StreamBuilder.signedTxWith(body);
-        this.serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(this.signedTx);
+        this.serializedSignedTx = null;
         return this;
     }
 

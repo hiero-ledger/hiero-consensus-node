@@ -21,10 +21,10 @@ import java.util.function.ObjLongConsumer;
  * account.
  */
 public class FeeAccumulator {
-    private final TokenServiceApi tokenApi;
-    private final FeeStreamBuilder feeStreamBuilder;
-    private final LongConsumer onNodeFeeCharged;
-    private final LongConsumer onNodeFeeRefunded;
+    private TokenServiceApi tokenApi;
+    private FeeStreamBuilder feeStreamBuilder;
+    private LongConsumer onNodeFeeCharged;
+    private LongConsumer onNodeFeeRefunded;
 
     @Nullable
     private AccountID nodeAccountId;
@@ -49,10 +49,22 @@ public class FeeAccumulator {
             @NonNull final TokenServiceApi tokenApi,
             @NonNull final FeeStreamBuilder feeStreamBuilder,
             @NonNull final SavepointStackImpl stack) {
+        reset(tokenApi, feeStreamBuilder, stack);
+    }
+
+    /**
+     * Rebinds this accumulator to the next parent dispatch and clears refundable-fee
+     * bookkeeping. Handle is single-threaded.
+     */
+    public void reset(
+            @NonNull final TokenServiceApi tokenApi,
+            @NonNull final FeeStreamBuilder feeStreamBuilder,
+            @NonNull final SavepointStackImpl stack) {
         this.tokenApi = requireNonNull(tokenApi);
         this.feeStreamBuilder = requireNonNull(feeStreamBuilder);
         this.onNodeFeeCharged = amount -> stack.peek().trackCollectedNodeFee(amount);
         this.onNodeFeeRefunded = amount -> stack.peek().trackRefundedNodeFee(amount);
+        resetRefundableFees();
     }
 
     /**

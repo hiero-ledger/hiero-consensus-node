@@ -81,34 +81,34 @@ import org.hiero.hapi.support.fees.FeeSchedule;
  * The {@link HandleContext} implementation.
  */
 public class DispatchHandleContext implements HandleContext, FeeContext, FeeCharging.Context {
-    private final Instant consensusNow;
-    private final NodeInfo creatorInfo;
-    private final TransactionInfo txnInfo;
-    private final Configuration config;
-    private final Authorizer authorizer;
-    private final BlockRecordInfo blockRecordInfo;
-    private final ResourcePriceCalculator resourcePriceCalculator;
-    private final FeeManager feeManager;
-    private final FeeCharging feeCharging;
-    private final StoreFactoryImpl storeFactory;
-    private final AccountID payerId;
-    private final AppKeyVerifier verifier;
-    private final HederaFunctionality topLevelFunction;
-    private final Key payerKey;
-    private final ExchangeRateManager exchangeRateManager;
-    private final SavepointStackImpl stack;
-    private final EntityNumGenerator entityNumGenerator;
+    private Instant consensusNow;
+    private NodeInfo creatorInfo;
+    private TransactionInfo txnInfo;
+    private Configuration config;
+    private Authorizer authorizer;
+    private BlockRecordInfo blockRecordInfo;
+    private ResourcePriceCalculator resourcePriceCalculator;
+    private FeeManager feeManager;
+    private FeeCharging feeCharging;
+    private StoreFactoryImpl storeFactory;
+    private AccountID payerId;
+    private AppKeyVerifier verifier;
+    private HederaFunctionality topLevelFunction;
+    private Key payerKey;
+    private ExchangeRateManager exchangeRateManager;
+    private SavepointStackImpl stack;
+    private EntityNumGenerator entityNumGenerator;
     private final AttributeValidator attributeValidator;
     private final ExpiryValidator expiryValidator;
-    private final TransactionDispatcher dispatcher;
-    private final NetworkInfo networkInfo;
-    private final ChildDispatchFactory childDispatchFactory;
-    private final DispatchProcessor dispatchProcessor;
-    private final ThrottleAdviser throttleAdviser;
-    private final FeeAccumulator feeAccumulator;
-    private final DispatchMetadata dispatchMetaData;
-    private final TransactionChecker transactionChecker;
-    private final TransactionCategory transactionCategory;
+    private TransactionDispatcher dispatcher;
+    private NetworkInfo networkInfo;
+    private ChildDispatchFactory childDispatchFactory;
+    private DispatchProcessor dispatchProcessor;
+    private ThrottleAdviser throttleAdviser;
+    private FeeAccumulator feeAccumulator;
+    private DispatchMetadata dispatchMetaData;
+    private TransactionChecker transactionChecker;
+    private TransactionCategory transactionCategory;
 
     @Nullable
     private Map<AccountID, Long> dispatchPaidRewards;
@@ -116,12 +116,78 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     // This is used to store the pre-handle results for the inner transactions
     // in an atomic batch, null otherwise
     @Nullable
-    private final List<PreHandleResult> preHandleResults;
+    private List<PreHandleResult> preHandleResults;
 
     @Nullable
-    private final PreHandleWorkflow preHandleWorkflow;
+    private PreHandleWorkflow preHandleWorkflow;
 
     public DispatchHandleContext(
+            @NonNull final Instant consensusNow,
+            @NonNull final NodeInfo creatorInfo,
+            @NonNull final TransactionInfo transactionInfo,
+            @NonNull final Configuration config,
+            @NonNull final Authorizer authorizer,
+            @NonNull final BlockRecordInfo blockRecordInfo,
+            @NonNull final ResourcePriceCalculator resourcePriceCalculator,
+            @NonNull final FeeManager feeManager,
+            @NonNull final FeeCharging feeCharging,
+            @NonNull final StoreFactoryImpl storeFactory,
+            @NonNull final AccountID payerId,
+            @NonNull final AppKeyVerifier verifier,
+            @NonNull final HederaFunctionality topLevelFunction,
+            @NonNull final Key payerKey,
+            @NonNull final ExchangeRateManager exchangeRateManager,
+            @NonNull final SavepointStackImpl stack,
+            @NonNull final EntityNumGenerator entityNumGenerator,
+            @NonNull final TransactionDispatcher dispatcher,
+            @NonNull final NetworkInfo networkInfo,
+            @NonNull final ChildDispatchFactory childDispatchLogic,
+            @NonNull final DispatchProcessor dispatchProcessor,
+            @NonNull final ThrottleAdviser throttleAdviser,
+            @NonNull final FeeAccumulator feeAccumulator,
+            @NonNull final DispatchMetadata handleMetaData,
+            @NonNull final TransactionChecker transactionChecker,
+            @Nullable final List<PreHandleResult> preHandleResults,
+            @Nullable final PreHandleWorkflow preHandleWorkflow,
+            @NonNull final TransactionCategory transactionCategory) {
+        this.attributeValidator = new AttributeValidatorImpl(this);
+        this.expiryValidator = new ExpiryValidatorImpl(this);
+        reset(
+                consensusNow,
+                creatorInfo,
+                transactionInfo,
+                config,
+                authorizer,
+                blockRecordInfo,
+                resourcePriceCalculator,
+                feeManager,
+                feeCharging,
+                storeFactory,
+                payerId,
+                verifier,
+                topLevelFunction,
+                payerKey,
+                exchangeRateManager,
+                stack,
+                entityNumGenerator,
+                dispatcher,
+                networkInfo,
+                childDispatchLogic,
+                dispatchProcessor,
+                throttleAdviser,
+                feeAccumulator,
+                handleMetaData,
+                transactionChecker,
+                preHandleResults,
+                preHandleWorkflow,
+                transactionCategory);
+    }
+
+    /**
+     * Rebinds this context to the next parent dispatch. Validators wrap {@code this} and are
+     * kept. Children still allocate their own context. Handle is single-threaded.
+     */
+    public void reset(
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final TransactionInfo transactionInfo,
@@ -171,8 +237,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
         this.throttleAdviser = requireNonNull(throttleAdviser);
         this.feeAccumulator = requireNonNull(feeAccumulator);
-        this.attributeValidator = new AttributeValidatorImpl(this);
-        this.expiryValidator = new ExpiryValidatorImpl(this);
         this.dispatcher = requireNonNull(dispatcher);
         this.networkInfo = requireNonNull(networkInfo);
         this.dispatchMetaData = requireNonNull(handleMetaData);
@@ -180,6 +244,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         this.transactionCategory = requireNonNull(transactionCategory);
         this.preHandleResults = preHandleResults;
         this.preHandleWorkflow = preHandleWorkflow;
+        this.dispatchPaidRewards = null;
     }
 
     @NonNull

@@ -147,10 +147,16 @@ public class VirtualMapStateImpl implements VirtualMapState {
     @Override
     @NonNull
     public ReadableStates getReadableStates(@NonNull String serviceName) {
-        return readableStatesMap.computeIfAbsent(serviceName, s -> {
-            final var stateMetadata = services.get(s);
-            return stateMetadata == null ? EmptyReadableStates.INSTANCE : new MerkleReadableStates(stateMetadata);
-        });
+        final var existingStates = readableStatesMap.get(serviceName);
+        if (existingStates != null) {
+            return existingStates;
+        }
+
+        final var stateMetadata = services.get(serviceName);
+        final ReadableStates newStates =
+                stateMetadata == null ? EmptyReadableStates.INSTANCE : new MerkleReadableStates(stateMetadata);
+        final var concurrentStates = readableStatesMap.putIfAbsent(serviceName, newStates);
+        return concurrentStates == null ? newStates : concurrentStates;
     }
 
     /**
@@ -160,10 +166,13 @@ public class VirtualMapStateImpl implements VirtualMapState {
     @NonNull
     public WritableStates getWritableStates(@NonNull final String serviceName) {
         virtualMap.throwIfImmutable();
-        return writableStatesMap.computeIfAbsent(serviceName, s -> {
-            final var stateMetadata = services.getOrDefault(s, Map.of());
-            return new MerkleWritableStates(serviceName, stateMetadata);
-        });
+        var states = writableStatesMap.get(serviceName);
+        if (states == null) {
+            final var stateMetadata = services.getOrDefault(serviceName, Map.of());
+            states = new MerkleWritableStates(serviceName, stateMetadata);
+            writableStatesMap.put(serviceName, states);
+        }
+        return states;
     }
 
     @Override
@@ -232,14 +241,20 @@ public class VirtualMapStateImpl implements VirtualMapState {
 
         // Remove the metadata entry
         final var stateMetadata = services.get(serviceName);
+        final boolean removed;
         if (stateMetadata != null) {
-            stateMetadata.remove(stateId);
+            removed = stateMetadata.remove(stateId) != null;
+        } else {
+            removed = false;
         }
 
         // Eventually remove the cached WritableState
         final var writableStates = writableStatesMap.get(serviceName);
         if (writableStates != null) {
             writableStates.remove(stateId);
+        }
+        if (removed) {
+            readableStatesMap.remove(serviceName);
         }
     }
 

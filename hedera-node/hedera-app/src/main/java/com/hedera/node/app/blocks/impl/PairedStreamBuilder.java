@@ -258,6 +258,12 @@ public class PairedStreamBuilder
     }
 
     @Override
+    public void resetForNextUserTxn() {
+        recordStreamBuilder.resetForNextUserTxn();
+        blockStreamBuilder.resetForNextUserTxn();
+    }
+
+    @Override
     public StreamBuilder syncBodyIdFromRecordId() {
         recordStreamBuilder.syncBodyIdFromRecordId();
         blockStreamBuilder.syncBodyIdFromRecordId();

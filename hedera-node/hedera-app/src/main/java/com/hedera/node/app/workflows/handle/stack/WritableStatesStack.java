@@ -9,6 +9,8 @@ import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -23,6 +25,9 @@ public class WritableStatesStack implements WritableStates {
 
     private final SavepointStackImpl stack;
     private final String statesName;
+    private final Map<Integer, WritableKVState<?, ?>> kvStates = new HashMap<>();
+    private final Map<Integer, WritableSingletonState<?>> singletonStates = new HashMap<>();
+    private final Map<Integer, WritableQueueState<?>> queueStates = new HashMap<>();
 
     /**
      * Constructs a {@link WritableStatesStack} that delegates to the current {@link WritableStates} in the given
@@ -60,20 +65,41 @@ public class WritableStatesStack implements WritableStates {
 
     @Override
     @NonNull
+    @SuppressWarnings("unchecked")
     public <K, V> WritableKVState<K, V> get(final int stateId) {
-        return new WritableKVStateStack<>(this, stateId);
+        final var cached = kvStates.get(stateId);
+        if (cached != null) {
+            return (WritableKVState<K, V>) cached;
+        }
+        final var created = new WritableKVStateStack<K, V>(this, stateId);
+        kvStates.put(stateId, created);
+        return created;
     }
 
     @Override
     @NonNull
+    @SuppressWarnings("unchecked")
     public <T> WritableSingletonState<T> getSingleton(final int stateId) {
-        return new WritableSingletonStateStack<>(this, stateId);
+        final var cached = singletonStates.get(stateId);
+        if (cached != null) {
+            return (WritableSingletonState<T>) cached;
+        }
+        final var created = new WritableSingletonStateStack<T>(this, stateId);
+        singletonStates.put(stateId, created);
+        return created;
     }
 
     @NonNull
     @Override
+    @SuppressWarnings("unchecked")
     public <E> WritableQueueState<E> getQueue(final int stateId) {
-        return new WritableQueueStateStack<>(this, stateId);
+        final var cached = queueStates.get(stateId);
+        if (cached != null) {
+            return (WritableQueueState<E>) cached;
+        }
+        final var created = new WritableQueueStateStack<E>(this, stateId);
+        queueStates.put(stateId, created);
+        return created;
     }
 
     @Override

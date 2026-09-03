@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -250,6 +251,57 @@ public class BlockStreamBuilderTest {
         final var txnBlockItem = blockItems.getFirst();
         assertTrue(txnBlockItem.hasSignedTransaction());
         assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
+    }
+
+    @Test
+    void resetForNextUserTxnClearsTxnScopedFieldsAndDetachesStateChanges() {
+        final var firstChanges = List.of(StateChange.DEFAULT);
+        final var builder = createBaseBuilder()
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .stateChanges(firstChanges);
+        final var previousStateChanges = builder.getStateChanges();
+
+        builder.resetForNextUserTxn();
+
+        assertThat(builder.status()).isEqualTo(ResponseCodeEnum.OK);
+        assertThat(builder.transactionID()).isNull();
+        assertThat(builder.functionality()).isNull();
+        assertThat(builder.getStateChanges()).isEmpty();
+        assertThat(builder.getStateChanges()).isNotSameAs(previousStateChanges);
+        assertThat(previousStateChanges).containsExactlyElementsOf(firstChanges);
+        assertThat(builder.transactionFee()).isZero();
+        assertThat(builder.getPaidStakingRewards()).isEmpty();
+    }
+
+    @Test
+    void resetForNextUserTxnDoesNotMutateInFlightTransactionResultLists() {
+        final var builder = createBaseBuilder().functionality(HederaFunctionality.CRYPTO_TRANSFER);
+        final var result = builder.build(false, null).blockItems().get(1).transactionResult();
+
+        assertEquals(List.of(tokenAssociation), result.automaticTokenAssociations());
+
+        builder.resetForNextUserTxn();
+
+        assertEquals(List.of(tokenAssociation), result.automaticTokenAssociations());
+        assertThat(result.automaticTokenAssociations()).isNotEmpty();
+    }
+
+    @Test
+    void syncBodyIdInvalidatesCachedSignedTransactionBytes() throws Exception {
+        final var updatedId =
+                TransactionID.newBuilder().accountID(AccountID.DEFAULT).build();
+        final var builder = createBaseBuilder()
+                .serializedSignedTx(signedTxBytes)
+                .transactionID(updatedId)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER);
+
+        builder.syncBodyIdFromRecordId();
+
+        final var serializedSignedTx =
+                builder.build(false, null).blockItems().getFirst().signedTransactionOrThrow();
+        final var updatedSignedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+        final var updatedBody = TransactionBody.PROTOBUF.parse(updatedSignedTx.bodyBytes());
+        assertThat(updatedBody.transactionID()).isEqualTo(updatedId);
     }
 
     @Test

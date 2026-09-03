@@ -115,4 +115,12 @@ public interface BuilderSink {
      * @param parentSink the parent sink to flush to
      */
     void flushFollowing(@NonNull BuilderSink parentSink);
+
+    /**
+     * Drops accumulated builders so this sink can be reused for another user dispatch.
+     * Capacity limits are unchanged.
+     */
+    default void reset() {
+        // no-op
+    }
 }

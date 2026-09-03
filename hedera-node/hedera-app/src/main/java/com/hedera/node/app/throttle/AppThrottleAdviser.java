@@ -13,10 +13,18 @@ import java.time.Instant;
  */
 public class AppThrottleAdviser implements ThrottleAdviser {
 
-    private final NetworkUtilizationManager networkUtilizationManager;
-    private final Instant consensusNow;
+    private NetworkUtilizationManager networkUtilizationManager;
+    private Instant consensusNow;
 
     public AppThrottleAdviser(
+            @NonNull final NetworkUtilizationManager networkUtilizationManager, @NonNull final Instant consensusNow) {
+        reset(networkUtilizationManager, consensusNow);
+    }
+
+    /**
+     * Rebinds this adviser to the next parent dispatch. Handle is single-threaded.
+     */
+    public void reset(
             @NonNull final NetworkUtilizationManager networkUtilizationManager, @NonNull final Instant consensusNow) {
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.consensusNow = requireNonNull(consensusNow);

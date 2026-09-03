@@ -80,12 +80,19 @@ public abstract class WritableSingletonStateBase<T> extends ReadableSingletonSta
             if (currentValue() != null) {
                 putIntoDataSource(currentValue());
                 //noinspection DataFlowIssue
-                listeners.forEach(l -> l.singletonUpdateChange(currentValue()));
+                notifySingletonUpdate(currentValue());
             } else {
                 removeFromDataSource();
             }
         }
         reset();
+    }
+
+    /**
+     * Notifies listeners of a singleton update applied through a wrapping state.
+     */
+    public void notifySingletonUpdate(@NonNull final T value) {
+        listeners.forEach(l -> l.singletonUpdateChange(value));
     }
 
     @SuppressWarnings("unchecked")

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -20,6 +21,7 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -64,5 +66,40 @@ class ReadableStoreFactoryImplTest {
 
         // then
         assertThat(store).isInstanceOf(storeClass);
+    }
+
+    @Test
+    void returnsCachedStore() {
+        // given
+        given(readableStates.get(anyInt())).willReturn(readableKVState);
+        given(state.getReadableStates(anyString())).willReturn(readableStates);
+        final ReadableStoreFactoryImpl subject = new ReadableStoreFactoryImpl(state);
+
+        // when
+        final var firstStore = subject.readableStore(ReadableAccountStore.class);
+        final var secondStore = subject.readableStore(ReadableAccountStore.class);
+
+        // then
+        assertThat(secondStore).isSameAs(firstStore);
+    }
+
+    @Test
+    void dropCachedStoresCreatesNewStoreInstance() {
+        given(readableStates.get(anyInt())).willReturn(readableKVState);
+        given(state.getReadableStates(anyString())).willReturn(readableStates);
+        final ReadableStoreFactoryImpl subject = new ReadableStoreFactoryImpl(state);
+
+        final var firstStore = subject.readableStore(ReadableAccountStore.class);
+        subject.dropCachedStores();
+        final var secondStore = subject.readableStore(ReadableAccountStore.class);
+
+        assertThat(secondStore).isNotSameAs(firstStore).isInstanceOf(ReadableAccountStore.class);
+    }
+
+    @Test
+    void rejectsUnknownStoreClass() {
+        final ReadableStoreFactoryImpl subject = new ReadableStoreFactoryImpl(state);
+
+        assertThatThrownBy(() -> subject.readableStore(String.class)).isInstanceOf(IllegalArgumentException.class);
     }
 }

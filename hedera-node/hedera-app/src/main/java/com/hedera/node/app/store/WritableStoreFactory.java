@@ -129,6 +129,7 @@ public class WritableStoreFactory {
     private final String serviceName;
     private final WritableStates states;
     private final WritableEntityIdStore writableEntityIdStore;
+    private final Map<Class<?>, Object> storeCache = new HashMap<>();
 
     /**
      * Constructor of {@code WritableStoreFactory}
@@ -161,6 +162,10 @@ public class WritableStoreFactory {
     @NonNull
     public <C> C getStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
+        final var cached = storeCache.get(storeInterface);
+        if (cached != null) {
+            return storeInterface.cast(cached);
+        }
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null && serviceName.equals(entry.name())) {
             final var store = entry.factory().create(states, writableEntityIdStore);
@@ -168,6 +173,7 @@ public class WritableStoreFactory {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
             }
+            storeCache.put(storeInterface, store);
             return storeInterface.cast(store);
         }
         throw new IllegalArgumentException("No store of the given class is available " + storeInterface.getName());

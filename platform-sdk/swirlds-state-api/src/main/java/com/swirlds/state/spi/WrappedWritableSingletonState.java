@@ -2,6 +2,7 @@
 package com.swirlds.state.spi;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 
 /**
  * An implementation of {@link WritableSingletonState} that delegates to another {@link WritableSingletonState} as
@@ -12,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class WrappedWritableSingletonState<T> extends WritableSingletonStateBase<T> {
 
-    private final WritableSingletonState<T> delegate;
+    private WritableSingletonState<T> delegate;
 
     /**
      * Create a new instance that will treat the given {@code delegate} as the backend data source.
@@ -25,7 +26,18 @@ public class WrappedWritableSingletonState<T> extends WritableSingletonStateBase
      */
     public WrappedWritableSingletonState(@NonNull final WritableSingletonState<T> delegate) {
         super(delegate.getStateId(), null);
-        this.delegate = delegate;
+        this.delegate = Objects.requireNonNull(delegate);
+    }
+
+    /**
+     * Points this wrapper at a new backend and clears buffered reads and writes. Used when the
+     * wrapper is reused across sequential handle dispatches.
+     *
+     * @param newDelegate the backend to read from and commit to
+     */
+    public void retarget(@NonNull final WritableSingletonState<T> newDelegate) {
+        this.delegate = Objects.requireNonNull(newDelegate);
+        reset();
     }
 
     @Override

@@ -101,6 +101,21 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     }
 
     /**
+     * Notifies listeners of a queue push applied through a wrapping state.
+     */
+    public void notifyQueuePush(@NonNull final E element) {
+        requireNonNull(element);
+        listeners.forEach(l -> l.queuePushChange(element));
+    }
+
+    /**
+     * Notifies listeners of a queue pop applied through a wrapping state.
+     */
+    public void notifyQueuePop() {
+        listeners.forEach(QueueChangeListener::queuePopChange);
+    }
+
+    /**
      * Clears the set of peeked values and added values.
      */
     public final void reset() {

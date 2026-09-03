@@ -34,12 +34,31 @@ public class TokenContextImpl implements TokenContext, FinalizeContext {
             @NonNull final SavepointStackImpl stack,
             @NonNull final Instant consensusTime,
             @NonNull final WritableEntityIdStore writableEntityIdStore) {
-        this.stack = stack;
-        requireNonNull(stack, "stack must not be null");
-        this.configuration = requireNonNull(configuration, "configuration must not be null");
+        this(
+                configuration,
+                stack,
+                consensusTime,
+                new WritableStoreFactory(stack, TokenService.NAME, writableEntityIdStore));
+    }
 
-        this.readableStoreFactory = new ReadableStoreFactoryImpl(stack);
-        this.writableStoreFactory = new WritableStoreFactory(stack, TokenService.NAME, writableEntityIdStore);
+    public TokenContextImpl(
+            @NonNull final Configuration configuration,
+            @NonNull final SavepointStackImpl stack,
+            @NonNull final Instant consensusTime,
+            @NonNull final WritableStoreFactory writableStoreFactory) {
+        this(configuration, stack, consensusTime, new ReadableStoreFactoryImpl(stack), writableStoreFactory);
+    }
+
+    public TokenContextImpl(
+            @NonNull final Configuration configuration,
+            @NonNull final SavepointStackImpl stack,
+            @NonNull final Instant consensusTime,
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final WritableStoreFactory writableStoreFactory) {
+        this.stack = requireNonNull(stack, "stack must not be null");
+        this.configuration = requireNonNull(configuration, "configuration must not be null");
+        this.readableStoreFactory = requireNonNull(readableStoreFactory);
+        this.writableStoreFactory = requireNonNull(writableStoreFactory);
         this.consensusTime = requireNonNull(consensusTime, "consensusTime must not be null");
     }
 

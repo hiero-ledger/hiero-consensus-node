@@ -12,6 +12,7 @@ import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +23,7 @@ import java.util.Set;
  */
 public class WrappedWritableStates implements WritableStates {
 
-    private final WritableStates delegate;
+    private WritableStates delegate;
 
     private final Map<Integer, WrappedWritableKVState<?, ?>> writableKVStateMap = new HashMap<>();
     private final Map<Integer, WrappedWritableSingletonState<?>> writableSingletonStateMap = new HashMap<>();
@@ -53,24 +54,65 @@ public class WrappedWritableStates implements WritableStates {
     @Override
     @NonNull
     public <K, V> WritableKVState<K, V> get(final int stateId) {
-        return (WritableKVState<K, V>)
-                writableKVStateMap.computeIfAbsent(stateId, s -> new WrappedWritableKVState<>(delegate.get(stateId)));
+        final var cached = writableKVStateMap.get(stateId);
+        if (cached != null) {
+            return (WritableKVState<K, V>) cached;
+        }
+        final var created = new WrappedWritableKVState<K, V>(delegate.get(stateId));
+        writableKVStateMap.put(stateId, created);
+        return created;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
     public <T> WritableSingletonState<T> getSingleton(final int stateId) {
-        return (WritableSingletonState<T>) writableSingletonStateMap.computeIfAbsent(
-                stateId, s -> new WrappedWritableSingletonState<>(delegate.getSingleton(stateId)));
+        final var cached = writableSingletonStateMap.get(stateId);
+        if (cached != null) {
+            return (WritableSingletonState<T>) cached;
+        }
+        final var created = new WrappedWritableSingletonState<T>(delegate.getSingleton(stateId));
+        writableSingletonStateMap.put(stateId, created);
+        return created;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
     public <E> WritableQueueState<E> getQueue(final int stateId) {
-        return (WritableQueueState<E>) writableQueueStateMap.computeIfAbsent(
-                stateId, s -> new WrappedWritableQueueState<>(delegate.getQueue(stateId)));
+        final var cached = writableQueueStateMap.get(stateId);
+        if (cached != null) {
+            return (WritableQueueState<E>) cached;
+        }
+        final var created = new WrappedWritableQueueState<E>(delegate.getQueue(stateId));
+        writableQueueStateMap.put(stateId, created);
+        return created;
+    }
+
+    /**
+     * Rebinds cached wrappers to the current delegate instances and clears their buffers so this
+     * object can be reused for another user dispatch.
+     */
+    public void reset() {
+        for (final var entry : writableKVStateMap.entrySet()) {
+            entry.getValue().retarget(delegate.get(entry.getKey()));
+        }
+        for (final var entry : writableSingletonStateMap.entrySet()) {
+            entry.getValue().retarget(delegate.getSingleton(entry.getKey()));
+        }
+        for (final var entry : writableQueueStateMap.entrySet()) {
+            entry.getValue().retarget(delegate.getQueue(entry.getKey()));
+        }
+    }
+
+    /**
+     * Points this wrapper at a new {@link WritableStates} and resets cached adapters.
+     *
+     * @param newDelegate the backend to wrap
+     */
+    public void retarget(@NonNull final WritableStates newDelegate) {
+        this.delegate = requireNonNull(newDelegate);
+        reset();
     }
 
     /**
@@ -102,14 +144,33 @@ public class WrappedWritableStates implements WritableStates {
      */
     public void commit() {
         // Ensure all commits always happen in lexicographic order by state ID
-        writableKVStateMap.keySet().stream().sorted().forEach(stateId -> (writableKVStateMap.get(stateId)).commit());
-        writableQueueStateMap.keySet().stream().sorted().forEach(stateId -> (writableQueueStateMap.get(stateId))
-                .commit());
-        writableSingletonStateMap.keySet().stream().sorted().forEach(stateId -> (writableSingletonStateMap.get(stateId))
-                .commit());
+        commitInStateIdOrder(writableKVStateMap, WrappedWritableKVState::commit);
+        commitInStateIdOrder(writableQueueStateMap, WrappedWritableQueueState::commit);
+        commitInStateIdOrder(writableSingletonStateMap, WrappedWritableSingletonState::commit);
 
         if (delegate instanceof CommittableWritableStates terminalStates) {
             terminalStates.commit();
+        }
+    }
+
+    private static <T> void commitInStateIdOrder(
+            @NonNull final Map<Integer, T> instances, @NonNull final java.util.function.Consumer<T> commit) {
+        final int n = instances.size();
+        if (n == 0) {
+            return;
+        }
+        if (n == 1) {
+            commit.accept(instances.values().iterator().next());
+            return;
+        }
+        final int[] ids = new int[n];
+        int i = 0;
+        for (final int id : instances.keySet()) {
+            ids[i++] = id;
+        }
+        Arrays.sort(ids);
+        for (final int id : ids) {
+            commit.accept(instances.get(id));
         }
     }
 }

@@ -18,9 +18,9 @@ import java.util.Map;
  */
 public class StoreFactoryImpl implements StoreFactory {
 
-    private final ReadableStoreFactory readableStoreFactory;
-    private final WritableStoreFactory writableStoreFactory;
-    private final ServiceApiFactory serviceApiFactory;
+    private ReadableStoreFactory readableStoreFactory;
+    private WritableStoreFactory writableStoreFactory;
+    private ServiceApiFactory serviceApiFactory;
 
     /**
      * Returns a {@link StoreFactory} based on the given state, configuration, and store metrics for the given service.
@@ -49,6 +49,16 @@ public class StoreFactoryImpl implements StoreFactory {
     }
 
     public StoreFactoryImpl(
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final WritableStoreFactory writableStoreFactory,
+            @NonNull final ServiceApiFactory serviceApiFactory) {
+        reset(readableStoreFactory, writableStoreFactory, serviceApiFactory);
+    }
+
+    /**
+     * Rebinds this factory to the stores for the next parent dispatch. Handle is single-threaded.
+     */
+    public void reset(
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final WritableStoreFactory writableStoreFactory,
             @NonNull final ServiceApiFactory serviceApiFactory) {

@@ -34,11 +34,13 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
+import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
@@ -56,6 +58,7 @@ import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -81,6 +84,8 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -114,6 +119,52 @@ public class ParentTxnFactory {
     private final TransactionChecker transactionChecker;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
     private final NodeFeeAccumulator nodeFeeAccumulator;
+    /**
+     * Handle is single-threaded. One root stack is reset in place so {@code WritableStatesStack}
+     * adapters survive across sequential parent dispatches.
+     */
+    @Nullable
+    private SavepointStackImpl reusableRootStack;
+    /**
+     * Factories and stores wrap the reusable root stack. Dropped when a new stack is constructed.
+     */
+    @Nullable
+    private SavepointStackImpl storesBoundTo;
+
+    @Nullable
+    private WritableEntityIdStoreImpl reusableEntityIdStore;
+
+    @Nullable
+    private ReadableStoreFactoryImpl reusableReadableStoreFactory;
+
+    private final Map<String, WritableStoreFactory> reusableWritableFactories = new HashMap<>();
+
+    @Nullable
+    private ServiceApiFactory reusableServiceApiFactory;
+    /**
+     * Parent-dispatch object graph. Reset in place while the root stack is reused;
+     * dropped when a new stack is constructed. Children still allocate their own.
+     */
+    @Nullable
+    private DefaultKeyVerifier reusableKeyVerifier;
+
+    @Nullable
+    private EntityNumGeneratorImpl reusableEntityNumGenerator;
+
+    @Nullable
+    private ResourcePriceCalculatorImpl reusablePriceCalculator;
+
+    @Nullable
+    private StoreFactoryImpl reusableStoreFactory;
+
+    @Nullable
+    private AppThrottleAdviser reusableThrottleAdviser;
+
+    @Nullable
+    private FeeAccumulator reusableFeeAccumulator;
+
+    @Nullable
+    private DispatchHandleContext reusableDispatchHandleContext;
 
     @Inject
     public ParentTxnFactory(
@@ -195,7 +246,7 @@ public class ParentTxnFactory {
         requireNonNull(shortCircuitCallback);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
-        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        final var readableStoreFactory = readableStoreFactoryFor(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, shortCircuitCallback);
         // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
@@ -216,10 +267,7 @@ public class ParentTxnFactory {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
-                config,
-                stack,
-                consensusNow,
-                new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
+                config, stack, consensusNow, readableStoreFactory, writableStoreFactoryFor(stack, TokenService.NAME));
         return new ParentTxn(
                 txnInfo.functionality(),
                 consensusNow,
@@ -259,12 +307,12 @@ public class ParentTxnFactory {
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
-        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        final var readableStoreFactory = readableStoreFactoryFor(stack);
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
                 preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
-        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
-        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
+        final var tokenContext = new TokenContextImpl(
+                config, stack, consensusNow, readableStoreFactory, writableStoreFactoryFor(stack, TokenService.NAME));
         return new ParentTxn(
                 functionality,
                 consensusNow,
@@ -289,7 +337,7 @@ public class ParentTxnFactory {
         requireNonNull(parentTxn);
         requireNonNull(exchangeRates);
         final var preHandleResult = parentTxn.preHandleResult();
-        final var keyVerifier = new DefaultKeyVerifier(
+        final var keyVerifier = parentKeyVerifierFor(
                 parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
@@ -358,47 +406,34 @@ public class ParentTxnFactory {
         final var consensusNow = parentTxn.consensusNow();
         final var creatorInfo = parentTxn.creatorInfo();
         final var tokenContextImpl = parentTxn.tokenContextImpl();
-        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = entityIdStoreFor(stack);
 
-        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
-        final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
+        final var readableStoreFactory = readableStoreFactoryFor(stack);
+        final var entityNumGenerator = entityNumGeneratorFor(entityIdStore);
         final var writableStoreFactory =
-                new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
-        final var priceCalculator =
-                new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
-        final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
-        final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
-        final var feeAccumulator = new FeeAccumulator(
+                writableStoreFactoryFor(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()));
+        final var serviceApiFactory = serviceApiFactoryFor(stack, config);
+        final var priceCalculator = priceCalculatorFor(consensusNow, txnInfo, readableStoreFactory);
+        final var storeFactory = storeFactoryFor(readableStoreFactory, writableStoreFactory, serviceApiFactory);
+        final var throttleAdvisor = throttleAdviserFor(consensusNow);
+        final var feeAccumulator = feeAccumulatorFor(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
-        final var dispatchHandleContext = new DispatchHandleContext(
+        final var dispatchHandleContext = dispatchHandleContextFor(
                 consensusNow,
                 creatorInfo,
                 txnInfo,
                 config,
-                authorizer,
-                streamMode == BLOCKS ? blockStreamManager : blockRecordManager,
                 priceCalculator,
-                feeManager,
-                appFeeCharging,
                 storeFactory,
                 requireNonNull(txnInfo.payerID()),
                 keyVerifier,
-                txnInfo.functionality(),
                 preHandleResult.payerKey() == null ? Key.DEFAULT : preHandleResult.payerKey(),
-                exchangeRateManager,
                 stack,
                 entityNumGenerator,
-                dispatcher,
-                networkInfo,
-                childDispatchFactory,
-                dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
                 dispatchMetadata,
-                transactionChecker,
                 preHandleResult.innerResults(),
-                preHandleWorkflow,
                 transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         final boolean isHighVolumePriced =
@@ -452,14 +487,240 @@ public class ParentTxnFactory {
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         final var contractsConfig = config.getConfigData(ContractsConfig.class);
-        return SavepointStackImpl.newRootStack(
+        final int maxBefore = consensusConfig.handleMaxPrecedingRecords();
+        final int maxAfter = consensusConfig.handleMaxFollowingRecords();
+        final var mode = blockStreamConfig.streamMode();
+        final int maxTraceBytes = contractsConfig.maxSerializedTraceDataBytes();
+        if (reusableRootStack != null
+                && reusableRootStack.resetForNextUserTxn(
+                        state,
+                        maxBefore,
+                        maxAfter,
+                        boundaryStateChangeListener,
+                        immediateStateChangeListener,
+                        mode,
+                        maxTraceBytes)) {
+            // Stack adapters stay valid across reset. KV read caches on store
+            // instances would pin a prior "not found", so drop those caches
+            // instead of allocating a new factory and store wrappers.
+            if (reusableReadableStoreFactory != null) {
+                reusableReadableStoreFactory.dropCachedStores();
+            }
+            return reusableRootStack;
+        }
+        dropReusableStores();
+        reusableRootStack = SavepointStackImpl.newRootStack(
                 state,
-                consensusConfig.handleMaxPrecedingRecords(),
-                consensusConfig.handleMaxFollowingRecords(),
+                maxBefore,
+                maxAfter,
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
-                blockStreamConfig.streamMode(),
-                contractsConfig.maxSerializedTraceDataBytes());
+                mode,
+                maxTraceBytes);
+        return reusableRootStack;
+    }
+
+    private void dropReusableStores() {
+        reusableEntityIdStore = null;
+        reusableReadableStoreFactory = null;
+        reusableWritableFactories.clear();
+        reusableServiceApiFactory = null;
+        storesBoundTo = null;
+        reusableKeyVerifier = null;
+        reusableEntityNumGenerator = null;
+        reusablePriceCalculator = null;
+        reusableStoreFactory = null;
+        reusableThrottleAdviser = null;
+        reusableFeeAccumulator = null;
+        reusableDispatchHandleContext = null;
+    }
+
+    private void bindStoresTo(@NonNull final SavepointStackImpl stack) {
+        if (storesBoundTo != stack) {
+            dropReusableStores();
+            storesBoundTo = stack;
+        }
+    }
+
+    private WritableEntityIdStoreImpl entityIdStoreFor(@NonNull final SavepointStackImpl stack) {
+        bindStoresTo(stack);
+        if (reusableEntityIdStore == null) {
+            reusableEntityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
+        }
+        return reusableEntityIdStore;
+    }
+
+    private ReadableStoreFactoryImpl readableStoreFactoryFor(@NonNull final SavepointStackImpl stack) {
+        bindStoresTo(stack);
+        if (reusableReadableStoreFactory == null) {
+            reusableReadableStoreFactory = new ReadableStoreFactoryImpl(stack);
+        }
+        return reusableReadableStoreFactory;
+    }
+
+    private WritableStoreFactory writableStoreFactoryFor(
+            @NonNull final SavepointStackImpl stack, @NonNull final String serviceName) {
+        bindStoresTo(stack);
+        final var cached = reusableWritableFactories.get(serviceName);
+        if (cached != null) {
+            return cached;
+        }
+        final var created = new WritableStoreFactory(stack, serviceName, entityIdStoreFor(stack));
+        reusableWritableFactories.put(serviceName, created);
+        return created;
+    }
+
+    private ServiceApiFactory serviceApiFactoryFor(
+            @NonNull final SavepointStackImpl stack, @NonNull final Configuration config) {
+        bindStoresTo(stack);
+        if (reusableServiceApiFactory == null) {
+            reusableServiceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
+        }
+        return reusableServiceApiFactory;
+    }
+
+    private DefaultKeyVerifier parentKeyVerifierFor(
+            @NonNull final HederaConfig config, @NonNull final Map<Key, SignatureVerificationFuture> results) {
+        if (reusableKeyVerifier == null) {
+            reusableKeyVerifier = new DefaultKeyVerifier(config, results);
+        } else {
+            reusableKeyVerifier.reset(config, results);
+        }
+        return reusableKeyVerifier;
+    }
+
+    private EntityNumGeneratorImpl entityNumGeneratorFor(@NonNull final WritableEntityIdStoreImpl entityIdStore) {
+        if (reusableEntityNumGenerator == null) {
+            reusableEntityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
+        }
+        return reusableEntityNumGenerator;
+    }
+
+    private ResourcePriceCalculatorImpl priceCalculatorFor(
+            @NonNull final Instant consensusNow,
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final ReadableStoreFactoryImpl readableStoreFactory) {
+        if (reusablePriceCalculator == null) {
+            reusablePriceCalculator =
+                    new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
+        } else {
+            reusablePriceCalculator.reset(consensusNow, txnInfo, feeManager, readableStoreFactory);
+        }
+        return reusablePriceCalculator;
+    }
+
+    private StoreFactoryImpl storeFactoryFor(
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final WritableStoreFactory writableStoreFactory,
+            @NonNull final ServiceApiFactory serviceApiFactory) {
+        if (reusableStoreFactory == null) {
+            reusableStoreFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
+        } else {
+            reusableStoreFactory.reset(readableStoreFactory, writableStoreFactory, serviceApiFactory);
+        }
+        return reusableStoreFactory;
+    }
+
+    private AppThrottleAdviser throttleAdviserFor(@NonNull final Instant consensusNow) {
+        if (reusableThrottleAdviser == null) {
+            reusableThrottleAdviser = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
+        } else {
+            reusableThrottleAdviser.reset(networkUtilizationManager, consensusNow);
+        }
+        return reusableThrottleAdviser;
+    }
+
+    private FeeAccumulator feeAccumulatorFor(
+            @NonNull final TokenServiceApi tokenApi,
+            @NonNull final FeeStreamBuilder feeStreamBuilder,
+            @NonNull final SavepointStackImpl stack) {
+        if (reusableFeeAccumulator == null) {
+            reusableFeeAccumulator = new FeeAccumulator(tokenApi, feeStreamBuilder, stack);
+        } else {
+            reusableFeeAccumulator.reset(tokenApi, feeStreamBuilder, stack);
+        }
+        return reusableFeeAccumulator;
+    }
+
+    private DispatchHandleContext dispatchHandleContextFor(
+            @NonNull final Instant consensusNow,
+            @NonNull final NodeInfo creatorInfo,
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final Configuration config,
+            @NonNull final ResourcePriceCalculatorImpl priceCalculator,
+            @NonNull final StoreFactoryImpl storeFactory,
+            @NonNull final AccountID payerId,
+            @NonNull final AppKeyVerifier keyVerifier,
+            @NonNull final Key payerKey,
+            @NonNull final SavepointStackImpl stack,
+            @NonNull final EntityNumGeneratorImpl entityNumGenerator,
+            @NonNull final AppThrottleAdviser throttleAdvisor,
+            @NonNull final FeeAccumulator feeAccumulator,
+            @NonNull final HandleContext.DispatchMetadata dispatchMetadata,
+            @Nullable final List<PreHandleResult> innerResults,
+            @NonNull final HandleContext.TransactionCategory transactionCategory) {
+        if (reusableDispatchHandleContext == null) {
+            reusableDispatchHandleContext = new DispatchHandleContext(
+                    consensusNow,
+                    creatorInfo,
+                    txnInfo,
+                    config,
+                    authorizer,
+                    streamMode == BLOCKS ? blockStreamManager : blockRecordManager,
+                    priceCalculator,
+                    feeManager,
+                    appFeeCharging,
+                    storeFactory,
+                    payerId,
+                    keyVerifier,
+                    txnInfo.functionality(),
+                    payerKey,
+                    exchangeRateManager,
+                    stack,
+                    entityNumGenerator,
+                    dispatcher,
+                    networkInfo,
+                    childDispatchFactory,
+                    dispatchProcessor,
+                    throttleAdvisor,
+                    feeAccumulator,
+                    dispatchMetadata,
+                    transactionChecker,
+                    innerResults,
+                    preHandleWorkflow,
+                    transactionCategory);
+        } else {
+            reusableDispatchHandleContext.reset(
+                    consensusNow,
+                    creatorInfo,
+                    txnInfo,
+                    config,
+                    authorizer,
+                    streamMode == BLOCKS ? blockStreamManager : blockRecordManager,
+                    priceCalculator,
+                    feeManager,
+                    appFeeCharging,
+                    storeFactory,
+                    payerId,
+                    keyVerifier,
+                    txnInfo.functionality(),
+                    payerKey,
+                    exchangeRateManager,
+                    stack,
+                    entityNumGenerator,
+                    dispatcher,
+                    networkInfo,
+                    childDispatchFactory,
+                    dispatchProcessor,
+                    throttleAdvisor,
+                    feeAccumulator,
+                    dispatchMetadata,
+                    transactionChecker,
+                    innerResults,
+                    preHandleWorkflow,
+                    transactionCategory);
+        }
+        return reusableDispatchHandleContext;
     }
 
     /**

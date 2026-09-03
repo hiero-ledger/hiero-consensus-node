@@ -34,6 +34,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
@@ -177,6 +178,27 @@ class ParentTxnTest {
     }
 
     @Test
+    void reusesRootStackAcrossSequentialTopLevelTxns() {
+        givenExistingCreator();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BOTH_CONFIG, 1));
+
+        final var factory = createUserTxnFactory();
+        final var first =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+        final var firstBuilder = first.baseBuilder();
+        final var second =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+
+        assertSame(first.stack(), second.stack());
+        assertSame(first.readableStoreFactory(), second.readableStoreFactory());
+        assertThat(second.baseBuilder()).isSameAs(firstBuilder);
+        assertThat(second.baseBuilder()).isInstanceOf(PairedStreamBuilder.class);
+        assertSame(
+                first.tokenContextImpl().writableStore(WritableAccountStore.class),
+                second.tokenContextImpl().writableStore(WritableAccountStore.class));
+    }
+
+    @Test
     void returnsNullForStateSignatureTxn() {
         givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
@@ -264,6 +286,39 @@ class ParentTxnTest {
                         .map(BlockItem::transactionResultOrThrow)
                         .orElseThrow();
         assertEquals(0L, result.congestionPricingMultiplier());
+    }
+
+    @Test
+    void reusesParentDispatchGraphAcrossSequentialUserTxns() {
+        givenExistingCreator();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(txnInfo.payerID()).willReturn(PAYER_ID);
+        given(txnInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .transactionID(TransactionID.DEFAULT)
+                        .build());
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
+        given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
+        given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
+        given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
+        given(preHandleResult.payerKey()).willReturn(AN_ED25519_KEY);
+        given(feeManager.congestionMultiplierFor(any(), eq(CONSENSUS_CREATE_TOPIC), any(ReadableStoreFactory.class)))
+                .willReturn(1L);
+        given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
+        given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
+
+        final var factory = createUserTxnFactory();
+        final var firstTxn =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+        final var firstDispatch = factory.createDispatch(firstTxn, ExchangeRateSet.DEFAULT);
+        final var secondTxn =
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
+        final var secondDispatch = factory.createDispatch(secondTxn, ExchangeRateSet.DEFAULT);
+
+        assertSame(firstDispatch.handleContext(), secondDispatch.handleContext());
+        assertSame(firstDispatch.feeAccumulator(), secondDispatch.feeAccumulator());
+        assertSame(firstDispatch.keyVerifier(), secondDispatch.keyVerifier());
+        assertSame(firstTxn.readableStoreFactory(), secondTxn.readableStoreFactory());
     }
 
     private ParentTxnFactory createUserTxnFactory() {

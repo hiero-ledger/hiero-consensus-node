@@ -21,13 +21,24 @@ import javax.inject.Inject;
  */
 public class ResourcePriceCalculatorImpl implements ResourcePriceCalculator {
 
-    private final Instant consensusNow;
-    private final TransactionInfo txnInfo;
-    private final FeeManager feeManager;
-    private final ReadableStoreFactoryImpl readableStoreFactory;
+    private Instant consensusNow;
+    private TransactionInfo txnInfo;
+    private FeeManager feeManager;
+    private ReadableStoreFactoryImpl readableStoreFactory;
 
     @Inject
     public ResourcePriceCalculatorImpl(
+            @NonNull final Instant consensusNow,
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final FeeManager feeManager,
+            @NonNull final ReadableStoreFactoryImpl readableStoreFactory) {
+        reset(consensusNow, txnInfo, feeManager, readableStoreFactory);
+    }
+
+    /**
+     * Rebinds this calculator to the next parent dispatch. Handle is single-threaded.
+     */
+    public void reset(
             @NonNull final Instant consensusNow,
             @NonNull final TransactionInfo txnInfo,
             @NonNull final FeeManager feeManager,

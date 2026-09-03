@@ -18,8 +18,9 @@ import org.hiero.base.crypto.Hashable;
  */
 public class WrappedState implements State, Hashable {
 
-    private final State delegate;
+    private State delegate;
     private final Map<String, WrappedWritableStates> writableStatesMap = new HashMap<>();
+    private final Map<String, ReadableStates> readableStatesMap = new HashMap<>();
 
     /**
      * Constructs a {@link WrappedState} that wraps the given {@link State}.
@@ -29,6 +30,27 @@ public class WrappedState implements State, Hashable {
      */
     public WrappedState(@NonNull final State delegate) {
         this.delegate = requireNonNull(delegate, "delegate must not be null");
+    }
+
+    /**
+     * Prepares this wrap for another sequential parent dispatch. If {@code newDelegate} is the same
+     * object, cached {@link WrappedWritableStates} adapters are rebound to the current service
+     * backends and reset in place. If the backing {@link State} changed, the adapter maps are
+     * dropped.
+     *
+     * @param newDelegate the state to wrap
+     */
+    public void resetForDelegate(@NonNull final State newDelegate) {
+        requireNonNull(newDelegate, "delegate must not be null");
+        if (this.delegate != newDelegate) {
+            this.delegate = newDelegate;
+            writableStatesMap.clear();
+            readableStatesMap.clear();
+            return;
+        }
+        for (final var entry : writableStatesMap.entrySet()) {
+            entry.getValue().retarget(this.delegate.getWritableStates(entry.getKey()));
+        }
     }
 
     /**
@@ -58,7 +80,13 @@ public class WrappedState implements State, Hashable {
     @Override
     @NonNull
     public ReadableStates getReadableStates(@NonNull String serviceName) {
-        return new ReadonlyStatesWrapper(getWritableStates(serviceName));
+        final var cached = readableStatesMap.get(serviceName);
+        if (cached != null) {
+            return cached;
+        }
+        final var created = new ReadonlyStatesWrapper(getWritableStates(serviceName));
+        readableStatesMap.put(serviceName, created);
+        return created;
     }
 
     /**
@@ -70,8 +98,13 @@ public class WrappedState implements State, Hashable {
     @Override
     @NonNull
     public WritableStates getWritableStates(@NonNull String serviceName) {
-        return writableStatesMap.computeIfAbsent(
-                serviceName, s -> new WrappedWritableStates(delegate.getWritableStates(s)));
+        final var cached = writableStatesMap.get(serviceName);
+        if (cached != null) {
+            return cached;
+        }
+        final var created = new WrappedWritableStates(delegate.getWritableStates(serviceName));
+        writableStatesMap.put(serviceName, created);
+        return created;
     }
 
     /**

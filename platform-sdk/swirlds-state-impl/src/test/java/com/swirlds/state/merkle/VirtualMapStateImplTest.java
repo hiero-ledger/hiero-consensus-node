@@ -222,6 +222,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             final var writableStatesSize = virtualMapState
                     .getWritableStates(fruitMetadata.serviceName())
                     .size();
+            final var readableStates = virtualMapState.getReadableStates(fruitMetadata.serviceName());
 
             // When you try to remove an unknown service
             virtualMapState.removeServiceState(FIRST_SERVICE, UNKNOWN_STATE_ID);
@@ -236,6 +237,8 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
                             .getWritableStates(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(writableStatesSize);
+            assertThat(virtualMapState.getReadableStates(fruitMetadata.serviceName()))
+                    .isSameAs(readableStates);
         }
 
         @Test
@@ -258,6 +261,22 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
                             .getWritableStates(fruitMetadata.serviceName())
                             .size())
                     .isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("Removing state invalidates its readable service adapter")
+        void removeInvalidatesReadableServiceAdapter() {
+            setupFruitVirtualMap();
+            virtualMapState.initializeState(fruitMetadata);
+            final var beforeRemoval = virtualMapState.getReadableStates(FIRST_SERVICE);
+            beforeRemoval.get(FRUIT_STATE_ID);
+
+            virtualMapState.removeServiceState(FIRST_SERVICE, FRUIT_STATE_ID);
+
+            final var afterRemoval = virtualMapState.getReadableStates(FIRST_SERVICE);
+            assertThat(afterRemoval).isNotSameAs(beforeRemoval);
+            assertThat(afterRemoval.contains(FRUIT_STATE_ID)).isFalse();
+            assertThatThrownBy(() -> afterRemoval.get(FRUIT_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -291,6 +310,23 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             final var states = virtualMapState.getReadableStates(UNKNOWN_SERVICE);
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Readable service adapter retains identity until commit")
+        void readableServiceAdapterRetainsIdentityUntilCommit() {
+            virtualMapState.initializeState(fruitMetadata);
+            final var first = virtualMapState.getReadableStates(FIRST_SERVICE);
+
+            assertThat(virtualMapState.getReadableStates(FIRST_SERVICE)).isSameAs(first);
+
+            final var writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+            writable.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            ((CommittableWritableStates) writable).commit();
+
+            final var afterCommit = virtualMapState.getReadableStates(FIRST_SERVICE);
+            assertThat(afterCommit).isNotSameAs(first);
+            assertThat(afterCommit.get(FRUIT_STATE_ID).get(A_KEY)).isEqualTo(ACAI);
         }
 
         @Test
@@ -460,6 +496,26 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             final var states = virtualMapState.getWritableStates(UNKNOWN_SERVICE);
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Writable service adapter retains identity until metadata replacement")
+        void writableServiceAdapterRetainsIdentityUntilMetadataReplacement() {
+            final var unknownReadable = virtualMapState.getReadableStates(FIRST_SERVICE);
+            final var unknownWritable = virtualMapState.getWritableStates(FIRST_SERVICE);
+
+            assertThat(virtualMapState.getReadableStates(FIRST_SERVICE)).isSameAs(unknownReadable);
+            assertThat(virtualMapState.getWritableStates(FIRST_SERVICE)).isSameAs(unknownWritable);
+
+            virtualMapState.initializeState(fruitMetadata);
+
+            final var initializedReadable = virtualMapState.getReadableStates(FIRST_SERVICE);
+            final var initializedWritable = virtualMapState.getWritableStates(FIRST_SERVICE);
+            assertThat(initializedReadable).isNotSameAs(unknownReadable);
+            assertThat(initializedWritable).isNotSameAs(unknownWritable);
+            assertThat(initializedReadable.contains(FRUIT_STATE_ID)).isTrue();
+            assertThat(initializedWritable.contains(FRUIT_STATE_ID)).isTrue();
+            assertThat(virtualMapState.getWritableStates(FIRST_SERVICE)).isSameAs(initializedWritable);
         }
 
         @Test
