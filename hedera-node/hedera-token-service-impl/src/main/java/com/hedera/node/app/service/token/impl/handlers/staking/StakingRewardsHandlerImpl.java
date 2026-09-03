@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -334,7 +333,19 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
 
             // If the account is rewarded. The reward can also be zero, if the account has zero stake
             final var rewardSituation = paidRewards.containsKey(id);
-            final var reward = paidRewards.getOrDefault(id, 0L);
+            // paidRewards is keyed by the account that RECEIVES the tinybars. A deleted account's
+            // reward is redirected to (and recorded under) its beneficiary
+            // (StakingRewardsDistributor#payRewardsIfPending); such a redirected reward must not be
+            // treated as one the beneficiary earned on its own stake, or the beneficiary's
+            // stakePeriodStart is moved back a period and it collects an unearned reward from 0.0.800
+            // next period. We re-derive eligibility here rather than at the source because a reward
+            // paid in a SCHEDULED child dispatch reaches us only as a (recipient, amount) pair, with
+            // the earner's identity already stripped. Own-stake rewardability is necessary but not
+            // sufficient for a positive reward (declineReward / deleted node / sub-hbar stake earn
+            // zero); advancing metadata in those cases is harmless, as such an account collects
+            // nothing next period regardless.
+            final var rewardableOnOwnStake = wasRewardableOnOwnStake(originalAccount, stakingRewardStore);
+            final var reward = rewardableOnOwnStake ? paidRewards.getOrDefault(id, 0L) : 0L;
 
             // If account chose to change decline reward field or stakeId field, we don't need
             // to update stakeAtStartOfLastRewardedPeriod because it is not rewarded for that period
@@ -346,7 +357,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                 copy.stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE);
                 writableStore.put(copy.build());
             } else if (shouldUpdateStakeAtStartOfLastRewardPeriod(
-                    originalAccount, rewardSituation, reward, stakingRewardStore, consensusNow)) {
+                    originalAccount, rewardSituation, reward, stakingRewardStore)) {
                 final var copy = modifiedAccount.copyBuilder();
                 copy.stakeAtStartOfLastRewardedPeriod(roundedToHbar(totalStake(originalAccount)));
                 writableStore.put(copy.build());
@@ -355,13 +366,10 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             // Get latest account from store again since it is modified before
             modifiedAccount = writableStore.get(id);
 
-            // Update stakePeriodStart if account is rewarded or if reward is zero and account has zero stake
-            // If the account is autoCreated it will not be rewarded
-            final var wasRewarded = rewardSituation
-                    && (reward > 0
-                            || (reward == 0
-                                    && earnedZeroRewardsBecauseOfZeroStake(
-                                            originalAccount, stakingRewardStore, consensusNow)));
+            // Advance stakePeriodStart only if this account was rewardable on its own stake. This
+            // also covers rewardable accounts that earned zero because they had zero whole-hbar
+            // stake, while excluding redirected-only rewards and accounts with no original value.
+            final var wasRewarded = rewardSituation && rewardableOnOwnStake;
             final var stakePeriodStart = stakePeriodManager.startUpdateFor(
                     originalAccount, modifiedAccount, wasRewarded, containStakeMetaChanges);
             if (stakePeriodStart != -1) {
@@ -387,11 +395,27 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
      * @return whether the zero rewards were due to having zero stake
      */
     private boolean earnedZeroRewardsBecauseOfZeroStake(
-            @NonNull final Account account,
-            @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore,
-            @NonNull final Instant consensusNow) {
-        return Objects.requireNonNull(account).stakePeriodStart()
-                < stakePeriodManager.firstNonRewardableStakePeriod(stakingRewardStore);
+            @NonNull final Account account, @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore) {
+        return stakePeriodManager.isRewardable(account, stakingRewardStore);
+    }
+
+    /**
+     * Returns whether the given account is rewardable on its own stake this period; i.e., whether a
+     * reward recorded against it could reflect its own stake rather than one redirected to it as the
+     * beneficiary of a deleted account. Delegates to the eligibility gate shared with
+     * {@link StakeRewardCalculatorImpl#computePendingReward} (see
+     * {@link StakePeriodManager#isRewardable(Account, ReadableNetworkStakingRewardsStore)}). This is a
+     * necessary condition for having earned a positive own reward, not a sufficient one: a rewardable
+     * account may still earn zero if it declines rewards, stakes to a deleted node, or holds less than
+     * one whole hbar.
+     *
+     * @param account the (original) account being reviewed, possibly null if created this transaction
+     * @param stakingRewardStore the network staking rewards store
+     * @return true if the account is rewardable on its own stake this period
+     */
+    private boolean wasRewardableOnOwnStake(
+            @Nullable final Account account, @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore) {
+        return account != null && stakePeriodManager.isRewardable(account, stakingRewardStore);
     }
 
     private void adjustNodeStakes(
@@ -439,21 +463,20 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
      * @param isRewarded if the account is rewarded
      * @param reward the reward amount
      * @param stakingRewardStore the staking reward store
-     * @param consensusNow the consensus time
      * @return true if the account need to update stakeAtStartOfLastRewardedPeriod, false otherwise
      */
     public boolean shouldUpdateStakeAtStartOfLastRewardPeriod(
             @Nullable final Account account,
             final boolean isRewarded,
             final long reward,
-            @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore,
-            @NonNull final Instant consensusNow) {
+            @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore) {
         if (account == null
                 || account.stakedNodeIdOrElse(SENTINEL_NODE_ID) == SENTINEL_NODE_ID
-                || account.declineReward()) {
+                || account.declineReward()
+                || account.stakePeriodStart() < 0) {
             // If the account is created in this transaction, or it is not staking to a node,
-            // or it has chosen to decline reward, we don't need to remember stakeStart,
-            // because it can't receive reward today
+            // it has chosen to decline reward, or its stake period start is not initialized,
+            // we don't need to remember stakeStart, because it can't receive reward today
             return false;
         }
         if (!isRewarded) {
@@ -480,7 +503,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             // scenarios 1 and 3, but not 2 and 4. (As noted below, in scenario 2 we want to
             // preserve an already-recorded memory of her stake at the beginning of this period.
             // In scenario 4 there is no point in recording anything---her stake will go unused.)
-            if (earnedZeroRewardsBecauseOfZeroStake(account, stakingRewardStore, consensusNow)) {
+            if (earnedZeroRewardsBecauseOfZeroStake(account, stakingRewardStore)) {
                 return true;
             }
             if (account.stakeAtStartOfLastRewardedPeriod() != NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE) {
