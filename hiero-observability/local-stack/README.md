@@ -8,15 +8,16 @@ Nothing in it is coupled to any particular application: labels such as
 `environment` or `node_id` are values *you* supply, not concepts the stack knows
 about.
 
-|    Component    |                    Role                     |           URL            |
-|-----------------|---------------------------------------------|--------------------------|
-| VictoriaMetrics | Scrapes metrics targets **and** stores them | <http://localhost:8428>  |
-| Grafana Alloy   | Tails log files, pushes them to Loki        | <http://localhost:12345> |
-| Loki            | Log storage                                 | <http://localhost:3100>  |
-| Grafana         | UI, anonymous admin access                  | <http://localhost:3000>  |
+|    Component    |                    Role                     |           URL            |   Override port via    |
+|-----------------|---------------------------------------------|--------------------------|------------------------|
+| VictoriaMetrics | Scrapes metrics targets **and** stores them | <http://localhost:8428>  | `VICTORIAMETRICS_PORT` |
+| Grafana Alloy   | Tails log files, pushes them to Loki        | <http://localhost:12345> | `ALLOY_PORT`           |
+| Loki            | Log storage                                 | <http://localhost:3100>  | `LOKI_PORT`            |
+| Grafana         | UI, anonymous admin access                  | <http://localhost:3000>  | `GRAFANA_PORT`         |
 
-The single most useful page while debugging a setup is VictoriaMetrics'
-<http://localhost:8428/targets>, which shows every scrape target and its health.
+All four ports are overridable in `local.env`; the URLs above show the shipped defaults.
+
+VictoriaMetrics' <http://localhost:8428/targets> can be used to inspect the metrics scrape targets and their health.
 
 ## Prerequisites
 
@@ -234,6 +235,9 @@ cp services/promscrape.yml /somewhere/else/promscrape.yml
 PROMSCRAPE_CONFIG=/somewhere/else/promscrape.yml
 ```
 
+<details>
+  <summary>Click to expand</summary>
+
 **Invariants** — violating these produces silent wrong behaviour:
 
 1. Every variable referenced anywhere must exist in `defaults.env`. VM leaves
@@ -249,6 +253,8 @@ PROMSCRAPE_CONFIG=/somewhere/else/promscrape.yml
 5. Named volumes, never bind-mounts, for backend data (works identically
    across OSes; `docker compose down -v` resets cleanly).
 
+</details>
+
 ## Day-to-day commands
 
 `make` is a convenience only — every target below has a raw `docker compose`
@@ -257,6 +263,9 @@ equivalent, for Windows users without `make` or anyone who'd rather not use it.
 Each block below is self-contained and runnable as-is from anywhere, including
 the repo root — the `make` targets use `-C` and the raw `docker compose`
 equivalents start with their own `cd`.
+
+Run `make help` (or `make -C hiero-observability/local-stack help`) for a
+one-line summary of every target below.
 
 ### ▶️  Start
 
@@ -308,7 +317,7 @@ Editing `local.env` or any file an override env var points at requires this
 (or `make restart`) to take effect — config files are only read at container
 start.
 
-### Follow the stack logs
+### 📜 Follow the stack logs
 
 ```sh
 make -C hiero-observability/local-stack logs
@@ -319,7 +328,7 @@ cd hiero-observability/local-stack
 docker compose --env-file defaults.env --env-file local.env logs -f
 ```
 
-### Show container status
+### 📋 Show container status
 
 ```sh
 make -C hiero-observability/local-stack ps
@@ -330,7 +339,10 @@ cd hiero-observability/local-stack
 docker compose --env-file defaults.env --env-file local.env ps
 ```
 
-### Run the automated end-to-end assertions
+### ✅ Run the automated end-to-end assertions
+
+<details>
+  <summary>Click to expand</summary>
 
 `make selftest` spins up a throwaway, fully separate copy of the stack (its
 own Compose project, its own ephemeral host ports), feeds it purpose-built
@@ -346,6 +358,8 @@ runs its assertions **inside a container** on the Compose network (no
 `local.env` — it asserts that the *committed* defaults work, not one
 developer's configuration.
 
+</details>
+
 ```sh
 make -C hiero-observability/local-stack selftest
 ```
@@ -357,7 +371,7 @@ docker compose -p observability-stack-selftest \
   -f docker-compose.yml -f test/docker-compose.test.yml \
   --env-file defaults.env --env-file test/selftest.env \
   up -d --wait --wait-timeout 120 \
-  victoriametrics loki alloy selftest-metrics selftest-log-writer
+  victoriametrics loki alloy grafana selftest-metrics selftest-log-writer
 
 docker compose -p observability-stack-selftest \
   -f docker-compose.yml -f test/docker-compose.test.yml \
@@ -405,6 +419,9 @@ containers are not.
 
 ## Troubleshooting
 
+<details>
+  <summary>Click to expand</summary>
+
 **A target is red on <http://localhost:8428/targets>.** The page shows the
 error. `connection refused` on `host.docker.internal` means nothing is listening
 on that port on your machine yet. The `app` target is red by default until you
@@ -432,7 +449,12 @@ dashboard, then re-run `make up`.
 **Start over.** `make reset` deletes all stored data; `make up` then starts
 clean.
 
+</details>
+
 ## Design notes
+
+<details>
+  <summary>Click to expand</summary>
 
 - **VictoriaMetrics scrapes *and* stores metrics.** No Prometheus, no OTel
   Collector in front of it. Routing metrics through a collector is a round
@@ -451,3 +473,5 @@ clean.
   `sys.env()`, Loki supports `-config.expand-env=true`, Grafana provisioning
   files expand `$VAR`. Every config file in this stack is a real, readable,
   un-rendered file — don't reintroduce a render step.
+
+</details>

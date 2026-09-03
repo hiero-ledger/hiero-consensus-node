@@ -2,7 +2,9 @@
 # dashboards-init: copies GRAFANA_DASHBOARDS_DIR (mounted read-only at
 # /dashboards-src) into the dashboards-out volume Grafana reads from,
 # rewriting the ${<name>} datasource placeholders that Grafana's *export for
-# sharing externally* option leaves behind. See docs/spec3.md.
+# sharing externally* option leaves behind. See README.md, "Configure
+# dashboards", for the full rationale; see the process_json comment below
+# for the parsing approach.
 #
 # Must run to completion before Grafana starts - see docker-compose.yml,
 # grafana.depends_on.dashboards-init.condition: service_completed_successfully.

@@ -1,6 +1,7 @@
 # The end-to-end selftest. Included by the root Makefile so `make selftest`
-# stays a single entry point - see docs/development.md for what it asserts
-# and why.
+# stays a single entry point - see README.md, "Run the automated end-to-end
+# assertions", for what it asserts and why, and test/assert.sh for the
+# assertions themselves.
 #
 # Layers test/docker-compose.test.yml on top of the base docker-compose.yml
 # and runs as its own Compose project, so it cannot disturb a running stack.

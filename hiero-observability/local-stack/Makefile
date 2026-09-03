@@ -6,7 +6,8 @@
 
 COMPOSE := docker compose --env-file defaults.env --env-file local.env
 
-# The `selftest` target itself lives in test/test.mk - see docs/development.md.
+# The `selftest` target itself lives in test/test.mk - see README.md, "Run
+# the automated end-to-end assertions", and test/test.mk's own header.
 include test/test.mk
 
 .PHONY: help up down reset restart logs ps

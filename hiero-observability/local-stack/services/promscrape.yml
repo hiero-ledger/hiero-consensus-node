@@ -8,7 +8,7 @@
 # YAML flow collection. Keep SCRAPE_TARGETS / METRIC_LABELS valid JSON.
 #
 # The `selftest` fixture job lives in `test/promscrape.test.yml`, not here -
-# see docs/development.md.
+# see README.md, "Run the automated end-to-end assertions".
 
 global:
   scrape_interval: %{SCRAPE_INTERVAL}
