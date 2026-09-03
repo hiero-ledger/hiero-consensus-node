@@ -274,6 +274,10 @@ as a longer running version of SDLT to catch potential issues that may not surfa
 ### Environment
 
 - MDLT runs against a promoted build tag (`build-XXXXX`) that has already passed SDPT and SDLT.
+- Like SDPT and SDLT, MDLT deploys three block nodes into the allocated namespace, pinned to the
+  version in `block-node-version` in [.citr-env](/.github/workflows/support/citr/.citr-env) and passed
+  through as the `bnref` input. The consensus nodes stream to those block nodes; there is no longer a
+  stand-in block node hosted on the load generator pod.
 - The kickoff workflow runs only a short (~3 minute) smoke on a Chewie-allocated cluster, launches the 5-day
   (7200 minute) production run in the background, and then exits so the GitHub runner is released (runners are
   capped at 6 hours).
@@ -293,7 +297,10 @@ Monitoring and finalization (dispatched with the Allocation ID printed by the ki
 cluster + namespace from the Chewie allocation):
 
 - [204: [DISP] CITR MDLT Monitor](/.github/workflows/204-disp-mdlt-monitor.yaml) — reports run status
-  (running / passed / failed / cancelled) to the summary and Slack.
+  (running / passed / failed / cancelled) and block node liveness to the summary and Slack. It also
+  prunes each block node's live block data (`*.blk*` older than 59 minutes) unless
+  `prune-block-node-data` is unchecked — the kickoff runner exits after launching the run, so the
+  runner-side cleaner loop SDPT uses cannot cover a multi-day run.
 - [205: [DISP] CITR MDLT Publish Results](/.github/workflows/205-disp-mdlt-publish-results.yaml) — collects logs and
   publishes them to GCS.
 - [206: [DISP] CITR MDLT Tag Result](/.github/workflows/206-disp-mdlt-tag-result.yaml) — applies the
@@ -331,7 +338,7 @@ fails fast if it does not. See [Chewie Resource Allocation](chewie.md).
 
 |     Test Name     |                                         Workflow                                         |  Required Parameters  | Run time  |                  Precursor Steps                   |
 |-------------------|------------------------------------------------------------------------------------------|-----------------------|-----------|----------------------------------------------------|
-| LongevityLoadTest | [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml)  | nlg-accounts,nlg-time | 5 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| LongevityLoadTest | [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml)  | nlg-accounts,nlg-time | 5 days    | Code Compiles, Solo deployed BNs/CNs/NLG onto Latitude |
 | Results & Logs    | [205: [DISP] CITR MDLT Publish Results](/.github/workflows/205-disp-mdlt-publish-results.yaml) | build-tag,allocation-id | after run | LongevityLoadTest                                  |
 
 ### LongevityLoadTest consists of the following tests, running in parallel with pre-defined throttling:
