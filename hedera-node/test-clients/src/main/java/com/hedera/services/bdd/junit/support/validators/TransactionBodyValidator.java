@@ -11,6 +11,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordWithSidecars;
+import com.hedera.services.bdd.suites.contract.precompile.ContractIdKeyManagedTokenTest;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -38,7 +39,10 @@ public class TransactionBodyValidator implements RecordStreamValidator {
                     if (function == ContractCreate && receipt.getStatus() == SUCCESS) {
                         final var createdId = receipt.getContractID();
                         // Assert the body had a self-managed key based on this created id
-                        if (txnBody.getContractCreateInstance().getAdminKey().hasContractID()) {
+                        // (The named suite intentionally uses another contract ID as the admin key.)
+                        if (txnBody.getContractCreateInstance().getAdminKey().hasContractID()
+                                && !txnBody.getMemo()
+                                        .startsWith(ContractIdKeyManagedTokenTest.class.getSimpleName() + ".")) {
                             Assertions.assertEquals(
                                     txnBody.getContractCreateInstance()
                                             .getAdminKey()
