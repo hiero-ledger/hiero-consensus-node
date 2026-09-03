@@ -582,6 +582,24 @@ jobs:
           cd "${{ github.workspace}}"/solo
           task start
 
+      - name: Add PVCs for MirrorNode
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+
+          #postgres
+          sed -e "s@%PVC_SIZE%@60Gi@g" -e "s@%PVC_NAME%@data-solo-shared-resources-postgres-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-postgres.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-postgres.yaml
+
+          #redis
+          sed -e "s@%PVC_SIZE%@8Gi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-redis.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-redis.yaml
+
+          #sentinel
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@sentinel-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-sentinel.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-sentinel.yaml
+
       - name: Add Mirror Node
         run: |
           set +x
