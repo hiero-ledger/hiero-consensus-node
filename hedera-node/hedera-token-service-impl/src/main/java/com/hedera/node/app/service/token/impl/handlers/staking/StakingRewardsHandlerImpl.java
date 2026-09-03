@@ -252,7 +252,13 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         final var stakedAccountId = account.stakedAccountId();
         final var stakedAccount = accountStore.getOriginalValue(stakedAccountId);
         // if the special reward receiver account is not staked to a node, it will not need to receive reward
-        if (stakedAccount != null && !stakedAccount.deleted() && stakedAccount.hasStakedNodeId()) {
+        //
+        // A stakee deleted in a prior transaction still carries its stakedNodeId and stakedToMe, so it
+        // would otherwise be rediscovered here whenever one of its indirect stakers is touched. We must
+        // not treat it as a reward receiver: its reward can no longer be redirected to a beneficiary
+        // (the delete->beneficiary mapping lives only on the deleting transaction's record builder), so
+        // StakingRewardsDistributor#payRewardsIfPending would throw and fail the unrelated transaction.
+        if (stakedAccount != null && stakedAccount.hasStakedNodeId() && !stakedAccount.deleted()) {
             updatedSpecialRewardReceivers.add(stakedAccountId);
         }
         return updatedSpecialRewardReceivers;
@@ -289,8 +295,16 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             final var scenario = StakeIdChangeType.forCase(originalAccount, modifiedAccount);
             final var containStakeMetaChanges = hasStakeMetaChanges(originalAccount, modifiedAccount);
 
+            // A stakee deleted in a PRIOR transaction already had its node stake settled at delete time,
+            // but it can be pulled back into the modification set here when an orphaned indirect staker's
+            // balance change updates its stale stakedToMe. Re-running the node-stake adjustment would
+            // withdraw that stale stake again without re-awarding it (the award path is guarded by
+            // !modifiedAccount.deleted()), spuriously draining the node's stakeToReward on every such
+            // transaction. An account deleted in the CURRENT transaction is unaffected (its original
+            // value is not yet deleted), so its delete-time withdrawal still happens.
+            final var deletedBeforeThisTxn = originalAccount != null && originalAccount.deleted();
             // If this scenario is changing StakedId from a node or to a node, change stake of those nodes
-            if ((scenario.withdrawsFromNode() || scenario.awardsToNode())) {
+            if (!deletedBeforeThisTxn && (scenario.withdrawsFromNode() || scenario.awardsToNode())) {
                 adjustNodeStakes(
                         scenario,
                         originalAccount,
