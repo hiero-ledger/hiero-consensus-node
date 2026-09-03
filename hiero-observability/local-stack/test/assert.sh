@@ -8,6 +8,7 @@
 
 VM="http://victoriametrics:8428"
 LOKI="http://loki:3100"
+GRAFANA="http://grafana:3000"
 
 # Generous on purpose: VictoriaMetrics' -search.latencyOffset hides freshly
 # scraped points for 30s by default, and Alloy re-globs LOG_INCLUDE every 10s.
@@ -97,6 +98,7 @@ printf '\n=== observability-stack selftest ===\n\n'
 wait_for victoriametrics "$VM/health" || true
 wait_for loki "$LOKI/ready" || true
 wait_for alloy "http://alloy:12345/-/ready" || true
+wait_for grafana "$GRAFANA/api/health" || true
 
 # Ask VictoriaMetrics to bypass its 30s search latency offset, but only if this
 # build accepts the argument - otherwise the DEADLINE above absorbs it.
@@ -142,6 +144,42 @@ assert 'log_name is derived from the file basename' \
 assert 'a stack trace is grouped into a single multi-line entry' \
 	loki '{environment="selftest"} |= "java.lang.RuntimeException" |= "com.example.Gamma"' \
 	'\\tat com\.example\.Gamma'
+
+# --- dashboards (issue 3) ----------------------------------------------
+
+# Grafana provisions dashboards at startup; poll rather than assume it's
+# instantaneous once the container is merely "running".
+_end=$(($(date +%s) + DEADLINE))
+_body=""
+while :; do
+	_body=$($CURL "$GRAFANA/api/dashboards/uid/selftest-binding" 2>/dev/null)
+	if printf '%s' "$_body" | grep -q '"uid":"selftest-binding"'; then
+		break
+	fi
+	if [ "$(date +%s)" -ge "$_end" ]; then
+		break
+	fi
+	sleep 3
+done
+
+if printf '%s' "$_body" | grep -q '"uid":"selftest-binding"'; then
+	if printf '%s' "$_body" | grep -q '\${'; then
+		printf 'FAIL  dashboard placeholder rewrite: unresolved ${...} survives in provisioned dashboard\n'
+		FAILURES=$((FAILURES + 1))
+	else
+		printf 'PASS  dashboard placeholder rewrite: no ${...} left in provisioned dashboard\n'
+	fi
+
+	if printf '%s' "$_body" | grep -q "\"uid\":\"$METRICS_DATASOURCE_NAME\""; then
+		printf 'PASS  dashboard panel datasource bound to METRICS_DATASOURCE_NAME (%s)\n' "$METRICS_DATASOURCE_NAME"
+	else
+		printf 'FAIL  dashboard panel datasource not bound to METRICS_DATASOURCE_NAME (%s)\n' "$METRICS_DATASOURCE_NAME"
+		FAILURES=$((FAILURES + 1))
+	fi
+else
+	printf 'FAIL  provisioned dashboard "selftest-binding" never appeared at %s\n' "$GRAFANA/api/dashboards/uid/selftest-binding"
+	FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
 

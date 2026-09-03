@@ -46,22 +46,22 @@ Out of the box the stack tails `./logs`, and the `app` scrape target is red —
 there is nothing on `host.docker.internal:9999` yet. Configuring it is the
 next section.
 
-## Configuring it
+## ⚙ Configuring it
 
 Everything is driven by environment variables, and the rule is always the same:
 
 > **The committed file is the one nobody edits. The gitignored file holds only
 > your overrides.**
 
-| What      | Committed      | Your override | Mechanism                                |
-|-----------|-----------------|----------------|-------------------------------------------|
-| Variables | `defaults.env`  | `local.env`    | `--env-file` twice, the later file wins   |
+|   What    |   Committed    | Your override |                Mechanism                |
+|-----------|----------------|---------------|-----------------------------------------|
+| Variables | `defaults.env` | `local.env`   | `--env-file` twice, the later file wins |
 
 Every config file the stack mounts into a container (VictoriaMetrics' scrape
 config, Alloy's pipeline, Loki's config, Grafana's provisioning directory) has
 its own override mechanism too — see "Overriding a config file" below.
 
-### Point it at your metrics endpoint
+### Configure metrics scraping
 
 `local.env`:
 
@@ -70,6 +70,9 @@ SCRAPE_TARGETS=["host.docker.internal:9999","host.docker.internal:9998"]
 SCRAPE_INTERVAL=5s
 METRIC_LABELS={"environment":"localhost","node_id":"0"}
 ```
+
+<details>
+  <summary>Click for details</summary>
 
 `SCRAPE_TARGETS` is a JSON list and `METRIC_LABELS` a JSON map; both are
 injected into `promscrape.yml` structurally, so they must stay valid JSON.
@@ -84,7 +87,9 @@ Anything `SCRAPE_TARGETS` cannot express — a different `metrics_path`,
 per-job intervals, service discovery — needs a full scrape-config override;
 see "Overriding a config file" below.
 
-### Point it at a run's log output
+</details>
+
+### Configure logs ingestion
 
 `local.env`:
 
@@ -93,6 +98,9 @@ LOGS_DIR=/path/to/your/run/output
 LOG_INCLUDE=/logs/**/*.log
 LOG_LABELS={"environment":"localhost","node_id":"0"}
 ```
+
+<details>
+  <summary>Click for details</summary>
 
 `LOGS_DIR` is a *host* path, mounted read-only at `/logs` inside the container.
 `LOG_INCLUDE` is therefore a **container-side** path and always starts with
@@ -114,6 +122,72 @@ trace arrives as **one** entry rather than dozens. The default matches a leading
 `2026-09-01 12:34:56` or `2026-09-01T12:34:56`. If your logs start lines
 differently, override the regex.
 
+</details>
+
+### Configure dashboards
+
+`local.env`:
+
+```sh
+GRAFANA_DASHBOARDS_DIR=/path/to/hedera-node/infrastructure/grafana/dashboards
+```
+
+<details>
+  <summary>Click to expand</summary>
+
+Dashboards under `GRAFANA_DASHBOARDS_DIR` appear in Grafana under folders
+mirroring that directory's structure (`foldersFromFilesStructure` in
+`services/grafana/provisioning/dashboards/dashboards.yml`). The default,
+`./services/grafana/dashboards`, is an empty, gitignored directory — drop
+dashboard JSON files straight into it, or point the variable anywhere else.
+An unset or empty directory is a no-op: no dashboards, no error.
+
+Dashboards exported from Grafana with the "export for sharing externally"
+option carry an `__inputs` array and reference their datasource as
+`"uid": "${DS_SOMETHING}"` (or any other name — the `DS_` prefix is just a
+convention Grafana's export UI happens to use, not a guarantee). Grafana's
+*file* provisioner — the only path this stack uses — does not resolve those
+placeholders; only the *import* path does, so dropped in unchanged, every
+panel shows "Datasource ${DS_...} was not found."
+
+A small `dashboards-init` container closes that gap: it copies
+`GRAFANA_DASHBOARDS_DIR` into an internal volume, and for every `__inputs`
+entry whose `pluginId` is `prometheus`, rewrites every `${<name>}` occurrence
+to `METRICS_DATASOURCE_NAME`. Your copy under `GRAFANA_DASHBOARDS_DIR` is
+mounted read-only and never modified. If a dashboard declares a non-`prometheus`
+`__inputs` entry, `dashboards-init` fails loudly with the filename and the
+offending `pluginId` — printed in `docker compose ... logs dashboards-init` —
+rather than silently mis-binding it, and Grafana does not start until that's
+fixed.
+
+**Binding the datasource is necessary but not sufficient for a reused
+production dashboard to show data.** Those dashboards filter heavily on
+labels a plain local scrape does not produce — `environment` (via a
+`label_values(environment)` template variable) and `node_id` / `node` are
+the two label families that matter; production dashboards do not filter on
+`namespace`, `cluster`, `pod`, `job`, or `instance`. Supply the matching
+values through `METRIC_LABELS` / `LOG_LABELS`, which is why
+`environment=localhost` is the shipped default.
+
+**Refreshing after editing a source dashboard** is manual, by design — the
+rewrite runs once at startup, not on a polling loop:
+
+```sh
+cd hiero-observability/local-stack
+docker compose --env-file defaults.env --env-file local.env up -d --force-recreate dashboards-init
+```
+
+Grafana's file provisioner then hot-reloads the result on its own; `make
+restart` also works but recreates every container, which is more than this
+needs.
+
+`allowUiUpdates: true` in `dashboards.yml` means a panel you edit in
+Grafana's UI is saved rather than instantly reverted on Grafana's next
+provisioning sweep — but only until `dashboards-init` next changes the
+underlying file, at which point the file wins again.
+
+</details>
+
 ### Everything you can set
 
 See `defaults.env` — it is the authoritative, commented list. In outline:
@@ -123,7 +197,7 @@ See `defaults.env` — it is the authoritative, commented list. In outline:
 - **Metrics** — `SCRAPE_TARGETS`, `SCRAPE_INTERVAL`, `METRIC_LABELS`,
   `PROMSCRAPE_CONFIG`
 - **Grafana** — `METRICS_DATASOURCE_NAME`, `METRICS_DATASOURCE_URL`,
-  `LOKI_DATASOURCE_NAME`, `GRAFANA_PROVISIONING_DIR`
+  `LOKI_DATASOURCE_NAME`, `GRAFANA_PROVISIONING_DIR`, `GRAFANA_DASHBOARDS_DIR`
 - **Host ports** — `GRAFANA_PORT`, `VICTORIAMETRICS_PORT`, `LOKI_PORT`,
   `ALLOY_PORT`
 - **Retention** — `METRICS_RETENTION`, `LOGS_RETENTION`
@@ -144,11 +218,11 @@ env var pointing at it, all following the same pattern: copy the committed
 file (or, for Grafana, the whole directory) anywhere you like, edit your copy,
 and point the variable at it in `local.env`.
 
-| Config              | Env var                   | Default                              |
-|---------------------|----------------------------|---------------------------------------|
-| Metrics scrape      | `PROMSCRAPE_CONFIG`       | `./services/promscrape.yml`          |
-| Log pipeline        | `ALLOY_CONFIG`            | `./services/config.alloy`            |
-| Log storage         | `LOKI_CONFIG`             | `./services/loki-config.yml`         |
+|              Config              |          Env var           |              Default              |
+|----------------------------------|----------------------------|-----------------------------------|
+| Metrics scrape                   | `PROMSCRAPE_CONFIG`        | `./services/promscrape.yml`       |
+| Log pipeline                     | `ALLOY_CONFIG`             | `./services/config.alloy`         |
+| Log storage                      | `LOKI_CONFIG`              | `./services/loki-config.yml`      |
 | Grafana provisioning (directory) | `GRAFANA_PROVISIONING_DIR` | `./services/grafana/provisioning` |
 
 For example, to change something `promscrape.yml`'s environment variables
@@ -184,7 +258,7 @@ Each block below is self-contained and runnable as-is from anywhere, including
 the repo root — the `make` targets use `-C` and the raw `docker compose`
 equivalents start with their own `cd`.
 
-### Start the stack
+### ▶️  Start
 
 ```sh
 make -C hiero-observability/local-stack up
@@ -197,7 +271,7 @@ mkdir -p logs
 docker compose --env-file defaults.env --env-file local.env up -d
 ```
 
-### Stop the stack, keep the data
+### ⏸️  Stop, keep the data
 
 ```sh
 make -C hiero-observability/local-stack down
@@ -208,7 +282,7 @@ cd hiero-observability/local-stack
 docker compose --env-file defaults.env --env-file local.env down
 ```
 
-### Stop the stack and delete all stored data
+### ⏹️  Stop, delete all stored data
 
 ```sh
 make -C hiero-observability/local-stack reset
@@ -219,7 +293,7 @@ cd hiero-observability/local-stack
 docker compose --env-file defaults.env --env-file local.env down -v
 ```
 
-### Recreate the containers, after editing a config file
+### 🔄 Recreate, after editing a config file
 
 ```sh
 make -C hiero-observability/local-stack restart
@@ -349,13 +423,14 @@ new file takes a moment to appear.
 **Something in a config file was ignored.** Config files are read at container
 start: `make restart`.
 
+**`make up` hangs, or `grafana` never starts.** Check
+`docker compose ... logs dashboards-init` — a non-`prometheus` `pluginId`
+inside a dashboard's `__inputs` fails that container on purpose and blocks
+Grafana from starting; the log names the offending file. Fix or remove that
+dashboard, then re-run `make up`.
+
 **Start over.** `make reset` deletes all stored data; `make up` then starts
 clean.
-
-## Not included
-
-Dashboards. The stack ships none and provisions none yet — use Grafana Explore
-for now.
 
 ## Design notes
 

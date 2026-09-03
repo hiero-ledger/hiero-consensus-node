@@ -7,7 +7,7 @@
 # Deliberately does not read local.env: it asserts that the *committed*
 # defaults work, not that one developer's configuration does.
 TEST_COMPOSE := docker compose -p observability-stack-selftest -f docker-compose.yml -f test/docker-compose.test.yml --env-file defaults.env --env-file test/selftest.env
-TEST_UNITS   := victoriametrics loki alloy selftest-metrics selftest-log-writer
+TEST_UNITS   := victoriametrics loki alloy grafana selftest-metrics selftest-log-writer
 
 .PHONY: selftest
 

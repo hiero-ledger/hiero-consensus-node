@@ -20,6 +20,7 @@ volumes:
   grafana-data:
   loki-data:
   alloy-data:
+  dashboards-out:
 
 services:
   # ---------------------------------------------------------------------------
@@ -52,6 +53,31 @@ services:
       - observability
 
   # ---------------------------------------------------------------------------
+  # dashboards-init - rewrites ${<name>}-style placeholders left by Grafana's
+  # "export for sharing externally" option, then copies the result into the
+  # dashboards-out volume Grafana reads from. Runs once, to completion,
+  # before Grafana starts (see grafana.depends_on below). The source
+  # directory is mounted read-only, so it is never modified even by mistake.
+  #
+  # Re-run this alone after editing a source dashboard:
+  #   docker compose ... up -d --force-recreate dashboards-init
+  # Grafana's file provisioner then hot-reloads on its own - no restart of
+  # Grafana itself needed, and `make restart` (which recreates everything)
+  # works too but is heavier than necessary for this.
+  # ---------------------------------------------------------------------------
+  dashboards-init:
+    image: busybox:1.38.0
+    command: ["/bin/sh", "/dashboards-init.sh"]
+    environment:
+      METRICS_DATASOURCE_NAME: ${METRICS_DATASOURCE_NAME}
+    volumes:
+      - ./services/grafana/dashboards-init.sh:/dashboards-init.sh:ro
+      - ${GRAFANA_DASHBOARDS_DIR}:/dashboards-src:ro
+      - dashboards-out:/dashboards-out
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
   # Grafana - UI. Anonymous admin access, no credentials anywhere.
   # ---------------------------------------------------------------------------
   grafana:
@@ -69,11 +95,16 @@ services:
     volumes:
       - ${GRAFANA_PROVISIONING_DIR}:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
+      - dashboards-out:/dashboards-out:ro
     ports:
       - "${GRAFANA_PORT}:3000"
     depends_on:
-      - victoriametrics
-      - loki
+      victoriametrics:
+        condition: service_started
+      loki:
+        condition: service_started
+      dashboards-init:
+        condition: service_completed_successfully
     networks:
       - observability
 

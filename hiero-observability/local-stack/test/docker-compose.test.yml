@@ -49,11 +49,14 @@ services:
     image: curlimages/curl:8.21.0
     entrypoint: ["/bin/sh"]
     command: ["/assert.sh"]
+    environment:
+      METRICS_DATASOURCE_NAME: ${METRICS_DATASOURCE_NAME}
     volumes:
       - ./test/assert.sh:/assert.sh:ro
     depends_on:
       - victoriametrics
       - loki
       - alloy
+      - grafana
     networks:
       - observability

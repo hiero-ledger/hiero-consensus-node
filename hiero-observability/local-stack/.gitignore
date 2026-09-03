@@ -8,3 +8,9 @@ local.env
 !logs/
 logs/*
 !logs/.gitkeep
+
+# Default GRAFANA_DASHBOARDS_DIR - drop dashboard JSON files straight in
+# here, or point GRAFANA_DASHBOARDS_DIR elsewhere in local.env. Contents
+# are gitignored; only the placeholder is committed.
+services/grafana/dashboards/*
+!services/grafana/dashboards/.gitkeep
