@@ -512,6 +512,66 @@ class AtomicBatchHandlerTest {
         verify(delegate).refund(payerId1, ctx, outerFees);
     }
 
+    @Test
+    void refundNetsAgainstRecordedCharges() {
+        var delegate = mock(FeeCharging.class);
+        var ctx = mock(FeeCharging.Context.class);
+        var charged = new Fees(0, 10, 0);
+        var refund = new Fees(0, 4, 0);
+
+        var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
+        var customized = rfc.customized(ctx);
+        when(ctx.charge(payerId1, charged, null)).thenReturn(charged);
+
+        customized.charge(payerId1, charged, null);
+        rfc.refund(payerId1, ctx, refund);
+
+        verify(delegate).refund(payerId1, ctx, refund);
+        // The refund is netted against the payer's recorded charge, leaving the net amount to be replayed.
+        assertEquals(
+                List.of(new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, new Fees(0, 6, 0), null)),
+                rfc.charges());
+    }
+
+    @Test
+    void fullRefundRemovesRecordedCharge() {
+        var delegate = mock(FeeCharging.class);
+        var ctx = mock(FeeCharging.Context.class);
+        var charged = new Fees(0, 10, 0);
+
+        var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
+        var customized = rfc.customized(ctx);
+        when(ctx.charge(payerId1, charged, null)).thenReturn(charged);
+
+        customized.charge(payerId1, charged, null);
+        rfc.refund(payerId1, ctx, charged);
+
+        verify(delegate).refund(payerId1, ctx, charged);
+        // A refund covering the whole charge leaves nothing to replay for the payer.
+        assertTrue(rfc.charges().isEmpty());
+    }
+
+    @Test
+    void refundedChargeReplaysNetAmount() {
+        var delegate = mock(FeeCharging.class);
+        var ctx = mock(FeeCharging.Context.class);
+        var replayCtx = mock(FeeCharging.Context.class);
+        var charged = new Fees(0, 10, 0);
+        var refund = new Fees(0, 4, 0);
+
+        var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
+        var customized = rfc.customized(ctx);
+        when(ctx.charge(payerId1, charged, null)).thenReturn(charged);
+
+        customized.charge(payerId1, charged, null);
+        rfc.refund(payerId1, ctx, refund);
+
+        rfc.charges().forEach(charge -> charge.replay(replayCtx, (id, amount) -> {}));
+
+        // Only the net (10 - 4 = 6) is replayed onto the rolled-back state.
+        verify(replayCtx).charge(eq(payerId1), eq(new Fees(0, 6, 0)), any());
+    }
+
     private TransactionBody newAtomicBatch(AccountID payerId, Timestamp consensusTimestamp, List<Bytes> transactions) {
         final var atomicBatchBuilder = AtomicBatchTransactionBody.newBuilder().transactions(transactions);
         return newTxnBodyBuilder(payerId, consensusTimestamp)
