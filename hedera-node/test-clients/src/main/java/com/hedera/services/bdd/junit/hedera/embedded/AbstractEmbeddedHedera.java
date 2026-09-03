@@ -239,6 +239,14 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         return parseQueryResponse(responseBuffer);
     }
 
+    @Override
+    public Response sendQueryRaw(@NonNull final byte[] serializedQuery) {
+        requireNonNull(serializedQuery);
+        final var responseBuffer = BufferedData.allocate(MAX_QUERY_RESPONSE_SIZE);
+        hedera.queryWorkflow().handleQuery(Bytes.wrap(serializedQuery), responseBuffer);
+        return parseQueryResponse(responseBuffer);
+    }
+
     /**
      * If block stream is enabled, notifies the block stream manager of the state hash at the end of the round
      * given by {@code roundNumber}. (The block stream manager must have this information to construct the
