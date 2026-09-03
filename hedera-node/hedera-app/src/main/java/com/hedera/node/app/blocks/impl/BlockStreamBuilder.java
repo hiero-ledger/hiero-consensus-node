@@ -1556,6 +1556,10 @@ public class BlockStreamBuilder
         if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
             clearContractTraceData();
         }
+        if (evmTransactionResult != null) {
+            logs = null;
+            createdContractIds = null;
+        }
     }
 
     @NonNull
