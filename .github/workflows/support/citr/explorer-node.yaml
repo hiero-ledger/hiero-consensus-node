@@ -1,19 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0
-replicas: 1
-
 resources:
-  limits:
-    cpu: 1
-    memory: 4Gi
   requests:
-    cpu: 1
-    memory: 4Gi
-
+    cpu: 200m
+    memory: 100Mi
+  limits:
+    cpu: 1000m
+    memory: 250Mi
+ingress:
+  enabled: false
+  hosts:
+    - host: "explorer.solo.local"
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ca-secret-hiero-explorer
+      hosts:
+        - '{{ index .Values.ingress.hosts 0 "host" }}'
+labels:
+  solo.hedera.com/testSuiteName: ""
+  solo.hedera.com/testName: ""
+  solo.hedera.com/testRunUID: ""
+  solo.hedera.com/testCreationTimestamp: ""
+  solo.hedera.com/testExpirationTimestamp: ""
+  solo.hedera.com/testRequester: ""
 nodeSelector:
   solo.hashgraph.io/role: "auxiliary-services"
   solo.hashgraph.io/owner: "%NETWORK_OWNER%"
   solo.hashgraph.io/network-id: "%NETWORK_ID%"
-
 tolerations:
   - key: "solo.hashgraph.io/role"
     operator: "Equal"
@@ -27,3 +41,41 @@ tolerations:
     operator: "Equal"
     value: "%NETWORK_ID%"
     effect: "NoSchedule"
+#global:
+#  namespaceOverride: "{{ .Values.global.namespaceOverride }}"
+# The hedera explorer UI /api url will proxy  all request to mirror node
+#
+# Without this we would need to expose the mirror node rest API publicly and specify its public url in the network config below
+proxyPass:
+  /api: "http://{{ .Release.Name }}-rest"
+
+# In the json config below we are using the url as "/", instead of a regular http://mainnet.url
+# This makes the explorer UI make a relative request to its own url
+# This in combination with proxyPass above saves us the need to expose mirror node URL publicly
+config: |
+  [
+    {
+      "name": "localnet",
+      "displayName": "LOCALNET",
+      "url": "/",
+      "ledgerID": "03",
+      "baseRealm": 0,
+      "baseShard": 0,
+      "enableWallet": false,
+      "enableStaking": false,
+      "enableExpiry": false,
+      "enableMarket": false,
+      "erc20IndexURL": null,
+      "erc721IndexURL": null,
+      "sourcifySetup": null
+    }
+  ]
+readinessProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 60
+livenessProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 60
+
