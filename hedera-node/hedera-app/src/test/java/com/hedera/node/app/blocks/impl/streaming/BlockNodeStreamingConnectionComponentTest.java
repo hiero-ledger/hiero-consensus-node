@@ -32,6 +32,7 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConf
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -172,7 +173,11 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, stats),
@@ -251,7 +256,11 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(localFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
 
         final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
                 .address(nodeConfig.address())
