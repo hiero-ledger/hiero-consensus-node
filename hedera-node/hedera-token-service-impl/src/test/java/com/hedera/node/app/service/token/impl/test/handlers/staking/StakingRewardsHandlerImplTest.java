@@ -930,7 +930,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         // deleted -> beneficiary mapping is recorded on a CHILD dispatch builder (as happens for the
         // inner CryptoDelete of an atomic batch), not on the root builder consulted by the redirect.
         // The handler must fold the child mapping into the root builder, otherwise the redirect loop
-        // throws IllegalStateException and the batch is rolled back to a zero-fee FAIL_INVALID record.
+        // cannot resolve the beneficiary and staking finalization fails.
         final var accountBalance = 555L * HBARS_TO_TINYBARS;
         final var ownerBalance = 111L * HBARS_TO_TINYBARS;
         final var payerAccountBefore = new AccountCustomizer()
