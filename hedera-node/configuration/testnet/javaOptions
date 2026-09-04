@@ -1,4 +1,0 @@
-/usr/bin/java -Dfile.encoding=utf-8 -Xmx100g -Xms32g -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:+UseLargePages -XX:MaxDirectMemorySize=8g -cp swirlds.jar:data/lib/* com.swirlds.platform.Browser > /opt/hgcapp/services-hedera/HapiApp2.0/stdout.log 2>&1
-
-# /etc/sysctl.conf
-# vm.nr_hugepages=66560
