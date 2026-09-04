@@ -153,6 +153,7 @@
 /.github/workflows/221-disp-sdpt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/222-disp-sdlt-controller.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/223-disp-sdct-controller.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/225-disp-release-chewie-allocation.yaml      @hiero-ledger/github-maintainers
 /.github/workflows/831-call-single-day-performance-test.yaml    @hiero-ledger/github-maintainers
 /.github/workflows/832-call-execute-performance-test.yaml       @hiero-ledger/github-maintainers
 /.github/workflows/833-call-single-day-longevity-test.yaml      @hiero-ledger/github-maintainers
@@ -165,6 +166,18 @@
 /.github/workflows/901-cron-promote-build-candidate.yaml        @hiero-ledger/github-maintainers
 /.github/workflows/902-cron-auto-namespace-delete.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/903-cron-clean.yaml                          @hiero-ledger/github-maintainers
+
+# specific to MDLT (Multi Day Longevity Test)
+/.github/workflows/203-user-mdlt-controller-adhoc.yaml          @hiero-ledger/github-maintainers
+/.github/workflows/204-disp-mdlt-monitor.yaml                   @hiero-ledger/github-maintainers
+/.github/workflows/205-disp-mdlt-publish-results.yaml           @hiero-ledger/github-maintainers
+/.github/workflows/206-disp-mdlt-tag-result.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/224-disp-mdlt-controller.yaml                @hiero-ledger/github-maintainers
+/.github/workflows/835-call-multi-day-longevity-test.yaml       @hiero-ledger/github-maintainers
+/.github/workflows/support/chewie/mdlt-config.json              @hiero-ledger/github-maintainers
+/.github/workflows/support/citr/collectMdltResults.sh           @hiero-ledger/github-maintainers
+/.github/workflows/templates/slack-mdlt-start.json.tpl          @hiero-ledger/github-maintainers
+/.github/workflows/templates/slack-mdlt-status.json.tpl         @hiero-ledger/github-maintainers
 
 # Co-owned with devops
 /.github/workflows/303-disp-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners

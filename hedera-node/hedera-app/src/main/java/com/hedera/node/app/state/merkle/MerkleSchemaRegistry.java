@@ -206,7 +206,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                     previousVersion,
                     roundNumber,
                     sharedValues,
-                    startupNetworks);
+                    startupNetworks,
+                    trigger == InitTrigger.RECONNECT);
             if (applications.contains(MIGRATION)) {
                 schema.migrate(migrationContext);
             }

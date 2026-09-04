@@ -1234,9 +1234,14 @@ class TopToBottomTraversalOrderTest {
 
             final List<Long> init = drainInternals(order);
 
-            assertEquals(16, init.size(), "Must seed 16 initial internals");
-            assertEquals(CHUNK1_INIT_LO, init.getFirst(), "First initial internal must be 31 (chunk-1, root=path 1)");
-            assertEquals(CHUNK1_INIT_HI, init.getLast());
+            // firstLeaf=1100 sits mid-chunk-1 (root=path 1, covers 1023–1534). The seed filter drops
+            // rank-5 internals whose leaves are entirely < oldFirstLeafPath=1100: 31 (leaves 1023–1030)
+            // and 32 (1031–1038). Survivors are 33..46 — all still under chunk-1 root (path 1), rank 5.
+            assertEquals(
+                    14, init.size(), "Must seed 14 initial internals (16 minus 2 filtered below oldFirstLeafPath)");
+            assertEquals(
+                    33L, init.getFirst(), "First surviving internal must be 33 (31,32 filtered as all-leaves<1100)");
+            assertEquals(CHUNK1_INIT_HI, init.getLast(), "Last initial internal must be 46 (chunk-1, root=path 1)");
             for (long p : init) {
                 assertEquals(5, MerklePathUtils.getRank(p), "All initial internals must be at rank 5");
             }
@@ -1252,12 +1257,17 @@ class TopToBottomTraversalOrderTest {
 
             final List<Long> init = drainInternals(order);
 
-            assertEquals(16, init.size(), "Must seed 16 initial internals");
+            // firstLeaf=1700 sits mid-chunk-2 (root=path 2, covers 1535–2046). The seed filter drops
+            // rank-5 internals 47..51 (their leaves are entirely < oldFirstLeafPath=1700). Survivors are
+            // 52..62 — still under chunk-2 root (path 2), confirming chunk-1 (31–46) was skipped.
             assertEquals(
-                    CHUNK2_INIT_LO,
-                    init.getFirst(),
-                    "First initial internal must be 47 (chunk-2, root=path 2), not 31 (chunk-1)");
-            assertEquals(CHUNK2_INIT_HI, init.getLast());
+                    11, init.size(), "Must seed 11 initial internals (16 minus 5 filtered below oldFirstLeafPath)");
+            assertEquals(
+                    52L, init.getFirst(), "First surviving internal must be 52 (chunk-2 root=path 2; 47–51 filtered)");
+            assertEquals(CHUNK2_INIT_HI, init.getLast(), "Last initial internal must be 62 (chunk-2, root=path 2)");
+            for (long p : init) {
+                assertEquals(5, MerklePathUtils.getRank(p), "All initial internals must be at rank 5");
+            }
         }
 
         @Test
@@ -1561,18 +1571,24 @@ class TopToBottomTraversalOrderTest {
             final long first = 100_000_000L; // rank 26, not leftmost (leftmost = 67108863)
             final long last = 200_000_000L; // rank 27, = 2 * first
             final var order = new TopToBottomTraversalOrder();
-            order.start(first, last, first, last);
+            order.start(first, last, first, last); // oldFirst == first (original)
 
-            // ── First chunk (root=22, rank-26, initial internals [47103, 49150]) ──────
+            // ── First chunk (root=22, rank-4, rank-15 seed span [47103..49150]) ──────
             final List<Long> firstChunkInternals = drainInternals(order);
+
+            // The full rank-15 seed span is 2^11 = 2048 internals ([47103..49150]). With oldFirstLeafPath
+            // = first = 100_000_000, the seed filter drops every internal whose leaves are entirely below
+            // it: 47103..48826 cover leaves < 100_000_000 (internal 48827 is the first whose leaves reach
+            // 100_000_000). Survivors are 48827..49150 — 324 internals.
+            assertEquals(2048L, 49150L - 47103L + 1, "Full rank-15 seed span is 2^11 = 2048 before filtering");
             assertEquals(
-                    2048,
+                    324,
                     firstChunkInternals.size(),
-                    "First chunk must seed 2^skipRanks = 2^11 = 2048 initial internals");
+                    "First chunk seeds 324 internals: the rank-15 span minus those entirely below oldFirstLeafPath");
             assertEquals(
-                    47103L,
+                    48827L,
                     firstChunkInternals.getFirst(),
-                    "First initial internal must be 47103 (getLeftGrandChildPath(22, 11))");
+                    "First surviving internal must be 48827 (first whose leaves reach oldFirstLeafPath=100_000_000)");
             assertEquals(
                     49150L,
                     firstChunkInternals.getLast(),
@@ -1583,7 +1599,7 @@ class TopToBottomTraversalOrderTest {
                         MerklePathUtils.getRank(p),
                         "All first-chunk initial internals must be at rank chunkRootRank(4)+skipRanks(11)=15");
             }
-            // Verify chunk root is at rank 4: 11 levels up from any initial internal
+            // Chunk root is at rank 4: 11 levels up from any surviving initial internal
             assertEquals(
                     4,
                     MerklePathUtils.getRank(MerklePathUtils.getGrandParentPath(firstChunkInternals.getFirst(), 11)),
