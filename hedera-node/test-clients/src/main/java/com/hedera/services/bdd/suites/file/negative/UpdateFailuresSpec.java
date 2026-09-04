@@ -72,8 +72,19 @@ public class UpdateFailuresSpec {
     }
 
     @HapiTest
+    final Stream<DynamicTest> unrecognizedSystemFileUpdateRejectedAtIngest() {
+        // A file number inside the system-reserved range that is not one of the recognized system
+        // files is still a privileged target: an unprivileged payer is rejected at ingest.
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                fileUpdate("0.0.3").payingWith(CIVILIAN).signedBy(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> precheckAllowsMissing() {
-        return hapiTest(fileUpdate("1.2.3")
+        // Use a non-system file number (> numReservedSystemEntities) so the update is not a
+        // privileged operation: it passes ingest and fails at consensus with INVALID_FILE_ID.
+        return hapiTest(fileUpdate("1.2.3000")
                 .payingWith(GENESIS)
                 .signedBy(GENESIS)
                 .fee(1_234_567L)
