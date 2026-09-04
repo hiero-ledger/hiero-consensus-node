@@ -45,7 +45,7 @@ import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
  * For a copy to be merged, it must be released, it should not be flushable, the next copy in the
  * family must exist and must be immutable.
  *
- * <p></p>Before a copy is flushed or merged, it gets hashed, if not hashed already. Copies are
+ * <p>Before a copy is flushed or merged, it gets hashed, if not hashed already. Copies are
  * hashed in order, i.e. a copy is hashed after all its older copies are hashed.
  */
 public class VirtualPipeline {
