@@ -202,6 +202,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
 
         givenTxn();
+        // Model the NFT sender having been resolved from an existing alias. It must not be treated as auto-created.
+        transferContext.resolutions().put(ecKeyAlias.value(), ownerId);
 
         final var listOfOps = subject.assessCustomFees(transferContext);
         assertThat(listOfOps).hasSize(2);
