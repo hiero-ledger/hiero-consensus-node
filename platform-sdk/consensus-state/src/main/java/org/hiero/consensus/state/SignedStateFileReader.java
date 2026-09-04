@@ -3,7 +3,7 @@ package org.hiero.consensus.state;
 
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.SIGNATURE_SET_FILE_NAME;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
