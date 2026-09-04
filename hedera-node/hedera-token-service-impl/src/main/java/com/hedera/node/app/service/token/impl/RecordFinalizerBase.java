@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class RecordFinalizerBase {
     protected static final AccountID ZERO_ACCOUNT_ID =
@@ -134,11 +135,15 @@ public abstract class RecordFinalizerBase {
      *
      * @param fungibleChanges the map of {@link EntityIDPair} to {@link Long} representing the changes to the balances
      * @param isCryptoTransfer the {@link IsCryptoTransfer} representing if the transaction is a crypto transfer
+     * @param approvedDebits the (account, token) pairs debited via an allowance; their net debits are externalized
+     *                       with {@code isApproval=true}
      * @return a list of {@link TokenTransferList} representing the changes to the token relations
      */
     @NonNull
     protected List<TokenTransferList> asTokenTransferListFrom(
-            @NonNull final Map<EntityIDPair, Long> fungibleChanges, @NonNull final IsCryptoTransfer isCryptoTransfer) {
+            @NonNull final Map<EntityIDPair, Long> fungibleChanges,
+            @NonNull final IsCryptoTransfer isCryptoTransfer,
+            @NonNull final Set<EntityIDPair> approvedDebits) {
         final var fungibleTokenTransferLists = new ArrayList<TokenTransferList>();
         final var acctAmountsByTokenId = new HashMap<TokenID, HashMap<AccountID, Long>>();
         for (final var fungibleChange : fungibleChanges.entrySet()) {
@@ -157,8 +162,16 @@ public abstract class RecordFinalizerBase {
         for (final var acctAmountsForToken : acctAmountsByTokenId.entrySet()) {
             final var singleTokenTransfers = acctAmountsForToken.getValue();
             if (!singleTokenTransfers.isEmpty()) {
+                final var tokenId = acctAmountsForToken.getKey();
                 final var aaList = asAccountAmounts(singleTokenTransfers);
                 aaList.sort(ACCOUNT_AMOUNT_COMPARATOR);
+                if (!approvedDebits.isEmpty()) {
+                    // The net change loses the original isApproval flag, so restore it on debits that used an allowance
+                    aaList.replaceAll(
+                            aa -> aa.amount() < 0 && approvedDebits.contains(new EntityIDPair(aa.accountID(), tokenId))
+                                    ? aa.copyBuilder().isApproval(true).build()
+                                    : aa);
+                }
                 if (isCryptoTransfer == IsCryptoTransfer.YES) {
                     long netAdjustment = 0L;
                     for (final var aa : aaList) {
@@ -169,7 +182,7 @@ public abstract class RecordFinalizerBase {
                     }
                 }
                 fungibleTokenTransferLists.add(TokenTransferList.newBuilder()
-                        .token(acctAmountsForToken.getKey())
+                        .token(tokenId)
                         .transfers(aaList)
                         .build());
             }

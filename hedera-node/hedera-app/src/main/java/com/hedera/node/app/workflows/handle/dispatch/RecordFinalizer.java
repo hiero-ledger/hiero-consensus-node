@@ -48,16 +48,17 @@ public class RecordFinalizer {
      */
     public void finalizeRecord(@NonNull final Dispatch dispatch) {
         requireNonNull(dispatch);
+        final var txnInfo = dispatch.txnInfo();
         if (dispatch.stack().permitsStakingRewards()) {
             recordFinalizer.finalizeStakingRecord(
                     dispatch.finalizeContext(),
-                    dispatch.txnInfo().functionality(),
-                    extraRewardReceivers(
-                            dispatch.txnInfo().txBody(), dispatch.txnInfo().functionality(), dispatch.streamBuilder()),
+                    txnInfo.functionality(),
+                    txnInfo.txBody(),
+                    extraRewardReceivers(txnInfo.txBody(), txnInfo.functionality(), dispatch.streamBuilder()),
                     dispatch.handleContext().dispatchPaidRewards());
         } else {
             recordFinalizer.finalizeNonStakingRecord(
-                    dispatch.finalizeContext(), dispatch.txnInfo().functionality());
+                    dispatch.finalizeContext(), txnInfo.functionality(), txnInfo.txBody());
         }
     }
 
@@ -92,9 +93,10 @@ public class RecordFinalizer {
             return emptySet();
         }
         return switch (function) {
-            case CRYPTO_TRANSFER -> zeroAdjustIdsFrom(body.cryptoTransferOrThrow()
-                    .transfersOrElse(TransferList.DEFAULT)
-                    .accountAmounts());
+            case CRYPTO_TRANSFER ->
+                zeroAdjustIdsFrom(body.cryptoTransferOrThrow()
+                        .transfersOrElse(TransferList.DEFAULT)
+                        .accountAmounts());
             case ETHEREUM_TRANSACTION, CONTRACT_CALL, CONTRACT_CREATE -> recordBuilder.explicitRewardSituationIds();
             default -> emptySet();
         };
