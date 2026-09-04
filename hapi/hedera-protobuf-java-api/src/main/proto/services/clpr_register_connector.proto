@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Phase 1 (Commit): Register a Connector commitment.
+ *
+ * Permissionless and idempotent. Stores
+ * keccak256(connectorId || pubKey) on-ledger so the reveal phase can verify it.
+ * Anyone may call; only the holder of the matching private key can complete.
+ */
+message ClprRegisterConnectorTransactionBody {
+    /**
+     * keccak256(connectorId || pubKey) where
+     * connectorId = keccak256(channelId || pubKey || salt).
+     * Must be exactly 32 bytes.
+     */
+    bytes commitment = 1;
+}

@@ -3,22 +3,29 @@ package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -30,8 +37,12 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -103,6 +114,22 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull ReadableScheduleStore readableScheduleStore() {
         return context.storeFactory().readableStore(ReadableScheduleStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableChannelStore readableChannelStore() {
+        return context.storeFactory().readableStore(ReadableChannelStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableEndpointManifestStore readableEndpointManifestStore() {
+        return context.storeFactory().readableStore(ReadableEndpointManifestStore.class);
     }
 
     /**
@@ -264,6 +291,60 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public Configuration configuration() {
         return context.configuration();
+    }
+
+    @Override
+    public @NonNull StoreFactory storeFactory() {
+        return context.storeFactory();
+    }
+
+    @Override
+    public @Nullable Bytes dispatchReadonlyContractCall(
+            @NonNull final ContractID contractId, @NonNull final byte[] callData, final long gasLimit) {
+        return dispatchReadonlyContractCall(
+                context.payer(), contractId, callData, gasLimit, EMPTY_METADATA, SUPPRESSING_SIGNED_TX_CUSTOMIZER);
+    }
+
+    @Override
+    public @Nullable Bytes dispatchReadonlyContractCall(
+            @NonNull final AccountID payerId,
+            @NonNull final ContractID contractId,
+            @NonNull final byte[] callData,
+            final long gasLimit,
+            @NonNull final DispatchMetadata dispatchMetadata) {
+        return dispatchReadonlyContractCall(
+                payerId, contractId, callData, gasLimit, dispatchMetadata, NOOP_SIGNED_TX_CUSTOMIZER);
+    }
+
+    private @Nullable Bytes dispatchReadonlyContractCall(
+            @NonNull final AccountID payerId,
+            @NonNull final ContractID contractId,
+            @NonNull final byte[] callData,
+            final long gasLimit,
+            @NonNull final DispatchMetadata dispatchMetadata,
+            @NonNull final SignedTxCustomizer signedTxCustomizer) {
+        requireNonNull(payerId);
+        requireNonNull(contractId);
+        requireNonNull(callData);
+        requireNonNull(dispatchMetadata);
+        requireNonNull(signedTxCustomizer);
+        final var syntheticBody = TransactionBody.newBuilder()
+                .contractCall(ContractCallTransactionBody.newBuilder()
+                        .contractID(contractId)
+                        .gas(gasLimit)
+                        .functionParameters(Bytes.wrap(callData))
+                        .build())
+                .build();
+        final var result = context.dispatch(stepDispatch(
+                payerId, syntheticBody, HookDispatchStreamBuilder.class, signedTxCustomizer, dispatchMetadata));
+        if (result.status() != SUCCESS) {
+            return null;
+        }
+        final var evmResult = result.getEvmCallResult();
+        if (evmResult == null || evmResult.length() == 0) {
+            return null;
+        }
+        return evmResult;
     }
 
     @NonNull

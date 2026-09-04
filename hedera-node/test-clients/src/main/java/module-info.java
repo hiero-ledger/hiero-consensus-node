@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.hedera.services.bdd.junit.SharedMultiNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import org.junit.platform.launcher.LauncherSessionListener;
 
@@ -20,6 +21,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.queries.token;
     exports com.hedera.services.bdd.spec.queries.crypto;
     exports com.hedera.services.bdd.spec.queries.schedule;
+    exports com.hedera.services.bdd.spec.queries.clpr;
     exports com.hedera.services.bdd.spec.queries.consensus;
     exports com.hedera.services.bdd.spec.queries.contract;
     exports com.hedera.services.bdd.spec.transactions;
@@ -43,6 +45,7 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.keys;
     exports com.hedera.services.bdd.spec.transactions.crypto;
     exports com.hedera.services.bdd.spec.transactions.schedule;
+    exports com.hedera.services.bdd.spec.transactions.clpr;
     exports com.hedera.services.bdd.spec.transactions.consensus;
     exports com.hedera.services.bdd.spec.transactions.contract;
     exports com.hedera.services.bdd.spec.transactions.util;
@@ -71,7 +74,8 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.suites.utils.sysfiles;
 
     provides LauncherSessionListener with
-            SharedNetworkLauncherSessionListener;
+            SharedNetworkLauncherSessionListener,
+            SharedMultiNetworkLauncherSessionListener;
 
     requires com.hedera.cryptography.hints;
     requires com.hedera.cryptography.libsecp256k1;
@@ -80,6 +84,8 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.addressbook;
+    requires com.hedera.node.app.service.clpr.impl;
+    requires com.hedera.node.app.service.clpr;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.entityid.impl;
@@ -147,6 +153,7 @@ open module com.hedera.node.test.clients {
     requires org.hyperledger.besu.datatypes;
     requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
+    requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;
     requires org.junit.jupiter.api;
     requires org.junit.platform.commons;
@@ -156,6 +163,7 @@ open module com.hedera.node.test.clients {
     requires org.yaml.snakeyaml;
     requires tuweni.bytes;
     requires tuweni.units;
+    requires com.sun.jna;
     requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;

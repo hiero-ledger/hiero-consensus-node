@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -22,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -139,7 +141,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                                 .transactionIDOrElse(TransactionID.DEFAULT)
                                 .accountIDOrElse(AccountID.DEFAULT),
                         rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                        contractsConfig.chargeGasOnEvmHandleException());
+                        !hevmTransaction.isClprDispatch() && contractsConfig.chargeGasOnEvmHandleException());
             }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
@@ -248,7 +250,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     hevmTransaction.withException(e),
                     senderId,
                     sender,
-                    hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
+                    hevmTransaction.isContractCall()
+                            && !hevmTransaction.isClprDispatch()
+                            && contractsConfig.chargeGasOnEvmHandleException());
 
             // Update the ops duration throttle
             if (shouldApplyOpsDurationThrottle) {
@@ -284,15 +288,19 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     }
 
     private HederaEvmTransaction safeCreateHevmTransaction() {
+        final var clprDispatchMetadata = context.dispatchMetadata()
+                .getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class)
+                .orElse(null);
         try {
-            final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
+            final var hevmTransaction =
+                    hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer(), clprDispatchMetadata);
             validatePayloadLength(hevmTransaction);
             return hevmTransaction;
         } catch (IllegalArgumentException e1) {
             return hevmTransactionFactory.fromContractTxException(
-                    context.body(), new HandleException(INVALID_TRANSACTION));
+                    context.body(), new HandleException(INVALID_TRANSACTION), clprDispatchMetadata);
         } catch (HandleException e) {
-            return hevmTransactionFactory.fromContractTxException(context.body(), e);
+            return hevmTransactionFactory.fromContractTxException(context.body(), e, clprDispatchMetadata);
         }
     }
 

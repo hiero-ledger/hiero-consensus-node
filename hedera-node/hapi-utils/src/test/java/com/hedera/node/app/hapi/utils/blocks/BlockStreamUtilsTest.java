@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.output.StateIdentifier;
 import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class BlockStreamUtilsTest {
@@ -39,5 +40,16 @@ class BlockStreamUtilsTest {
         } finally {
             Locale.setDefault(defaultLocale);
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS, ClprService.PENDING_CONNECTOR_COMMITMENTS",
+        "STATE_ID_CLPR_SUBMISSION_THROTTLES, ClprService.SUBMISSION_THROTTLES",
+        "STATE_ID_CLPR_ENDPOINT_MANIFEST, ClprService.ENDPOINT_MANIFEST",
+        "STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION, ClprService.ENDPOINT_MANIFEST_CONSTRUCTION"
+    })
+    void mapsAllClprStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
+        assertEquals(expectedStateName, BlockStreamUtils.stateNameOf(stateIdentifier.protoOrdinal()));
     }
 }

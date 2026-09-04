@@ -6,14 +6,19 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP
 
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.LiveConsensusNode;
+import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
+import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import dagger.Binds;
 import dagger.Module;
@@ -55,9 +60,31 @@ public interface StandaloneModule {
         return null;
     }
 
+    /**
+     * Provides the {@link TssVerifier} used by CLPR consumers reachable from the standalone
+     * executor (e.g. {@code ClprGetLedgerConfigurationHandler}, {@code ClprStateProofManager}).
+     * The non-standalone path provides the same binding via {@code ClprSyncWorkflowInjectionModule}.
+     */
+    @Provides
+    @Singleton
+    static TssVerifier provideTssVerifier() {
+        return new NativeTssVerifier();
+    }
+
     @Binds
     @Singleton
     NetworkInfo bindNetworkInfo(@NonNull StandaloneNetworkInfo simulatedNetworkInfo);
+
+    /**
+     * Standalone executor has no signed-block snapshots, so we provide a no-op
+     * {@link BlockProvenSnapshotProvider} that always returns empty. CLPR state-proof
+     * builders will short-circuit and return {@code null} accordingly.
+     */
+    @Provides
+    @Singleton
+    static BlockProvenSnapshotProvider provideNoopBlockProvenSnapshotProvider() {
+        return java.util.Optional::empty;
+    }
 
     @Provides
     @Singleton
@@ -97,5 +124,26 @@ public interface StandaloneModule {
     @Singleton
     static StoreMetricsService provideStoreMetricsService(Metrics metrics) {
         return new StoreMetricsServiceImpl(metrics);
+    }
+
+    @Provides
+    @Singleton
+    static ClprChannelLifecycle provideNoopClprChannelLifecycle() {
+        return new ClprChannelLifecycle() {
+            @Override
+            public void onChannelActivated(@NonNull final Bytes channelId) {}
+
+            @Override
+            public void onChannelClosed(@NonNull final Bytes channelId) {}
+
+            @Override
+            public void seedPeerEndpoints(
+                    @NonNull final Bytes channelId,
+                    @NonNull final java.util.List<com.hedera.hapi.node.state.clpr.ClprEndpoint> endpoints) {}
+
+            @Override
+            public void recordPeerObservedManifestVersion(
+                    @NonNull final Bytes channelId, final long peerObservedVersion) {}
+        };
     }
 }

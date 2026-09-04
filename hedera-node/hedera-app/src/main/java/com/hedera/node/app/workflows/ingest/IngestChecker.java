@@ -2,6 +2,16 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
@@ -17,6 +27,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
@@ -71,6 +82,7 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -97,7 +109,7 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
-    private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS = EnumSet.of(
+    private static final Set<HederaFunctionality> HOOK_TRANSACTIONS = EnumSet.of(
             HOOK_STORE,
             CRYPTO_CREATE,
             CONTRACT_CREATE,
@@ -106,6 +118,17 @@ public final class IngestChecker {
             CRYPTO_TRANSFER,
             SCHEDULE_CREATE,
             TOKEN_AIRDROP);
+    private static final Set<HederaFunctionality> CLPR_TRANSACTIONS = EnumSet.of(
+            CLPR_UPDATE_LEDGER_CONFIGURATION,
+            CLPR_REGISTER_CHANNEL,
+            CLPR_COMPLETE_CHANNEL,
+            CLPR_CLOSE_CHANNEL,
+            CLPR_REGISTER_CONNECTOR,
+            CLPR_COMPLETE_CONNECTOR,
+            CLPR_DEREGISTER_CONNECTOR,
+            CLPR_SUBMIT_BUNDLE,
+            CLPR_REDACT_MESSAGE,
+            CLPR_ENDPOINT_PUBLICATION);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
             EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH, UNCHECKED_SUBMIT);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
@@ -375,7 +398,8 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
-        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
+        final var clprConfig = configuration.getConfigData(ClprConfig.class);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig, clprConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -387,7 +411,8 @@ public final class IngestChecker {
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final HooksConfig hooksConfig,
-            @NonNull final NetworkAdminConfig networkAdminConfig)
+            @NonNull final NetworkAdminConfig networkAdminConfig,
+            @NonNull final ClprConfig clprConfig)
             throws PreCheckException {
         final var function = txInfo.functionality();
         // Reject transactions with highVolume=true if the high-volume feature is not enabled.
@@ -409,7 +434,7 @@ public final class IngestChecker {
                 throw new PreCheckException(NOT_SUPPORTED);
             }
         }
-        if (FEATURE_FLAGGED_TRANSACTIONS.contains(function)) {
+        if (HOOK_TRANSACTIONS.contains(function)) {
             if (!hooksConfig.hooksEnabled()) {
                 switch (function) {
                     case HOOK_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
@@ -492,6 +517,10 @@ public final class IngestChecker {
                     }
                 }
             }
+        }
+        if (!clprConfig.enabled() && CLPR_TRANSACTIONS.contains(function)) {
+            logger.error("Cannot submit CLPR transaction {} because clpr.enabled is false", function);
+            throw new PreCheckException(CLPR_NOT_ENABLED);
         }
     }
 

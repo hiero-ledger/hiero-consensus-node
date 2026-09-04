@@ -54,10 +54,12 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -97,6 +99,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -132,6 +135,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+
+    @Nullable
+    private final BlockProvenStateAccessor blockProvenStateAccessor;
 
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
@@ -185,6 +191,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * The number of blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
      */
     private final AtomicInteger pendingBlockProofCount = new AtomicInteger(0);
+
+    /**
+     * One-shot transition flag: flips {@code false → true} the first time
+     * {@link #finishProofWithSignature} embeds a WRAPS recursive proof into a block signature.
+     * After that block, captured cross-network state proofs reference WRAPS-carrying state and
+     * peer ledgers' {@code NativeTssVerifier.verifyTss} accepts them. Logged exactly once for
+     * test-harness use (see {@code MultiNetworkExtension.awaitWrapsSyncPoint}).
+     */
+    private final AtomicBoolean wrapsProofMaterialized = new AtomicBoolean(false);
     /**
      * Guards the future returned to callers waiting for all pending block proofs to complete.
      */
@@ -261,6 +276,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics,
+            @Nullable final BlockProvenStateAccessor blockProvenStateAccessor,
             @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
@@ -272,6 +288,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
+        this.blockProvenStateAccessor = blockProvenStateAccessor;
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -590,6 +607,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         block.proofBuilder(),
                         pendingWriter,
                         block.pendingProof().blockTimestamp(),
+                        // Recovered blocks do not retain the state roots CLPR needs for snapshot registration.
+                        Bytes.EMPTY,
+                        Bytes.EMPTY,
                         block.siblingHashesIfUseful()));
             } catch (Exception e) {
                 log.warn(
@@ -827,6 +847,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockProofBuilder,
                     writer,
                     blockTimestamp,
+                    blockStartStateHash,
+                    consensusHeaderHash,
                     rootAndSiblingHashes.siblingHashes()));
 
             // Update in-memory state to prepare for the next block
@@ -1028,6 +1050,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
             if (chainOfTrustProof.hasWrapsProof()) {
+                if (wrapsProofMaterialized.compareAndSet(false, true)) {
+                    log.info(
+                            "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
+                                    + "cross-network state-proof verification is now enabled",
+                            blockNumber);
+                }
                 effectiveSignature =
                         verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
             } else {
@@ -1101,7 +1129,41 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
+
             markPendingBlockProofComplete(currentPendingBlock);
+
+            // Register CLPR block metadata so ClprStateProofManager can build state proofs.
+            // Only do this for in-memory blocks (startingStateHash non-empty) when CLPR is enabled,
+            // and ONLY for the directly-signed block: `effectiveSignature` signs block N's root, but
+            // an indirectly-proven pending block M < N has a Merkle path terminating at M's own root,
+            // so pairing M's path with N's signature would register a snapshot that can never verify.
+            if (blockProvenStateAccessor != null
+                    && currentPendingBlock.number() == blockNumber
+                    && !currentPendingBlock.startingStateHash().equals(Bytes.EMPTY)
+                    && configProvider
+                            .getConfiguration()
+                            .getConfigData(ClprConfig.class)
+                            .enabled()) {
+                try {
+                    final var path = PartialPathBuilder.startingStateToBlockRoot(
+                            currentPendingBlock.previousBlockHash(),
+                            currentPendingBlock.siblingHashes()[0].siblingHash(),
+                            currentPendingBlock.startingStateHash(),
+                            currentPendingBlock.consensusHeaderRootHash(),
+                            currentPendingBlock.siblingHashes());
+                    blockProvenStateAccessor.registerBlockMetadata(
+                            currentPendingBlock.startingStateHash(),
+                            currentPendingBlock.blockHash(),
+                            effectiveSignature,
+                            currentPendingBlock.blockTimestamp(),
+                            path);
+                } catch (final Exception e) {
+                    log.warn(
+                            "Failed to register CLPR block metadata for block #{}: {}",
+                            currentPendingBlock.number(),
+                            e.getMessage());
+                }
+            }
         }
     }
 

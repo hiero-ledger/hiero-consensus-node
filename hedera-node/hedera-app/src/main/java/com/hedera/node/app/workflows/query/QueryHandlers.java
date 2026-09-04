@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
+import com.hedera.node.app.service.clpr.impl.handlers.ClprGetEndpointManifestHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfoHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractGetBySolidityIDHandler;
@@ -56,4 +58,6 @@ public record QueryHandlers(
         @NonNull TokenGetInfoHandler tokenGetInfoHandler,
         @NonNull TokenGetAccountNftInfosHandler tokenGetAccountNftInfosHandler,
         @NonNull TokenGetNftInfoHandler tokenGetNftInfoHandler,
-        @NonNull TokenGetNftInfosHandler tokenGetNftInfosHandler) {}
+        @NonNull TokenGetNftInfosHandler tokenGetNftInfosHandler,
+        @NonNull ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler,
+        @NonNull ClprGetEndpointManifestHandler clprGetEndpointManifestHandler) {}
