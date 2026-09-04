@@ -66,6 +66,14 @@ public interface RosterTransplantSchema {
         requireNonNull(rosterStoreFactory);
         requireNonNull(onOverrideNetwork);
         final long roundNumber = ctx.roundNumber();
+        if (ctx.isReconnect()) {
+            // A reconnected node's state already reflects whatever roster the network is running; adopting an
+            // override network here would be a unilateral change to the active roster, the transplant flag, and
+            // the TSS constructions, putting this node into an ISS within a few rounds. A transplant is only
+            // ever applied when the whole network restarts onto it.
+            log.info("Skipping any override network on reconnect in round {}", roundNumber + 1);
+            return false;
+        }
         final StartupNetworks startupNetworks = ctx.startupNetworks();
         final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
         overrideNetwork.ifPresent(network -> {
