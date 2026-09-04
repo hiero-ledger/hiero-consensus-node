@@ -103,3 +103,32 @@ Either way, the test job sets:
 ```
 TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/wraps-v1.0.0
 ```
+
+## Rotating to a new proving key
+
+> Only supported before the block stream cutover — that is, while `tss.forceMockSignatures=true` (or
+> `blockStream.streamMode=RECORDS`, or either of `tss.hintsEnabled`/`tss.historyEnabled` is off). In that
+> window the WRAPS chain of trust is built and stored but block proofs do not carry it, so re-grounding it
+> costs nothing anyone verifies against. Once block proofs carry the chain of trust, the ledger id is what
+> downstream verifiers anchor on and there is no protocol yet for moving them to a new one; the node refuses
+> to re-anchor in that state regardless of the property below.
+
+Every WRAPS proof records the hash of the proving key that built it. Folding a new proof onto an
+existing one is only sound when both use the same public parameters, so once
+`tss.wrapsProvingKeyHash` names a different archive than the one behind the network's active proof,
+that proof can no longer be extended.
+
+A roster transition in that state fails with `Source proof was built under proving key ...`. Restoring the
+previous proving key lets it proceed as before. To instead let the network ground a new chain of trust, set:
+
+```
+tss.wrapsAllowFreshGenesisOnKeyChange=true
+```
+
+The network then builds a fresh genesis proof over its current roster before resuming roster
+transitions, and **the ledger id changes** to the hash of that roster's address book. The new value is
+externalized in a `LedgerIdPublication` transaction along with the verification key that goes with it, and
+is what HAPI query responses report from then on — so mirror nodes and anything else that has recorded the
+old value need to pick up the new one.
+
+Revert the property once the re-anchor has completed.

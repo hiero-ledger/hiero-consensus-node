@@ -15,6 +15,8 @@ import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSI
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -87,6 +89,8 @@ class WritableHistoryStoreImplTest {
             RosterEntry.newBuilder().nodeId(1L).build(),
             RosterEntry.newBuilder().nodeId(2L).build()));
     private static final Bytes C_ROSTER_HASH = Bytes.wrap("C");
+    private static final String SUPERSEDED_KEY_HASH = "0a".repeat(48);
+    private static final String CURRENT_KEY_HASH = "0b".repeat(48);
     private static final TssConfig TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final HistorySignature DEFAULT_SIGNATURE = HistorySignature.newBuilder()
@@ -306,7 +310,8 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
         final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
-        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY);
+        final var proof = new HistoryProof(
+                List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY, Bytes.EMPTY);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
@@ -503,5 +508,40 @@ class WritableHistoryStoreImplTest {
         historyService.doGenesisSetup(writableStates, DEFAULT_CONFIG);
         ((CommittableWritableStates) writableStates).commit();
         return state;
+    }
+
+    @Test
+    void doesNotReuseACompletedConstructionWhoseProofCanNoLongerBeFoldedOnto() {
+        // A bootstrap construction has the same roster as source and target, so it is matched again by the
+        // very phase entered to ground a new chain of trust. Reusing it would leave the network holding a
+        // completed construction for the proof it needs to replace, and no work to do.
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(Roster.DEFAULT);
+        final var stale = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .targetProof(HistoryProof.newBuilder()
+                        .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("COMPRESSED")))
+                        .uncompressedWrapsProof(Bytes.wrap("UNCOMPRESSED"))
+                        .wrapsProvingKeyHash(Bytes.fromHex(SUPERSEDED_KEY_HASH))
+                        .build())
+                .build();
+        setConstructions(stale, HistoryProofConstruction.DEFAULT);
+
+        final var rotatedConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(TssConfig.class)
+                .withValue("tss.wrapsEnabled", "true")
+                .withValue("tss.wrapsProvingKeyHash", CURRENT_KEY_HASH)
+                .getOrCreateConfig()
+                .getConfigData(TssConfig.class);
+
+        assertSame(stale, subject.getConstructionFor(activeRosters));
+        final var created = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, rotatedConfig);
+
+        assertNotSame(stale, created);
+        assertNotEquals(stale.constructionId(), created.constructionId());
     }
 }
