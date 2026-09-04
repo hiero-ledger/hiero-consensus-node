@@ -55,14 +55,14 @@ class ReplayingEventsStatusLogicTests {
         assertNoTransition(logic, new FreezePeriodEnteredAction(6L), logic.getStatus());
         assertNoTransition(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         // if the state written to disk isn't the freeze state, we shouldn't transition
-        assertNoTransition(logic, new FreezeCompleteAction(5, false), logic.getStatus());
-        assertTransition(logic, new FreezeCompleteAction(6, true), PlatformStatus.FREEZE_COMPLETE);
+        assertNoTransition(logic, new FreezeCompleteAction(), logic.getStatus());
+        assertTransition(logic, new FreezeCompleteAction(), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
@@ -86,7 +86,7 @@ class ReplayingEventsStatusLogicTests {
                         new TimeElapsedAction.QuiescingStatus(true, time.now().plus(5, ChronoUnit.SECONDS))),
                 logic.getStatus());
         assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
-        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(), logic.getStatus());
     }
 
     @Test
@@ -94,6 +94,5 @@ class ReplayingEventsStatusLogicTests {
     void unexpectedActions() {
         assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
         assertException(logic, new FallenBehindAction(), logic.getStatus());
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
     }
 }

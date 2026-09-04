@@ -165,17 +165,12 @@ public final class DiagramCommand extends AbstractCommand {
                 null,
                 Map.of());
 
-        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
-        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
-        final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
-        final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateModule statemanagementModule =
+        final StateModule stateManagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
@@ -191,20 +186,15 @@ public final class DiagramCommand extends AbstractCommand {
         final ConsensusLayerAdapterBuildingBlocks buildingBlocks = new ConsensusLayerAdapterBuildingBlocks(
                 model,
                 configuration,
-                eventCreatorModule,
-                eventIntakeModule,
-                pcesModule,
-                hashgraphModule,
-                gossipModule,
+                consensusLayerLifecycleManager,
                 issDetectionModule,
                 transactionHandlingModule,
-                statemanagementModule,
-                eventStreamWiring,
+                stateManagementModule,
                 runningEventHashOverrideWiring,
                 initialEventWindowDispatcher,
                 notifierWiring,
-                statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
+                statusMonitorModule,
                 null,
                 null,
                 null,

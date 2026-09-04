@@ -103,7 +103,7 @@ public class SwirldsPlatform implements Platform {
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 
-        buildingBlocks.consensusLayerRef().get().start();
+        buildingBlocks.consensusLayerLifecycleManager().get().start();
     }
 
     @Override
@@ -146,7 +146,7 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        buildingBlocks.consensusLayerRef().get().sendQuiescenceCommand(quiescenceCommand);
+        buildingBlocks.consensusLayerLifecycleManager().get().sendQuiescenceCommand(quiescenceCommand);
     }
 
     /**

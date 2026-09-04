@@ -229,7 +229,7 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
             acquiredReservedState.close();
             waitingForReconnectStateOnDisk = false;
 
-            // TODO recreate the consensus layer
+            consensusLayerLifecycleManager.recreateConsensusLayer(acquiredReservedState);
         }
     }
 

@@ -86,19 +86,18 @@ class ActiveStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(), logic.getStatus());
     }
 
     @Test
     @DisplayName("Unexpected actions should cause exceptions")
     void unexpectedActions() {
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
         assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
     }

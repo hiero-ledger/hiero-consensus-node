@@ -56,7 +56,7 @@ class PlatformStatusStateMachineTests {
     void freezeCompleteAfterReplayingEvents() {
         assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsAction()));
         assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -66,7 +66,7 @@ class PlatformStatusStateMachineTests {
                 REPLAYING_EVENTS,
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -82,7 +82,7 @@ class PlatformStatusStateMachineTests {
                 FREEZING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -97,7 +97,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -128,7 +128,7 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
         assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -207,7 +207,7 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -218,8 +218,7 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction(2, true)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -230,7 +229,6 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
     }
 
@@ -242,9 +240,8 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
         assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(10)));
-        assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezeCompleteAction(11, false)));
+        assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -255,8 +252,7 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertEquals(CHECKING, stateMachine.submitStatusAction(new FreezeCompleteAction(11, false)));
+        assertEquals(CHECKING, stateMachine.submitStatusAction(new FreezeCompleteAction()));
     }
 
     @Test
@@ -307,7 +303,6 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
         assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
         assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
     }
 

@@ -304,7 +304,7 @@ class StateFileManagerTests {
                 assertNotNull(stateSavingResult, "state should have been saved");
                 assertEquals(
                         oldestMetadata.minimumBirthRoundNonAncient(),
-                        stateSavingResult.oldestMinimumBirthRoundOnDisk());
+                        stateSavingResult.oldestRestartableConsensusSnapshot().minimumJudgeInfoList().getLast().minimumJudgeBirthRound());
 
                 assertTrue(
                         currentStatesOnDisk.size() <= statesOnDisk,

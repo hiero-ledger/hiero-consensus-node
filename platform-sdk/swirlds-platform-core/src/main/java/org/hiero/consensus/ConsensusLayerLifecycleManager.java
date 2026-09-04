@@ -9,13 +9,18 @@ import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.function.Supplier;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
-public class ConsensusLayerLifecycleManager {
+/**
+ * Responsible for managing the lifecycle of the consensus layer. It creates and recreates the consensus layer as needed
+ * and remembers the previously provided inputs.
+ */
+public class ConsensusLayerLifecycleManager implements Supplier<ConsensusLayer> {
 
     private ConsensusLayerInputs consensusLayerInputs;
     private ConsensusLayer consensusLayer;
@@ -24,11 +29,21 @@ public class ConsensusLayerLifecycleManager {
         this.consensusLayerInputs = requireNonNull(consensusLayerInputs, "inputs must not be null");
     }
 
+    /**
+     * Creates a new instance of the consensus layer using the current inputs.
+     */
     public void createConsensusLayer() {
         final ConsensusLayerFactory consensusLayerFactory = new ConsensusLayerFactory(consensusLayerInputs);
         consensusLayer = consensusLayerFactory.create();
     }
 
+    /**
+     * Creates a new instance of the consensus layer using the provided state and previously provided inputs. This
+     * method is typically called when a reconnect occurs and the consensus layer needs to be recreated with the new
+     * state.
+     *
+     * @param state the state to use when creating the new consensus layer
+     */
     public void recreateConsensusLayer(@NonNull final ReservedSignedState state) {
         final ConsensusSnapshot consensusSnapshot = getInitialConsensusSnapshot(state);
 
@@ -37,7 +52,8 @@ public class ConsensusLayerLifecycleManager {
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
 
-        consensusLayerInputs = consensusLayerInputs.copyWithNewValues(consensusLayerInputs, consensusSnapshot, runningEventHashOverride);
+        consensusLayerInputs = consensusLayerInputs.copyWithNewValues(consensusLayerInputs, consensusSnapshot,
+                runningEventHashOverride);
 
         createConsensusLayer();
     }
@@ -46,20 +62,8 @@ public class ConsensusLayerLifecycleManager {
         return PlatformStateUtils.consensusSnapshotOf(state.get().getState());
     }
 
-    public ConsensusLayer getConsensusLayer() {
+    @Override
+    public ConsensusLayer get() {
         return consensusLayer;
-    }
-
-    @Nullable
-    private Instant getFreezeTime(@NonNull final ReservedSignedState state) {
-        final VirtualMapState root = state.get().getState();
-        final Instant freezeTime = PlatformStateUtils.freezeTimeOf(root);
-        final Instant lastFrozenTime = PlatformStateUtils.lastFrozenTimeOf(root);
-        final Instant initialStateConsensusTime = PlatformStateUtils.consensusTimestampOf(root);
-        if (initialStateConsensusTime != null && PlatformStateUtils.isInFreezePeriod(initialStateConsensusTime,
-                freezeTime, lastFrozenTime)) {
-            return freezeTime;
-        }
-        return null;
     }
 }

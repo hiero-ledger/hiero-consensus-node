@@ -64,8 +64,7 @@ class StartingUpStatusLogicTests {
         assertException(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
         assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
         assertException(logic, new FallenBehindAction(), logic.getStatus());
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
-        assertException(logic, new FreezeCompleteAction(0, false), logic.getStatus());
-        assertException(logic, new FreezeCompleteAction(0, true), logic.getStatus());
+        assertException(logic, new FreezeCompleteAction(), logic.getStatus());
+        assertException(logic, new FreezeCompleteAction(), logic.getStatus());
     }
 }

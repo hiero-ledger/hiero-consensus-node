@@ -180,13 +180,6 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", rosterHistory);
     }
 
-    @NonNull
-    public Platform rebuild() {
-        buildingBlocks.wiringModel().stop();
-
-//        final ConsensusLayer consensusLayer = factory.createConsensusLayer();
-    }
-
     /**
      * Build a platform. Platform is not started.
      *

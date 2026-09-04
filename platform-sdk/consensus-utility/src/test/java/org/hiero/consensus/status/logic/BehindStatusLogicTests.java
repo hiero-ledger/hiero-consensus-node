@@ -37,12 +37,6 @@ class BehindStatusLogicTests {
     }
 
     @Test
-    @DisplayName("Go to RECONNECT_COMPLETE")
-    void toReconnectComplete() {
-        assertTransition(logic, new ReconnectCompleteAction(0), PlatformStatus.RECONNECT_COMPLETE);
-    }
-
-    @Test
     @DisplayName("Go to CATASTROPHIC_FAILURE")
     void toCatastrophicFailure() {
         assertTransition(logic, new CatastrophicFailureAction(), PlatformStatus.CATASTROPHIC_FAILURE);
@@ -58,7 +52,7 @@ class BehindStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
@@ -76,7 +70,7 @@ class BehindStatusLogicTests {
                 logic.getStatus());
         assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
         assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
-        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(), logic.getStatus());
     }
 
     @Test

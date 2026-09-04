@@ -363,7 +363,7 @@ public class ConsensusLayerAdapterFactory {
                 selfId,
                 buildingBlocks.notificationEngine());
         final PeerProtocolFactory reconnectPeerProtocolFactory = reconnectModule.getReconnectPeerProtocolFactory();
-        buildingBlocks.consensusLayerRef().get().setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
+        buildingBlocks.consensusLayerLifecycleManager().get().setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
     }
 
     @NonNull

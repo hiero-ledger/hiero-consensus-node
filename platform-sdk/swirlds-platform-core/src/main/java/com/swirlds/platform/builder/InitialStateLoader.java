@@ -95,7 +95,7 @@ public class InitialStateLoader {
         if (!savedStates.isEmpty()) {
             try {
                 final ConsensusSnapshot consensusSnapshot = SignedStateFileUtils.getConsensusSnapshot(savedStates.getLast().stateDirectory());
-                buildingBlocks.consensusLayerRef().oldestRestartableSnapshot(consensusSnapshot);
+                buildingBlocks.consensusLayerLifecycleManager().get().oldestRestartableSnapshot(consensusSnapshot);
             } catch (final IOException | ParseException e) {
                 logger.warn(STARTUP.getMarker(),
                         "Unable to read {} file from round {} on disk - PCES for this round will be maintained "

@@ -227,6 +227,7 @@ public class ConsensusNoOpModules {
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, metrics, selfId, 0);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
         gossipModule.initialize(
                 model,
@@ -242,6 +243,7 @@ public class ConsensusNoOpModules {
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 stateLifecycleManager,
+                statusMonitorModule,
                 Map.of());
         return gossipModule;
     }

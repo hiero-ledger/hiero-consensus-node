@@ -42,7 +42,7 @@ class FreezingStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new FreezeCompleteAction(testFreezeRound, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new FreezeCompleteAction(), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
@@ -54,7 +54,7 @@ class FreezingStatusLogicTests {
                 logic,
                 new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
                 logic.getStatus());
-        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new FreezeCompleteAction(), logic.getStatus());
     }
 
     @Test
@@ -63,6 +63,5 @@ class FreezingStatusLogicTests {
         assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
         assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
     }
 }
