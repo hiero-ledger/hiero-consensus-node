@@ -71,6 +71,11 @@ public class SwirldsLogValidator {
                 List.of("jvmPauseDetectorThread detected JVM paused"),
                 // Transient backpressure under load, e.g. while a node constructs WRAPS proofs
                 List.of("HealthMonitorLogger", "has been unhealthy for"),
+                // High-throughput HAPI tests can briefly overfill this scheduler without affecting test correctness
+                List.of(
+                        "HealthMonitorLogger",
+                        "Task scheduler TransactionHandler has been unhealthy",
+                        "unhandled tasks"),
                 List.of("DefaultSignedStateSentinel", "Old signed state detected"));
 
         private int numProblems = 0;
