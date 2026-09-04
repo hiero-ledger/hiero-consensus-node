@@ -52,11 +52,11 @@ importer:
       effect: "NoSchedule"
   resources:
     requests:
-      cpu: 2
-      memory: 4Gb
+      cpu: 1
+      memory: 1Gi
     limits:
       cpu: 2
-      memory: 4Gb
+      memory: 2Gi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -196,11 +196,11 @@ postgresql:
         effect: "NoSchedule"
     resources:
       requests:
-        cpu: 0
-        memory: 0
+        cpu: 1
+        memory: 2Gi
       limits:
-        cpu: 1000m
-        memory: 1000Mi
+        cpu: 3
+        memory: 3Gi
   pgpool:
     replicaCount: 0
 rest:
