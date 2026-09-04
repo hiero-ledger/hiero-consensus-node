@@ -28,6 +28,13 @@ import org.hiero.sloth.fixtures.internal.OverrideProperties;
 @SuppressWarnings("UnusedReturnValue")
 public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
 
+    /**
+     * Name of {@code MetricsFileExportConfig#directory}. Spelled out rather than referenced through the
+     * generated {@code MetricsFileExportConfig_} constant, because {@code org.hiero.metrics.export.file}
+     * exports its config package only to the configuration modules.
+     */
+    private static final String METRICS_FILE_EXPORT_DIRECTORY = "metrics.exporter.file.directory";
+
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
 
@@ -43,6 +50,12 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
         super(lifecycleSupplier, overrideProperties);
         this.overrideProperties.withConfigValue(
                 EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY));
+        // The container image carries the new metrics framework's file exporter, whose `directory` property
+        // has no default: leaving it unset makes Configuration.build() throw and the node fails to start.
+        // Point it at the same folder the old ToFilePrometheusExporter writes to (MetricsConfig.csvOutputFolder,
+        // default "data/stats"); the two do not collide because the new exporter gzips.
+        this.overrideProperties.withConfigValue(
+                METRICS_FILE_EXPORT_DIRECTORY, Path.of(CONTAINER_APP_WORKING_DIR, "data", "stats"));
     }
 
     /**

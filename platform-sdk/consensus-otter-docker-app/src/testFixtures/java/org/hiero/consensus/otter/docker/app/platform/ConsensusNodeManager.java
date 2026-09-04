@@ -49,6 +49,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.app.OtterStateUtils;
@@ -101,6 +102,12 @@ public class ConsensusNodeManager {
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+        // One node per container, so the exporter discovered here cannot collide with another node.
+        // Mirrors the file export the old framework performs via ToFilePrometheusExporter below.
+        final MetricRegistry metricRegistry = MetricRegistry.builder()
+                .discoverMetricProviders()
+                .discoverMetricsExporter(platformConfig)
+                .build();
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
@@ -149,6 +156,7 @@ public class ConsensusNodeManager {
         final TestPlatformBuilder builder = new TestPlatformBuilder(
                 platformConfig,
                 platformContext.getMetrics(),
+                metricRegistry,
                 platformContext.getTime(),
                 rosterHistory,
                 keysAndCerts,
