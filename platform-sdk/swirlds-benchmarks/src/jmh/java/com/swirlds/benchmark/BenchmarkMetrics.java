@@ -34,11 +34,12 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
-import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
-import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
+import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
+import org.hiero.consensus.model.node.NodeId;
 
 public final class BenchmarkMetrics {
 
@@ -336,13 +337,20 @@ public final class BenchmarkMetrics {
     private void setupInstance() {
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(MetricsConfig.class)
+                .withConfigDataType(PrometheusConfig.class)
+                .withConfigDataType(BasicCommonConfig.class)
                 .build();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
         metricService = Executors.newSingleThreadScheduledExecutor(
                 getStaticThreadManager().createThreadFactory("benchmark", "MetricsWriter"));
-        metrics = new DefaultPlatformMetrics(
-                null, registry, metricService, new PlatformMetricsFactoryImpl(metricsConfig), metricsConfig);
+
+        final DefaultMetricsProvider metricsProvider = new DefaultMetricsProvider(configuration);
+        metrics = metricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID);
+
+        final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
+        // start update and snapshot services only if Prometheus endpoint is enabled
+        if (prometheusConfig.endpointEnabled()) {
+            metricsProvider.start();
+        }
 
         metrics.getOrCreate(TIMESTAMP_CONFIG);
         metrics.getOrCreate(MEM_TOT_CONFIG);
