@@ -26,11 +26,53 @@ class OverflowCheckingCalcTest {
     private static final OverflowCheckingCalc subject = new OverflowCheckingCalc();
 
     @Test
-    void throwsOnMultiplierOverflow() {
+    void saturatesOnMultiplierOverflow() {
         final var usage = new UsageAccumulator();
         copyData(mockUsage, usage);
 
-        assertThrows(IllegalArgumentException.class, () -> subject.fees(usage, mockPrices, mockRate, Long.MAX_VALUE));
+        // A multiplier that would overflow the per-component product now saturates to Long.MAX_VALUE
+        // instead of throwing, so extreme congestion pricing cannot halt fee calculation network-wide.
+        final var fees = subject.fees(usage, mockPrices, mockRate, Long.MAX_VALUE);
+
+        assertEquals(Long.MAX_VALUE, fees.nodeFee());
+        assertEquals(Long.MAX_VALUE, fees.networkFee());
+        assertEquals(Long.MAX_VALUE, fees.serviceFee());
+    }
+
+    @Test
+    void tinycentsToTinybarsSaturatesOnNonPositiveCentEquiv() {
+        // A zero centEquiv would divide by zero; saturate to Long.MAX_VALUE instead of throwing.
+        final var zeroCentRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(0).build();
+        assertEquals(Long.MAX_VALUE, OverflowCheckingCalc.tinycentsToTinybars(100L, zeroCentRate));
+    }
+
+    @Test
+    void tinycentsToTinybarsSaturatesOnNonPositiveHbarEquiv() {
+        // A non-positive hbarEquiv would make the fee free or negative; saturate instead.
+        final var zeroHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(0).setCentEquiv(120).build();
+        assertEquals(Long.MAX_VALUE, OverflowCheckingCalc.tinycentsToTinybars(100L, zeroHbarRate));
+
+        final var negativeHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(-3).setCentEquiv(120).build();
+        assertEquals(Long.MAX_VALUE, OverflowCheckingCalc.tinycentsToTinybars(100L, negativeHbarRate));
+    }
+
+    @Test
+    void feesSaturateOnDegenerateRate() {
+        final var usage = new UsageAccumulator();
+        copyData(mockUsage, usage);
+
+        // End-to-end: a degenerate rate (zero centEquiv) makes each per-component conversion saturate, so
+        // fees() must yield Long.MAX_VALUE per component rather than throwing an ArithmeticException.
+        final var degenerateRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(0).build();
+        final var fees = subject.fees(usage, mockPrices, degenerateRate, multiplier);
+
+        assertEquals(Long.MAX_VALUE, fees.nodeFee());
+        assertEquals(Long.MAX_VALUE, fees.networkFee());
+        assertEquals(Long.MAX_VALUE, fees.serviceFee());
     }
 
     @Test
