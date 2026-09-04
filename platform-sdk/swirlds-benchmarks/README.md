@@ -189,3 +189,6 @@ absolute path is configured:
 
 If `settingsUsed.txt`, `data`, or `output` appear elsewhere, the benchmark was
 started with a different working directory.
+
+If `prometheus.endpointEnabled` is `true` (the default is `true`), the benchmark exposes a Prometheus endpoint on `prometheus.endpointPortNumber` (default `9999`).
+Change `prometheus.endpointEnabled` to `false` in `settings.txt` to disable the Prometheus endpoint and metrics updates.
