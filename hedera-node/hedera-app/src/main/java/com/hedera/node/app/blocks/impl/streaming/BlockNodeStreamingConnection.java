@@ -663,7 +663,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 logger.warn("{} Sending of end stream request failed (reason: {})", this, result.status);
             }
         } catch (final RuntimeException e) {
-            logger.warn("{} Error sending EndStream request", this, e);
+            final FailureType failureType = FailureType.findFailureType(e);
+            if (failureType.isCommonFailure()) {
+                logger.warn("{} Error sending EndStream request (error: {})", this, failureType);
+            } else {
+                logger.warn("{} Error sending EndStream request", this, e);
+            }
         }
     }
 
@@ -978,18 +983,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         if (!isActive()) {
             // the connection is no longer active... no need to process any further
             logger.info(
-                    "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs) - suppressing because connection is no longer active",
+                    "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs, requestSize: {}B) - suppressing because connection is no longer active",
                     connectionContext(correlationId),
                     request.timeoutMillis(),
-                    durationMicros);
+                    durationMicros,
+                    request.streamRequest().protobufSize());
             return new SendRequestResult(SendRequestStatus.CONNECTION_CLOSED, reqStartNanos, reqEndNanos);
         }
 
         logger.warn(
-                "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs)",
+                "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs, requestSize: {}B)",
                 connectionContext(correlationId),
                 request.timeoutMillis(),
-                durationMicros);
+                durationMicros,
+                request.streamRequest().protobufSize());
 
         blockStreamMetrics.recordPipelineOperationTimeout();
 
@@ -1409,7 +1416,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             BufferedItem item;
 
             while ((item = block.bufferedItem(itemIndex)) != null) {
-                connStats.recordHeartbeat(System.currentTimeMillis());
+                final long millisTimestamp = System.currentTimeMillis();
+                connStats.recordHeartbeat(millisTimestamp);
 
                 if (itemIndex == 0) {
                     logger.trace(
@@ -1420,7 +1428,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     if (lastSendTimeMillis == -1) {
                         // if we've never sent a request and this is the first time we are processing a block, update
                         // the last send time to the current time. this will avoid prematurely sending a request
-                        lastSendTimeMillis = System.currentTimeMillis();
+                        lastSendTimeMillis = millisTimestamp;
                     }
                 }
 

@@ -364,7 +364,8 @@ public class BlockBufferService {
         }
 
         // Create a new block state
-        final BlockState blockState = new BlockState(blockNumber);
+        final long blockPeriodMillis = bsConfig().blockPeriod().toMillis();
+        final BlockState blockState = new BlockState(blockNumber, blockPeriodMillis);
         streamingObs.onBlockOpen(blockNumber);
         blockBuffer.put(blockNumber, blockState);
         // update the earliest block number if this is the first block or lower than current earliest
@@ -618,7 +619,9 @@ public class BlockBufferService {
         int numBlocksLoaded = 0;
 
         for (final BufferedBlock bufferedBlock : blocks) {
-            final BlockState block = new BlockState(bufferedBlock.blockNumber());
+            final long blockNumber = bufferedBlock.blockNumber();
+            final long blockPeriodMillis = bufferedBlock.blockPeriodMillisOrElse(-1L);
+            final BlockState block = new BlockState(blockNumber, blockPeriodMillis);
             long blockItemTotalSize = 0L;
             for (final Bytes itemBytes : bufferedBlock.block().items()) {
                 block.addSerializedItem(itemBytes);
@@ -630,19 +633,18 @@ public class BlockBufferService {
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
             final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
             final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
-            logger.debug(
-                    "Reconstructed block {} from disk and closed at {}", bufferedBlock.blockNumber(), closedInstant);
+            logger.debug("Reconstructed block {} from disk and closed at {}", blockNumber, closedInstant);
             block.closeBlock(closedInstant);
             block.setOpenedTimestamp(openedInstant);
 
             if (bufferedBlock.isAcknowledged()) {
-                setLatestAcknowledgedBlock(bufferedBlock.blockNumber());
+                setLatestAcknowledgedBlock(blockNumber);
             }
 
-            if (blockBuffer.putIfAbsent(bufferedBlock.blockNumber(), block) != null) {
+            if (blockBuffer.putIfAbsent(blockNumber, block) != null) {
                 logger.debug(
                         "Block {} was read from disk but it was already in the buffer; ignoring block from disk",
-                        bufferedBlock.blockNumber());
+                        blockNumber);
             } else {
                 ++numBlocksLoaded;
                 bufferSizeInBytes.add(blockItemTotalSize);
@@ -1115,6 +1117,21 @@ public class BlockBufferService {
     }
 
     /**
+     * For each block in the buffer, check if there are any delays in closing the block or appending items.
+     */
+    private void checkBlockDelays() {
+        final List<Long> orderedBlocks = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(orderedBlocks);
+
+        for (final long blockNumber : orderedBlocks) {
+            final BlockState block = blockBuffer.get(blockNumber);
+            if (block != null) {
+                block.checkForDelays();
+            }
+        }
+    }
+
+    /**
      * Task that performs regular operations on the buffer (e.g. pruning and persisting to disk).
      */
     private class BufferWorkerTask implements Runnable {
@@ -1128,6 +1145,7 @@ public class BlockBufferService {
 
             try {
                 checkBuffer();
+                checkBlockDelays();
             } catch (final RuntimeException e) {
                 logger.warn("Periodic buffer worker task failed", e);
             } finally {
