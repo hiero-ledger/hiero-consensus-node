@@ -54,6 +54,12 @@ public class ProtobufUtils {
         if (ProtoWriterTools.wireType(field) != ProtoConstants.WIRE_TYPE_DELIMITED) {
             throw new IllegalArgumentException("Cannot extract field bytes for a non-length-delimited field: " + field);
         }
+        // Scan the whole message rather than returning on the first match. A non-repeated field must
+        // occur at most once; if it occurs more than once this hand-written parser would otherwise keep
+        // the FIRST occurrence, while the canonical PBJ parse used by the rest of the query workflow keeps
+        // the LAST. To stay consistent with that canonical parse, reject the ambiguous input instead of
+        // silently picking one occurrence.
+        Bytes result = null;
         while (input.hasRemaining()) {
             final int tag;
             // hasRemaining() doesn't work very well for streaming data, it returns false only when
@@ -72,16 +78,27 @@ public class ProtobufUtils {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                     throw new ParseException("Unexpected wire type: " + tag);
                 }
-                return readLengthDelimitedBytes(input);
+                if (result != null) {
+                    throw new ParseException("Duplicate occurrence of non-repeated field: " + field);
+                }
+                result = readLengthDelimitedBytes(input);
             } else {
                 skipField(input, wireType);
             }
         }
-        throw new ParseException("Field not found: " + field);
+        if (result == null) {
+            throw new ParseException("Field not found: " + field);
+        }
+        return result;
     }
 
     @NonNull
     private static Bytes extractQuery(@NonNull final ReadableSequentialData input) throws IOException, ParseException {
+        // The query is a protobuf oneof, so at most one query field may be set. As in extractFieldBytes,
+        // we scan the whole message and reject duplicates (even of different query types) rather than
+        // returning the first: keeping the first here while PBJ keeps the last would make the two parsers
+        // disagree on which query this is. Reject the ambiguous input to stay consistent.
+        Bytes result = null;
         while (input.hasRemaining()) {
             final int tag;
             // hasRemaining() doesn't work very well for streaming data, it returns false only when
@@ -100,12 +117,18 @@ public class ProtobufUtils {
                 if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
                     throw new ParseException("Unexpected wire type: " + tag);
                 }
-                return readLengthDelimitedBytes(input);
+                if (result != null) {
+                    throw new ParseException("Duplicate query field");
+                }
+                result = readLengthDelimitedBytes(input);
             } else {
                 skipField(input, wireType);
             }
         }
-        throw new ParseException("Query not found");
+        if (result == null) {
+            throw new ParseException("Query not found");
+        }
+        return result;
     }
 
     @NonNull
