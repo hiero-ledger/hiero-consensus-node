@@ -105,9 +105,9 @@ public interface V050Module {
     @Singleton
     @ServicesV050
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV050 @NonNull final HEVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV050 @NonNull final HEVM evm, @NonNull final List<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
-                evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
+                evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, validationRules, INITIAL_CONTRACT_NONCE);
     }
 
     @Provides
