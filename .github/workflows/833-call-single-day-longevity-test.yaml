@@ -347,7 +347,7 @@ jobs:
       - name: Build Validator
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
-          ./gradlew --no-daemon :hedera-state-validator:shadowJar
+          ./gradlew --no-daemon :hedera-state-validator:fatModuleJar
           cd "${{ github.workspace }}"
 
       - name: Setup Node
