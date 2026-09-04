@@ -38,6 +38,6 @@ env:
   BLOCK_NODE_MESSAGE_SIZE: "--block-node-message-size-soft-limit-bytes 300000000 --block-node-message-size-hard-limit-bytes 300000000"
   BLOCK_STREAM_STREAM_MODE: BOTH
   BLOCK_STREAM_WRITER_MODE: FILE_AND_GRPC
-  MIRROR_NODE_DEPLOY_EXTRA_FLAGS: --values-file {{.USER_WORKING_DIR}}/mirror-node.yaml
+  MIRROR_NODE_DEPLOY_EXTRA_FLAGS: ""--values-file {{.USER_WORKING_DIR}}/mirror-node.yaml --ingress-controller-value-file {{.USER_WORKING_DIR}}/ingress-controller-values.yaml"
   EXPLORER_DEPLOY_EXTRA_FLAGS: --values-file {{.USER_WORKING_DIR}}/explorer-node.yaml
   RELAY_NODE_DEPLOY_EXTRA_FLAGS: --values-file {{.USER_WORKING_DIR}}/relay-node.yaml

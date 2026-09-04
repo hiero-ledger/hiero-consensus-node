@@ -423,6 +423,7 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node.yaml mirror-node.yaml
           cp "${{ github.workspace }}"/.github/workflows/support/citr/explorer-node.yaml explorer-node.yaml
           cp "${{ github.workspace }}"/.github/workflows/support/citr/relay-node.yaml relay-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/ingress-controller-values.yaml ingress-controller-values.yaml
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
@@ -435,6 +436,7 @@ jobs:
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" mirror-node.yaml
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" explorer-node.yaml
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" relay-node.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" ingress-controller-values.yaml
 
           NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
@@ -442,6 +444,7 @@ jobs:
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" mirror-node.yaml
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" explorer-node.yaml
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" relay-node.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" ingress-controller-values.yaml
 
           BN_tag=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           sed -i -e "s@%BN_IMAGE_TAG%@${BN_tag}@g" block-node-values.yaml
