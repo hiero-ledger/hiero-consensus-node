@@ -349,14 +349,13 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
     void earningZeroRewardsWithStartBeforeLastNonRewardableStillUpdatesSASOLARP() {
         final var account = mock(Account.class);
         final var manager = mock(StakePeriodManager.class);
-        given(manager.firstNonRewardableStakePeriod(readableRewardsStore)).willReturn(3L);
+        given(manager.isRewardable(account, readableRewardsStore)).willReturn(true);
         given(account.stakePeriodStart()).willReturn(2L);
 
         final StakingRewardsHandlerImpl impl =
                 new StakingRewardsHandlerImpl(rewardsPayer, manager, stakeInfoHelper, entityIdFactory);
 
-        assertThat(impl.shouldUpdateStakeAtStartOfLastRewardPeriod(
-                        account, true, 0L, readableRewardsStore, consensusInstant))
+        assertThat(impl.shouldUpdateStakeAtStartOfLastRewardPeriod(account, true, 0L, readableRewardsStore))
                 .isTrue();
     }
 
@@ -916,6 +915,205 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         assertThat(rewards).hasSize(1);
         // because the transferId is owner for the deleted payer account
         assertThat(rewards).containsEntry(ownerId, 178900L);
+    }
+
+    @Test
+    void deletedAccountRewardRedirectDoesNotAdvanceBeneficiaryStakeMetadata() {
+        final var accountBalance = 555L * HBARS_TO_TINYBARS;
+        final var ownerBalance = 111L * HBARS_TO_TINYBARS;
+        final var currentStakePeriod = stakePeriodStart + 2;
+        // The deleted account is rewardable (it began staking two periods ago) ...
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(0L)
+                .build();
+        // ... while its beneficiary only began staking in the current period, so the beneficiary is
+        // NOT yet rewardable on its own stake.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(currentStakePeriod)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(0L)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(0)
+                .stakedNodeId(0L)
+                .deleted(true)
+                .build());
+        writableAccountStore.put(ownerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(ownerBalance + accountBalance)
+                .stakedNodeId(0L)
+                .build());
+        writableAccountStore.put(Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(800).build())
+                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(currentStakePeriod)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        given(recordBuilder.getNumberOfDeletedAccounts()).willReturn(1);
+        given(recordBuilder.getDeletedAccountBeneficiaryFor(payerId)).willReturn(ownerId);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+        final var beneficiary = writableAccountStore.get(ownerId);
+
+        // The deleted account's earned reward is still forwarded to, and recorded against, the
+        // beneficiary -- this part is intended and must be preserved.
+        assertThat(rewards).containsEntry(ownerId, 178900L);
+        assertThat(writableAccountStore.get(payerId).deleted()).isTrue();
+        assertThat(beneficiary.tinybarBalance()).isEqualTo(ownerBalance + accountBalance + 178900L);
+
+        // But the redirect must NOT advance the beneficiary's own staking metadata: its
+        // stakePeriodStart stays put (not moved back to currentStakePeriod - 1) and its
+        // stakeAtStartOfLastRewardedPeriod is left untouched.
+        assertThat(beneficiary.stakePeriodStart()).isEqualTo(currentStakePeriod);
+        assertThat(beneficiary.stakeAtStartOfLastRewardedPeriod()).isEqualTo(-1L);
+
+        // Consequently the beneficiary is still not rewardable in the next period, so it collects no
+        // unearned reward from the staking reward account.
+        final var nextPeriodInstant = LocalDate.ofEpochDay(currentStakePeriod + 1)
+                .atStartOfDay(ZoneOffset.UTC)
+                .toInstant();
+        stakePeriodManager.setCurrentStakePeriodFor(nextPeriodInstant);
+        final var nextPeriodReward = stakeRewardCalculator.computePendingReward(
+                beneficiary, writableStakingInfoStore, readableRewardsStore, nextPeriodInstant);
+        assertThat(nextPeriodReward).isZero();
+    }
+
+    @Test
+    void prepaidRedirectedRewardDoesNotAdvanceBeneficiaryStakeMetadata() {
+        final var ownerInitialBalance = 111L * HBARS_TO_TINYBARS;
+        final var redirectedReward = 178900L;
+        final var currentStakePeriod = stakePeriodStart + 2;
+        // A scheduled CryptoDelete handled in a child dispatch pays a deleted account's reward to
+        // this beneficiary and reports it (keyed by the beneficiary) as a pre-paid reward to the
+        // parent. The beneficiary only began staking in the current period, so it is not rewardable
+        // on its own stake; the pre-paid redirected reward must not advance its stake metadata.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerInitialBalance + redirectedReward)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(currentStakePeriod)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(0L)
+                .build();
+        addToState(Map.of(ownerId, ownerAccountBefore));
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(currentStakePeriod)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        subject.applyStakingRewards(context, Collections.emptySet(), Map.of(ownerId, redirectedReward));
+
+        final var beneficiary = writableAccountStore.get(ownerId);
+        assertThat(beneficiary.stakePeriodStart()).isEqualTo(currentStakePeriod);
+        assertThat(beneficiary.stakeAtStartOfLastRewardedPeriod()).isEqualTo(-1L);
+    }
+
+    @Test
+    void prepaidRedirectedRewardDoesNotInitializeBeneficiaryStakeMetadata() {
+        final var ownerInitialBalance = 111L * HBARS_TO_TINYBARS;
+        final var redirectedReward = 178900L;
+        final var currentStakePeriod = stakePeriodStart + 2;
+        // A stakePeriodStart of -1 means the beneficiary was never rewardable on its own stake.
+        // Receiving a reward redirected by a scheduled child dispatch must not initialize either
+        // field used to track its own staking reward history.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerInitialBalance + redirectedReward)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(-1L)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(0L)
+                .build();
+        addToState(Map.of(ownerId, ownerAccountBefore));
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(currentStakePeriod)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        subject.applyStakingRewards(context, Collections.emptySet(), Map.of(ownerId, redirectedReward));
+
+        final var beneficiary = writableAccountStore.get(ownerId);
+        assertThat(beneficiary.stakePeriodStart()).isEqualTo(-1L);
+        assertThat(beneficiary.stakeAtStartOfLastRewardedPeriod()).isEqualTo(-1L);
+    }
+
+    @Test
+    void prepaidRewardForAccountWithNoOriginalValueIsHandledSafely() {
+        final var beneficiaryBalance = 111L * HBARS_TO_TINYBARS;
+        // Must be zero: with a positive amount the reverted (pre-fix) code short-circuits wasRewarded
+        // on reward > 0 and never reaches earnedZeroRewardsBecauseOfZeroStake(null, ...), so the NPE
+        // this test guards would not be exercised.
+        final var redirectedReward = 0L;
+        final var currentStakePeriod = stakePeriodStart + 2;
+        // Defense-in-depth: a reward may be recorded (keyed by the beneficiary) for an account with no
+        // original value -- i.e. one created during this same transaction. Such an account was not
+        // rewarded for a prior period, so its stake metadata must not be advanced, and the rewardability
+        // gate must not dereference the null original.
+        final var beneficiaryModified = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(beneficiaryBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(currentStakePeriod)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(0L)
+                .build();
+        // Seed only the staking reward account; the beneficiary exists solely as a modification, so its
+        // original value is null.
+        addToState(Map.of());
+        writableAccountStore.put(beneficiaryModified);
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(currentStakePeriod)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        // Must not throw (previously NPE'd on the null original) and must not advance stake metadata.
+        subject.applyStakingRewards(context, Collections.emptySet(), Map.of(ownerId, redirectedReward));
+
+        final var beneficiary = writableAccountStore.get(ownerId);
+        assertThat(beneficiary.stakePeriodStart()).isEqualTo(currentStakePeriod);
+        assertThat(beneficiary.stakeAtStartOfLastRewardedPeriod()).isEqualTo(-1L);
     }
 
     @Test
