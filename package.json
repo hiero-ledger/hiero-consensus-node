@@ -1,0 +1,13 @@
+{
+  "name": "workflow-visualizer",
+  "version": "1.0.0",
+  "description": "GitHub Actions workflow dependency visualizer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "js-yaml": "^4.1.0"
+  }
+}
