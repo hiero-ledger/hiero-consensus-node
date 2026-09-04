@@ -123,7 +123,7 @@ public class CustomFeeAssessmentStep {
         final var config = handleContext.configuration();
         final Predicate<AccountID> autoCreationTest;
         if (transferContext.isEnforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments()) {
-            autoCreationTest = transferContext.resolutions().values()::contains;
+            autoCreationTest = transferContext::isAutoCreated;
         } else {
             autoCreationTest = accountId -> false;
         }
