@@ -17,11 +17,6 @@ import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 public interface IssDetector {
 
     /**
-     * Use this constant if the consensus hash manager should not ignore any rounds.
-     */
-    int DO_NOT_IGNORE_ROUNDS = -1;
-
-    /**
      * This method is called once all preconsensus events have been replayed.
      */
     void signalEndOfPreconsensusReplay();
