@@ -25,6 +25,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
@@ -744,7 +746,7 @@ class VirtualMapTests extends VirtualTestBase {
             throw new AssertionError("nodeCacheSizeMb metric is not a gauge");
         }
 
-        long metricValue = (long) metric.get(ValueType.VALUE);
+        final long metricValue = (long) metric.get(ValueType.VALUE);
         for (int i = 0; i < 100; i++) {
             for (int j = 0; j < 50; j++) {
                 map0.put(
@@ -757,14 +759,14 @@ class VirtualMapTests extends VirtualTestBase {
             map0.release();
             map0 = map1;
 
-            long newValue = (long) metric.get(ValueType.VALUE);
-            assertTrue(
-                    newValue >= metricValue,
-                    "Node cache size must be increasing" + " old value = " + metricValue + " new value = " + newValue);
-            metricValue = newValue;
+            assertEventuallyTrue(
+                    () -> (long) metric.get(ValueType.VALUE) > metricValue,
+                    Duration.ofMillis(1000),
+                    "Node cache size must increase");
         }
 
-        final long value = metricValue;
+        final long value = (long) metric.get(ValueType.VALUE);
+        ;
 
         final VirtualMap lastMap = map0;
         lastMap.enableFlush();
@@ -774,11 +776,8 @@ class VirtualMapTests extends VirtualTestBase {
         map1.release();
 
         assertEventuallyTrue(
-                () -> {
-                    long lastValue = (long) metric.get(ValueType.VALUE);
-                    return lastValue < value;
-                },
-                Duration.ofSeconds(4),
+                () -> (long) metric.get(ValueType.VALUE) < value,
+                Duration.ofMillis(1000),
                 "Node cache size must decrease after flush");
     }
 
@@ -1373,6 +1372,173 @@ class VirtualMapTests extends VirtualTestBase {
         map2.release();
         map3.release();
         map4.release();
+    }
+
+    @Test
+    void garbageAboveThresholdResultsInGC() throws InterruptedException {
+        final int size = 63;
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("virtualMap.copyFlushCandidateThreshold", "64000")
+                // Enable flushes, if garbage is less than 55%
+                .withValue("virtualMap.percentFlushGarbageThreshold", "5")
+                .build();
+        final VirtualMap map0 = createMap(config);
+
+        for (int i = 0; i < size; i++) {
+            map0.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
+        }
+        final VirtualMap map1 = map0.copy();
+        map0.getHash();
+        map0.release();
+
+        Thread.sleep(500);
+        assertFalse(map0.isFlushed()); // Flush threshold not exceeded
+        assertFalse(map0.isMerged()); // Next copy is not released yet, can't merge
+
+        final VirtualMap map2 = map1.copy();
+        map1.getHash();
+        map1.release();
+
+        // map1: no leaf updates, no dirty hashes -> estimated size is only concurrent array overhead,
+        // 3 arrays x 8K each = 24K, so it should be merged
+        assertEventuallyTrue(map0::isMerged, Duration.ofMillis(1000), "Copy 0 must be merged");
+        assertFalse(map0.isFlushed());
+
+        // map1 is released -> map0 is merged to it. Estimated map1 size: 24K array overhead from
+        // map0 (3 arrays x 8K each), 2K leaf updates from map0, 3K hash updates from map0, no
+        // dirty leaves/hashes in map1 -> total size is slightly below 55K. Flush threshold is set
+        // to a higher value, so map1 should not be flushed, but merged to map2
+
+        // Update all the values. It will create some garbage, both leaves and hashes
+        for (int i = 0; i < size; i++) {
+            map2.put(TestKey.longToKey(i), new TestValue("u" + i), TestValueCodec.INSTANCE);
+        }
+
+        final VirtualMap map3 = map2.copy();
+        map2.getHash();
+        map2.release();
+
+        assertEventuallyTrue(map1::isMerged, Duration.ofMillis(1000), "Copy 1 should be merged");
+        assertFalse(map1.isFlushed());
+
+        // map2: all changes from map1, plus some dirty leaves, plus some dirty hashes, plus
+        // concurrent arrays overhead - about 84K total. Garbage is 2K dirty leaves and 3K
+        // dirty hashes - 5K garbage, which is slightly above 6%. Garbage threshold is set to 5%,
+        // so map2 should be GCed+merged rather than flushed
+
+        Thread.sleep(500);
+        assertFalse(map2.isFlushed()); // Above garbage threshold -> no flush
+        assertFalse(map2.isMerged()); // map3 is not released yet, can't merge
+
+        final VirtualMap map4 = map3.copy();
+        map3.getHash();
+        map3.release();
+
+        assertEventuallyTrue(map2::isMerged, Duration.ofMillis(1000), "Copy 2 should be merged");
+
+        map4.release();
+    }
+
+    // This test case is quite similar to garbageAboveThresholdResultsInGC() above, except
+    // the garbage threshold is set to 7% instead of 5%. It should trigger a GC + merge
+    // instead of a flush. Size math for all copies is the same, see comments in the
+    // previous test
+    @Test
+    void garbageBelowThresholdResultsInFlush() throws InterruptedException {
+        final int size = 63;
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("virtualMap.copyFlushCandidateThreshold", "64000")
+                // Enable flushes, if garbage is less than 50%
+                .withValue("virtualMap.percentFlushGarbageThreshold", "7")
+                .build();
+        final VirtualMap map0 = createMap(config);
+
+        for (int i = 0; i < size; i++) {
+            map0.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
+        }
+        final VirtualMap map1 = map0.copy();
+        map0.getHash();
+        map0.release();
+
+        Thread.sleep(500);
+        assertFalse(map0.isFlushed()); // Flush threshold not exceeded
+        assertFalse(map0.isMerged()); // Next copy is not released yet, can't merge
+
+        final VirtualMap map2 = map1.copy();
+        map1.getHash();
+        map1.release();
+
+        assertEventuallyTrue(map0::isMerged, Duration.ofMillis(1000), "Copy 0 must be merged");
+        assertFalse(map0.isFlushed());
+
+        for (int i = 0; i < size; i++) {
+            map2.put(TestKey.longToKey(i), new TestValue("u" + i), TestValueCodec.INSTANCE);
+        }
+
+        final VirtualMap map3 = map2.copy();
+        map2.getHash();
+        map2.release();
+
+        assertEventuallyTrue(map1::isMerged, Duration.ofMillis(1000), "Copy 1 should be merged");
+        assertFalse(map1.isFlushed());
+
+        assertEventuallyTrue(map2::isFlushed, Duration.ofMillis(1000), "Copy 2 should be flushed");
+        assertFalse(map2.isMerged());
+
+        map3.release();
+    }
+
+    @Test
+    void garbageCollectRemovesDeletedLeaves() throws InterruptedException {
+        final int size = 10;
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                // All copies are subject to flush or GC
+                .withValue("virtualMap.copyFlushCandidateThreshold", "1")
+                // Only zero garbage should result in a flush
+                .withValue("virtualMap.percentFlushGarbageThreshold", "0.01")
+                .build();
+        final VirtualMap map0 = createMap(config);
+
+        for (int i = 0; i < size; i++) {
+            map0.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
+        }
+
+        final VirtualMap map1 = map0.copy();
+        map0.getHash();
+        // Zero garbage -> flush
+        assertTrue(map0.shouldBeFlushed());
+        map0.release();
+        map0.waitUntilFlushed();
+
+        final Bytes toDelete = TestKey.longToKey(size - 1);
+        map1.remove(toDelete);
+
+        final VirtualMap map2 = map1.copy();
+        map1.getHash();
+        // The deleted key results in a garbage mutation -> no flush, but GC
+        assertFalse(map1.shouldBeFlushed());
+        map1.release();
+
+        // Create one more copy, so map2 becomes immutable/destroyed, and map1 can be merged
+        final VirtualMap map3 = map2.copy();
+        map2.getHash();
+        map2.release();
+
+        assertEventuallyTrue(map1::isMerged, Duration.ofMillis(1000), "Copy 1 should be merged");
+
+        // map1 is merged, and in-memory mode is on. The deleted key should be removed both from
+        // the cache and the data source
+        assertFalse(map2.containsKey(toDelete));
+        assertNull(map2.getBytes(toDelete));
+        assertNull(map2.getCache().lookupLeafByKey(toDelete));
+        assertFalse(map3.containsKey(toDelete));
+        assertNull(map3.getBytes(toDelete));
+        assertNull(map3.getCache().lookupLeafByKey(toDelete));
+
+        map3.release();
     }
 
     private void validateDeletedLeaves(
