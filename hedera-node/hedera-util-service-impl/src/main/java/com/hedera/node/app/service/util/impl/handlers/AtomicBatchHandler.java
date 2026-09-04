@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -104,7 +105,9 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         Set<TransactionID> txIds = new HashSet<>();
-        for (final var innerTxBytes : innerTxs) {
+        int evmTransactionIndex = -1;
+        for (int i = 0; i < innerTxs.size(); i++) {
+            final var innerTxBytes = innerTxs.get(i);
             final TransactionBody txBody;
             // use the checked version to throw PreCheckException if we cant parse the transaction
             txBody = innerTxnCache.computeIfAbsent(innerTxBytes);
@@ -118,7 +121,14 @@ public class AtomicBatchHandler implements TransactionHandler {
             if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
                 throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
             }
+
+            if (CONTRACT_OP_BODIES.contains(txBody.data().kind())) {
+                validateTruePreCheck(evmTransactionIndex == -1, INVALID_TRANSACTION_BODY);
+                evmTransactionIndex = i;
+            }
         }
+        validateTruePreCheck(
+                evmTransactionIndex == -1 || evmTransactionIndex == innerTxs.size() - 1, INVALID_TRANSACTION_BODY);
     }
 
     @Override
