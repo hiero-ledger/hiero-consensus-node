@@ -59,6 +59,8 @@ public class BlockBufferService {
     private static final int DEFAULT_BUFFER_SIZE = 150;
     private static final long DEFAULT_BUFFER_BYTES = 15L * BlockStreamingUtils.GB_TO_BYTES; // 15 GB
     private static final long MIN_BUFFER_BYTES = 10L * BlockStreamingUtils.MB_TO_BYTES; // 10 MB
+    private static final int DEFAULT_MAX_IN_PROGRESS_BLOCKS = 5;
+    private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
@@ -268,6 +270,14 @@ public class BlockBufferService {
     }
 
     /**
+     * @return the configured maximum number of in-progress blocks allowed
+     */
+    private int maxInProgressBlocks() {
+        final int maxInProgressBlocks = bufferConfig().maxInProgressBlocks();
+        return maxInProgressBlocks <= 1 ? DEFAULT_MAX_IN_PROGRESS_BLOCKS : maxInProgressBlocks;
+    }
+
+    /**
      * @return the configured maximum number of buffered blocks
      */
     private int maxBufferedBlocks() {
@@ -275,6 +285,9 @@ public class BlockBufferService {
         return maxBufferedBlocks <= 0 ? DEFAULT_BUFFER_SIZE : maxBufferedBlocks;
     }
 
+    /**
+     * @return the configured maximum number of bytes the buffer can consume
+     */
     private long maxBufferedBytes() {
         final String rawMaxBytes = bufferConfig().maxBytes();
         final BufferMaxBytes maxBytes = bufferMaxBytesRef.get();
@@ -724,6 +737,7 @@ public class BlockBufferService {
         final long highestBlockAcked = highestAckedBlockNumber.get();
         final int maxBlocksAllowed = maxBufferedBlocks();
         final long maxBytesAllowed = maxBufferedBytes();
+        final int maxInProgressBlocksAllowed = maxInProgressBlocks();
         final boolean backpressureEnabled = isBackpressureEnabled();
         final int maxAckedBlocksToRetain = bufferConfig().ackedBlocksToRetain();
         final List<Long> orderedBlocks = new ArrayList<>(blockBuffer.keySet());
@@ -745,7 +759,6 @@ public class BlockBufferService {
 
         int numPruned = 0;
         int numChecked = 0;
-        int numInProgress = 0;
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
         long bytesPruned = 0;
@@ -754,14 +767,6 @@ public class BlockBufferService {
         for (final long blockNumber : orderedBlocks) {
             final BlockState block = blockBuffer.get(blockNumber);
             ++numChecked;
-
-            if (!block.isClosed()) {
-                // this block is not closed, and therefore not eligible to be pruned
-                ++numInProgress;
-                newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
-                newLatestBlock = Math.max(newLatestBlock, blockNumber);
-                continue;
-            }
 
             final boolean isAcked = blockNumber <= highestBlockAcked;
             final boolean maxBlocksExceeded = blockBuffer.size() > maxBlocksAllowed;
@@ -792,11 +797,19 @@ public class BlockBufferService {
                 large (either in terms of number of blocks or number of bytes). Based on this, the block can safely be
                 pruned.
                  */
-                logger.trace(
-                        "Unacknowledged block ({}) is being pruned (reason: backPressureEnabled(false), maxBlocksExceeded({}), maxBytesExceeded({}))",
-                        blockNumber,
-                        maxBlocksExceeded,
-                        maxBytesExceeded);
+                if (!block.isClosed()) {
+                    logger.warn(
+                            "Incomplete block ({}) is being pruned (reason: backPressureEnabled(false), maxBlocksExceeded({}), maxBytesExceeded({}))",
+                            blockNumber,
+                            maxBlocksExceeded,
+                            maxBytesExceeded);
+                } else {
+                    logger.trace(
+                            "Unacknowledged block ({}) is being pruned (reason: backPressureEnabled(false), maxBlocksExceeded({}), maxBytesExceeded({}))",
+                            blockNumber,
+                            maxBlocksExceeded,
+                            maxBytesExceeded);
+                }
                 blockBuffer.remove(blockNumber);
                 ++numPruned;
                 final long blockSizeInBytes = block.sizeBytes();
@@ -818,13 +831,23 @@ public class BlockBufferService {
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
+        final long latestProducedBlock = lastProducedBlockNumber.get();
         final long finalHighestAckedBlock = highestAckedBlockNumber.get();
         int finalUnackedBlockCount = 0;
         long finalUnackedBlockBytes = 0;
+        int finalNumInProgress = 0;
 
         for (final BlockState block : blockBuffer.values()) {
-            if (block.isClosed() && (finalHighestAckedBlock < 0 || block.blockNumber() > finalHighestAckedBlock)) {
-                // we only care about unacknowledged, closed blocks; don't count in-progress blocks
+            if (latestProducedBlock == block.blockNumber() && !block.isClosed()) {
+                // the most recent block isn't closed yet, so don't count it as unacked
+                continue;
+            }
+
+            if (!block.isClosed()) {
+                ++finalNumInProgress;
+            }
+
+            if (finalHighestAckedBlock < 0 || block.blockNumber() > finalHighestAckedBlock) {
                 finalUnackedBlockCount++;
                 finalUnackedBlockBytes += block.sizeBytes();
             }
@@ -832,14 +855,18 @@ public class BlockBufferService {
 
         final BigDecimal bufferCountSaturationPercent = BigDecimal.valueOf(finalUnackedBlockCount)
                 .divide(BigDecimal.valueOf(maxBlocksAllowed), 4, RoundingMode.HALF_EVEN)
-                .multiply(BigDecimal.valueOf(100));
+                .multiply(ONE_HUNDRED);
         final BigDecimal bufferBytesSaturationPercent = BigDecimal.valueOf(finalUnackedBlockBytes)
                 .divide(BigDecimal.valueOf(maxBytesAllowed), 4, RoundingMode.HALF_EVEN)
-                .multiply(BigDecimal.valueOf(100));
-        final BigDecimal maxSaturation = bufferCountSaturationPercent.max(bufferBytesSaturationPercent);
+                .multiply(ONE_HUNDRED);
+        final BigDecimal bufferInProgressSaturationPercent = BigDecimal.valueOf(finalNumInProgress)
+                .divide(BigDecimal.valueOf(maxInProgressBlocksAllowed), 4, RoundingMode.HALF_EVEN)
+                .multiply(ONE_HUNDRED);
+        BigDecimal maxSaturation = bufferCountSaturationPercent.max(bufferBytesSaturationPercent);
+        maxSaturation = maxSaturation.max(bufferInProgressSaturationPercent);
         final double actionStage = actionStageThreshold();
         final boolean isAtActionStage = maxSaturation.compareTo(BigDecimal.valueOf(actionStage)) >= 0;
-        final boolean isSaturated = maxSaturation.compareTo(BigDecimal.valueOf(100)) >= 0;
+        final boolean isSaturated = maxSaturation.compareTo(ONE_HUNDRED) >= 0;
         final int liveBlockCount = blockBuffer.size();
         final long liveByteCount = bufferSizeInBytes.sum();
 
@@ -850,12 +877,12 @@ public class BlockBufferService {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block Buffer Status - Config(MaxBlocks: {}, MaxBytes: {}, MaxAckedBlocksToRetain: {}) CheckInfo(Checked: {}, InProgress: {}, PendingAck: {}) PruneInfo(Blocks: {}, Bytes: {}) LiveInfo(Blocks: {}, Bytes: {}, HighestBlockAcked: {}) SaturationInfo(ByBlockCount: {}%, ByTotalBytes: {}%)",
+                    "Block Buffer Status - Config(MaxBlocks: {}, MaxBytes: {}, MaxAckedBlocksToRetain: {}) CheckInfo(Checked: {}, InProgress: {}, PendingAck: {}) PruneInfo(Blocks: {}, Bytes: {}) LiveInfo(Blocks: {}, Bytes: {}, HighestBlockAcked: {}) SaturationInfo(ByBlockCount: {}%, ByTotalBytes: {}%, ByInProgressBlocks: {}%)",
                     maxBlocksAllowed,
                     maxBytesAllowed,
                     maxAckedBlocksToRetain,
                     numChecked,
-                    numInProgress,
+                    finalNumInProgress,
                     finalUnackedBlockCount,
                     numPruned,
                     bytesPruned,
@@ -863,18 +890,20 @@ public class BlockBufferService {
                     liveByteCount,
                     finalHighestAckedBlock,
                     bufferCountSaturationPercent.toPlainString(),
-                    bufferBytesSaturationPercent.toPlainString());
+                    bufferBytesSaturationPercent.toPlainString(),
+                    bufferInProgressSaturationPercent.toPlainString());
         }
 
         return new PruneResult(
                 Instant.now(),
                 new PruneConfig(maxBlocksAllowed, maxBytesAllowed, maxAckedBlocksToRetain),
-                new CheckInfo(numChecked, numInProgress, finalUnackedBlockCount),
+                new CheckInfo(numChecked, finalNumInProgress, finalUnackedBlockCount),
                 new PruneInfo(numPruned, bytesPruned, blocksPruned),
                 new LiveBufferInfo(liveBlockCount, liveByteCount, finalHighestAckedBlock),
                 new SaturationInfo(
                         bufferCountSaturationPercent.doubleValue(),
                         bufferBytesSaturationPercent.doubleValue(),
+                        bufferInProgressSaturationPercent.doubleValue(),
                         isSaturated,
                         isAtActionStage));
     }
@@ -898,12 +927,14 @@ public class BlockBufferService {
     record SaturationInfo(
             double blockCountSaturationPercent,
             double bytesSaturationPercent,
+            double blocksInProgressSaturationPercent,
             boolean isSaturated,
             boolean isAtActionStage) {
-        static final SaturationInfo NIL = new SaturationInfo(0.0D, 0.0D, false, false);
+        static final SaturationInfo NIL = new SaturationInfo(0.0D, 0.0D, 0.0D, false, false);
 
         double maxSaturationPercent() {
-            return Double.max(blockCountSaturationPercent, bytesSaturationPercent);
+            final double d = Double.max(blockCountSaturationPercent, bytesSaturationPercent);
+            return Double.max(d, blocksInProgressSaturationPercent);
         }
     }
 
@@ -1090,9 +1121,10 @@ public class BlockBufferService {
                 blockStreamMetrics.recordBackPressureActive();
 
                 logger.warn(
-                        "Block buffer is saturated; backpressure is being enabled (blockCountSaturation: {}%, bytesSaturation: {}%)",
+                        "Block buffer is saturated; backpressure is being enabled (blockCountSaturation: {}%, bytesSaturation: {}%, blocksInProgressSaturation: {}%)",
                         latestPruneResult.saturationInfo.blockCountSaturationPercent,
-                        latestPruneResult.saturationInfo.bytesSaturationPercent);
+                        latestPruneResult.saturationInfo.bytesSaturationPercent,
+                        latestPruneResult.saturationInfo.blocksInProgressSaturationPercent);
             } else {
                 // If the existing future is not null and not completed, re-use it
                 newCf = oldCf;
