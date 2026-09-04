@@ -8,6 +8,8 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
+import com.hedera.services.bdd.spec.transactions.contract.HapiBaseCall;
+import com.hedera.services.bdd.spec.transactions.contract.HapiBaseContractCreate;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,14 +36,24 @@ public class RandomAtomicBatch implements OpProvider {
 
     @Override
     public Optional<HapiSpecOperation> get() {
-        var opsToInclude = new ArrayList<HapiTxnOp>();
+        var opsToInclude = new ArrayList<HapiTxnOp<?>>();
+        HapiTxnOp<?> evmOp = null;
 
-        // Iterate through the provided operations and collect those that are instances of HapiTxnOp
+        // Retain at most one EVM transaction and append it after all non-EVM transactions.
         for (var o : ops) {
             var op = o.get();
-            if (op.isPresent() && op.get() instanceof HapiTxnOp<?>) {
-                opsToInclude.add((HapiTxnOp<?>) op.get());
+            if (op.isPresent() && op.get() instanceof HapiTxnOp<?> txnOp) {
+                if (isEvmTransaction(txnOp)) {
+                    if (evmOp == null) {
+                        evmOp = txnOp;
+                    }
+                } else {
+                    opsToInclude.add(txnOp);
+                }
             }
+        }
+        if (evmOp != null) {
+            opsToInclude.add(evmOp);
         }
 
         // Iterate through the provided operations and add batchKeys to each
@@ -57,5 +69,9 @@ public class RandomAtomicBatch implements OpProvider {
                 .hasKnownStatusFrom(permissibleOutcomes);
 
         return Optional.of(atomicBatch);
+    }
+
+    private static boolean isEvmTransaction(final HapiTxnOp<?> op) {
+        return op instanceof HapiBaseCall<?> || op instanceof HapiBaseContractCreate<?>;
     }
 }
