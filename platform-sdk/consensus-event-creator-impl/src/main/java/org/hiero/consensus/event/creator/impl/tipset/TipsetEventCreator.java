@@ -2,8 +2,8 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
+import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
@@ -37,9 +37,9 @@ import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for creating new events using the tipset algorithm.
@@ -64,7 +64,7 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * The address book for the current network.
      */
-    private final Roster roster;
+    private final RosterWrapper roster;
 
     /**
      * The size of the current address book.
@@ -124,16 +124,16 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Time time,
             @NonNull final SecureRandom random,
             @NonNull final BytesSigner signer,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        this.time = Objects.requireNonNull(time);
-        this.random = Objects.requireNonNull(random);
-        this.signer = Objects.requireNonNull(signer);
-        this.selfId = Objects.requireNonNull(selfId);
-        this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
-        this.roster = Objects.requireNonNull(roster);
+        this.time = requireNonNull(time);
+        this.random = requireNonNull(random);
+        this.signer = requireNonNull(signer);
+        this.selfId = requireNonNull(selfId);
+        this.transactionSupplier = requireNonNull(transactionSupplier);
+        this.roster = requireNonNull(roster);
 
         final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
@@ -143,7 +143,7 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
-        networkSize = roster.rosterEntries().size();
+        networkSize = roster.size();
 
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
@@ -168,7 +168,7 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         final NodeId eventCreator = event.getCreatorId();
-        if (RosterUtils.getIndex(roster, eventCreator.id()) == -1) {
+        if (!roster.contains(eventCreator)) {
             return;
         }
         final boolean selfEvent = eventCreator.equals(selfId);
@@ -205,7 +205,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
         this.lastReceivedEventWindow = time.now();
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
@@ -213,7 +213,7 @@ public class TipsetEventCreator implements EventCreator {
 
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+        this.quiescenceCommand = requireNonNull(quiescenceCommand);
     }
 
     /**

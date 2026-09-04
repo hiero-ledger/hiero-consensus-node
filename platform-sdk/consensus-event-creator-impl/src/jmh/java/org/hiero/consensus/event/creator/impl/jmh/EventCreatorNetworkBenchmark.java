@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.jmh;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
+
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -27,10 +27,11 @@ import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -74,7 +75,7 @@ public class EventCreatorNetworkBenchmark {
     private List<DefaultEventCreationManager> eventCreators;
 
     /** The roster defining the network. */
-    private Roster roster;
+    private RosterWrapper roster;
 
     /** Total number of events created in the current iteration. */
     private int eventsCreatedInIteration;
@@ -91,8 +92,7 @@ public class EventCreatorNetworkBenchmark {
     @Setup(Level.Trial)
     public void setupTrial() {
         // Build a roster with real keys
-        roster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
-                .getRoster();
+        roster = randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED);
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 
@@ -108,8 +108,8 @@ public class EventCreatorNetworkBenchmark {
         final Time time = Time.getCurrent();
 
         // Create an event creator for each node
-        for (final RosterEntry entry : roster.rosterEntries()) {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+        for (final RosterEntryWrapper entry : roster.rosterEntries()) {
+            final NodeId nodeId = entry.nodeId();
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
             final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);

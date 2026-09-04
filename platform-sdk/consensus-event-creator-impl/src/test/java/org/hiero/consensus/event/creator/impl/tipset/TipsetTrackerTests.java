@@ -3,12 +3,11 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -24,9 +23,10 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -34,15 +34,15 @@ import org.junit.jupiter.api.Test;
 class TipsetTrackerTests {
 
     private static void assertTipsetEquality(
-            @NonNull final Roster roster, @NonNull final Tipset expected, @NonNull final Tipset actual) {
+            @NonNull final RosterWrapper roster, @NonNull final Tipset expected, @NonNull final Tipset actual) {
         assertThat(actual.size()).isEqualTo(expected.size());
 
-        for (final RosterEntry address : roster.rosterEntries()) {
-            assertThat(actual.getTipSequenceNumberForNode(NodeId.of(address.nodeId())))
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
+            assertThat(actual.getTipSequenceNumberForNode(address.nodeId()))
                     .withFailMessage(
                             "Expected tip generation for node %s to be %s but was %s",
                             address.nodeId(), expected, actual)
-                    .isEqualTo(expected.getTipSequenceNumberForNode(NodeId.of(address.nodeId())));
+                    .isEqualTo(expected.getTipSequenceNumberForNode(address.nodeId()));
         }
     }
 
@@ -57,7 +57,7 @@ class TipsetTrackerTests {
         final Random random = getRandomPrintSeed();
 
         final int nodeCount = random.nextInt(10, 20);
-        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
+        final RosterWrapper roster = randomRoster(random, nodeCount);
         final NodeId selfId = NodeId.of(random.nextLong(nodeCount));
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
@@ -69,8 +69,8 @@ class TipsetTrackerTests {
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
 
-            final NodeId creator = NodeId.of(
-                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+            final NodeId creator =
+                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
 
             birthRound += random.nextLong(0, 3) / 2;
 
@@ -78,8 +78,8 @@ class TipsetTrackerTests {
             final Set<NodeId> desiredParents = new HashSet<>();
             final int maxParentCount = random.nextInt(nodeCount);
             for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
-                final NodeId parent = NodeId.of(
-                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+                final NodeId parent =
+                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
 
                 // We are only trying to generate a random number of parents, the exact count is unimportant.
                 // So it doesn't matter if the actual number of parents is less than the number we requested.

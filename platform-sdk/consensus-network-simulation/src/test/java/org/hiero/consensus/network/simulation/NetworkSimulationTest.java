@@ -341,8 +341,9 @@ public class NetworkSimulationTest {
                 creatorNetwork.getPlatformContext().getConfiguration(),
                 creatorNetwork.getPlatformContext().getMetrics(),
                 creatorNetwork.getPlatformContext().getTime(),
-                creatorNetwork.getRoster(),
-                NodeId.of(creatorNetwork.getRoster().rosterEntries().getFirst().nodeId()),
+                creatorNetwork.getPbjRoster(),
+                NodeId.of(
+                        creatorNetwork.getPbjRoster().rosterEntries().getFirst().nodeId()),
                 _ -> false,
                 0L);
 
