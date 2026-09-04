@@ -358,6 +358,33 @@ class WritableHintsStoreImplTest {
     }
 
     @Test
+    void handoffPurgesUpcomingConstructionVotes() {
+        // The upcoming construction's voters are the outgoing roster (its source roster == the
+        // fromRoster passed to handoff); its votes must be purged so they are not orphaned once it
+        // becomes active. The outgoing active construction here has no votes, so a purge to empty
+        // can only come from the upcoming construction being purged.
+        final var activeConstruction = HintsConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+        final var nextConstruction = HintsConstruction.newBuilder()
+                .constructionId(456L)
+                .sourceRosterHash(C_ROSTER_HASH)
+                .targetRosterHash(C_ROSTER_HASH)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        setConstructions(activeConstruction, nextConstruction);
+        addSomeVotesFor(456L, C_ROSTER);
+        assertEquals(3, subject.getVotes(456L, Set.of(1L, 2L, 3L)).size());
+
+        subject.handoff(C_ROSTER, C_ROSTER, C_ROSTER_HASH, false);
+
+        assertSame(nextConstruction, constructionNow(ACTIVE_HINTS_CONSTRUCTION_STATE_ID));
+        assertEquals(0L, votesNow().size());
+    }
+
+    @Test
     void setCrsState() {
         final var crsState = setInitialCrsState();
 
