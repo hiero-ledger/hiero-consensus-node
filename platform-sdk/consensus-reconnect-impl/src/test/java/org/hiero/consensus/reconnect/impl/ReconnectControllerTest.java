@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -22,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -85,7 +85,7 @@ class ReconnectControllerTest {
     private Configuration configuration;
     private Roster roster;
     private Platform platform;
-    private ConsensusLayer consensusLayer;
+    private AtomicReference<ConsensusLayer> consensusLayerRef;
     private ReconnectCoordinator reconnectCoordinator;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private SavedStateController savedStateController;
@@ -98,6 +98,7 @@ class ReconnectControllerTest {
     private ReservedSignedState testReservedSignedState;
     private VirtualMapState testWorkingState;
     private SignedStateValidator signedStateValidator;
+    private NotificationEngine notificationEngine;
 
     @TempDir
     Path tempDir;
@@ -153,7 +154,7 @@ class ReconnectControllerTest {
 
         // Mock Platform
         platform = mock(Platform.class);
-        consensusLayer = mock(ConsensusLayer.class);
+        consensusLayerRef = new AtomicReference<>(mock(ConsensusLayer.class));
 
         // Mock ReconnectCoordinator
         reconnectCoordinator = mock(ReconnectCoordinator.class);
@@ -180,6 +181,8 @@ class ReconnectControllerTest {
 
         // Create the signed state validator
         signedStateValidator = mock(SignedStateValidator.class);
+
+        notificationEngine = mock(NotificationEngine.class);
     }
 
     @AfterEach
@@ -203,10 +206,9 @@ class ReconnectControllerTest {
     private ReconnectController createController() {
         return new ReconnectController(
                 configuration,
-                Time.getCurrent(),
                 roster,
                 platform,
-                consensusLayer,
+                consensusLayerRef,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -214,7 +216,8 @@ class ReconnectControllerTest {
                 stateProvider,
                 selfId,
                 fallenBehindMonitor,
-                signedStateValidator);
+                signedStateValidator,
+                notificationEngine);
     }
 
     /**
@@ -223,10 +226,9 @@ class ReconnectControllerTest {
     private ReconnectController createController(@NonNull final Configuration configuration, @NonNull final Time time) {
         return new ReconnectController(
                 configuration,
-                time,
                 roster,
                 platform,
-                consensusLayer,
+                consensusLayerRef,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -234,7 +236,8 @@ class ReconnectControllerTest {
                 stateProvider,
                 selfId,
                 fallenBehindMonitor,
-                signedStateValidator);
+                signedStateValidator,
+                notificationEngine);
     }
 
     /**
@@ -466,7 +469,6 @@ class ReconnectControllerTest {
         // Verify the expected interactions
         verify(reconnectCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
         verify(reconnectCoordinator, times(1)).pauseGossip();
-        verify(reconnectCoordinator, atLeast(1)).clear();
         verify(reconnectCoordinator, times(1)).loadReconnectState(any());
         verify(reconnectCoordinator, times(1)).resumeGossip();
     }
@@ -576,13 +578,6 @@ class ReconnectControllerTest {
                 })
                 .when(reconnectCoordinator)
                 .pauseGossip();
-
-        doAnswer(inv -> {
-                    operationOrder.updateAndGet(s -> s + "clear,");
-                    return null;
-                })
-                .when(reconnectCoordinator)
-                .clear();
 
         doAnswer(inv -> {
                     operationOrder.updateAndGet(s -> s + "resumeGossip,");

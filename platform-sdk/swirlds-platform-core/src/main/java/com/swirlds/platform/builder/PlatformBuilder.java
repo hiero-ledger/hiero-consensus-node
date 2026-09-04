@@ -113,6 +113,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /** The building blocks used to construct the consensus layer. */
     protected ConsensusLayerAdapterBuildingBlocks buildingBlocks;
 
+    private ConsensusLayerAdapterFactory factory;
+
     /** False if this builder has not yet been used to build a platform, true if it has. */
     private boolean used = false;
 
@@ -178,6 +180,13 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", rosterHistory);
     }
 
+    @NonNull
+    public Platform rebuild() {
+        buildingBlocks.wiringModel().stop();
+
+//        final ConsensusLayer consensusLayer = factory.createConsensusLayer();
+    }
+
     /**
      * Build a platform. Platform is not started.
      *
@@ -188,7 +197,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         throwIfAlreadyUsed();
         used = true;
         final ConsensusLayerAdapterInputs inputs = createConsensusLayerInputs();
-        final ConsensusLayerAdapterFactory factory = new ConsensusLayerAdapterFactory(inputs);
+        factory = new ConsensusLayerAdapterFactory(inputs);
         buildingBlocks = factory.create();
 
         ConsensusLayerAdapterWiring.wire(inputs, buildingBlocks);

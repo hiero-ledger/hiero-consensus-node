@@ -40,4 +40,30 @@ public record ConsensusLayerInputs(
         // The fields below are for testing only.
         @Nullable WiringModel wiringModel,
         @Nullable SecureRandom secureRandom,
-        @NonNull Map<String, Object> additionalProperties) {}
+        @NonNull Map<String, Object> additionalProperties) {
+
+    public ConsensusLayerInputs copyWithNewValues(@NonNull final ConsensusLayerInputs inputsToCopy,
+            @NonNull final ConsensusSnapshot newSnapshot,
+            @NonNull final RunningEventHashOverride newRunningEventHashOverride) {
+        return new ConsensusLayerInputs(
+                inputsToCopy.configuration(),
+                inputsToCopy.metrics(),
+                inputsToCopy.time(),
+                inputsToCopy.rosterHistory(),
+                inputsToCopy.keysAndCerts(),
+                inputsToCopy.selfId(),
+                inputsToCopy.recycleBin(),
+                inputsToCopy.fileSystemManager(),
+                inputsToCopy.executionLayerCallbacks(),
+                newSnapshot,
+                newRunningEventHashOverride,
+                inputsToCopy.consensusEventStreamName(),
+                inputsToCopy.version(),
+                inputsToCopy.transactionOffsetNanos(),
+                inputsToCopy.transactionLimits(),
+                inputsToCopy.freezeTime(),
+                inputsToCopy.wiringModel(),
+                inputsToCopy.secureRandom(),
+                inputsToCopy.additionalProperties());
+    }
+}

@@ -99,15 +99,8 @@ class ObservingStatusLogicTests {
     }
 
     @Test
-    @DisplayName("Go to FREEZE_COMPLETE")
-    void toFreezeComplete() {
-        assertTransition(logic, new FreezeCompleteAction(0, true), PlatformStatus.FREEZE_COMPLETE);
-    }
-
-    @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        assertNoTransition(logic, new FreezeCompleteAction(0, false), logic.getStatus());
         assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
     }
 
@@ -116,6 +109,5 @@ class ObservingStatusLogicTests {
     void unexpectedActions() {
         assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
         assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
     }
 }

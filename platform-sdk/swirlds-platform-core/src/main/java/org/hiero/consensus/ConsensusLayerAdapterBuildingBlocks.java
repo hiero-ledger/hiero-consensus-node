@@ -9,9 +9,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.event.stream.ConsensusEventStream;
-import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -23,7 +20,7 @@ import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 public record ConsensusLayerAdapterBuildingBlocks(
         @NonNull WiringModel wiringModel,
         @NonNull Configuration configuration,
-        @NonNull ConsensusLayer consensusLayer,
+        @NonNull ConsensusLayerLifecycleManager consensusLayerLifecycleManager,
         @NonNull IssDetectionModule issDetectionModule,
         @NonNull TransactionHandlingModule transactionHandlingModule,
         @NonNull StateModule stateModule,

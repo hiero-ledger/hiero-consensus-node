@@ -9,12 +9,13 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.AppNotifier;
+import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
@@ -29,12 +30,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.ConsensusLayer;
+import org.hiero.consensus.ConsensusLayerLifecycleManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -67,26 +70,26 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
     private final Roster roster;
     private final SignedStateValidator signedStateValidator;
     private final Platform platform;
-    private final Configuration configuration;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider;
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
-    private final ConsensusLayer consensusLayer;
+    private final ConsensusLayerLifecycleManager consensusLayerLifecycleManager;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AtomicBoolean run = new AtomicBoolean(true);
     private final ReconnectCoordinator reconnectCoordinator;
+    private final NotificationEngine notificationEngine;
     private volatile long reconnectRoundNumber;
     private volatile boolean waitingForReconnectStateOnDisk = false;
+    private volatile ReservedSignedState acquiredReservedState;
 
     public ReconnectController(
             @NonNull final Configuration configuration,
-            @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final Platform platform,
-            @NonNull final ConsensusLayer consensusLayer,
+            @NonNull final ConsensusLayerLifecycleManager consensusLayerLifecycleManager,
             @NonNull final ReconnectCoordinator reconnectCoordinator,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
@@ -94,19 +97,20 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final SignedStateValidator signedStateValidator) {
+            @NonNull final SignedStateValidator signedStateValidator,
+            @NonNull final NotificationEngine notificationEngine) {
         this.roster = requireNonNull(roster);
         this.peerReservedSignedStateResultProvider = requireNonNull(peerReservedSignedStateResultProvider);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
         this.reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
-        this.consensusLayer = requireNonNull(consensusLayer);
+        this.consensusLayerLifecycleManager = requireNonNull(consensusLayerLifecycleManager);
         this.reconnectCoordinator = reconnectCoordinator;
-        this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.savedStateController = requireNonNull(savedStateController);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
+        this.notificationEngine = requireNonNull(notificationEngine);
         this.selfId = selfId;
     }
 
@@ -138,7 +142,7 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
                 exitIfReconnectDisabled();
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, destroying the consensus layer");
                 waitingForReconnectStateOnDisk = true;
-                consensusLayer.destroy();
+                consensusLayerLifecycleManager.get().destroy();
 
                 final State currentState = stateLifecycleManager.getMutableState();
                 currentState.getHash(); // hash the state
@@ -194,7 +198,8 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
 
             // We validate the data in the peer state relative to our current state
             final SignedStateValidationData data = new SignedStateValidationData(currentState, roster);
-            final SignedState acquiredState = result.reservedSignedState().get();
+            acquiredReservedState = result.reservedSignedState().getAndReserve("ReconnectController.acquiredState");
+            final SignedState acquiredState = acquiredReservedState.get();
             reconnectRoundNumber = acquiredState.getRound();
 
             SignedStateFileReader.registerServiceStates(acquiredState);
@@ -203,7 +208,7 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
 
             initializeState(acquiredState);
             savedStateController.reconnectStateReceived(
-                    acquiredState.reserve("savedStateController.reconnectStateReceived"));
+                    acquiredReservedState.getAndReserve("savedStateController.reconnectStateReceived"));
             reconnectCoordinator.loadReconnectState(acquiredState);
 
             return AttemptReconnectResult.ok();
@@ -219,20 +224,20 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
         }
 
         if (waitingForReconnectStateOnDisk) {
-            // TODO recreate the consensus layer
-
             // Notify any listeners that the reconnect has been completed
-            sendReconnectCompleteNotification(result.reservedSignedState().get());
+            sendReconnectCompleteNotification();
+            acquiredReservedState.close();
             waitingForReconnectStateOnDisk = false;
+
+            // TODO recreate the consensus layer
         }
     }
 
-    private void sendReconnectCompleteNotification(@NonNull final SignedState signedState) {
-        buildingBlocks
-                .notifierWiring()
-                .getInputWire(AppNotifier::sendReconnectCompleteNotification)
-                .put(new ReconnectCompleteNotification(
-                        signedState.getRound(), signedState.getConsensusTimestamp(), signedState.getState()));
+    private void sendReconnectCompleteNotification() {
+        final SignedState acquiredState = acquiredReservedState.get();
+        final ReconnectCompleteNotification notification = new ReconnectCompleteNotification(
+                acquiredState.getRound(), acquiredState.getConsensusTimestamp(), acquiredState.getState());
+        notificationEngine.dispatch(ReconnectCompleteListener.class, notification);
     }
 
     /**

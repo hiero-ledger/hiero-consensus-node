@@ -5,8 +5,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
@@ -14,10 +16,12 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerLifecycleManager;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -47,10 +51,11 @@ public class DefaultReconnectModule implements ReconnectModule {
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final ConsensusLayerAdapterBuildingBlocks buildingBlocks,
             @NonNull final Platform platform,
-            @NonNull final ConsensusLayer consensusLayer,
+            @NonNull final ConsensusLayerLifecycleManager consensusLayerLifecycleManager,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final NotificationEngine notificationEngine) {
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle =
@@ -77,10 +82,9 @@ public class DefaultReconnectModule implements ReconnectModule {
 
         final ReconnectController reconnectController = new ReconnectController(
                 configuration,
-                time,
                 currentRoster,
                 platform,
-                consensusLayer,
+                consensusLayerLifecycleManager,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 buildingBlocks.savedStateController(),
@@ -88,7 +92,8 @@ public class DefaultReconnectModule implements ReconnectModule {
                 reservedSignedStateResultPromise,
                 selfId,
                 buildingBlocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator());
+                new DefaultSignedStateValidator(),
+                notificationEngine);
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
                 .setComponent("platform-core")

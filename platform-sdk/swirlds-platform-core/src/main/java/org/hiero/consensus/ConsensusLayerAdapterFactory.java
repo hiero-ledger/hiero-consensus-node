@@ -158,6 +158,8 @@ public class ConsensusLayerAdapterFactory {
     @NonNull
     private final Map<String, Object> additionalProperties;
 
+    private ConsensusLayerInputs consensusLayerInputs;
+
     /**
      * Creates a new factory with the inputs provided by the execution layer.
      *
@@ -204,7 +206,7 @@ public class ConsensusLayerAdapterFactory {
 
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
 
-        final SignedStateNexus latestImmutableStateNexus = createLatestImmutableStateNexus(initialState);
+        final SignedStateNexus latestImmutableStateNexus = createLatestImmutableStateNexus();
 
         final TransactionHandlingModule transactionHandlingModule =
                 createTransactionHandlingModule(latestImmutableStateNexus);
@@ -224,12 +226,12 @@ public class ConsensusLayerAdapterFactory {
         final ExecutionLayerCallbacks executionLayerCallbacks = createExecutionLayerCallbacks(latestImmutableStateNexus,
                 notifierWiring, stateModule, transactionHandlingModule, platformStatusReference);
 
-        final ConsensusLayer consensusLayer = createConsensusLayer(executionLayerCallbacks);
+        final ConsensusLayerLifecycleManager consensusLayerLifecycleManager = createConsensusLayerLifecycleManager(executionLayerCallbacks);
 
         return new ConsensusLayerAdapterBuildingBlocks(
                 wiringModel,
                 configuration,
-                consensusLayer,
+                consensusLayerLifecycleManager,
                 issDetectionModule,
                 transactionHandlingModule,
                 stateModule,
@@ -242,8 +244,8 @@ public class ConsensusLayerAdapterFactory {
                 latestCompleteStateNexus);
     }
 
-    private ConsensusLayer createConsensusLayer(@NonNull final ExecutionLayerCallbacks executionLayerCallbacks) {
-        final ConsensusSnapshot consensusSnapshot = getInitialConsensusSnapshot();
+    private ConsensusLayerLifecycleManager createConsensusLayerLifecycleManager(@NonNull final ExecutionLayerCallbacks executionLayerCallbacks) {
+        final ConsensusSnapshot consensusSnapshot = getInitialConsensusSnapshot(initialState);
 
         final Hash legacyRunningEventHash =
                 requireNonNullElse(legacyRunningEventHashOf(initialState.get().getState()), Cryptography.NULL_HASH);
@@ -252,7 +254,7 @@ public class ConsensusLayerAdapterFactory {
 
         final Instant freezeTime = getFreezeTime();
 
-        final ConsensusLayerInputs consensusLayerInputs = new ConsensusLayerInputs(
+        consensusLayerInputs = new ConsensusLayerInputs(
                 configuration,
                 metrics,
                 time,
@@ -273,8 +275,7 @@ public class ConsensusLayerAdapterFactory {
                 secureRandom,
                 additionalProperties
         );
-        final ConsensusLayerFactory consensusLayerFactory = new ConsensusLayerFactory(consensusLayerInputs);
-        return consensusLayerFactory.create();
+        return new ConsensusLayerLifecycleManager(consensusLayerInputs);
     }
 
     @Nullable
@@ -290,8 +291,8 @@ public class ConsensusLayerAdapterFactory {
         return null;
     }
 
-    private ConsensusSnapshot getInitialConsensusSnapshot() {
-        return PlatformStateUtils.consensusSnapshotOf(initialState.get().getState());
+    private ConsensusSnapshot getInitialConsensusSnapshot(@NonNull final ReservedSignedState state) {
+        return PlatformStateUtils.consensusSnapshotOf(state.get().getState());
     }
 
     private ExecutionLayerCallbacks createExecutionLayerCallbacks(
@@ -332,7 +333,7 @@ public class ConsensusLayerAdapterFactory {
     }
 
     @NonNull
-    private SignedStateNexus createLatestImmutableStateNexus(@NonNull final ReservedSignedState initialState) {
+    private SignedStateNexus createLatestImmutableStateNexus() {
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         latestImmutableStateNexus.setState(initialState.get().reserve("set latest immutable to initial state"));
         return latestImmutableStateNexus;
@@ -356,11 +357,13 @@ public class ConsensusLayerAdapterFactory {
                 () -> buildingBlocks.lastCompleteSignedState().getState("teach reconnect"),
                 buildingBlocks,
                 platform,
+                buildingBlocks.consensusLayerLifecycleManager(),
                 stateLifecycleManager,
                 consensusStateEventHandler,
-                selfId);
+                selfId,
+                buildingBlocks.notificationEngine());
         final PeerProtocolFactory reconnectPeerProtocolFactory = reconnectModule.getReconnectPeerProtocolFactory();
-        buildingBlocks.consensusLayer().setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
+        buildingBlocks.consensusLayerRef().get().setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
     }
 
     @NonNull

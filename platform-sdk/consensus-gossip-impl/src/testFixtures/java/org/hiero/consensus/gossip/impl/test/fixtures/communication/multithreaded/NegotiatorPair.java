@@ -5,10 +5,10 @@ import com.swirlds.base.utility.Pair;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.reconnect.Connection;
 import org.junit.jupiter.api.Assertions;
 
 /**

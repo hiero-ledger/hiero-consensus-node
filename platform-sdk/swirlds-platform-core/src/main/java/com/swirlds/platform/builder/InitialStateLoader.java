@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
@@ -97,7 +95,7 @@ public class InitialStateLoader {
         if (!savedStates.isEmpty()) {
             try {
                 final ConsensusSnapshot consensusSnapshot = SignedStateFileUtils.getConsensusSnapshot(savedStates.getLast().stateDirectory());
-                buildingBlocks.consensusLayer().oldestRestartableSnapshot(consensusSnapshot);
+                buildingBlocks.consensusLayerRef().oldestRestartableSnapshot(consensusSnapshot);
             } catch (final IOException | ParseException e) {
                 logger.warn(STARTUP.getMarker(),
                         "Unable to read {} file from round {} on disk - PCES for this round will be maintained "

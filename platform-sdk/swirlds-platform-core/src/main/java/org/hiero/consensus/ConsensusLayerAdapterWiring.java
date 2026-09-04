@@ -95,14 +95,14 @@ public class ConsensusLayerAdapterWiring {
 
         state.stateSavingResultOutputWire().buildTransformer("oldestSnapshotTransformer", "savedStateResult",
                         StateSavingResult::oldestRestartableConsensusSnapshot)
-                .solderTo("consensusLayer", "oldestRestartableSnapshot",
-                        buildingBlocks.consensusLayer()::oldestRestartableSnapshot);
+                .solderTo("consensusLayerRef", "oldestRestartableSnapshot",
+                        (snapshot) -> buildingBlocks.consensusLayerRef().get().oldestRestartableSnapshot(snapshot));
 
         final OutputWire<StateSavingResult> stateSavingResultOutputWire = state.stateSavingResultOutputWire();
-        stateSavingResultOutputWire.solderTo("consensusLayer", "onFreezeCompleteStatusUpdate",
+        stateSavingResultOutputWire.solderTo("consensusLayerRef", "onFreezeCompleteStatusUpdate",
                 (result) -> {
                     if (result.freezeState()) {
-                        buildingBlocks.consensusLayer().onStatusUpdate(StatusUpdate.FREEZE_COMPLETE);
+                        buildingBlocks.consensusLayerRef().get().onStatusUpdate(StatusUpdate.FREEZE_COMPLETE);
                     }
                 });
         stateSavingResultOutputWire
@@ -123,10 +123,10 @@ public class ConsensusLayerAdapterWiring {
         final OutputWire<IssNotification> issNotification =
                 buildingBlocks.issDetectionModule().issNotificationOutputWire();
 
-        issNotification.solderTo("consensusLayer", "onIssStatusUpdate",
+        issNotification.solderTo("consensusLayerRef", "onIssStatusUpdate",
                 (notification) -> {
                     if (notification.getIssType() == IssType.CATASTROPHIC_ISS) {
-                        buildingBlocks.consensusLayer().onStatusUpdate(StatusUpdate.CATASTROPHIC_FAILURE);
+                        buildingBlocks.consensusLayerRef().get().onStatusUpdate(StatusUpdate.CATASTROPHIC_FAILURE);
                     }
                 });
         issNotification.solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
