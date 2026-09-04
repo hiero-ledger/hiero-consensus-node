@@ -80,7 +80,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.19.3"
+          node-version: "24"
 
       - name: Install Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
