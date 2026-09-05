@@ -48,6 +48,21 @@ on:
         type: string
         required: true
         default: ""
+      mirrorref:
+        description: "Mirror version"
+        type: string
+        required: true
+        default: ""
+      explorerref:
+        description: "Explorer version"
+        type: string
+        required: false
+        default: ""
+      relayref:
+        description: "Relay version"
+        type: string
+        required: true
+        default: ""
       nlg-version:
         required: true
         default: "0.14.3"
@@ -405,6 +420,11 @@ jobs:
           # Generate the block-node-values.yaml inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/block-node-values.yaml block-node-values.yaml
 
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node.yaml mirror-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/explorer-node.yaml explorer-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/relay-node.yaml relay-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/ingress-controller-values.yaml ingress-controller-values.yaml
+
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
@@ -413,10 +433,18 @@ jobs:
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" block-node-values.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" mirror-node.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" explorer-node.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" relay-node.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" ingress-controller-values.yaml
 
           NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" block-node-values.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" mirror-node.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" explorer-node.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" relay-node.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" ingress-controller-values.yaml
 
           BN_tag=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           sed -i -e "s@%BN_IMAGE_TAG%@${BN_tag}@g" block-node-values.yaml
@@ -556,6 +584,48 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
           task start
+
+      - name: Add PVCs for MirrorNode
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+
+          #postgres
+          sed -e "s@%PVC_SIZE%@60Gi@g" -e "s@%PVC_NAME%@data-solo-shared-resources-postgres-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-postgres.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-postgres.yaml
+
+          #redis
+          sed -e "s@%PVC_SIZE%@8Gi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-redis.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-redis.yaml
+
+          #sentinel
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@sentinel-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-sentinel.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-sentinel.yaml
+
+      - name: Add Mirror Node
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
+          task solo:mirror-node
+
+      - name: Add Explorer
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          #FIXME export EXPLORER_VERSION="${{ inputs.explorerref }}"
+          task solo:explorer
+
+      - name: Add Relay
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export RELAY_VERSION="${{ inputs.relayref }}"
+          task solo:relay
 
       - name: Solo logs
         if: ${{ !cancelled() && always() }}

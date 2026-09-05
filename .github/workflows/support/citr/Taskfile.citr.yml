@@ -506,9 +506,9 @@ tasks:
     cmds:
       - |
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
         fi
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
@@ -529,16 +529,16 @@ tasks:
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment add-cluster --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
 
           if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-            solo explorer node add --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            solo explorer node add --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           else
-            solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           fi
           export EXPLORER_DEPLOYED_NAME_SPACE=${EXPLORER_NAME_SPACE}
         else
           if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           else
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF}--mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           fi
           export EXPLORER_DEPLOYED_NAME_SPACE=${SOLO_NAMESPACE}
         fi
@@ -559,9 +559,9 @@ tasks:
     cmds:
       - |
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true
         fi
 
   solo:destroy-explorer:
@@ -571,15 +571,15 @@ tasks:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
           if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true
           else
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true
           fi
         else
           if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true
           else
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true
           fi
         fi
 

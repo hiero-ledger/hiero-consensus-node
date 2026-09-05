@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+
+relay:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  config:
+    WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
+    LOG_LEVEL: error
+    PRETTY_LOGS_ENABLED: false
+    REDIS_ENABLED: false
+    CACHE_MAX: 50
+    CACHE_TTL: 300
+    OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: 600
+    OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
+    MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
+    MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 120
+    timeoutSeconds: 2
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 660
+    timeoutSeconds: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 250Mi
+ws:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  enabled: true
+  config:
+    WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
+    LOG_LEVEL: error
+    PRETTY_LOGS_ENABLED: false
+    REDIS_ENABLED: false
+    CACHE_MAX: 50
+    CACHE_TTL: 300
+    OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: 600
+    OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
+    MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
+    MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
+  startupProbe:
+    failureThreshold: 660 # other probe timing fields inherit chart defaults

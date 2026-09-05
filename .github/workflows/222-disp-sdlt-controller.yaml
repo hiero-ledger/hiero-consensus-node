@@ -127,6 +127,9 @@ jobs:
     with:
       ref: "${{ github.ref }}"
       bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      mirrorref: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      #FIXME      explorerref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      relayref: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "100000000"
       nlg-time: "720"
