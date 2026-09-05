@@ -83,6 +83,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private static final FieldDefinition FIELD_DSMETADATA_INITIALCAPACITY =
             new FieldDefinition("initialCapacity", FieldType.UINT64, false, true, false, 3);
 
+    // FUTURE WORK: this field can be removed completely in 0.79
+    @Deprecated
+    private static final FieldDefinition FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD =
+            new FieldDefinition("hashesRamToDiskThreshold", FieldType.UINT64, false, true, false, 4);
+
     private static final FieldDefinition FIELD_DSMETADATA_HASHCHUNKHEIGHT =
             new FieldDefinition("hashChunkHeight", FieldType.UINT32, false, true, false, 7);
 
@@ -1012,6 +1017,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                         maxValidKey = in.readVarLong(false);
                     } else if (fieldNum == FIELD_DSMETADATA_INITIALCAPACITY.number()) {
                         initialCapacity = in.readVarLong(false);
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD.number()) {
+                        // Skip hashesRamToDiskThreshold field, it is no longer used
+                        in.readVarLong(false);
                     } else if (fieldNum == FIELD_DSMETADATA_HASHCHUNKHEIGHT.number()) {
                         final int hashChunkHeight = in.readVarInt(false);
                         if (this.hashChunkHeight != hashChunkHeight) {
