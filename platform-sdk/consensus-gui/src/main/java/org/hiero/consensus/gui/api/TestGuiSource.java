@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.api;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -25,6 +24,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -48,7 +48,7 @@ public class TestGuiSource {
     public TestGuiSource(
             @NonNull final Metrics metrics,
             @NonNull final Configuration configuration,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final EventGraphSource eventSource) {
         this(metrics, configuration, roster, wrapEventGraphSource(eventSource));
     }
@@ -79,7 +79,7 @@ public class TestGuiSource {
     public TestGuiSource(
             @NonNull final Metrics metrics,
             @NonNull final Configuration configuration,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final GuiEventProvider eventProvider) {
         this.eventStorage = new GuiEventStorage(configuration, roster);
         this.guiSource = new StandardGuiSource(roster, eventStorage);
