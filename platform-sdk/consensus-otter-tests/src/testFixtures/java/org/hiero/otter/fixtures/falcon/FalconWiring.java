@@ -34,6 +34,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -65,21 +66,23 @@ public class FalconWiring implements TimeTickReceiver {
      * @param configuration the configuration for the wiring
      * @param time the time source
      * @param selfId the ID of the current node
-     * @param roster the roster of nodes
+     * @param pbjRoster the roster of nodes
      * @param secureRandom the secure random number generator
      */
     public FalconWiring(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final SecureRandom secureRandom) {
+
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
 
         final Metrics metrics = new NoOpMetrics();
 
         model = WiringModelBuilder.create(metrics, time)
                 .deterministic()
-                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                .withUncaughtExceptionHandler((_, e) -> fail("Unexpected exception in wiring framework", e))
                 .build();
 
         final EventIntakeWiringConfig eventIntakeConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
@@ -93,7 +96,7 @@ public class FalconWiring implements TimeTickReceiver {
         final long transactionOffsetNanos = 0L;
         final HashgraphWiringConfig hashgraphConfig = configuration.getConfigData(HashgraphWiringConfig.class);
         final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
-                configuration, metrics, time, roster, selfId, freezePeriodChecker, transactionOffsetNanos);
+                configuration, metrics, time, pbjRoster, selfId, freezePeriodChecker, transactionOffsetNanos);
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, hashgraphConfig.consensusEngine());
         consensusEngineWiring.bind(consensusEngine);
 
