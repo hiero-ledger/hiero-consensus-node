@@ -40,6 +40,11 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.turtle to
             org.apache.logging.log4j.core,
             org.hiero.otter.fixtures.test;
+    // Log4j2 instantiates the class named by the log4j.Clock system property reflectively from LoaderUtil, which
+    // lives in the log4j-api module. Without this export it falls back to SystemClock and every log timestamp
+    // becomes wall-clock time instead of simulated time, reporting the failure only on its status logger.
+    exports org.hiero.otter.fixtures.turtle.logging to
+            org.apache.logging.log4j;
 
     opens org.hiero.otter.fixtures.container.network to
             com.fasterxml.jackson.databind;

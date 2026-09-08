@@ -8,6 +8,7 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeTlsConfiguration;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import io.helidon.webclient.api.WebClient;
 import java.time.Duration;
@@ -41,7 +42,8 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
     @Test
     void testCreateStreamingClient() {
         try (final MockedConstruction<PbjGrpcClient> mockPbjClient = mockConstruction(PbjGrpcClient.class);
-                final BlockStreamPublishBytesClient client = factory.createStreamingClient(config, timeout)) {
+                final BlockStreamPublishBytesClient client =
+                        factory.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)) {
             assertThat(client).isNotNull();
 
             assertThat(mockPbjClient.constructed()).hasSize(1);
@@ -51,7 +53,8 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
     @Test
     void testCreateServiceClient() {
         try (final MockedConstruction<PbjGrpcClient> mockPbjClient = mockConstruction(PbjGrpcClient.class);
-                final BlockNodeServiceClient client = factory.createServiceClient(config, timeout)) {
+                final BlockNodeServiceClient client =
+                        factory.createServiceClient(config, timeout, BlockStreamGrpcCompressionType.NONE)) {
             assertThat(client).isNotNull();
 
             assertThat(mockPbjClient.constructed()).hasSize(1);

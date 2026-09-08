@@ -6,8 +6,10 @@ execution layer.
 
 ## Architecture
 
-A passive data module — holds and exposes a well-defined slice of the Merkle tree state without
-orchestrating anything, analogous to `consensus-model` but scoped to platform state.
+A structural-transitional module, and a passive data module within that category — it holds and
+exposes a well-defined slice of the Merkle tree state without orchestrating anything, analogous to
+`consensus-model` but scoped to platform state. It will move to the execution layer alongside the platform
+state it wraps.
 
 ## Dependency Rules
 
@@ -16,7 +18,7 @@ May depend on:
 - `swirlds-base`, `swirlds-config-api`, `swirlds-state-api`, `swirlds-state-impl`
 
 Must not depend on:
-- Any `consensus-*-impl` module or structural-transitional module
+- Any `consensus-*-impl` module or other structural-transitional module
 - Any functional-api or self-contained functional module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
 - `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,

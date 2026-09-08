@@ -15,4 +15,11 @@ public interface HederaMigrationContext extends MigrationContext<SemanticVersion
      */
     @NonNull
     StartupNetworks startupNetworks();
+
+    /**
+     * Returns whether this migration is running to initialize a state learned by reconnecting. Such a state
+     * already reflects the network's consensus history, so schemas must not apply node-local startup assets
+     * to it; doing so would diverge this node's state from the rest of the network.
+     */
+    boolean isReconnect();
 }

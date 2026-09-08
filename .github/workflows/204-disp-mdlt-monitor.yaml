@@ -4,8 +4,11 @@ run-name: "MDLT Monitor for ${{ github.event.inputs.build-tag }} (allocation ${{
 
 # Checks the status of an in-flight MDLT run. The cluster and namespace are resolved from the Chewie
 # allocation, so the only run-specific value needed is the Allocation ID printed by the 835 kickoff.
-# REPORT-ONLY: Chewie owns namespace teardown, so this workflow never deletes anything. Reports one
-# of four states to the job summary and to Slack:
+# Chewie owns namespace teardown, so this workflow never deletes the namespace. It does prune the
+# block nodes' live block data (files older than 59 minutes, which are already archived) unless
+# prune-block-node-data is turned off - MDLT's kickoff runner exits after launching the run, so the
+# runner-side cleaner loop SDPT uses cannot keep the BN disks in check for a multi-day run.
+# Reports one of four states to the job summary and to Slack:
 #   green  (:large_green_circle:)  - complete and passed
 #   red    (:red_circle:)          - complete but failed
 #   yellow (:large_yellow_circle:) - job in work
@@ -23,6 +26,11 @@ on:
         required: true
         description: "The Chewie Allocation ID for the MDLT run - from the 835 kickoff summary"
         type: string
+      prune-block-node-data:
+        required: false
+        default: true
+        description: "Prune block node live data (*.blk* older than 59 minutes) on each block node"
+        type: boolean
 
 defaults:
   run:
@@ -124,7 +132,17 @@ jobs:
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          version: v1.33.0
+          version: v1.35.0
+
+      # support/citr/kubectlt resolves the real binary as "kubectl.orig", so without this rename
+      # every kubectlt call below silently runs nothing.
+      - name: kubectl wrapper
+        run: |
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
+          which kubectl
 
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
@@ -183,6 +201,25 @@ jobs:
             ${kubectlt} -n "${NAMESPACE}" get pods
             echo "::endgroup::"
 
+            # Block node health is reported alongside the run state but does not change the
+            # classification below, which stays load-generator driven.
+            echo "::group::Block node pods"
+            bnpods=$(${kubectlt} -n "${NAMESPACE}" get pods | grep 'block-node' | awk '{print $1}')
+            bn_total=0
+            bn_up=0
+            for bnpod in ${bnpods}; do
+              bn_total=$((bn_total + 1))
+              if ${kubectlt} -n "${NAMESPACE}" exec "${bnpod}" -- \
+                bash -c "ps -aef | grep -w java | grep -v grep" | grep -w java > /dev/null; then
+                bn_up=$((bn_up + 1))
+                echo "${bnpod}: java process running"
+              else
+                echo "::warning title=Block node down::${bnpod} has no running java process."
+                echo "${bnpod}: NO java process"
+              fi
+            done
+            echo "::endgroup::"
+
             echo "::group::NLG client log (tail)"
             timeout --preserve-status --foreground 1m ${kubectlt} -n "${NAMESPACE}" exec "${nlgpod}" -c nlg -- \
               bash -c "tail -n 100 /app/client.log" | tee client.tail.log
@@ -220,8 +257,20 @@ jobs:
             echo "- **Allocation ID**: ${ALLOCATION_ID}"
             echo "- **Cluster**: ${CLUSTER}"
             echo "- **Namespace**: ${NAMESPACE}"
+            echo "- **Block Nodes Up**: ${bn_up:-0}/${bn_total:-0}"
             echo "- **Status**: ${EMOJI} ${LABEL}"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      # One pass of the same pruning 831 runs hourly from its runner. MDLT's kickoff runner is long
+      # gone by the time this is dispatched, so pruning rides along with the monitor instead.
+      - name: Prune block node live data
+        if: ${{ inputs.prune-block-node-data && steps.check-status.outputs.state != 'cancelled' }}
+        env:
+          NAMESPACE: ${{ steps.allocation.outputs.namespace }}
+        run: |
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${NAMESPACE}" once
+          echo "Pruned *.blk* older than 59 minutes from the live storage of each block node."
 
       - name: Build Slack Payload Message
         if: ${{ always() }}

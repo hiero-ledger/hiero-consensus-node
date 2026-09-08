@@ -797,7 +797,7 @@
             "uid": "${DS_GRAFANACLOUD-SWIRLDSLABSPREPRODUCTION-PROM}"
           },
           "editorMode": "code",
-          "expr": "merkle_db_ds_offheap_dataSourceMb_accountStore{environment=\"$network\", node_id=\"$NodeID\"} + merkle_db_ds_offheap_dataSourceMb_fileStore{environment=\"$network\", node_id=\"$NodeID\"} + merkle_db_ds_offheap_dataSourceMb_tokenRelStore{environment=\"$network\", node_id=\"$NodeID\"} + merkle_db_ds_offheap_dataSourceMb_smartContractIterableKvStore{environment=\"$network\", node_id=\"$NodeID\"}",
+          "expr": "merkle_db_ds_offheap_dataSourceMb_$Store{environment=\"$network\", node_id=\"$NodeID\"}",
           "instant": false,
           "legendFormat": "Total",
           "range": true,
@@ -831,7 +831,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(platform_trans_per_sec{environment!~\"nmt.*\"}, environment)",
+          "query": "label_values({environment!~\"nmt.*\"}, environment)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
