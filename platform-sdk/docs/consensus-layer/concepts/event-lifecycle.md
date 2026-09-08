@@ -81,7 +81,7 @@ oldest still-tracked round's minimum-judge birth round, and the ring
 is trimmed each time an election is decided —
 `currentElectionDecided` calls
 `minimumJudgeStorage.removeOlderThan(getFameDecidedBelow() - config.roundsExpired())`
- to drop newly-expired round metadata. The gossip
+to drop newly-expired round metadata. The gossip
 [`Shadowgraph`](../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/Shadowgraph.java)
 consumes the same threshold to maintain its `oldestUnexpiredIndicator`
 pointer and to drive event eviction during sync

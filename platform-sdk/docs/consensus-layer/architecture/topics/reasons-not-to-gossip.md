@@ -91,9 +91,8 @@ ranges are accurate at last review and may shift with refactors.
   FREEZING, FREEZE_COMPLETE, OBSERVING, CHECKING, RECONNECT_COMPLETE}`.
 - Suppresses: sync initiation and sync acceptance with all peers.
 - Code anchor:
-  [`consensus-gossip-impl/.../sync/protocol/SyncStatusChecker.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/sync/protocol/SyncStatusChecker.java)
-; read by
-  `RpcPeerProtocol.shouldSwitchToRpc()`.
+  [`consensus-gossip-impl/.../sync/protocol/SyncStatusChecker.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/sync/protocol/SyncStatusChecker.java);
+  read by `RpcPeerProtocol.shouldSwitchToRpc()`.
 - Rationale: only specific platform lifecycle statuses are safe for
   exchanging events; the allow-list is explicit in
   `STATUSES_THAT_PERMIT_SYNC`. The statuses *not* in the allow-list
@@ -167,8 +166,7 @@ ranges are accurate at last review and may shift with refactors.
   (sync may still run when permitted).
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#isBroadcastRunning()`; guards `#broadcastEvent`
-.
+  `#isBroadcastRunning()`; guards `#broadcastEvent`.
 - Rationale: code comment — "don't spam remote side if it is
   going to reconnect or if we haven't completed even a first sync, as it
   might be a recovery phase". The `communicationOverload` term is a
@@ -187,7 +185,7 @@ ranges are accurate at last review and may shift with refactors.
   [`consensus-gossip-impl/.../shadowgraph/SyncUtils.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/SyncUtils.java)
   `#filterLikelyDuplicates`; thresholds plumbed by
   [`ShadowgraphSynchronizer.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/ShadowgraphSynchronizer.java)
-, which passes `Duration.ZERO` when broadcast is not
+  , which passes `Duration.ZERO` when broadcast is not
   running.
 - Rationale: code comment in `SyncUtils` — when broadcast is
   disabled the threshold is zero so self-events flow through sync
