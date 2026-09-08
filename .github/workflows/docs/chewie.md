@@ -65,6 +65,7 @@ To change the environment a test runs on, edit the JSON config for that test typ
 | [860: [CALL] Validate Chewie JWT](/.github/workflows/860-call-validate-chewie-jwt.yaml)          | Validates the JWT before it is used to request an allocation                                     |
 | [861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml)                  | Reads `<test-type>-config.json` to produce the CN/aux quantities and CPU/memory requests         |
 | [862: [CALL] Get CITR Chewie Properties](/.github/workflows/862-call-get-chewie-properties.yaml) | Reads `default_duration`, `default_timeout` and `default_mdlt_length` from `.github/chewie.yaml` |
+| [863: [CALL] Get Chewie Allocation](/.github/workflows/863-call-get-chewie-allocation.yaml)      | GETs an allocation by id and emits the same detail fields `859` emits on create                  |
 
 The Chewie helper jobs run on the `hl-cn-chewie-lin-sm` runner label.
 
@@ -75,7 +76,7 @@ The controllers ([201](/.github/workflows/201-user-sdpt-controller-adhoc.yaml),
 [203](/.github/workflows/203-user-mdlt-controller-adhoc.yaml),
 [221](/.github/workflows/221-disp-sdpt-controller.yaml), [222](/.github/workflows/222-disp-sdlt-controller.yaml),
 [224](/.github/workflows/224-disp-mdlt-controller.yaml))
-resolve the allocation duration and timeout, then hand them to the test workflow, which performs the allocation.
+resolve the allocation duration and timeout before any allocation is requested:
 
 1. The controller calls `862: [CALL] Get CITR Chewie Properties` to read `default_duration`, `default_timeout` and
    (for MDLT) `default_mdlt_length` from `.github/chewie.yaml`.
@@ -84,14 +85,41 @@ resolve the allocation duration and timeout, then hand them to the test workflow
    - For the adhoc controllers (`201`, `202`, `203`) an explicit `duration-minutes` workflow input overrides the
      default. The timeout always comes from `chewie.yaml`.
    - `chewie.yaml` values are in seconds; the controller converts them to the minutes its test workflow expects.
-3. The controller calls `831`/`833`/`835` with `duration-minutes` and `chewie-request-timeout`.
-4. `831`/`833`/`835` call `858` to obtain a JWT and `861` to read the test config.
+
+From here, SDPT/SDLT and MDLT diverge in **who owns the allocation** — see
+[hiero-ledger/hiero-consensus-node#27203](https://github.com/hiero-ledger/hiero-consensus-node/issues/27203) for why.
+
+### SDPT (`201`/`221` → `831`) and SDLT (`202`/`222` → `833`)
+
+The controller acquires the allocation itself and hands the test workflow only the resulting `allocation-id`:
+
+3. The controller calls `858` to obtain a JWT, `861` to read the test config, and `860` to validate the JWT.
+4. The controller's own `acquire-kubernetes-resources` job calls `859`, which POSTs the allocation request and polls
+   for approval until `chewie-request-timeout` seconds elapse.
+5. The controller calls `831`/`833` with `allocation-id` — no other Chewie-related input.
+6. `831`/`833` call `858`/`860` themselves (to authenticate the read), and their own `acquire-kubernetes-resources`
+   job calls `863: [CALL] Get Chewie Allocation`, which GETs the same allocation by id and emits the namespace,
+   cluster FQDN, CN/aux quantities, tolerations, node roles, network id, owner, and expiration — the same detail
+   shape `859` produced on create, just fetched instead of created.
+7. On a passing scheduled run, `221`/`222` fetch a fresh JWT (the original one may be hours stale by the time the
+   test finishes) and call `support/chewie/release-chewie-allocation.sh` to release the allocation immediately
+   rather than waiting on Chewie's reaper/expiry. This is best-effort (`continue-on-error`) — a release failure does
+   not fail the run. `201`/`202` (adhoc) do not self-release; Chewie's reaper/`workflow_run.completed` webhook
+   remain their only release path.
+
+### MDLT (`203`/`224` → `835`) — unchanged
+
+The test workflow still acquires its own allocation internally, the way SDPT/SDLT used to:
+
+3. The controller calls `835` with `duration-minutes` and `chewie-request-timeout`.
+4. `835` calls `858` to obtain a JWT and `861` to read the test config.
 5. `860` validates the JWT.
-6. The `acquire-kubernetes-resources` job calls `859`, which POSTs the allocation request and then polls for approval
-   until `chewie-request-timeout` seconds elapse.
-7. The approved allocation supplies the namespace, cluster FQDN, CN/aux quantities, tolerations, node roles, network id,
-   owner, and expiration. The rest of the test run deploys into that namespace.
-8. Chewie reclaims the namespace when the allocation expires.
+6. `835`'s own `acquire-kubernetes-resources` job calls `859`, which POSTs the allocation request and polls for
+   approval until `chewie-request-timeout` seconds elapse.
+7. Chewie reclaims the namespace when the allocation expires. `835` never calls `DELETE` on its own allocation.
+
+For both paths, the approved allocation supplies the namespace, cluster FQDN, CN/aux quantities, tolerations, node
+roles, network id, owner, and expiration. The rest of the test run deploys into that namespace.
 
 ## Migration Notes
 
@@ -112,3 +140,7 @@ removed now that both suites run on Chewie formally.
   the run has been removed. Chewie guarantees a unique namespace per allocation.
 - **MQPT** — Merge Queue Performance Tests and their workflows (`200`, `210`, `220`, `602`, `830`) have been removed
   entirely.
+- **`831`/`833` creating their own allocation** — `831` and `833` no longer accept `duration-minutes`/
+  `chewie-request-timeout` or call `859` to create an allocation. Their callers (`201`/`202`/`221`/`222`) do that now
+  and pass down `allocation-id`; `831`/`833` fetch the detail via the new `863` instead. `835` (MDLT) is unaffected
+  and still creates its own allocation exactly as `831`/`833` used to — see the Allocation Flow section above.

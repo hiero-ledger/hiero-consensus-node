@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "863: [CALL] Get Chewie Allocation"
+
+on:
+  workflow_call:
+    inputs:
+      allocation-id:
+        required: true
+        description: "The Chewie Allocation ID to fetch."
+        type: string
+      instances-cn-group-name:
+        required: false
+        description: "The group name for the consensus node instances. Optional."
+        type: string
+        default: "cn-nodes"
+      instances-aux-group-name:
+        required: false
+        description: "The group name for the auxiliary node instances. Optional."
+        type: string
+        default: "aux-nodes"
+    secrets:
+      github-token:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
+      chewie-token:
+        required: true
+        description: "The Chewie API key for the repository."
+      chewie-host:
+        required: true
+        description: "The Chewie host for the repository."
+    outputs:
+      namespace:
+        value: ${{ jobs.get-allocation-details.outputs.namespace }}
+      fqdn:
+        value: ${{ jobs.get-allocation-details.outputs.fqdn }}
+      cn-group-name:
+        value: ${{ jobs.get-allocation-details.outputs.cn-group-name }}
+      aux-group-name:
+        value: ${{ jobs.get-allocation-details.outputs.aux-group-name }}
+      cn-quantity:
+        value: ${{ jobs.get-allocation-details.outputs.cn-quantity }}
+      aux-quantity:
+        value: ${{ jobs.get-allocation-details.outputs.aux-quantity }}
+      cn-tolerations:
+        value: ${{ jobs.get-allocation-details.outputs.cn-tolerations }}
+      aux-tolerations:
+        value: ${{ jobs.get-allocation-details.outputs.aux-tolerations }}
+      cn-role:
+        value: ${{ jobs.get-allocation-details.outputs.cn-role }}
+      aux-role:
+        value: ${{ jobs.get-allocation-details.outputs.aux-role }}
+      network-id:
+        value: ${{ jobs.get-allocation-details.outputs.network-id }}
+      owner:
+        value: ${{ jobs.get-allocation-details.outputs.owner }}
+      request-expiration:
+        value: ${{ jobs.get-allocation-details.outputs.expiration }}
+
+permissions:
+  contents: read
+
+env:
+  HOST: "${{ secrets.chewie-host }}"
+  API_EP_COMPUTE_ALLOCATION: "api/v1/compute/allocation"
+  ALLOCATION_ID: ${{ inputs.allocation-id }}
+  INSTANCES_CN_GROUP_NAME: ${{ inputs.instances-cn-group-name }}
+  INSTANCES_AUX_GROUP_NAME: ${{ inputs.instances-aux-group-name }}
+
+jobs:
+  get-allocation-details:
+    name: Get Chewie Allocation Details
+    runs-on: hl-cn-chewie-lin-sm
+    outputs:
+      namespace: ${{ steps.read-chewie-response.outputs.namespace }}
+      fqdn: ${{ steps.read-chewie-response.outputs.kubernetes-fqdn }}
+      cn-group-name: ${{ steps.read-chewie-response.outputs.cn-group-name }}
+      aux-group-name: ${{ steps.read-chewie-response.outputs.aux-group-name }}
+      cn-quantity: ${{ steps.read-chewie-response.outputs.cn-quantity }}
+      aux-quantity: ${{ steps.read-chewie-response.outputs.aux-quantity }}
+      cn-tolerations: ${{ steps.read-chewie-response.outputs.cn-tolerations }}
+      aux-tolerations: ${{ steps.read-chewie-response.outputs.aux-tolerations }}
+      cn-role: ${{ steps.read-chewie-response.outputs.cn-role }}
+      aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
+      network-id: ${{ steps.read-chewie-response.outputs.network-id }}
+      owner: ${{ steps.read-chewie-response.outputs.owner }}
+      expiration: ${{ steps.read-chewie-response.outputs.expiration }}
+    steps:
+      - name: Initialize Github Job
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-token: ${{ secrets.github-token }}
+          checkout-ref: ${{ github.ref }}
+
+      - name: Get Chewie Allocation Details
+        id: read-chewie-response
+        env:
+          CHEWIE_JWT_B64: ${{ secrets.chewie-token }}
+        run: |
+          # -g/-x name the groups the caller requested when it created this allocation, so the
+          # emitted keys stay cn-*/aux-* the same way they did when 859 created it.
+          .github/workflows/support/chewie/parse-chewie-allocation.sh \
+            -o "${HOST}" \
+            -e "${API_EP_COMPUTE_ALLOCATION}" \
+            -i "${ALLOCATION_ID}" \
+            -g "${INSTANCES_CN_GROUP_NAME}" \
+            -x "${INSTANCES_AUX_GROUP_NAME}" \
+            -f outputs

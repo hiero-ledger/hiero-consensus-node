@@ -39,10 +39,10 @@ on:
         default: "600"
         description: "Reconnect uptime (secs). Downtime is Uptime x 3"
         type: string
-      duration-minutes:
+      allocation-id:
         required: true
-        description: "Expected duration of all tests in minutes"
-        type: number
+        description: "The Chewie Allocation ID already acquired by the caller."
+        type: string
       bnref:
         description: "BN version"
         type: string
@@ -53,10 +53,6 @@ on:
         default: "0.14.3"
         description: "NLG Version:"
         type: string
-      chewie-request-timeout:
-        required: true
-        description: "Chewie request timeout in seconds"
-        type: number
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -98,14 +94,6 @@ jobs:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
 
-  get-sdlt-config:
-    uses: ./.github/workflows/861-call-get-test-config.yaml
-    with:
-      test-type: "sdlt"
-      ref: ${{ github.ref }}
-    secrets:
-      checkout-token: ${{ secrets.github-token }}
-
   validate-chewie-jwt:
     needs:
       - get-chewie-jwt
@@ -121,17 +109,9 @@ jobs:
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
-      - get-sdlt-config
-    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    uses: ./.github/workflows/863-call-get-chewie-allocation.yaml
     with:
-      instances-cn-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-qty) }}
-      instances-cn-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-cpu-request) }}
-      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-mem-request-mb) }}
-      instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
-      instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
-      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
-      duration-minutes: ${{ inputs.duration-minutes }}
-      request-timeout: ${{ inputs.chewie-request-timeout }}
+      allocation-id: ${{ inputs.allocation-id }}
     secrets:
       github-token: ${{ secrets.github-token }}
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
