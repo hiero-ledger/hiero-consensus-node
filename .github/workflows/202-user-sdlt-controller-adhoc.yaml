@@ -54,7 +54,7 @@ on:
         description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       duration-minutes:
         required: false
-        default: "180"
+        default: "1440"
         description: "Expected duration of all tests in minutes"
         type: string
       disable-notifications:
@@ -86,7 +86,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Verify Tag
@@ -117,7 +117,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -125,7 +125,7 @@ jobs:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -133,7 +133,7 @@ jobs:
     name: Extract Chewie Properties
     uses: ./.github/workflows/862-call-get-chewie-properties.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -199,6 +199,7 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       ref: "${{ inputs.ref || github.ref }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -208,6 +209,7 @@ jobs:
       duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
       chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -227,7 +229,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
 
@@ -294,7 +296,7 @@ jobs:
         id: find-commit-author-slack
         continue-on-error: true
         env:
-          BUILD_TAG: ${{ inputs.ref || github.ref }}
+          BUILD_TAG: ${{ github.ref }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
@@ -334,7 +336,7 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         env:
-          HEADER_TEXT: ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref || github.ref }}) Passed"
+          HEADER_TEXT: ":tada: SDLT - Single Day Longevity Test (${{ github.ref }}) Passed"
           STATUS_TEXT: "*SDLT Job Succeeded. Test panel status below*"
           VERIFY_TAG_LABEL: "Verify Tag for SDLT"
           VERIFY_TAG_RESULT: ${{ needs.verify-tag.result }}
@@ -378,7 +380,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-gomplate: "true"
@@ -465,7 +467,7 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         env:
-          HEADER_TEXT: ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref || github.ref }}) Failed"
+          HEADER_TEXT: ":grey_exclamation: SDLT - Single Day Longevity Test (${{ github.ref }}) Failed"
           STATUS_TEXT: "*SDLT Job Resulted in failure. See status below.*"
           VERIFY_TAG_LABEL: "Verify Tag for SDLT"
           VERIFY_TAG_RESULT: ${{ needs.verify-tag.result }}
