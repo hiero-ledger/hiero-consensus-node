@@ -19,6 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
@@ -56,6 +61,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 @DisplayName("SignedState Read/Write Test")
 class SignedStateFileReadWriteTest {
@@ -166,14 +173,26 @@ class SignedStateFileReadWriteTest {
         deserializedSignedState.reservedSignedState().get().getState().release();
     }
 
-    @Test
-    @DisplayName("writeSavedStateToDisk() Test")
-    void writeSavedStateToDiskTest() throws IOException {
+    @ParameterizedTest
+    @CsvSource({
+        "PERIODIC_SNAPSHOT, true, true",
+        "PERIODIC_SNAPSHOT, false, false",
+        "FREEZE_STATE, true, true",
+        "FREEZE_STATE, false, false",
+        "RECONNECT, true, false",
+    })
+    @DisplayName("writeSignedStateToDisk() uses the configured snapshot strategy")
+    void writeSavedStateToDiskTest(
+            final StateToDiskReason stateToDiskReason, final boolean saveStateAsync, final boolean expectAsyncSnapshot)
+            throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(platformVersion)
+                .setFreezeState(StateToDiskReason.FREEZE_STATE.equals(stateToDiskReason))
                 .build();
+        signedState.markAsStateToSave(stateToDiskReason);
         final Path directory = testDirectory.resolve("state");
         stateLifecycleManager.initWithState(signedState.getState());
+        stateLifecycleManager = spy(stateLifecycleManager);
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = directory.resolve("settingsUsed.txt");
@@ -181,7 +200,8 @@ class SignedStateFileReadWriteTest {
         final Path consensusSnapshotFile = directory.resolve(CONSENSUS_SNAPSHOT_FILE_NAME);
 
         throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final String configDir = testDirectory.resolve("data/saved").toString();
+        final Configuration configuration = changeConfigAndConfigHolder(configDir, saveStateAsync);
 
         // Async snapshot requires all references to the state being written to disk to be released
         stateLifecycleManager.getLatestImmutableState().release();
@@ -191,15 +211,29 @@ class SignedStateFileReadWriteTest {
                 fileSystemManager,
                 NodeId.of(0),
                 directory,
-                StateToDiskReason.PERIODIC_SNAPSHOT,
+                stateToDiskReason,
                 signedState.reserve("test"),
                 stateLifecycleManager);
 
+        if (expectAsyncSnapshot) {
+            verify(stateLifecycleManager).createSnapshotAsync(same(signedState.getState()), any(Path.class));
+            verify(stateLifecycleManager, never()).createSnapshot(any(), any());
+        } else {
+            verify(stateLifecycleManager).createSnapshot(same(signedState.getState()), any(Path.class));
+            verify(stateLifecycleManager, never()).createSnapshotAsync(any(), any());
+        }
         assertTrue(exists(hashInfoFile), "hash info file should exist");
         assertTrue(exists(settingsUsedFile), "settings used file should exist");
         assertTrue(exists(addressBookFile), "address book file should exist");
         assertTrue(exists(consensusSnapshotFile), "consensus snapshot file should exist");
 
         stateLifecycleManager.getMutableState().release();
+    }
+
+    private Configuration changeConfigAndConfigHolder(String directory, final boolean saveStateAsync) {
+        return new TestConfigBuilder()
+                .withValue("paths.savedStateDir", directory)
+                .withValue("state.saveStateAsync", saveStateAsync)
+                .getOrCreateConfig();
     }
 }

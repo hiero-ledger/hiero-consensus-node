@@ -20,7 +20,9 @@ public interface LatestCompleteStateNexus extends SignedStateNexus {
     void updateEventWindow(@NonNull EventWindow eventWindow);
 
     /**
-     * Replace the current state with the given state if the given state is newer than the current state.
+     * Replace the current state with the given state if the given state is newer than the current state. When
+     * asynchronous snapshots are enabled, a freeze state instead releases the current state and prevents this nexus
+     * from retaining any subsequent state.
      *
      * @param reservedSignedState the new state
      */
@@ -28,7 +30,19 @@ public interface LatestCompleteStateNexus extends SignedStateNexus {
     void setStateIfNewer(@NonNull ReservedSignedState reservedSignedState);
 
     /**
-     * Update the current platform status. Causes the latest complete state to be released if the platform is in {@link PlatformStatus#FREEZING}
+     * Observe a state before it is routed to the snapshot manager. An asynchronous freeze state releases the latest
+     * complete state and prevents this nexus from retaining any subsequent state.
+     *
+     * <p>This method takes ownership of the reservation and always closes it.
+     *
+     * @param reservedSignedState the state to inspect
+     */
+    @InputWireLabel("async freeze state observer")
+    void observeStateForAsyncFreeze(@NonNull ReservedSignedState reservedSignedState);
+
+    /**
+     * Update the current platform status. If the platform enters {@link PlatformStatus#FREEZING}, the latest complete
+     * state is released. When asynchronous snapshots are enabled, no subsequent states are retained by this nexus.
      *
      * @param platformStatus the new platform status
      */

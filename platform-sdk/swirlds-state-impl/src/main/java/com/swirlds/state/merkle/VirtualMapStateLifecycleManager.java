@@ -108,6 +108,7 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
 
         // Eagerly create a genesis state so getMutableState() is always valid after construction.
         // If the node is restarting from a snapshot, loadSnapshot() will replace this genesis state.
+        final long eagerGenesisStart = time.currentTimeMillis();
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         final String defaultMerkleDbFodlerName = merkleDbConfig.defaultDbFolderName();
         final MerkleDbDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
@@ -116,6 +117,10 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         final VirtualMapState genesisState = new VirtualMapStateImpl(genesisVirtualMap, metrics);
         genesisState.getRoot().reserve();
         stateRef.set(genesisState);
+        log.info(
+                STARTUP.getMarker(),
+                "++++++++ Eager genesis VirtualMap state is created, took {} ms",
+                time.currentTimeMillis() - eagerGenesisStart);
     }
 
     /**
@@ -261,8 +266,14 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
                 targetPath, configuration, () -> new MerkleDbDataSourceBuilder(configuration, fileSystemManager, 0));
 
         // Capture the hash of the original immutable snapshot before releasing it
+        final long originalHashStart = time.currentTimeMillis();
         final Hash originalHash = snapshotVirtualMap.getHash();
+        log.info(
+                STARTUP.getMarker(),
+                "++++++++ Loaded snapshot root hash is obtained, took {} ms",
+                time.currentTimeMillis() - originalHashStart);
 
+        final long newVmStart = time.currentTimeMillis();
         final VirtualMap mutableCopy = snapshotVirtualMap.copy();
         snapshotVirtualMap.release();
 
@@ -278,6 +289,10 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         }
 
         copyAndUpdateStateRefs(loadedState);
+        log.info(
+                STARTUP.getMarker(),
+                "++++++++ Loaded VirtualMap state is set, took {} ms",
+                time.currentTimeMillis() - newVmStart);
 
         return originalHash;
     }

@@ -68,7 +68,12 @@ public class InitialStateLoader {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = inputs.stateLifecycleManager();
         // Startup initialization may hash/freeze the state referenced by the initial SignedState.
         // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
+        final long copyMutableStateStart = System.currentTimeMillis();
         stateLifecycleManager.copyMutableState();
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ Mutable state is copied, took {} ms",
+                System.currentTimeMillis() - copyMutableStateStart);
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!signedState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
@@ -164,9 +169,14 @@ public class InitialStateLoader {
                 signedState.getState(), platform, trigger, previousSoftwareVersion);
 
         // calculate hash
+        final long initHashStart = System.currentTimeMillis();
         abortAndThrowIfInterrupted(
                 initialState::getHash, // calculate hash
                 "interrupted while attempting to hash the state");
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ Init state hash is calculated, took {} ms",
+                System.currentTimeMillis() - initHashStart);
 
         // If our hash changes as a result of the new address book then our old signatures may become invalid.
         if (trigger != GENESIS) {

@@ -84,7 +84,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "merkledb-state") String defaultDbFolderName,
-        @Positive @ConfigProperty(defaultValue = "1000000000") long initialCapacity,
+        @Positive @ConfigProperty(defaultValue = "10000000") long initialCapacity,
         @Positive @ConfigProperty(defaultValue = "8000000000") long maxNumOfKeys,
         @Min(0) @ConfigProperty(defaultValue = "262144") int hashChunkCacheThreshold,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int hashChunkHeight,
