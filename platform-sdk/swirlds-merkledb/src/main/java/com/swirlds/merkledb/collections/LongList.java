@@ -98,6 +98,8 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      * via put methods while this LongList is being written to a file. If you need consistency while
      * calling put concurrently then use a BufferedLongListWrapper. </b>
      *
+     * <p>All writes complete before this method returns, but the file is not forced to storage.
+     *
      * @param file The file to write into, it should not exist but its parent directory should exist
      *             and be writable.
      * @throws IOException If there was a problem creating or writing to the file.
@@ -106,7 +108,7 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
 
     /**
      * Write all longs in this LongList into a file using the requested number of writer threads. This method has the
-     * same concurrent-mutation semantics as {@link #writeToFile(Path)}.
+     * same completion and concurrent-mutation semantics as {@link #writeToFile(Path)}.
      *
      * <p>The caller owns {@code executor}; this method neither shuts it down nor returns before its submitted tasks
      * complete. A thread count of one uses the sequential writer and does not submit a task. For higher values, the

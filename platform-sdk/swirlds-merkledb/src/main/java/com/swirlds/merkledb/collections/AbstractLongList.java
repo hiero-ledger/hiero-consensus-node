@@ -133,9 +133,6 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     protected final long reservedBufferSize;
 
-    /** Whether snapshot files are forced to disk before the writer returns. */
-    private final boolean forceToDisk;
-
     /**
      * Create a new long list with the specified capacity. Number of longs per chunk and
      * reserved buffer size are read from the provided configuration.
@@ -150,7 +147,6 @@ public abstract class AbstractLongList<C> implements LongList {
         // multiplyExact throws exception if we overflow and int
         memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
         this.reservedBufferSize = merkleDbConfig.longListReservedBufferSize();
-        this.forceToDisk = merkleDbConfig.longListSnapshotForceToDisk();
 
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
@@ -174,7 +170,6 @@ public abstract class AbstractLongList<C> implements LongList {
         // multiplyExact throws exception if we overflow and int
         memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
         this.reservedBufferSize = reservedBufferSize;
-        this.forceToDisk = true;
 
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
@@ -504,18 +499,12 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     @Override
     public void writeToFile(final Path file) throws IOException {
-        writeToFile(file, null, 1, forceToDisk);
+        writeToFile(file, null, 1);
     }
 
     /** {@inheritDoc} */
     @Override
     public void writeToFile(final Path file, final Executor executor, final int threadCount) throws IOException {
-        writeToFile(file, executor, threadCount, forceToDisk);
-    }
-
-    // The isolated benchmark overrides the configured durability mode through this overload.
-    void writeToFile(final Path file, final Executor executor, final int threadCount, final boolean forceToDisk)
-            throws IOException {
         try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             writeHeader(fc);
             if (size() > 0) {
@@ -525,47 +514,29 @@ public abstract class AbstractLongList<C> implements LongList {
                     writeLongsDataInParallel(fc, executor, threadCount);
                 }
             }
-            if (forceToDisk) {
-                fc.force(true);
-            }
         }
     }
 
     private void writeLongsDataInParallel(final FileChannel fc, final Executor executor, final int threadCount)
             throws IOException {
-        // First chunk containing list data, used as the partition's inclusive lower bound.
         final int firstChunkWithDataIndex = toIntExact(minValidIndex.get() / longsPerChunk);
-        // Total chunks containing list data, used as the partition's exclusive upper bound.
         final int totalNumOfChunks = calculateNumberOfChunks(size());
-        // Number of chunks to write, used to bound and balance the writer ranges.
         final int activeChunkCount = totalNumOfChunks - firstChunkWithDataIndex;
         if (activeChunkCount <= 0) {
             return;
         }
-        // Number of writer tasks, capped so every task owns at least one chunk.
+        // Chunks are equal-sized except at the edges, so balanced contiguous ranges keep writes moving forward.
         final int taskCount = min(threadCount, activeChunkCount);
-        // Minimum chunks per range, used as the base size of the balanced partition.
         final int chunksPerRange = activeChunkCount / taskCount;
-        // Leading ranges with one extra chunk, used to distribute the partition remainder.
         final int rangesWithOneMoreChunk = activeChunkCount % taskCount;
-
-        // Submitted writer tasks, retained so all workers can be joined before closing the file.
         final List<CompletableFuture<Void>> tasks = new ArrayList<>(taskCount);
-
-        // Start of the next range, advanced as writer ranges are assigned.
         int rangeFirstChunkInclusive = firstChunkWithDataIndex;
         try {
-            // Contiguous ranges keep each writer moving forward through the target file.
             for (int rangeIndex = 0; rangeIndex < taskCount; rangeIndex++) {
-                // Chunks in this writer range, including one remainder chunk when applicable.
                 final int rangeChunkCount = chunksPerRange + (rangeIndex < rangesWithOneMoreChunk ? 1 : 0);
-                // End of this writer range, used as the start of the following range.
                 final int rangeLastChunkExclusive = rangeFirstChunkInclusive + rangeChunkCount;
-                // First list index in this range, used as the source lower bound.
                 final long startIndex = max(minValidIndex.get(), (long) rangeFirstChunkInclusive * longsPerChunk);
-                // Exclusive last list index in this range, used as the source upper bound.
                 final long endIndex = min(size(), (long) rangeLastChunkExclusive * longsPerChunk);
-                // Absolute target position for this range, used by positional writes.
                 final long fileOffset = FILE_HEADER_SIZE_V3 + (startIndex - minValidIndex.get()) * Long.BYTES;
                 tasks.add(CompletableFuture.runAsync(
                         () -> {
@@ -580,6 +551,7 @@ public abstract class AbstractLongList<C> implements LongList {
             }
         } finally {
             try {
+                // Finish every accepted writer, even after a failure, before the channel closes.
                 CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
             } catch (final CompletionException e) {
                 // Restore the checked IOException contract after crossing the CompletableFuture boundary.

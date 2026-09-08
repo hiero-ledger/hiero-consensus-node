@@ -88,18 +88,8 @@ public abstract class AbstractMerkelDbTest extends AbstractFileManagerAwareTest 
     protected void createAndApplyDataSource(
             String tableName, final int size, CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
             throws IOException {
-        createAndApplyDataSource(DEFAULT_CONFIGURATION, tableName, size, dataSourceConsumer);
-    }
-
-    protected void createAndApplyDataSource(
-            final Configuration configuration,
-            final String tableName,
-            final int size,
-            final CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
-            throws IOException {
         long openedDatabasesBefore = MerkleDbDataSourceBuilder.getCountOfOpenDatabases();
-        final MerkleDbDataSource dataSource = MerkleDbDataSourceTestUtils.createDataSource(
-                configuration, fileSystemManager, tableName, size, false, false);
+        final MerkleDbDataSource dataSource = createDataSource(tableName, size, false, false);
         try {
             dataSourceConsumer.accept(dataSource);
         } catch (Throwable e) {

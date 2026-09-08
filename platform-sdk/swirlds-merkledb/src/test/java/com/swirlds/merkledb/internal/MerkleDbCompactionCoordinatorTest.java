@@ -75,9 +75,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.useDiskIndices(),
                 defaultConfig.consolidationMaxInputFileSizeMB(),
                 defaultConfig.consolidationMinFileCount(),
-                defaultConfig.longListSnapshotThreadsPerList(),
-                defaultConfig.longListSnapshotForceToDisk(),
-                defaultConfig.snapshotHashCacheFlushOverlap());
+                defaultConfig.longListSnapshotThreadsPerList());
         coordinator = new MerkleDbCompactionCoordinator(config);
         coordinator.enableBackgroundCompaction();
     }
@@ -1072,8 +1070,6 @@ class MerkleDbCompactionCoordinatorTest {
                 d.useDiskIndices(),
                 maxInputSizeMB,
                 minFileCount,
-                d.longListSnapshotThreadsPerList(),
-                d.longListSnapshotForceToDisk(),
-                d.snapshotHashCacheFlushOverlap());
+                d.longListSnapshotThreadsPerList());
     }
 }

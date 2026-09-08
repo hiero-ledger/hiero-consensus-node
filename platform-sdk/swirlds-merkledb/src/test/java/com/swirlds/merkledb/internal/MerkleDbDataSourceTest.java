@@ -11,7 +11,6 @@ import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -22,14 +21,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListDisk;
-import com.swirlds.merkledb.collections.LongListDiskSegment;
-import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.collections.LongListImplementation;
-import com.swirlds.merkledb.collections.LongListOffHeap;
-import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -56,7 +47,6 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -397,28 +387,23 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void snapshotPropagatesTaskFailure(final boolean overlapHashCacheFlush) throws IOException {
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("failed-snapshot-" + overlapHashCacheFlush);
+    @Test
+    void snapshotPropagatesTaskFailure() throws IOException {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("failed-snapshot");
         Files.createDirectories(snapshotDir);
         Files.createFile(new MerkleDbPaths(snapshotDir).idToDiskLocationHashChunksFile);
 
         createAndApplyDataSource(
-                snapshotConfiguration(overlapHashCacheFlush),
-                "test",
-                1_000,
-                dataSource -> assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir)));
+                "test", 1_000, dataSource -> assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir)));
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void interruptedSnapshotFinishesTasksBeforeReturning(final boolean overlapHashCacheFlush) throws IOException {
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("interrupted-snapshot-" + overlapHashCacheFlush);
+    @Test
+    void interruptedSnapshotFinishesTasksBeforeReturning() throws IOException {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("interrupted-snapshot");
         final Path dataDir = snapshotDataDir(snapshotDir, "test");
         final MerkleDbPaths snapshotPaths = new MerkleDbPaths(dataDir);
 
-        createAndApplyDataSource(snapshotConfiguration(overlapHashCacheFlush), "test", 1_000, dataSource -> {
+        createAndApplyDataSource("test", 1_000, dataSource -> {
             Thread.currentThread().interrupt();
             try {
                 final IOException exception = assertThrows(IOException.class, () -> dataSource.snapshot(dataDir));
@@ -445,34 +430,16 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     }
 
     @ParameterizedTest
-    @CsvSource({
-        "false, true, false",
-        "false, true, true",
-        "false, false, false",
-        "false, false, true",
-        "true, true, false",
-        "true, true, true",
-        "true, false, false",
-        "true, false, true"
-    })
-    void configuredSnapshotRestores(
-            final boolean useDiskIndices, final boolean forceToDisk, final boolean overlapHashCacheFlush)
-            throws IOException {
+    @ValueSource(booleans = {false, true})
+    void configuredSnapshotRestores(final boolean useDiskIndices) throws IOException {
         final int count = 1_000;
-        final String tableName = "configuredSnapshot-"
-                + (useDiskIndices ? "disk" : "segment")
-                + "-force-"
-                + forceToDisk
-                + "-overlap-"
-                + overlapHashCacheFlush;
+        final String tableName = "configuredSnapshot-" + (useDiskIndices ? "disk" : "segment");
         final Path snapshotDir = fileSystemManager.resolveNewTemp(tableName + "-SNAPSHOT");
         final var configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue(MerkleDbConfig_.HASH_CHUNK_CACHE_THRESHOLD, "1000")
                 .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "33")
                 .withValue(MerkleDbConfig_.LONG_LIST_SNAPSHOT_THREADS_PER_LIST, "16")
-                .withValue(MerkleDbConfig_.LONG_LIST_SNAPSHOT_FORCE_TO_DISK, Boolean.toString(forceToDisk))
-                .withValue(MerkleDbConfig_.SNAPSHOT_HASH_CACHE_FLUSH_OVERLAP, Boolean.toString(overlapHashCacheFlush))
                 .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "100000")
                 .withValue(MerkleDbConfig_.USE_DISK_INDICES, Boolean.toString(useDiskIndices))
                 .build();
@@ -503,66 +470,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         } finally {
             deleteDirectoryAndContents(snapshotDir);
         }
-    }
-
-    @ParameterizedTest
-    @EnumSource(LongListImplementation.class)
-    void explicitlySelectedLongListImplementationRestores(final LongListImplementation longListImplementation)
-            throws IOException {
-        final int count = 1_000;
-        final String tableName = "selected-" + longListImplementation;
-        final Path snapshotDir = fileSystemManager.resolveNewTemp(tableName + "-SNAPSHOT");
-        final var configuration = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withValue(MerkleDbConfig_.HASH_CHUNK_CACHE_THRESHOLD, "1000")
-                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "33")
-                .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "100000")
-                .build();
-
-        final var sourceBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, count);
-        final MerkleDbDataSource source = (MerkleDbDataSource) sourceBuilder.build(tableName, null, false, false);
-        try {
-            source.saveRecords(
-                    count - 1,
-                    count * 2 - 2,
-                    createHashChunkStream(count - 1, count * 2 - 2, i -> i, source.getHashChunkHeight()),
-                    IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty(),
-                    false);
-            sourceBuilder.snapshot(snapshotDir, source);
-        } finally {
-            source.close();
-        }
-
-        final var selectedBuilder =
-                new MerkleDbDataSourceBuilder(configuration, fileSystemManager, count, longListImplementation);
-        final MerkleDbDataSource restored =
-                (MerkleDbDataSource) selectedBuilder.build(tableName, snapshotDir, false, false);
-        try {
-            final Class<? extends LongList> expectedClass =
-                    switch (longListImplementation) {
-                        case HEAP -> LongListHeap.class;
-                        case OFF_HEAP -> LongListOffHeap.class;
-                        case SEGMENT -> LongListSegment.class;
-                        case DISK -> LongListDisk.class;
-                        case DISK_SEGMENT -> LongListDiskSegment.class;
-                    };
-            assertInstanceOf(expectedClass, restored.getIdToDiskLocationHashChunks());
-            assertInstanceOf(expectedClass, restored.getPathToDiskLocationLeafNodes());
-            assertInstanceOf(expectedClass, restored.getKeyToPath().getBucketIndexToBucketLocation());
-            assertLeaf(TestType.long_fixed, restored, count - 1, count - 1);
-            assertLeaf(TestType.long_fixed, restored, count * 2 - 2, count * 2 - 2);
-        } finally {
-            restored.close();
-        }
-    }
-
-    private static Configuration snapshotConfiguration(final boolean overlapHashCacheFlush) {
-        return ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withValue(MerkleDbConfig_.SNAPSHOT_HASH_CACHE_FLUSH_OVERLAP, Boolean.toString(overlapHashCacheFlush))
-                .build();
     }
 
     @ParameterizedTest

@@ -63,6 +63,7 @@ public final class BenchmarkMetrics {
     private Path csvMetricsFilePath;
     private Path csvMetricNamesFilePath;
     private ScheduledExecutorService metricService;
+    private DefaultMetricsProvider metricsProvider;
     private String origMetricString;
     private String curMetricString;
     private Metrics metrics;
@@ -343,7 +344,7 @@ public final class BenchmarkMetrics {
         metricService = Executors.newSingleThreadScheduledExecutor(
                 getStaticThreadManager().createThreadFactory("benchmark", "MetricsWriter"));
 
-        final DefaultMetricsProvider metricsProvider = new DefaultMetricsProvider(configuration);
+        metricsProvider = new DefaultMetricsProvider(configuration);
         metrics = metricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID);
 
         final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
@@ -414,5 +415,7 @@ public final class BenchmarkMetrics {
 
     public static void stop() {
         INSTANCE.metricService.shutdownNow();
+        // Close the Prometheus server so the benchmark JVM can exit after the trial.
+        INSTANCE.metricsProvider.stop();
     }
 }

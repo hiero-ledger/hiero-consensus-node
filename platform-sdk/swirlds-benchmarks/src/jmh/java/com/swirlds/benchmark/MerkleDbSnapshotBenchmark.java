@@ -8,7 +8,6 @@ import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -38,6 +37,10 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+/**
+ * Measures complete snapshots of a state containing {@code numFiles * numRecords} leaves.
+ * Fixture generation and optional restored-record checks are outside the measured operation.
+ */
 @Fork(1)
 @Threads(1)
 @Warmup(iterations = 1)
@@ -49,14 +52,11 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
 
     private static final String TABLE_NAME = "state";
 
-    @Param({"SEGMENT", "DISK", "HEAP", "OFF_HEAP", "DISK_SEGMENT"})
-    public LongListImplementation longListImplementation;
+    @Param({"false", "true"})
+    public boolean useDiskIndices;
 
-    @Param({"1", "2", "8", "16", "32"})
+    @Param({"1", "4"})
     public int threadsPerLongList;
-
-    @Param({"FORCED", "UNFORCED", "FORCED_OVERLAP", "UNFORCED_OVERLAP"})
-    public SnapshotMode snapshotMode;
 
     private VirtualDataSource source;
     private Path snapshotDirectory;
@@ -70,11 +70,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     protected void configureBenchmarkConfiguration(final ConfigurationBuilder configurationBuilder) {
         super.configureBenchmarkConfiguration(configurationBuilder);
         configurationBuilder.withSource(new SimpleConfigSource()
-                .withValue("benchmark.saveDataDirectory", true)
-                .withValue("benchmark.csvWriteFrequency", 0)
+                .withValue("merkleDb.useDiskIndices", useDiskIndices)
                 .withValue("merkleDb.longListSnapshotThreadsPerList", threadsPerLongList)
-                .withValue("merkleDb.longListSnapshotForceToDisk", snapshotMode.forceToDisk)
-                .withValue("merkleDb.snapshotHashCacheFlushOverlap", snapshotMode.overlapHashCacheFlush)
                 .withOrdinal(Integer.MAX_VALUE));
     }
 
@@ -83,8 +80,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         super.onTrialSetup();
 
         final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
-        dataSourceBuilder = new MerkleDbDataSourceBuilder(
-                configuration, fileSystemManager, merkleDbConfig.initialCapacity(), longListImplementation);
+        dataSourceBuilder =
+                new MerkleDbDataSourceBuilder(configuration, fileSystemManager, merkleDbConfig.initialCapacity());
 
         try {
             final Path fixtureDirectory = fixtureDirectory(merkleDbConfig);
@@ -111,10 +108,11 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Override
     protected void onInvocationTearDown() throws Exception {
         try {
-            final long start = System.currentTimeMillis();
+            // Drain outside the timed method so pending writes do not accumulate between invocations.
             forceSnapshotFiles(snapshotDirectory);
-            logger.info("Forced snapshot files after return in {} ms", System.currentTimeMillis() - start);
-            validateSnapshot();
+            if (verify) {
+                validateSnapshot(source, snapshotDirectory);
+            }
         } finally {
             Utils.deleteRecursively(snapshotDirectory);
             snapshotDirectory = null;
@@ -129,7 +127,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
                 source.close();
                 source = null;
             }
-            await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSourceBuilder.getCountOfOpenDatabases() == 0);
+            await().atMost(Duration.ofSeconds(30))
+                    .until(() -> MerkleDbDataSourceBuilder.getCountOfOpenDatabases() == 0);
         } finally {
             super.onTrialTearDown();
         }
@@ -137,6 +136,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
 
     private Path fixtureDirectory(final MerkleDbConfig merkleDbConfig) {
         final long stateSize = Math.multiplyExact((long) numFiles, numRecords);
+        // The framework keeps this fixture across trials when benchmark.saveDataDirectory is enabled.
         return getBenchDir()
                 .resolve("fixture-%d-k%d-r%d-cap%d-h%d"
                         .formatted(
@@ -177,8 +177,10 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
 
             FileUtils.executeAndRename(fixtureDirectory, temporaryFixtureDirectory, directory -> {
                 dataSourceBuilder.snapshot(directory, fixtureSource);
-                validateSnapshot(fixtureSource, directory);
                 forceSnapshotFiles(directory);
+                if (verify) {
+                    validateSnapshot(fixtureSource, directory);
+                }
             });
         } finally {
             mapReference.get().release();
@@ -225,10 +227,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         }
     }
 
-    private void validateSnapshot() throws IOException {
-        validateSnapshot(source, snapshotDirectory);
-    }
-
     private void validateSnapshot(final VirtualDataSource expected, final Path directory) throws IOException {
         final VirtualDataSource restored = dataSourceBuilder.build(TABLE_NAME, directory, false, false);
         try {
@@ -264,21 +262,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             }
         } finally {
             restored.close();
-        }
-    }
-
-    public enum SnapshotMode {
-        FORCED(true, false),
-        UNFORCED(false, false),
-        FORCED_OVERLAP(true, true),
-        UNFORCED_OVERLAP(false, true);
-
-        private final boolean forceToDisk;
-        private final boolean overlapHashCacheFlush;
-
-        SnapshotMode(final boolean forceToDisk, final boolean overlapHashCacheFlush) {
-            this.forceToDisk = forceToDisk;
-            this.overlapHashCacheFlush = overlapHashCacheFlush;
         }
     }
 }
