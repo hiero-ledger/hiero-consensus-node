@@ -15,6 +15,7 @@ testModuleInfo {
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.virtualmap")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.platformstate")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility")

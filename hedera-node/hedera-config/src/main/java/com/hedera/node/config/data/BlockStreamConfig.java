@@ -12,7 +12,7 @@ import java.time.Duration;
 
 /**
  * Configuration for the block stream.
- * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
+ * @param streamMode RECORDS streams only records; BLOCKS (the default) streams only blocks; BOTH streams both
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
@@ -26,11 +26,10 @@ import java.time.Duration;
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
-        @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
-        BlockStreamWriterMode writerMode,
+        @ConfigProperty(defaultValue = "GRPC") @NodeProperty BlockStreamWriterMode writerMode,
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty
         String blockFileDir,
@@ -66,10 +65,10 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
         int blockFileBufferGzipSizeKb,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enableCutover,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty

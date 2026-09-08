@@ -117,7 +117,8 @@ public class HgcaaLogValidator {
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
                 List.of("Failed to initiate async download of WRAPS proving key (from URL "),
-                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"));
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"),
+                List.of("Timed out waiting for pending block proofs, WRB writers, or block node acknowledgements"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

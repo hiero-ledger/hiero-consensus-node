@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.staking;
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_STAKE_PERIOD_BOUNDARY_CROSSINGS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
+import static com.hedera.services.bdd.junit.TestTags.NODE_STAKING;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -73,7 +73,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SERIAL)
-@Tag(LONG_RUNNING)
+@Tag(NODE_STAKING)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class StakingSuite {
