@@ -102,8 +102,8 @@ defect to be stopped, not a tradeoff — its symptom is an ISS (SCN-002).
 
 - **Enforced today.** The current implementation assigns non-descendants the
   constant `ROUND_NEGATIVE_INFINITY` — a valid, bootstrap-independent choice — on
-  every path: the RUL-005 frontier short-circuit, parent-propagation, and, since
-  #26604, the no-parent branch, which now falls through to the terminal value unless
+  every path: the RUL-005 frontier short-circuit, parent-propagation, and,
+  since #26604, the no-parent branch, which now falls through to the terminal value unless
   the first round is still undecided. Enforcement no longer depends on the frontier
   key: previously the `nGen` frontier was what kept every non-descendant away from
   the `ROUND_FIRST` branch, so the defect was masked rather than fixed, and re-keying
