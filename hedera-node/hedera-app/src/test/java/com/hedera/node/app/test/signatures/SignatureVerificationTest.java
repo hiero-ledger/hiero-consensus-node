@@ -454,7 +454,7 @@ class SignatureVerificationTest implements Scenarios {
                                     .collect(Collectors.joining(", "))
                             + ")";
                 }
-                case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+                case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, ML_DSA_44, UNSET ->
                     throw new IllegalArgumentException(
                             "Unsupported key type: " + key.key().kind());
             };

@@ -14,13 +14,16 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * Represents a {@link SignaturePair} where the {@link SignaturePair#pubKeyPrefix()} has been fully "expanded" to a
  * full, uncompressed, public key.
  *
- * @param key The public key, compressed if ECDSA_SECP256K1, or the normal key for ED25519
- * @param keyBytes The key bytes, uncompressed if ECDSA_SECP256K1, or the normal key bytes for ED25519
+ * @param key The public key, compressed if ECDSA_SECP256K1, or the normal key for ED25519 and ML_DSA_44
+ * @param keyBytes The key bytes, uncompressed if ECDSA_SECP256K1, or the normal key bytes for ED25519 and ML_DSA_44
  * @param evmAlias An optional computed evm alias if the key was ECDSA_SECP256K1, and we decided to compute the alias
  * @param sigPair The original signature pair
  */
 public record ExpandedSignaturePair(
-        @NonNull Key key, @NonNull Bytes keyBytes, @Nullable Bytes evmAlias, @NonNull SignaturePair sigPair) {
+        @NonNull Key key,
+        @NonNull Bytes keyBytes,
+        @Nullable Bytes evmAlias,
+        @NonNull SignaturePair sigPair) {
     /**
      * Gets the {@link Bytes} representing the signature signed by the private key matching the fully expanded public
      * key.

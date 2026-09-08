@@ -348,7 +348,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var key = ALICE.keyInfo().publicKey();
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(key, sigFuture));
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of(key, sigFuture));
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(key, null, false));
 
             // When we pre-handle the transaction
@@ -522,7 +522,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(batchTxInfo)
                     .thenReturn(innerTxInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of());
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of());
             doNothing()
                     .doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
                     .when(dispatcher)
@@ -570,7 +570,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var key = ALICE.keyInfo().publicKey();
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(key, sigFuture));
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of(key, sigFuture));
             doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
                     .when(dispatcher)
                     .dispatchPreHandle(any());
@@ -632,7 +632,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             when(badFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(badKey, null, false));
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(
                             payerKey, goodFuture, // Payer check passes
                             badKey, badFuture)); // Sig checks fail
@@ -700,7 +700,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(payerKey, sigFuture));
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of(payerKey, sigFuture));
 
             // When we pre-handle the transaction
             workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
@@ -734,7 +734,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(payerKey, sigFuture));
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of(payerKey, sigFuture));
             final var previousResult = new PreHandleResult(
                     payerAccount,
                     payerKey,
@@ -786,7 +786,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(batchTxInfo)
                     .thenReturn(innerTxInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(payerKey, sigFuture));
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of(payerKey, sigFuture));
             final var previousResult = new PreHandleResult(
                     payerAccount,
                     payerKey,
@@ -888,7 +888,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(finalizedKey, sigFuture));
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of(finalizedKey, sigFuture));
             when(sigFuture.evmAlias()).thenReturn(hollowAccountAlias);
             when(sigFuture.get(anyLong(), any()))
                     .thenReturn(new SignatureVerificationImpl(finalizedKey, hollowAccountAlias, true));
@@ -930,7 +930,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
                     .thenReturn(txInfo);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(payerKey, payerSigFuture, finalizedKey, nonPayerSigFuture));
             when(payerSigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
             when(nonPayerSigFuture.get(anyLong(), any()))

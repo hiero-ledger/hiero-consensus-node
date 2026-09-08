@@ -254,7 +254,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private static boolean canClaimAirdrop(@NonNull final Key key) {
         return switch (key.key().kind()) {
             case UNSET -> throw new IllegalStateException("Key kind cannot be UNSET");
-            case CONTRACT_ID, ED25519, ECDSA_SECP256K1 -> true;
+            case CONTRACT_ID, ED25519, ECDSA_SECP256K1, ML_DSA_44 -> true;
             case RSA_3072, ECDSA_384, DELEGATABLE_CONTRACT_ID -> false;
             case THRESHOLD_KEY ->
                 key.thresholdKeyOrThrow().keysOrThrow().keys().stream()

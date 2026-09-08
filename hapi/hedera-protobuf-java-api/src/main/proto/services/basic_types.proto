@@ -999,10 +999,11 @@ enum TokenPauseStatus {
  * pairs and, optionally, the structure for how multiple signatures may be
  * composed to meet complex multiple-signature authorization requirements.
  *
- * A Key can be a public key from either the Ed25519 or ECDSA(secp256k1)
- * signature schemes. In the ECDSA(secp256k1) case we require the 33-byte
- * compressed form of the public key. For simplicity, we call these
- * cryptographic public keys `primitive` keys.<br/>
+ * A Key can be a public key from the Ed25519, ECDSA(secp256k1), or
+ * ML-DSA-44 signature schemes. In the ECDSA(secp256k1) case we require the
+ * 33-byte compressed form of the public key. In the ML-DSA-44 case we require
+ * the 1312-byte raw FIPS 204 public-key encoding. For simplicity, we call
+ * these cryptographic public keys `primitive` keys.<br/>
  * If an entity has a primitive key associated to it, then the corresponding
  * private key must sign any transaction to send tokens or perform other
  * actions requiring authorization.
@@ -1103,6 +1104,16 @@ message Key {
          * running another contract via a `delegatecall`.
          */
         ContractID delegatable_contract_id = 8;
+
+        /**
+         * A raw FIPS 204 ML-DSA-44 public key.<br/>
+         * This value MUST contain exactly 1312 bytes.
+         * <p>
+         * A transaction signature for this key MUST use the HCPQ v1
+         * ledger-bound transcript and the `ML_DSA_44` field in
+         * `SignaturePair`.
+         */
+        bytes ML_DSA_44 = 9;
     }
 }
 
@@ -1248,7 +1259,7 @@ message SignatureList {
 
 /**
  * A public key and signature pair.<br/>
- * Only Ed25519 and ECDSA(secp256k1) keys and signatures are currently supported
+ * Ed25519, ECDSA(secp256k1), and ML-DSA-44 keys and signatures are supported
  * as cryptographic (non-implied) signatures.
  */
 message SignaturePair {
@@ -1282,6 +1293,11 @@ message SignaturePair {
      * be required to sign a transaction, and ensure that the shortest prefix
      * that is sufficient to unambiguously identify the correct key is used.
      * </dd></dl>
+     * <p>
+     * For an ML-DSA-44 signature this field is not a variable public-key
+     * prefix. It MUST contain the complete 32-byte HCPQ v1 key identifier,
+     * computed as specified by the governing HIP. Shorter values MUST NOT be
+     * accepted for ML-DSA-44.
      */
     bytes pubKeyPrefix = 1;
 
@@ -1314,6 +1330,13 @@ message SignaturePair {
          * An ECDSA(secp256k1) signature.
          */
         bytes ECDSA_secp256k1 = 6;
+
+        /**
+         * A raw FIPS 204 ML-DSA-44 signature over the HCPQ v1 transaction
+         * transcript.<br/>
+         * This value MUST contain exactly 2420 bytes.
+         */
+        bytes ML_DSA_44 = 7;
     }
 }
 

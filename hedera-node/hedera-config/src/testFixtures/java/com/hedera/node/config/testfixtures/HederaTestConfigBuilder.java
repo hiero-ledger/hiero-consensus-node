@@ -44,6 +44,7 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
+import com.hedera.node.config.data.HcpqConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -155,6 +156,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(GrpcConfig.class)
                 .withConfigDataType(HederaConfig.class)
+                .withConfigDataType(HcpqConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(NetworkAdminConfig.class)
