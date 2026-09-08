@@ -63,39 +63,75 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testPlaintextByDefault() {
-        assertClient(f -> f.createStreamingClient(config, timeout).close(), "http", false);
-        assertClient(f -> f.createServiceClient(config, timeout).close(), "http", false);
+        assertClient(
+                f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "http",
+                false);
+        assertClient(
+                f -> f.createServiceClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "http",
+                false);
     }
 
     @Test
     void testTlsOnPublishApiOnly() {
         config = newBlockNodeConfigWithTls(tls(true), BlockNodeTlsConfiguration.DISABLED);
 
-        assertClient(f -> f.createStreamingClient(config, timeout).close(), "https", true);
-        assertClient(f -> f.createServiceClient(config, timeout).close(), "http", false);
+        assertClient(
+                f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "https",
+                true);
+        assertClient(
+                f -> f.createServiceClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "http",
+                false);
     }
 
     @Test
     void testTlsOnServiceApiOnly() {
         config = newBlockNodeConfigWithTls(BlockNodeTlsConfiguration.DISABLED, tls(true));
 
-        assertClient(f -> f.createStreamingClient(config, timeout).close(), "http", false);
-        assertClient(f -> f.createServiceClient(config, timeout).close(), "https", true);
+        assertClient(
+                f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "http",
+                false);
+        assertClient(
+                f -> f.createServiceClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "https",
+                true);
     }
 
     @Test
     void testTlsOnAllApis() {
         config = newBlockNodeConfigWithTls(tls(true), tls(true));
 
-        assertClient(f -> f.createStreamingClient(config, timeout).close(), "https", true);
-        assertClient(f -> f.createServiceClient(config, timeout).close(), "https", true);
+        assertClient(
+                f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "https",
+                true);
+        assertClient(
+                f -> f.createServiceClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "https",
+                true);
     }
 
     @Test
     void testPinnedCertificateTls() {
         config = newBlockNodeConfigWithTls(tls(false), BlockNodeTlsConfiguration.DISABLED);
 
-        assertClient(f -> f.createStreamingClient(config, timeout).close(), "https", true);
+        assertClient(
+                f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
+                        .close(),
+                "https",
+                true);
     }
 
     /**
