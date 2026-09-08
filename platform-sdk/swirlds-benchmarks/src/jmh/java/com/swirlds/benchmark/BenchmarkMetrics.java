@@ -166,7 +166,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskReadOpsConfig = new FunctionGauge.Config<>(
                     "ADA",
-                    "diskReadOps/s",
+                    "diskReadOps_per_s",
                     Double.class,
                     () -> 1000. * (curDiskStats[DISK_STAT_ROPS] - prevDiskStats[DISK_STAT_ROPS]) / (curTime - prevTime))
             .withDescription("Disk read operations per sec")
@@ -174,7 +174,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskReadBytesConfig = new FunctionGauge.Config<>(
                     "ADB",
-                    "diskReadBytes/s",
+                    "diskReadBytes_per_s",
                     Double.class,
                     () -> 1000.
                             * sectorSize
@@ -193,7 +193,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskWriteOpsConfig = new FunctionGauge.Config<>(
                     "ADD",
-                    "diskWriteOps/s",
+                    "diskWriteOps_per_s",
                     Double.class,
                     () -> 1000. * (curDiskStats[DISK_STAT_WOPS] - prevDiskStats[DISK_STAT_WOPS]) / (curTime - prevTime))
             .withDescription("Disk write operations per sec")
@@ -201,7 +201,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskWriteBytesConfig = new FunctionGauge.Config<>(
                     "ADE",
-                    "diskWriteBytes/s",
+                    "diskWriteBytes_per_s",
                     Double.class,
                     () -> 1000.
                             * sectorSize
