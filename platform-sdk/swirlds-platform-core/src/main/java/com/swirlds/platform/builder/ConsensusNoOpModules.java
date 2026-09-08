@@ -42,6 +42,7 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
@@ -82,7 +83,7 @@ public class ConsensusNoOpModules {
             throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
         }
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
 
         final EventCreatorModule eventCreatorModule = createModule(EventCreatorModule.class, configuration);
         eventCreatorModule.initialize(

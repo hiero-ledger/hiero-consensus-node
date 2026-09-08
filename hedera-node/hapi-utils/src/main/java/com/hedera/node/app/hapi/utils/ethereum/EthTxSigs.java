@@ -24,13 +24,13 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
 
     private static final Logger logger = LogManager.getLogger(EthTxSigs.class);
 
-    // Per https://www.google.com/search?q=secp256k1+curve+n
-    // N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
-    // or in decimal:
-    private static final BigInteger N =
+    /// secp256k1 curve N number. Per https://www.google.com/search?q=secp256k1+curve+n
+    /// N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+    /// or in decimal:
+    public static final BigInteger SECP256K1_CURVE_N =
             new BigInteger("115792089237316195423570985008687907852837564279074904382605163141518161494337");
     // Lower-half boundary (N >> 1) by EIP-2 standard.
-    private static final BigInteger HALF_N = N.shiftRight(1);
+    private static final BigInteger HALF_N = SECP256K1_CURVE_N.shiftRight(1);
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
         final var message = calculateSignableMessage(ethTx);
@@ -155,7 +155,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
 
         byte[] dataHash = MiscCryptoUtils.keccak256DigestOf(message);
 
-        checkInBounds(r, N);
+        checkInBounds(r, SECP256K1_CURVE_N);
         checkInBounds(s, HALF_N);
         // The RLP library output won't include leading zeros, which means
         // a simple (r, s) concatenation breaks signature verification below

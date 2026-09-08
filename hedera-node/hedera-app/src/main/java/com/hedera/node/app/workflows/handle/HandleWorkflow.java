@@ -14,6 +14,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartU
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
@@ -376,16 +377,17 @@ public class HandleWorkflow {
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime())
                 : round.getConsensusTimestamp();
-        // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
+        // Each of these dispatches takes the next free slot after the last used consensus time, where a slot is
+        // wide enough for the dispatch and a preceding NODE_STAKE_UPDATE if it triggers stake period side effects
         try {
-            transactionsDispatched |=
-                    nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
+            transactionsDispatched |= nodeFeeManager.distributeFees(
+                    state, lastUsedConsTime.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
         }
         try {
-            transactionsDispatched |=
-                    nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
+            transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                    state, lastUsedConsTime.plusNanos(2L * MAX_NANOS_PER_SYSTEM_DISPATCH), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
         }
@@ -399,11 +401,14 @@ public class HandleWorkflow {
                 try {
                     final var ctx = setLedgerIdContext.get();
                     logger.info("Externalizing ledger id {}", ctx.ledgerId().toHex());
-                    // Since we must have handled a TSS tx to trigger setting the ledger id, we
-                    // know the last-used consensus time has advanced since the last system tx
+                    // Re-read the last-used time, since handling this round's transactions has advanced it
+                    // past the snapshot the earlier system transactions were dispatched from
+                    final var ledgerIdConsTime = blockHashSigner.isReady()
+                            ? blockStreamManager.lastUsedConsensusTime()
+                            : round.getConsensusTimestamp();
                     systemTransactions.externalizeLedgerId(
                             state,
-                            lastUsedConsTime.plusNanos(2),
+                            ledgerIdConsTime.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH),
                             ctx.ledgerId(),
                             ctx.proofKeys(),
                             ctx.targetNodeWeights(),

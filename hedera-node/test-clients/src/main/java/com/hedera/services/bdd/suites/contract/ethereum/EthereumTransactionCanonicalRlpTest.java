@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -39,7 +40,6 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -107,8 +107,9 @@ public class EthereumTransactionCanonicalRlpTest {
                         .via("canonicalAfterRefusal")
                         .hasKnownStatus(SUCCESS),
                 getTxnRecord("canonicalAfterRefusal")
-                        .hasPriority(
-                                recordWith().status(SUCCESS).ethereumHash(ByteString.copyFrom(keccak256(canonical)))),
+                        .hasPriority(recordWith()
+                                .status(SUCCESS)
+                                .ethereumHash(ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(canonical)))),
                 getAutoCreatedAccountBalance(REJECTION_SENDER.recipientKey())
                         .hasTinyBars(changeFromSnapshot("rejectionRecipientBefore", TRANSFER_TINYBARS)),
                 getAliasedAccountInfo(REJECTION_SENDER.senderKey())
@@ -134,8 +135,9 @@ public class EthereumTransactionCanonicalRlpTest {
                         .via("exactSubmission")
                         .hasKnownStatus(SUCCESS),
                 getTxnRecord("exactSubmission")
-                        .hasPriority(
-                                recordWith().status(SUCCESS).ethereumHash(ByteString.copyFrom(keccak256(canonical)))),
+                        .hasPriority(recordWith()
+                                .status(SUCCESS)
+                                .ethereumHash(ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(canonical)))),
                 getAutoCreatedAccountBalance(CANONICAL_SENDER.recipientKey())
                         .hasTinyBars(changeFromSnapshot("canonicalRecipientBefore", TRANSFER_TINYBARS)),
                 getAliasedAccountInfo(CANONICAL_SENDER.senderKey())
@@ -163,10 +165,6 @@ public class EthereumTransactionCanonicalRlpTest {
         final var extended = Arrays.copyOf(canonical, canonical.length + 1);
         extended[canonical.length] = TRAILING_BYTE;
         return extended;
-    }
-
-    private static byte[] keccak256(final byte[] bytes) {
-        return new Keccak.Digest256().digest(bytes);
     }
 
     /// Left-pads `value` to a 32-byte secp256k1 private key.

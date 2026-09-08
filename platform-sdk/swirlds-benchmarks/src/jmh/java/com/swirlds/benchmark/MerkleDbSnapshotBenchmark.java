@@ -1,31 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import static java.nio.ByteOrder.LITTLE_ENDIAN;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.awaitility.Awaitility.await;
 
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbPaths;
-import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import java.io.EOFException;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileUtils;
@@ -50,10 +47,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Benchmark)
 public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
 
-    private static final int LONG_LIST_FILE_HEADER_SIZE = Integer.BYTES + Long.BYTES;
-    private static final int LONG_LIST_FILE_FORMAT_VERSION = 3;
     private static final String TABLE_NAME = "state";
-    private static final String BUCKET_INDEX_FILE_NAME = TABLE_NAME + "_objectkeytopath_bucket_index.ll";
 
     @Param({"SEGMENT", "DISK", "HEAP", "OFF_HEAP", "DISK_SEGMENT"})
     public LongListImplementation longListImplementation;
@@ -64,9 +58,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Param({"FORCED", "UNFORCED", "FORCED_OVERLAP", "UNFORCED_OVERLAP"})
     public SnapshotMode snapshotMode;
 
-    private MerkleDbDataSource source;
+    private VirtualDataSource source;
     private Path snapshotDirectory;
-    private int longsPerChunk;
 
     @Override
     String benchmarkName() {
@@ -92,12 +85,11 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
         dataSourceBuilder = new MerkleDbDataSourceBuilder(
                 configuration, fileSystemManager, merkleDbConfig.initialCapacity(), longListImplementation);
-        longsPerChunk = merkleDbConfig.longListChunkSize();
 
         try {
             final Path fixtureDirectory = fixtureDirectory(merkleDbConfig);
             createFixtureIfNeeded(fixtureDirectory);
-            source = (MerkleDbDataSource) dataSourceBuilder.build(TABLE_NAME, fixtureDirectory, false, false);
+            source = dataSourceBuilder.build(TABLE_NAME, fixtureDirectory, false, false);
             validateSource();
             populateHashChunkCache(merkleDbConfig);
         } catch (final IOException e) {
@@ -137,7 +129,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
                 source.close();
                 source = null;
             }
-            await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+            await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSourceBuilder.getCountOfOpenDatabases() == 0);
         } finally {
             super.onTrialTearDown();
         }
@@ -181,14 +173,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             logger.info("Pre-created {} records in {} ms", stateSize, System.currentTimeMillis() - start);
 
             mapReference.set(flushMap(mapReference.get()));
-            final MerkleDbDataSource fixtureSource =
-                    (MerkleDbDataSource) mapReference.get().getDataSource();
-            // Finish compaction before comparing saved index locations with the live source.
-            logger.info("Waiting for fixture compactions to finish...");
-            final long compactionStart = System.currentTimeMillis();
-            fixtureSource.awaitForCurrentCompactionsToComplete(0);
-            fixtureSource.stopAndDisableBackgroundCompaction();
-            logger.info("Finished fixture compactions in {} ms", System.currentTimeMillis() - compactionStart);
+            final VirtualDataSource fixtureSource = mapReference.get().getDataSource();
 
             FileUtils.executeAndRename(fixtureDirectory, temporaryFixtureDirectory, directory -> {
                 dataSourceBuilder.snapshot(directory, fixtureSource);
@@ -244,89 +229,41 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         validateSnapshot(source, snapshotDirectory);
     }
 
-    private void validateSnapshot(final MerkleDbDataSource expected, final Path directory) throws IOException {
-        final MerkleDbPaths snapshotPaths =
-                new MerkleDbPaths(directory.resolve("data").resolve(TABLE_NAME));
-        validateLongListSnapshot(
-                expected.getIdToDiskLocationHashChunks(), snapshotPaths.idToDiskLocationHashChunksFile);
-        validateLongListSnapshot(
-                expected.getPathToDiskLocationLeafNodes(), snapshotPaths.pathToDiskLocationLeafNodesFile);
-        validateLongListSnapshot(
-                expected.getKeyToPath().getBucketIndexToBucketLocation(),
-                snapshotPaths.keyToPathDirectory.resolve(BUCKET_INDEX_FILE_NAME));
-
-        if (!Files.isRegularFile(snapshotPaths.metadataFile)) {
-            throw new IOException("Snapshot metadata is missing: " + snapshotPaths.metadataFile);
-        }
-        validateStoreDirectory(snapshotPaths.hashChunkDirectory);
-        validateStoreDirectory(snapshotPaths.keyToPathDirectory);
-        validateStoreDirectory(snapshotPaths.pathToKeyValueDirectory);
-    }
-
-    private void validateLongListSnapshot(final LongList expected, final Path snapshotFile) throws IOException {
-        final long minValidIndex = expected.getMinValidIndex();
-        final long size = expected.size();
-        final long expectedFileSize = LONG_LIST_FILE_HEADER_SIZE + Math.multiplyExact(size - minValidIndex, Long.BYTES);
-        final long actualFileSize = Files.size(snapshotFile);
-        if (actualFileSize != expectedFileSize) {
-            throw new IOException(
-                    "Unexpected snapshot size for " + snapshotFile + ": " + actualFileSize + " != " + expectedFileSize);
-        }
-
-        try (final FileChannel channel = FileChannel.open(snapshotFile, StandardOpenOption.READ)) {
-            final ByteBuffer header = ByteBuffer.allocate(LONG_LIST_FILE_HEADER_SIZE);
-            readFully(channel, header, 0);
-            header.flip();
-            final int formatVersion = header.getInt();
-            final long fileMinValidIndex = header.getLong();
-            if (formatVersion != LONG_LIST_FILE_FORMAT_VERSION || fileMinValidIndex != minValidIndex) {
-                throw new IOException("Unexpected LongList header in " + snapshotFile);
+    private void validateSnapshot(final VirtualDataSource expected, final Path directory) throws IOException {
+        final VirtualDataSource restored = dataSourceBuilder.build(TABLE_NAME, directory, false, false);
+        try {
+            final long firstLeafPath = expected.getFirstLeafPath();
+            final long lastLeafPath = expected.getLastLeafPath();
+            if (restored.getFirstLeafPath() != firstLeafPath || restored.getLastLeafPath() != lastLeafPath) {
+                throw new IOException("Snapshot leaf range does not match the source");
             }
 
-            validateLongValue(channel, expected, minValidIndex);
-            final long firstChunkBoundary = (minValidIndex / longsPerChunk + 1) * longsPerChunk;
-            for (long index = firstChunkBoundary; index < size; index += longsPerChunk) {
-                validateLongValue(channel, expected, index);
+            // Check logical records, since compaction may change their file locations after the snapshot.
+            for (final long path : new long[] {firstLeafPath, (firstLeafPath + lastLeafPath) / 2, lastLeafPath}) {
+                final VirtualLeafBytes<?> leaf = expected.loadLeafRecord(path);
+                if (leaf == null
+                        || !leaf.equals(restored.loadLeafRecord(path))
+                        || !leaf.equals(restored.loadLeafRecord(leaf.keyBytes()))
+                        || restored.findKey(leaf.keyBytes()) != path) {
+                    throw new IOException("Snapshot leaf does not match the source at path " + path);
+                }
             }
-            if (size - 1 != minValidIndex) {
-                validateLongValue(channel, expected, size - 1);
-            }
-        }
-    }
 
-    private static void validateStoreDirectory(final Path directory) throws IOException {
-        if (!Files.isDirectory(directory)) {
-            throw new IOException("Snapshot store directory is missing: " + directory);
-        }
-        try (final Stream<Path> files = Files.walk(directory)) {
-            if (files.noneMatch(Files::isRegularFile)) {
-                throw new IOException("Snapshot store directory is empty: " + directory);
+            final long lastChunkId = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, expected.getHashChunkHeight());
+            for (final long chunkId : new long[] {0, lastChunkId / 2, lastChunkId}) {
+                final VirtualHashChunk expectedChunk = expected.loadHashChunk(chunkId);
+                final VirtualHashChunk restoredChunk = restored.loadHashChunk(chunkId);
+                if (expectedChunk == null || restoredChunk == null || expectedChunk.path() != restoredChunk.path()) {
+                    throw new IOException("Snapshot hash chunk does not match the source: " + chunkId);
+                }
+                for (int index = 0; index < VirtualHashChunk.getChunkSize(expected.getHashChunkHeight()); index++) {
+                    if (!Objects.equals(expectedChunk.getHashAtIndex(index), restoredChunk.getHashAtIndex(index))) {
+                        throw new IOException("Snapshot hash does not match the source in chunk " + chunkId);
+                    }
+                }
             }
-        }
-    }
-
-    private static void validateLongValue(final FileChannel channel, final LongList expected, final long index)
-            throws IOException {
-        final long position =
-                LONG_LIST_FILE_HEADER_SIZE + Math.multiplyExact(index - expected.getMinValidIndex(), Long.BYTES);
-        final ByteBuffer valueBuffer = ByteBuffer.allocate(Long.BYTES).order(LITTLE_ENDIAN);
-        readFully(channel, valueBuffer, position);
-        valueBuffer.flip();
-        final long actualValue = valueBuffer.getLong();
-        final long expectedValue = expected.get(index, 0);
-        if (actualValue != expectedValue) {
-            throw new IOException(
-                    "Unexpected LongList value at index " + index + ": " + actualValue + " != " + expectedValue);
-        }
-    }
-
-    private static void readFully(final FileChannel channel, final ByteBuffer buffer, final long position)
-            throws IOException {
-        while (buffer.hasRemaining()) {
-            final int bytesRead = channel.read(buffer, position + buffer.position());
-            if (bytesRead < 0) {
-                throw new EOFException("Unexpected end of snapshot file");
-            }
+        } finally {
+            restored.close();
         }
     }
 

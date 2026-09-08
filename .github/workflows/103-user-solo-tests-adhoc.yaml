@@ -64,7 +64,7 @@ on:
         type: string
         default: ""
       cutover-078-to-079-starting-tag:
-        description: "[078-to-079-cutover] Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.2."
+        description: "[078-to-079-cutover] Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.5."
         required: false
         type: string
         default: ""
@@ -784,7 +784,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.cutover-078-to-079-starting-tag || 'v0.78.0-rc.2' }}" \
+              DEPLOY_RELEASE_TAG="${{ inputs.cutover-078-to-079-starting-tag || 'v0.78.0-rc.5' }}" \
             "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
 
       - name: Collect Diagnostics On Failure

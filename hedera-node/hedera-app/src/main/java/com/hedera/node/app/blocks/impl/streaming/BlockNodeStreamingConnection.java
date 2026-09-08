@@ -240,7 +240,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         // to prevent blocking on network operations
         final Future<?> future = blockingIoExecutor.submit(() -> {
             client = clientFactory.createStreamingClient(
-                    configuration(), timeoutDuration, connectionId().toString());
+                    configuration(),
+                    timeoutDuration,
+                    connectionId().toString(),
+                    bncConfig().grpcCompressionType());
             final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = client.publishBlockStream(this);
             requestCallRef.set(call);
         });

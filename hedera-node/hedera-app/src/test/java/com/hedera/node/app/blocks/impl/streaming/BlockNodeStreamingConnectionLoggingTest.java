@@ -17,6 +17,7 @@ import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import java.lang.invoke.MethodHandle;
@@ -86,7 +87,11 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
         final BlockStreamingObs streamingObs = mock(BlockStreamingObs.class);
 
         final BlockStreamPublishBytesClient client = mock(BlockStreamPublishBytesClient.class);
-        when(clientFactory.createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString()))
+        when(clientFactory.createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class)))
                 .thenReturn(client);
         when(client.publishBlockStream(any(Pipeline.class))).thenReturn(requestCall);
 
