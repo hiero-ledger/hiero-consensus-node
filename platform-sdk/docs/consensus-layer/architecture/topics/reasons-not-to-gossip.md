@@ -74,10 +74,9 @@ ranges are accurate at last review and may shift with refactors.
   dispatch on every peer connection.
 - Code anchor:
   [`consensus-gossip-impl/.../RpcProtocol.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcProtocol.java)
-  `#stop()` (lines 211–222), `#pause()` (lines 236–242); flag read in
+  `#stop()`, `#pause()`; flag read in
   [`RpcPeerProtocol.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcPeerProtocol.java)
-  (sync initiation around lines 261–276, dispatch loop around lines 340–342,
-  message-processing check around lines 416–418).
+  (sync initiation, the dispatch loop, and the message-processing check).
 - Rationale: the node has fallen far enough behind that some events it
   needs have been expired by enough peers, so it must reconnect rather
   than catch up via gossip. Once a reconnect is required, receiving
@@ -93,7 +92,7 @@ ranges are accurate at last review and may shift with refactors.
 - Suppresses: sync initiation and sync acceptance with all peers.
 - Code anchor:
   [`consensus-gossip-impl/.../sync/protocol/SyncStatusChecker.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/sync/protocol/SyncStatusChecker.java)
-  (lines 17–23); read by
+; read by
   `RpcPeerProtocol.shouldSwitchToRpc()`.
 - Rationale: only specific platform lifecycle statuses are safe for
   exchanging events; the allow-list is explicit in
@@ -139,9 +138,9 @@ ranges are accurate at last review and may shift with refactors.
   composite `isBroadcastRunning()` guard below).
 - Code anchor:
   [`consensus-gossip-impl/.../shadowgraph/RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#checkForPeriodicActions` (lines 194–197); flag set around line 415 in
-  `#maybeBothSentSyncData`; also gates `#isBroadcastRunning()` (line 541).
-- Rationale: comment near line 265 — "don't spam remote side if it is
+  `#checkForPeriodicActions`; flag set in
+  `#maybeBothSentSyncData`; also gates `#isBroadcastRunning()`.
+- Rationale: code comment — "don't spam remote side if it is
   going to reconnect". The peer is presumed to be entering its reconnect
   flow and cannot usefully receive further events over gossip until it
   rejoins. Cross-link: [`topics/reconnect.md`](reconnect.md).
@@ -153,9 +152,9 @@ ranges are accurate at last review and may shift with refactors.
   (sync still runs normally and remains the channel for self-events).
 - Code anchor:
   [`consensus-gossip-impl/.../RpcProtocol.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcProtocol.java)
-  `#addEvent` (lines 186–193); also a term in
+  `#addEvent`; also a term in
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#isBroadcastRunning()` (line 540).
+  `#isBroadcastRunning()`.
 - Rationale: feature flag. With broadcast disabled, all events flow
   through sync only.
 
@@ -168,9 +167,9 @@ ranges are accurate at last review and may shift with refactors.
   (sync may still run when permitted).
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#isBroadcastRunning()` (lines 538–544); guards `#broadcastEvent`
-  (lines 264–273).
-- Rationale: comment lines 265–266 — "don't spam remote side if it is
+  `#isBroadcastRunning()`; guards `#broadcastEvent`
+.
+- Rationale: code comment — "don't spam remote side if it is
   going to reconnect or if we haven't completed even a first sync, as it
   might be a recovery phase". The `communicationOverload` term is a
   backpressure signal (see "Node overloaded — backpressure throttles
@@ -186,11 +185,11 @@ ranges are accurate at last review and may shift with refactors.
   fresh self-events.
 - Code anchor:
   [`consensus-gossip-impl/.../shadowgraph/SyncUtils.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/SyncUtils.java)
-  `#filterLikelyDuplicates` (lines 70–115); thresholds plumbed by
+  `#filterLikelyDuplicates`; thresholds plumbed by
   [`ShadowgraphSynchronizer.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/ShadowgraphSynchronizer.java)
-  (lines 191–192), which passes `Duration.ZERO` when broadcast is not
+, which passes `Duration.ZERO` when broadcast is not
   running.
-- Rationale: comment at `SyncUtils` lines 90–91 — when broadcast is
+- Rationale: code comment in `SyncUtils` — when broadcast is
   disabled the threshold is zero so self-events flow through sync
   immediately; when broadcast is active, sync defers them to avoid
   duplicate transmission across the two channels.
@@ -203,7 +202,7 @@ ranges are accurate at last review and may shift with refactors.
   works).
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#checkForPeriodicActions` (lines 189–192) via
+  `#checkForPeriodicActions` via
   `#isSyncCooldownComplete()`.
 - Rationale: when broadcast is enabled, broadcast is the primary
   channel for event propagation and sync runs periodically as a backup
@@ -221,8 +220,8 @@ ranges are accurate at last review and may shift with refactors.
 - Suppresses: starting a new sync with this peer.
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#checkForPeriodicActions` (lines 199–202); flag cleared in
-  `#receiveEventsFinished` (line 363).
+  `#checkForPeriodicActions`; flag cleared in
+  `#receiveEventsFinished`.
 - Rationale: prevents starting a new sync while the peer is still
   sending events from the prior one, to avoid overlapping sync logic
   and possible duplicate events.
@@ -236,7 +235,7 @@ ranges are accurate at last review and may shift with refactors.
 - Suppresses: starting a new sync with this peer.
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#checkForPeriodicActions` (line 204); per-peer counters in
+  `#checkForPeriodicActions`; per-peer counters in
   [`DefaultIntakeEventCounter.java`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/DefaultIntakeEventCounter.java)
   `#hasUnprocessedEvents`.
 - Rationale: the peer just sent us a batch of events. Until those
@@ -252,7 +251,7 @@ ranges are accurate at last review and may shift with refactors.
 - Suppresses: starting a second sync with the same peer.
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#checkForPeriodicActions` (lines 209, 225–228).
+  `#checkForPeriodicActions`.
 - Rationale: prevents duplicate events and protects the internal
   per-sync data structures (`mySyncData`) that the active sync owns.
 
@@ -264,7 +263,7 @@ ranges are accurate at last review and may shift with refactors.
   `onForcedSync` branch in `#checkForPeriodicActions`).
 - Code anchor:
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
-  `#checkForPeriodicActions` (lines 212–215).
+  `#checkForPeriodicActions`.
 - Rationale: a currently *disabled* round-robin selector for outgoing
   syncs. The motivation was preventing this node from only ever
   syncing with a subset of peers — without round-robin, a misbehaving
