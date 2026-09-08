@@ -14,11 +14,11 @@ and raw evidence remain in the result documents linked below.
 
 | Area | Current conclusion |
 |---|---|
-| Parallel LongList writes | Implemented, correctness-tested, and measured with isolated and complete-snapshot Linux benchmarks. The complete-snapshot candidate uses two writers per LongList; eight provided no further benefit. |
+| Parallel LongList writes | Implemented and measured across all five implementations. Eight writers capture most of the combined-mode gain at 1B; the earlier 100M run gained little beyond two. |
 | Writing the same bytes more efficiently | The prepared-memory control and follow-up diagnostics did not justify physical preallocation or direct I/O. |
-| Removing the final LongList force | Earlier `writeToFile()` return is established, and a 100-million-leaf campaign confirmed an earlier complete snapshot return. |
+| Removing the final LongList force | Earlier `writeToFile()` return is established; both 100M and 1B campaigns also confirmed earlier complete-snapshot return. |
 | Compression | Still worth discussing because it could reduce storage traffic, but it changes the file format and adds CPU work. No experiment starts without team agreement. |
-| Hash-cache pre-flush overlap | The 100-million-leaf Linux gate passed in every configuration and reordered block. A larger-state confirmation remains before final defaults are selected. |
+| Hash-cache pre-flush overlap | With force disabled, overlap improved every tested configuration in every block at both 100M and 1B. Final defaults remain to be agreed. |
 
 The result documents are the source of truth for measurements. This report
 keeps only the evidence needed to understand each decision.
@@ -77,10 +77,10 @@ See:
 
 The configurable parallel writer is a supported branch result. The isolated
 campaign did not identify one higher count that was best across all five
-implementations. In the complete-snapshot combined candidate, however, two
-writers had the lowest mean for both production index modes and eight did not
-improve it. Two writers therefore advance to the larger-state confirmation;
-one remains the immediate rollback.
+implementations. In the complete-snapshot combined mode, two writers had the
+lowest mean for Segment and Disk at 100M. At 1B, eight beat both one and two
+writers across all five implementations in every block. Eight is therefore
+the measured 1B candidate; one remains the current default and rollback.
 
 ## 3. Attempts to make the durable write itself faster
 
@@ -195,11 +195,11 @@ The focused comparison forced each unforced target immediately after
 1.0% of the ordinary forced path. This confirms that the faster return comes
 from moving storage work past the method boundary, not eliminating it.
 
-The earlier LongList return is strong and reproducible. The complete-snapshot
-campaign confirmed the direction: without hash-cache overlap the reduction was
-39.4-55.9%, and with overlap enabled it was 29.4-48.5%, depending on index mode
-and writer count. Because the existing force does not provide whole-snapshot
-durability, the combined candidate removes the isolated final wait.
+The earlier LongList return is strong and reproducible. The 100M and 1B
+complete-snapshot campaigns confirmed the direction for every implementation
+and writer count tested, with either flush schedule. Because the existing
+force does not provide whole-snapshot durability, the combined candidate
+removes the isolated final wait.
 
 See:
 
@@ -249,35 +249,30 @@ The implementation must preserve three conditions:
    the snapshot waiting forever.
 3. The caller receives the same snapshot failure behavior as today.
 
-The 100-million-leaf Linux campaign populated all 262,144 configured cache
-chunks and compared serial and overlapping schedules in the same three
-reordered blocks. Overlap reduced the mean by 28.3-48.3% with the final
-LongList force and by 23.9-33.3% without it. It won every tested configuration
-and every block.
+Both the 100M and 1B Linux campaigns populated all 262,144 configured cache
+chunks. With force disabled, overlap improved every tested configuration in
+every reordered block. At 1B and eight writers, it reduced the mean by another
+10.0-16.7% across all five implementations. With force retained, improvements
+were less consistent.
 
-The unforced-overlap candidate with two writers per LongList reduced mean
-snapshot return time by 63.7% for Segment and 60.3% for Disk compared with the
-forced, serial-flush, one-writer baseline. See
+The larger leaf index makes writer count more important at 1B, while the cache
+threshold stays fixed. The full mode comparisons and explanation are in
 [`hash-cache-pre-flush-overlap.md`](04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md).
-
-At a larger state the leaf index grows while the configured cache threshold
-does not. The next confirmation therefore checks that the direction and the
-two-writer choice survive when LongList writing occupies more of the snapshot.
 
 ## 7. How the changes fit together
 
-The measured complete-snapshot candidate is:
+The measured 1B complete-snapshot candidate is:
 
 ```text
-two writers per LongList
+eight writers per LongList
     + no final LongList force
     + hash-cache pre-flush overlap
 ```
 
-That combination passed the 100-million-leaf gate for both index modes. It
-needs a larger-state confirmation before the configuration defaults are
-finalized because the balance between cache flushing and index writing changes
-with state size.
+The 1B confirmation is complete across all five implementations. At 100M,
+the earlier combined-mode run gained little beyond two writers. Final defaults
+remain to be agreed because the useful count changes with state size and the
+largest tested count is not best for every implementation.
 
 Compression is not part of the current candidate. If the team approves it and
 its own measurements show a benefit, it can later be added to the same
@@ -323,13 +318,14 @@ current conclusions were reached.
    the remaining storage wait past `writeToFile()`.
 7. **No-force production path — implemented and measured.** The configurable
    path preserves worker completion and channel close before snapshot
-   publication. Final default selection follows the larger-state confirmation.
+   publication. Final default selection remains to be agreed.
 8. **Hash-cache pre-flush overlap — initial gate complete.** The
    dependency-aware schedule won every 100-million-leaf configuration and
    selected unforced overlap with two writers as the combined candidate.
 9. **Compression — team discussion.** Measure representative compression and
    load cost only if the team chooses to pursue the file-format change.
-10. **Larger-state complete-snapshot confirmation — next.** Compare the forced
-   one-writer, serial-flush baseline with unforced overlap at one and two
-   writers for both index modes. Record the mean and slowest observed snapshot
-   times before selecting production defaults.
+10. **Larger-state complete-snapshot confirmation — complete.** The 1B campaign
+   covered all five implementations, both force settings, both flush schedules,
+   and one, two, eight, sixteen, and thirty-two writers. Eight captures most of
+   the combined-mode gain; the tables retain the anomalous first forced-Segment
+   block with a caveat. Review these results before agreeing on final defaults.

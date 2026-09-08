@@ -156,14 +156,11 @@ The per-operation post-return values above were recomputed from its JSON
 
 ## Complete-snapshot confirmation
 
-The 100-million-leaf MerkleDB campaign measured forced and unforced snapshots
-in the same three reordered blocks. It covered Segment and Disk indices,
-`P={1,2,8}`, and both the serial and overlapping hash-cache schedules.
-
-Without hash-cache overlap, removing the force reduced complete-snapshot mean
-return time by 44.6-55.9% for Segment and 39.4-50.5% for Disk. With overlap
-already enabled, it still reduced the mean by 45.3-48.5% for Segment and
-29.4-42.0% for Disk. The improvement reproduced in every block.
+The complete-snapshot campaigns measured both force settings and both
+hash-cache schedules: first at 100M leaves with Segment and Disk and
+`P={1,2,8}`, then at 1B with all five implementations and `P={1,2,8,16,32}`.
+Each result has nine measurements. Unforced return was earlier in every
+matched configuration and every block, with either schedule.
 
 See the complete method and tables in
 [`hash-cache-pre-flush-overlap.md`](../04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md).
@@ -208,10 +205,9 @@ separately in
 [`linux-benchmark-results-without-force.md`](linux-benchmark-results-without-force.md).
 
 No additional LongList microbenchmark is needed to establish the earlier
-return. Production implementation should keep worker completion and channel
-close before publication, while documenting the changed error-reporting
-boundary. A larger-state complete-snapshot confirmation remains for the final
-combined candidate, not to re-prove the no-force direction.
+return. The configurable production path keeps worker completion and channel
+close before publication. The 1B complete-snapshot confirmation is also
+complete; final defaults and contract documentation remain to be reviewed.
 
 ## Raw evidence
 

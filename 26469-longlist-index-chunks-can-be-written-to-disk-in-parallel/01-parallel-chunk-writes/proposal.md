@@ -1,9 +1,9 @@
 # Parallel LongList writes and final-force removal
 
-> **Status:** Design record for the parallel chunk writer implemented on this
-> branch and the final-force removal selected for this PR. The production-path
-> force removal and its Javadocs are still pending. Experiment results and
-> current decisions are maintained separately.
+> **Status:** Design record for the parallel chunk writer and configurable
+> final-force removal implemented on this branch. Both have been measured
+> through complete snapshots at 100M and 1B leaves. Final defaults and contract
+> documentation remain to be reviewed. Results and decisions are maintained separately.
 > Use
 > [`snapshot-optimization-report.md`](../snapshot-optimization-report.md) for
 > the current investigation state.
@@ -46,12 +46,12 @@ eliminated. See
 
 |      Metadata      |                                                               Entities                                                                |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| Status             | Parallel writer implemented and measured; final-force removal selected for this PR and awaiting production-path implementation          |
+| Status             | Parallel writer and configurable final-force removal implemented and measured; final defaults remain to be agreed                       |
 | Designer           | [@thenswan](https://github.com/thenswan)                                                                                              |
 | Functional impacts | MerkleDB and VirtualMap snapshot writing                                                                                              |
 | Related issue      | [#26469: LongList index chunks can be written to disk in parallel](https://github.com/hiero-ledger/hiero-consensus-node/issues/26469) |
 | Related work       | [#25820: Zero-downtime upgrade](https://github.com/hiero-ledger/hiero-consensus-node/issues/25820)                                    |
-| Last updated       | 2026-08-28                                                                                                                            |
+| Last updated       | 2026-09-02                                                                                                                            |
 
 ---
 
@@ -107,9 +107,9 @@ concurrent `close()` is outside this proposal.
 
 [`AbstractLongList.writeToFile()`](../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java)
 creates a new file, writes the header, delegates body writing to the concrete
-implementation, calls `FileChannel.force(true)`, and closes the target. The
-selected change in this PR will keep the worker-completion and close boundaries
-but remove that isolated final force.
+implementation, calls `FileChannel.force(true)` by default, and closes the
+target. The configurable unforced path keeps worker completion and close but
+skips that isolated final force.
 
 The version-3 file consists of:
 
@@ -587,10 +587,10 @@ LongList writes.
 
 ### 8. Close without the final LongList force
 
-After the pending production change, the successful path will close the target
+With `longListSnapshotForceToDisk=false`, the successful path closes the target
 after all body writers finish and without calling `FileChannel.force(true)`.
-Closing completes the Java write calls, but Linux may continue writing cached
-file pages to storage after `writeToFile()` returns.
+All Java writes have completed, but Linux may continue writing cached file
+pages to storage after `writeToFile()` returns.
 
 The force selected for removal covers only the LongList index files. The other
 snapshot files and the published directory are not synchronized as one
@@ -602,8 +602,9 @@ This decision is supported by the forced/unforced Linux campaigns. The
 unforced mean was lower in all 280 matched configurations. When the
 focused benchmark forced the target immediately after return, the total time
 was within 1.0% of the forced path. The change therefore defers the remaining
-storage work; it does not eliminate it. The effect on complete snapshot time
-remains part of the final production-path comparison.
+storage work; it does not eliminate it. Earlier complete-snapshot return is
+also confirmed at 100M and 1B; see the
+[`complete-snapshot results`](../04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md).
 
 ## Changes
 
@@ -855,15 +856,15 @@ it.
 | Risk | How it is handled |
 |---|---|
 | Without the final `force(true)`, a LongList file can be published before Linux writes every cached page to storage. A writeback error reported only by that force will no longer reach this snapshot call. | This is an accepted behavior change in this PR. All range writes still finish and the channel closes before snapshot publication. The current force covers only LongList files; a whole-snapshot durability guarantee would require a separate end-to-end protocol. Update the `writeToFile()` contract to state the new return and error boundary. |
-| Removing the force makes `writeToFile()` return earlier but does not remove the remaining storage work. Deferred writeback can overlap or contend with later snapshot work. | The unforced mean was lower in all 280 matched Linux configurations. In the focused run, adding an immediate post-return force brought total time within 1.0% of the forced path. Describe this as earlier return, not higher durable throughput or a measured complete-snapshot speedup. |
+| Removing the force makes `writeToFile()` return earlier but does not remove the remaining storage work. Deferred writeback can overlap or contend with later snapshot work. | The unforced mean was lower in all 280 matched Linux configurations. In the focused run, adding an immediate post-return force brought total time within 1.0% of the forced path. The 100M and 1B campaigns also confirm earlier complete-snapshot return, not higher durable throughput. |
 | A higher writer count can be slower or use more resources, depending on the LongList implementation, list size, storage, and `LongListDisk` source-cache state. | Keep one writer per LongList as the default and parallel-writer rollback. The Linux matrix found gains but no universal higher count, and the Disk diagnostic confirmed that source-cache state changes the size of the gain. Higher counts remain an explicit environment-specific setting. |
 | Parallel writers add threads and per-worker buffers. Concurrent snapshots of different data sources multiply this cost. | The snapshot-scoped range pool has at most `3P` threads and at most `3P` submitted tasks; `P=1` submits no range work. Each list still uses one target channel. If all three lists have at least `P` active ranges and each range allocates an 8 MiB full-chunk buffer, the rough per-snapshot buffer total is 48 MiB at `P=2` and 384 MiB at `P=16`, before JDK and kernel memory. Heap uses a 1 MiB buffer instead. |
 | A bad range boundary, worker failure, or interruption could produce an invalid file or let work continue after return. | Workers use disjoint absolute offsets and all accepted work is joined before channel close. The outer snapshot waits for all six accepted top-level tasks. Tests cover byte-identical output and reopening for all five implementations, both production index modes, worker I/O failure and quiescence, top-level failure, and caller interruption. |
 
 ## Implementation status
 
-There are no prerequisite PRs. The parallel writer is implemented; the
-production-path final-force removal remains to be applied in this PR.
+There are no prerequisite PRs. The parallel writer and configurable unforced
+production path are implemented and measured. Final defaults remain to be agreed.
 
 1. **Parallel-writer implementation complete.** The branch adds the
    snapshot-scoped shared pool, positional writes, and fixed contiguous ranges
@@ -875,12 +876,12 @@ production-path final-force removal remains to be applied in this PR.
 3. **Representative LongList measurement complete.** The corrected Linux
    campaign covers all five implementations through five billion leaves with
    equal comparative sampling.
-4. **Production setting selected.** The feature is configurable and the
-   default remains one writer per LongList. Higher counts are an explicit
-   storage-specific choice.
-5. **Final-force decision complete; implementation pending.** Focused and
-   broad Linux campaigns support removing the isolated force. The production
-   path and its Javadocs still need the selected return and error boundary.
+4. **Production settings remain configurable.** The default is still one
+   writer per LongList. The 1B combined-mode results support eight as a
+   candidate for that workload, not a universal default.
+5. **Configurable final-force removal implemented and measured.** Focused,
+   broad, and complete-snapshot Linux campaigns support earlier return. Final
+   defaults and documentation of the return and error boundary need review.
 
 ## References
 

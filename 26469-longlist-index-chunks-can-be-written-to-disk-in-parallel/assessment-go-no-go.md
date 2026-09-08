@@ -4,13 +4,13 @@
 
 Proceed with the combined candidate in this PR:
 
-1. two writer threads per LongList;
+1. parallel writer threads per LongList, with eight as the measured 1B candidate;
 2. removal of the final LongList `force(true)`; and
 3. overlap of the hash-cache pre-flush with independent snapshot tasks.
 
-All three paths are implemented and correctness-tested. The 100-million-leaf
-complete-snapshot gate strongly supports their combination. Run the focused
-larger-state confirmation before selecting the final configuration defaults.
+All three paths are implemented and correctness-tested. Complete-snapshot
+measurements at 100M and 1B leaves support their combination. The useful writer
+count depends on state size; final configuration defaults remain to be agreed.
 
 ## Parallel writer
 
@@ -31,10 +31,11 @@ Heap; Disk improved by 8.1%. At five billion leaves, also with the default
 chunk size, the gains were smaller for several implementations, while Disk
 still improved by 7.4%.
 
-In the complete-snapshot combined mode, two writers had the lowest mean for
-both Segment and Disk indices and beat one writer in every reordered block.
-Eight writers gave no further benefit. Two is therefore the supported
-candidate; higher counts are not justified for this workload.
+At 100M leaves, two writers had the lowest combined-mode mean for Segment and
+Disk; eight added no mean improvement. At 1B, eight beat both one and two
+writers for all five implementations in every block. Eight captures most of
+the 1B gain; thirty-two offers small further savings for four implementations
+but regresses Heap. Forced-path thread scaling is much less convincing.
 
 ## Final LongList force
 
@@ -50,10 +51,9 @@ not affect worker completion, channel close, or atomic directory publication.
 It does mean that an error reported only by `force(true)` can no longer reach
 the snapshot call.
 
-The complete-snapshot effect is now measured. Without hash-cache overlap,
-removing the force reduced mean return time by 44.6-55.9% for Segment and
-39.4-50.5% for Disk. With overlap already enabled, it still reduced the mean
-by 45.3-48.5% for Segment and 29.4-42.0% for Disk.
+The 100M and 1B complete-snapshot campaigns confirmed earlier unforced return
+for every tested implementation and writer count, in every block, with either
+flush schedule. Post-return forcing still pays for the remaining storage work.
 
 ## Hash-cache pre-flush overlap
 
@@ -62,28 +62,25 @@ starting any of the six snapshot tasks. Four tasks are independent of that
 flush and can run concurrently with it; only the hash index and hash store
 must wait.
 
-With all 262,144 configured cache chunks populated, overlap reduced the
-100-million-leaf snapshot mean by 28.3-48.3% with the final LongList force and
-23.9-33.3% without it. It won every tested index mode, writer count, and
-reordered block. This is decisive evidence to retain the dependency-aware
-schedule.
+With all 262,144 configured cache chunks populated, unforced overlap won every
+tested configuration in every block at both 100M and 1B. At 1B and eight
+writers, it reduced mean return time by another 10.0-16.7% across all five
+implementations. With force retained, its benefit was less consistent.
 
 ## Production setting
 
-The benchmark-selected candidate is two writers per LongList, no final
-LongList force, and hash-cache pre-flush overlap. Against the current forced,
-serial-flush, one-writer baseline, it reduced the mean by 63.7% for Segment and
-60.3% for Disk at 100 million leaves.
+The 1B candidate is eight writers per LongList, no final LongList force, and
+hash-cache pre-flush overlap. The larger-state confirmation is complete, but
+the difference from 100M argues against calling any writer count universally
+best. The forced-Segment results also contain a slow first block that must not
+be mistaken for a reproducible thread-count gain.
 
-Do not finalize those defaults from this fixture alone. At a larger state the
-leaf index grows while the hash-cache threshold remains fixed, so the relative
-benefit and writer-count ranking can change. The next confirmation only needs
-the forced one-writer baseline and unforced overlap at one and two writers for
-both index modes. One writer, force enabled, and overlap disabled remain the
-individual rollback settings.
+No production defaults were changed by this results update. One writer, force
+enabled, and overlap disabled remain the current defaults and individual
+rollback settings.
 
 See the [`design record`](01-parallel-chunk-writes/proposal.md),
 [`corrected Linux parallel-write results`](01-parallel-chunk-writes/linux-benchmark-results.md),
 [`force-removal results`](03-remove-final-force/remove-final-force.md),
-[`complete-snapshot overlap results`](04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md),
+[`complete-snapshot results`](04-hash-cache-pre-flush-overlap/hash-cache-pre-flush-overlap.md),
 and [`broader snapshot investigation`](snapshot-optimization-report.md).

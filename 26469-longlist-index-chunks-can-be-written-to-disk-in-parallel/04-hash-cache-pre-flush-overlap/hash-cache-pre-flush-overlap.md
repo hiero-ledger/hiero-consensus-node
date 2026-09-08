@@ -1,143 +1,239 @@
-# Hash-cache pre-flush overlap
+# Complete MerkleDB snapshot benchmark results
 
-> **Status:** The 100-million-leaf Linux gate passed. Overlap reduced
-> `MerkleDbDataSource.snapshot()` time in every tested configuration and every
-> reordered block. The combined candidate is unforced overlap with two writer
-> threads per LongList; a larger-state confirmation remains before selecting
-> final production defaults.
+At one billion leaves, parallel writers, removal of the final LongList force,
+and hash-cache flush overlap work well together. With force disabled and
+overlap enabled, eight writers per LongList reduced mean snapshot return time
+by 20.3-52.0% compared with one writer across all five implementations.
 
-## Question
+Eight writers capture most of the measured benefit at this size. They are a
+supported 1B candidate, not a universal default: the earlier 100M run gained
+little beyond two writers, and the forced modes show much weaker scaling.
 
-Can a snapshot return earlier if the four tasks that do not use the hash store
-start while the in-memory hash cache is flushed, instead of waiting for that
-flush to finish?
+## What was measured
 
-Only the hash-store and hash-index snapshots depend on the flush:
+The 1B campaign ran `MerkleDbSnapshotBenchmark.snapshot()`, which measures
+the complete MerkleDB snapshot call. It tested both force settings and both
+hash-cache flush schedules:
 
-```text
-Serial:   [ hash-cache flush ][ all six snapshot tasks ............. ]
+| Mode | Final LongList `force(true)` | Hash-cache flush |
+|---|---|---|
+| Forced, serial | Enabled | Finishes before the snapshot tasks start |
+| Forced, overlap | Enabled | Runs alongside the four independent snapshot tasks |
+| Unforced, serial | Skipped | Finishes before the snapshot tasks start |
+| Unforced, overlap | Skipped | Runs alongside the four independent snapshot tasks |
 
-Overlap:  [ four independent snapshot tasks ....................... ]
-          [ hash-cache flush ]--[ hash-store + hash-index tasks .... ]
-```
+In both overlap modes, the hash-index and hash-store snapshots still wait for
+the cache flush to finish.
 
-## Method
+The 1B settings were:
 
-The benchmark created a 100-million-leaf MerkleDB fixture and restored it into
-a disposable data source for each trial. It loaded all 262,144 configured hash
-chunks into that source's cache before measuring snapshots.
+- **State:** 1,000,000,000 leaves; default provisioned capacity of
+  1,000,000,000 keys; 32-byte keys and 128-byte records.
+- **Indices:** all five implementations, each used for all three LongList
+  indices in its trial. `P={1,2,8,16,32}` is the writer count **per LongList**.
+- **Default chunk settings:** 1,048,576 longs per LongList chunk and a
+  262,144-long reserved buffer. All 262,144 configured hash-cache chunks were
+  loaded before timing.
+- **Sampling:** three blocks (A, B, C) that reorder implementations, modes, and
+  writer counts. Each configuration had one warmup and three measured snapshots
+  per block: **nine measurements per result**, equally for all implementations.
 
-| Parameter | Value |
-|---|---|
-| Leaf records | `100,000,000` (`1,000` files of `100,000` records) |
-| Provisioned capacity | Default `1,000,000,000` keys |
-| Key / record size | 32 / 128 bytes |
-| Cached hash chunks | `262,144` |
-| Index modes | Segment and Disk |
-| LongList chunk size | Default `1,048,576` longs |
-| LongList writers | `P={1,2,8}` per list |
-| Snapshot modes | Forced serial, forced overlap, unforced serial, unforced overlap |
-| Sampling | Three reordered blocks; one warmup and three measurements per cell |
+The fixture was generated once, then restored into a disposable source for
+each trial. Fixture generation, restore, and cache loading were outside timing.
+Generation-time compaction finished before fixture validation; background
+compaction was disabled on the measured sources.
 
-Every mean below is calculated from the nine raw measurements for that cell.
-After each measured return, teardown forced all snapshot files, validated the
-snapshot, and deleted it. That post-return work was outside the measured time,
-so pending writeback from one invocation could not leak into the next.
+After **every invocation**, including warmups, teardown forced the snapshot
+files, validated them, and deleted the snapshot. This work was outside the
+stopwatch, so the next invocation did not inherit the previous snapshot's
+pending file writes.
 
-## Results
+## Complete 1B results
 
-All values are mean `MerkleDbDataSource.snapshot()` return times in seconds.
+All times are **mean seconds**, calculated from the nine raw measurements.
+Parentheses show the reduction from **P=1 in the same implementation and
+column**; a negative percentage means slower. Percentages use unrounded means.
+
+Read down a column to compare writer counts, or across a row to compare
+snapshot modes. The percentages describe thread scaling, not force removal
+or overlap.
 
 ### Segment indices
 
-| Writers per LongList | Forced, serial flush | Forced, overlap | Unforced, serial flush | Unforced, overlap |
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
 |---:|---:|---:|---:|---:|
-| `P=1` | 2.853 | 2.046 | 1.580 | 1.054 |
-| `P=2` | 2.958 | 1.989 | 1.511 | **1.037** |
-| `P=8` | 3.250 | 1.906 | 1.434 | 1.042 |
+| `P=1` | 18.195 | 14.265 | 8.619 | 7.449 |
+| `P=2` | 18.281 (-0.5%) | 14.481 (-1.5%) | 7.577 (12.1%) | 6.939 (6.8%) |
+| `P=8` | 18.517 (-1.8%) | 14.366 (-0.7%) | 6.775 (21.4%) | 5.800 (22.1%) |
+| `P=16` | 16.198 (11.0%) | 14.166 (0.7%) | 6.730 (21.9%) | 5.778 (22.4%) |
+| `P=32` | 15.323 (15.8%) | 14.601 (-2.4%) | 6.647 (22.9%) | 5.662 (24.0%) |
+
+The forced, serial column includes an unusually slow first block; see
+[Important caveats](#important-caveats). All measurements are retained.
 
 ### Disk indices
 
-| Writers per LongList | Forced, serial flush | Forced, overlap | Unforced, serial flush | Unforced, overlap |
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
+|---:|---:|---:|---:|---:|
+| `P=1` | 18.658 | 18.312 | 11.283 | 9.925 |
+| `P=2` | 19.158 (-2.7%) | 18.401 (-0.5%) | 7.744 (31.4%) | 7.087 (28.6%) |
+| `P=8` | 20.657 (-10.7%) | 20.215 (-10.4%) | 6.948 (38.4%) | 5.786 (41.7%) |
+| `P=16` | 20.274 (-8.7%) | 19.577 (-6.9%) | 6.969 (38.2%) | 5.831 (41.2%) |
+| `P=32` | 18.548 (0.6%) | 19.391 (-5.9%) | 6.868 (39.1%) | 5.700 (42.6%) |
+
+### Heap indices
+
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
+|---:|---:|---:|---:|---:|
+| `P=1` | 16.103 | 14.831 | 12.282 | 11.350 |
+| `P=2` | 15.199 (5.6%) | 14.090 (5.0%) | 7.161 (41.7%) | 6.141 (45.9%) |
+| `P=8` | 15.065 (6.4%) | 14.223 (4.1%) | 6.303 (48.7%) | 5.443 (52.0%) |
+| `P=16` | 15.011 (6.8%) | 14.209 (4.2%) | 6.504 (47.0%) | 5.340 (53.0%) |
+| `P=32` | 14.981 (7.0%) | 14.307 (3.5%) | 6.869 (44.1%) | 6.081 (46.4%) |
+
+### OffHeap indices
+
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
+|---:|---:|---:|---:|---:|
+| `P=1` | 15.139 | 14.516 | 8.249 | 7.469 |
+| `P=2` | 14.992 (1.0%) | 14.563 (-0.3%) | 7.711 (6.5%) | 6.780 (9.2%) |
+| `P=8` | 14.995 (1.0%) | 14.370 (1.0%) | 6.697 (18.8%) | 5.956 (20.3%) |
+| `P=16` | 15.110 (0.2%) | 14.340 (1.2%) | 6.792 (17.7%) | 5.966 (20.1%) |
+| `P=32` | 15.169 (-0.2%) | 14.548 (-0.2%) | 6.579 (20.2%) | 5.678 (24.0%) |
+
+### DiskSegment indices
+
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
+|---:|---:|---:|---:|---:|
+| `P=1` | 15.557 | 14.695 | 10.739 | 9.934 |
+| `P=2` | 15.483 (0.5%) | 14.667 (0.2%) | 10.039 (6.5%) | 8.378 (15.7%) |
+| `P=8` | 15.385 (1.1%) | 14.646 (0.3%) | 8.353 (22.2%) | 7.516 (24.3%) |
+| `P=16` | 15.323 (1.5%) | 14.517 (1.2%) | 8.324 (22.5%) | 7.598 (23.5%) |
+| `P=32` | 15.185 (2.4%) | 14.791 (-0.7%) | 8.486 (21.0%) | 7.352 (26.0%) |
+
+## What the results mean
+
+### Additional writers help, especially without the final force
+
+With force disabled and overlap enabled, P=8 beat both P=1 and P=2 for every
+implementation in every block. The reduction from P=1 was 20.3-52.0%;
+the additional reduction from P=2 was 10.3-18.4%.
+
+Going from P=8 to P=32 saved another 1.5-4.7% for four implementations, but
+made Heap 11.7% slower. P=8 therefore captures most of the useful gain without
+assuming the largest thread count is always best.
+
+With the final force retained, improvements were generally much smaller or
+absent. In particular, the apparent larger forced-Segment gain needs the
+caveat below.
+
+### Removing the final force shortens snapshot return
+
+Unforced snapshots returned earlier for every implementation and writer count,
+in every block, with either flush schedule. For example, Segment at P=8 with
+overlap fell from 14.366 seconds with force to 5.800 seconds without it.
+
+This is a reduction in return time, not the elimination of storage work.
+The remaining wait is discussed below.
+
+### Overlap provides an additional improvement
+
+With force already disabled, overlap improved every implementation and writer
+count in every block. At P=8, the reduction was 10.0-16.7% across all five
+implementations. For Segment, the mean fell from 6.775 seconds with serial
+flushing to 5.800 seconds with overlap, a 14.4% reduction.
+
+Overlap was less consistently beneficial with force retained. The unforced
+result should not be generalized to every forced configuration.
+
+### Why threads helped more at 1B than at 100M
+
+The leaf-index body grew from approximately 800 MB at 100M leaves to 8 GB at
+1B leaves. The configured hash cache stayed at 262,144 chunks.
+
+In the earlier 100M unforced-overlap run, the hash-cache flush occupied about
+90-92% of the snapshot's duration at P=8. Finishing the index writes sooner
+could therefore save little once the flush was the remaining wait. P=8 added
+no mean improvement over P=2 for either tested implementation.
+
+At 1B, the cache flush still took roughly 1.0-1.4 seconds at P=8, while the
+complete unforced-overlap snapshot took 5.4-7.5 seconds. These measurements
+point to the larger index writes, rather than the cache flush, now keeping the
+snapshot open for longer. Additional writers can therefore shorten much more
+of the wait. The campaign did not separately time each index writer.
+
+## Important caveats
+
+**The first forced-Segment block was unusually slow.** At P=1 its mean was
+24.964 seconds in block A, versus 14.734 and 14.887 seconds in B and C.
+In A, times fell sharply later in that first sequence. The apparent 15.8%
+P=32 improvement in the pooled table was not reproduced in B or C; it is not
+reliable evidence of forced-path thread scaling. The logs do not establish
+why conditions changed. No measurements were removed.
+
+**Unforced return leaves storage work pending.** For Segment at P=8 with
+overlap, mean return time was 5.800 seconds, but teardown then spent another
+8.815 seconds on average forcing the snapshot files. The benchmark measures
+the earlier return. It does not show that Linux finished writing all files in
+5.800 seconds, or measure the effect of that background work on later node
+activity.
+
+## Earlier 100M results
+
+The earlier campaign tested **100,000,000 leaves**, Segment and Disk indices,
+and `P={1,2,8}`. It used the same four modes, default capacity and chunk
+settings, full hash-cache population, and nine measurements per result.
+
+These tables retain the earlier measurements, with the same mean-seconds and
+P=1 percentage convention as the 1B tables.
+
+### Segment indices
+
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
+|---:|---:|---:|---:|---:|
+| `P=1` | 2.853 | 2.046 | 1.580 | 1.054 |
+| `P=2` | 2.958 (-3.7%) | 1.989 (2.8%) | 1.511 (4.4%) | 1.037 (1.6%) |
+| `P=8` | 3.250 (-13.9%) | 1.906 (6.9%) | 1.434 (9.3%) | 1.042 (1.1%) |
+
+### Disk indices
+
+| Writers per LongList | Forced, serial | Forced, overlap | Unforced, serial | Unforced, overlap |
 |---:|---:|---:|---:|---:|
 | `P=1` | 3.510 | 2.483 | 2.128 | 1.439 |
-| `P=2` | 3.822 | **1.974** | 1.891 | **1.394** |
-| `P=8` | 3.600 | 1.997 | 1.844 | 1.404 |
+| `P=2` | 3.822 (-8.9%) | 1.974 (20.5%) | 1.891 (11.1%) | 1.394 (3.2%) |
+| `P=8` | 3.600 (-2.6%) | 1.997 (19.6%) | 1.844 (13.4%) | 1.404 (2.5%) |
 
-### Effect of overlap alone
-
-Each percentage compares overlap with the serial-flush result at the same
-index mode, writer count, and force setting.
-
-| Index mode | Writers | With final force | Without final force |
-|---|---:|---:|---:|
-| Segment | `P=1` | 28.3% faster | 33.3% faster |
-| Segment | `P=2` | 32.8% faster | 31.4% faster |
-| Segment | `P=8` | 41.3% faster | 27.3% faster |
-| Disk | `P=1` | 29.3% faster | 32.4% faster |
-| Disk | `P=2` | 48.3% faster | 26.3% faster |
-| Disk | `P=8` | 44.5% faster | 23.9% faster |
-
-The forced path was noisier, particularly Disk at `P=2`, so its exact larger
-percentages should not be treated as precise estimates. The direction is not
-in doubt: overlap won all 18 block-level comparisons, and the smallest
-block-level reduction was 22.7%.
-
-### Combined candidate against the branch baseline
-
-The branch baseline is one writer per LongList, the final LongList force, and
-the serial hash-cache flush. The candidate uses two writers, no final LongList
-force, and the overlapping flush schedule.
-
-| Index mode | Baseline mean / slowest | Candidate mean / slowest | Mean reduction |
-|---|---:|---:|---:|
-| Segment | 2.853 / 3.200 s | 1.037 / 1.059 s | 63.7% |
-| Disk | 3.510 / 3.715 s | 1.394 / 1.409 s | 60.3% |
-
-The candidate beat the baseline in every reordered block. Its block-level
-reductions were 61.7-65.1% for Segment and 58.9-62.1% for Disk.
-
-## Conclusions
-
-1. **Hash-cache overlap passed the gate.** It adds a substantial improvement
-   both with and without the final LongList force. The result is much larger
-   than the measured variation and reproduced in every block.
-2. **Removing the final LongList force also improves complete-snapshot return
-   time.** With overlap already enabled, removing the force reduced the mean
-   by 45.3-48.5% for Segment and 29.4-42.0% for Disk. The earlier LongList
-   experiments established that this moves storage waiting past the return;
-   it does not eliminate the work.
-3. **Two writers are the useful candidate.** In the combined unforced-overlap
-   mode, `P=2` had the lowest mean for both index modes and beat `P=1` in every
-   block. `P=8` provided no further benefit, so its additional threads and
-   buffers are not justified by this workload.
-4. **Parallel writing is not independently beneficial in this complete
-   snapshot.** With the force and serial flush retained, both higher writer
-   counts were slower than `P=1`. Its small final benefit appears after the
-   final force is removed and the cache flush is overlapped.
-
-This fixture has a 100-million-leaf index while the cache flush is already at
-its configured 262,144-chunk threshold. At a larger state the leaf index takes
-longer to write while the cache threshold remains fixed, so the percentage
-saved by overlap may shrink. The next confirmation should therefore compare
-the forced `P=1` baseline with unforced overlap at `P={1,2}` on a larger state,
-for both index modes. `P=8` does not need another run unless that confirmation
-changes the ranking.
+Two writers had the lowest unforced-overlap mean for both implementations at
+100M. The larger 1B campaign shows why that was a size-specific result, not a
+reason to stop testing higher writer counts.
 
 ## Raw evidence
 
-- Git revision: `bebb2190892744d91350ee12917d20344438f727`
-- Environment: Temurin 25.0.2, AMD EPYC 9124, 125 GiB RAM, ext4 on a
-  Micron 7450 NVMe
-- Archive:
-  [`20260828T113202Z-1105376.tar.gz`](raw/20260828T113202Z-1105376.tar.gz)
-- Archive SHA-256:
-  `2aa1c8dbfa521e02cb9853f2ef89e7acc862e3129024d4d05f292114822f7980`
-- Console log:
-  [`20260828T113202Z-1105376-console.log`](raw/20260828T113202Z-1105376-console.log)
-- Console SHA-256:
-  `607624d0e32661d9fc7c50e429d222ab99ecd9fd11fbc6dbd9bf7fffed58a0cf`
+Both runs used Temurin 25.0.2+10 on the AMD EPYC 9124 host with 125 GiB RAM,
+ext4 on `/home`, and the Micron 7450 NVMe. Each archive contains the exact
+runner, environment, settings, build log, benchmark logs, and A/B/C JSON
+results.
 
-The archive contains the exact runner, environment, settings, build log, phase
-logs, and all three JSON result files. All 72 JSON rows are present, each has
-three finite raw measurements, and all 24 planned cells appear in every block.
+### 1B campaign — 31 August 2026
+
+- Revision: `6417ab06b7ee424481de4789b6126ce65d4d094e`.
+- Verified: 100 configurations, 300 JSON rows, and 900 finite measurements;
+  nine per configuration. Validation remained enabled and no benchmark
+  failures were found.
+- Total runtime: 8h 52m 55s, including 2h 02m 51s of fixture preparation.
+  The fixture occupied approximately 254 GiB. Waiting for pending generation
+  compaction took 23.475 seconds before fixture snapshot and validation.
+- [Results archive](raw/20260831T085212Z-2675542.tar.gz);
+  SHA-256: `2718b54a5ddff81bfe34f7a44eae33e820b057f747c762315839b5e69aff9fa9`.
+- [Console log](raw/20260831T085212Z-2675542-console.log);
+  SHA-256: `3a3d1d7723942842b6bafa7031e58b7711231cb4d4a9b7327009f3fb50c53b70`.
+
+### 100M campaign — 28 August 2026
+
+- Revision: `bebb2190892744d91350ee12917d20344438f727`.
+- Verified: 24 configurations, 72 JSON rows, and 216 finite measurements;
+  nine per configuration.
+- [Results archive](raw/20260828T113202Z-1105376.tar.gz);
+  SHA-256: `2aa1c8dbfa521e02cb9853f2ef89e7acc862e3129024d4d05f292114822f7980`.
+- [Console log](raw/20260828T113202Z-1105376-console.log);
+  SHA-256: `607624d0e32661d9fc7c50e429d222ab99ecd9fd11fbc6dbd9bf7fffed58a0cf`.
