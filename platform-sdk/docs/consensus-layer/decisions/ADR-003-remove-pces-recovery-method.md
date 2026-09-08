@@ -92,6 +92,7 @@ easiest path — using artifacts from one node sidesteps any cross-node-consiste
    and not as a getter. It is not carried on `ConsensusLayerBuildingBlocks`, so a driver written against the public
    building blocks cannot reach it. The driver must therefore be written from inside the consensus-layer packages, or
    the modules must first expose an accessor. See **Recipe reachability** below.
+
 4. **Mark and dump.** On the underlying `SignedState`, call `markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE)`
    (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java#PCES_RECOVERY_COMPLETE`);
    construct a `StateDumpRequest` via `StateDumpRequest.create(...)`
@@ -105,8 +106,10 @@ easiest path — using artifacts from one node sidesteps any cross-node-consiste
    is private, and the wire is built in the constructor
    (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/StateModule.java#StateModule`) only so an
    unsoldered wire exists. Nothing under `src/main/java` injects a `StateDumpRequest`. See **Recipe reachability**.
+
 5. **Close the last record or block file with the execution team.** Coordinate so that the execution-side block stream aligns
    with the dumped state's last consensus round. This is critical because it must be distributed along with the signed state.
+
 6. **Distribute and restart.** Copy the recovered state, block files, and PCES to all nodes; restart the network from it.
 
 ### Implementation notes
