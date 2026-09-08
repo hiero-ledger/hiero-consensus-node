@@ -3,10 +3,6 @@ package org.hiero.consensus.gossip.impl.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -15,6 +11,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
@@ -82,8 +79,26 @@ public class RpcPeerProtocolTests {
     /** Batch size larger than {@code RpcPeerProtocol.EVENT_BATCH_SIZE} (512), which is package private. */
     private static final short OVERSIZED_BATCH = Short.MAX_VALUE;
 
+    /** Sustained budget for the throttling test; orders of magnitude below what the exchange achieves. */
+    private static final long THROTTLE_BYTES_PER_SECOND = 100L;
+
+    /**
+     * Burst for the throttling test. At {@link #THROTTLE_BYTES_PER_SECOND} this is 100 ms of budget, so throttling
+     * begins after a couple of messages regardless of how fast the machine is.
+     */
+    private static final long THROTTLE_BURST_BYTES = 10L;
+
+    private static final Duration THROTTLE_WAIT = Duration.ofSeconds(60);
+
+    /** Short poll interval so a wait returns close to when its condition is actually met. */
+    private static final Duration POLL_INTERVAL = Duration.ofMillis(20);
+
     private final AtomicReference<Throwable> failure = new AtomicReference<>();
     private final List<Thread> startedThreads = new CopyOnWriteArrayList<>();
+
+    /** The per-node protocol loop threads, a subset of {@link #startedThreads}. */
+    private final List<Thread> nodeThreads = new CopyOnWriteArrayList<>();
+
     private final AtomicBoolean running = new AtomicBoolean(true);
 
     private CachedPoolParallelExecutor executor;
@@ -164,10 +179,17 @@ public class RpcPeerProtocolTests {
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NodeId otherPeer = peers.get(0).nodeId();
 
-        final SyncPermitProvider permits =
-                new SyncPermitProvider(configuration, metrics, Time.getCurrent(), ROSTER_SIZE);
-        final RpcPeerProtocol protocol =
-                newProtocol(configuration, metrics, Time.getCurrent(), peers, selfId, otherPeer, permits, null);
+        final Time time = Time.getCurrent();
+        final SyncPermitProvider permits = new SyncPermitProvider(configuration, metrics, time, ROSTER_SIZE);
+        final RpcPeerProtocol protocol = newProtocol(
+                configuration,
+                metrics,
+                time,
+                peers,
+                selfId,
+                otherPeer,
+                permits,
+                new CountingSyncMetrics(metrics, time, peers));
         protocol.setRpcPeerHandler(new NoOpHandler());
 
         final Pair<Connection, Connection> connections = ConnectionFactory.createLocalConnections(selfId, otherPeer);
@@ -210,38 +232,56 @@ public class RpcPeerProtocolTests {
     /**
      * With enforcement on and a byte budget far below what the exchange needs, reads are paused, but the two nodes
      * still make progress. This is the guard against the shaper wedging an otherwise healthy exchange.
+     *
+     * <p>Both waits below are on the conditions actually being asserted, rather than on a proxy for them. Waiting on
+     * a sync count instead would be a different quantity from the one that triggers throttling: three sync
+     * conversations move only ~150 bytes, which is below the trigger threshold, so whether throttling had occurred
+     * by the time the wait returned would depend on how far the exchange happened to overshoot before the first
+     * poll. That is satisfied reliably on a warm machine and intermittently on CI.
+     *
+     * <p>{@link #THROTTLE_BURST_BYTES} is also deliberately tiny: at {@link #THROTTLE_BYTES_PER_SECOND} it is 100 ms
+     * of budget, so a couple of messages arriving within 100 ms is enough. Engagement therefore does not depend on
+     * machine speed.
      */
     @Test
     @Timeout(120)
     void enforcingShaperThrottlesReadsButKeepsSyncing() throws Throwable {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(TrafficShapingConfig_.ENFORCE, "true")
-                .withValue(TrafficShapingConfig_.PEER_BYTES_PER_SECOND, "100")
-                .withValue(TrafficShapingConfig_.PEER_BURST_BYTES, "200")
+                .withValue(TrafficShapingConfig_.PEER_BYTES_PER_SECOND, String.valueOf(THROTTLE_BYTES_PER_SECOND))
+                .withValue(TrafficShapingConfig_.PEER_BURST_BYTES, String.valueOf(THROTTLE_BURST_BYTES))
                 .withValue(TrafficShapingConfig_.MAX_READ_DELAY, "20ms")
                 .getOrCreateConfig();
 
         final Harness harness = start(configuration, Duration.ZERO);
 
-        // let a few syncs happen under throttling without any forced disconnections
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(60))
-                .until(() -> harness.syncsInitiated() >= 3 || failure.get() != null);
+        // wait for the property under test, not for something correlated with it
+        Awaitility.await("a read thread is throttled")
+                .atMost(THROTTLE_WAIT)
+                .pollDelay(Duration.ZERO)
+                .pollInterval(POLL_INTERVAL)
+                .until(() -> harness.totalThrottles() > 0 || failure.get() != null);
         rethrowIfFailed();
+
+        // throttling must slow the exchange down, not stop it
+        final long syncsWhenThrottled = harness.syncsInitiated();
+        Awaitility.await("syncing continues while throttled")
+                .atMost(THROTTLE_WAIT)
+                .pollDelay(Duration.ZERO)
+                .pollInterval(POLL_INTERVAL)
+                .until(() -> harness.syncsInitiated() > syncsWhenThrottled || failure.get() != null);
 
         running.set(false);
         disconnectBoth();
+        joinNodeThreads();
 
-        for (final SyncMetrics metrics : harness.syncMetrics()) {
-            // at least one node must have paused its read thread
-            try {
-                verify(metrics, atLeastOnce()).rpcReadThrottled(anyLong());
-                return;
-            } catch (final AssertionError ignored) {
-                // try the other node
-            }
-        }
-        throw new AssertionError("expected at least one node to throttle its read thread");
+        rethrowIfFailed();
+        assertThat(harness.totalThrottles())
+                .as("expected at least one node to throttle its read thread")
+                .isPositive();
+        assertThat(harness.syncsInitiated())
+                .as("expected syncing to continue while throttled")
+                .isGreaterThan(syncsWhenThrottled);
     }
 
     // -----------------------------------------------------------------------------------------------------------
@@ -252,9 +292,19 @@ public class RpcPeerProtocolTests {
      * Two {@link RpcPeerProtocol} instances, each looping over connections to the other, driven by
      * {@link StateMachineHandler}.
      */
-    private record Harness(List<SyncMetrics> syncMetrics, AtomicLong lastSyncMillis, AtomicLong syncCount) {
+    private record Harness(List<CountingSyncMetrics> syncMetrics, AtomicLong lastSyncMillis, AtomicLong syncCount) {
+
         long syncsInitiated() {
             return syncCount.get();
+        }
+
+        /**
+         * @return how many times either node paused its read thread
+         */
+        long totalThrottles() {
+            return syncMetrics.stream()
+                    .mapToLong(CountingSyncMetrics::throttleCount)
+                    .sum();
         }
     }
 
@@ -268,7 +318,7 @@ public class RpcPeerProtocolTests {
         final NoOpMetrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
 
-        final List<SyncMetrics> allSyncMetrics = new ArrayList<>();
+        final List<CountingSyncMetrics> allSyncMetrics = new ArrayList<>();
         final AtomicLong lastSyncMillis = new AtomicLong(time.currentTimeMillis());
         final AtomicLong syncCount = new AtomicLong();
 
@@ -278,7 +328,7 @@ public class RpcPeerProtocolTests {
             final NodeId otherPeer = peers.get(0).nodeId();
 
             final SyncPermitProvider permits = new SyncPermitProvider(configuration, metrics, time, ROSTER_SIZE);
-            final SyncMetrics syncMetrics = spy(new SyncMetrics(metrics, time, peers));
+            final CountingSyncMetrics syncMetrics = new CountingSyncMetrics(metrics, time, peers);
             allSyncMetrics.add(syncMetrics);
 
             final RpcPeerProtocol protocol =
@@ -286,7 +336,7 @@ public class RpcPeerProtocolTests {
             protocol.setRpcPeerHandler(
                     new StateMachineHandler(protocol, time, handlerDelay, lastSyncMillis, syncCount, failure));
 
-            startDaemon("rpc-" + selfId.id(), () -> {
+            nodeThreads.add(startDaemon("rpc-" + selfId.id(), () -> {
                 while (running.get()) {
                     try {
                         if (permits.acquire()) {
@@ -296,10 +346,20 @@ public class RpcPeerProtocolTests {
                         failure.compareAndSet(null, e);
                     }
                 }
-            });
+            }));
         }
 
         return new Harness(allSyncMetrics, lastSyncMillis, syncCount);
+    }
+
+    /**
+     * Waits for the node loop threads to exit. Assertions on counters updated by those threads must not run while
+     * they are still live, since {@code running.set(false)} only stops the loop at its next iteration.
+     */
+    private void joinNodeThreads() throws InterruptedException {
+        for (final Thread thread : nodeThreads) {
+            thread.join(TimeUnit.SECONDS.toMillis(10));
+        }
     }
 
     private RpcPeerProtocol newProtocol(
@@ -310,10 +370,7 @@ public class RpcPeerProtocolTests {
             @NonNull final NodeId selfId,
             @NonNull final NodeId otherPeer,
             @NonNull final SyncPermitProvider permits,
-            final SyncMetrics providedSyncMetrics) {
-
-        final SyncMetrics syncMetrics =
-                providedSyncMetrics != null ? providedSyncMetrics : new SyncMetrics(metrics, time, peers);
+            @NonNull final SyncMetrics syncMetrics) {
 
         return new RpcPeerProtocol(
                 otherPeer,
@@ -446,6 +503,34 @@ public class RpcPeerProtocolTests {
     // -----------------------------------------------------------------------------------------------------------
     // fakes
     // -----------------------------------------------------------------------------------------------------------
+
+    /**
+     * Counts read-thread pauses in a way that is safe to observe while the protocol is still running.
+     *
+     * <p>A Mockito spy is not usable here. {@code SyncMetrics} is called concurrently from the read, write and
+     * dispatch threads of both nodes, and Mockito does not support {@code verify} running concurrently with
+     * invocation. A plain counter also lets a test wait for throttling to occur rather than waiting on something
+     * correlated with it and hoping.
+     */
+    private static final class CountingSyncMetrics extends SyncMetrics {
+
+        private final AtomicLong throttleCount = new AtomicLong();
+
+        CountingSyncMetrics(
+                @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final List<PeerInfo> peers) {
+            super(metrics, time, peers);
+        }
+
+        @Override
+        public void rpcReadThrottled(final long nanos) {
+            throttleCount.incrementAndGet();
+            super.rpcReadThrottled(nanos);
+        }
+
+        long throttleCount() {
+            return throttleCount.get();
+        }
+    }
 
     /**
      * Emulates the state machine of the real rpc handler closely enough to drive a full sync round trip, and fails
