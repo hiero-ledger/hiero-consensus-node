@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakeIdChangeType.FROM_ACCOUNT_TO_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.getAllRewardReceivers;
@@ -90,6 +91,22 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         rewardReceivers.removeAll(prePaidRewards.keySet());
         // Pay rewards to all possible reward receivers, returns all rewards paid
         final var recordBuilder = context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class);
+        // Child dispatches (e.g. the inner CryptoDelete/ContractDelete/self-destruct of an atomic batch)
+        // record their deleted-account beneficiaries on their own dispatch builder, not the root builder
+        // consulted below. Fold those into the root builder so a reward owed to an account deleted inside a
+        // child dispatch is redirected to its beneficiary, instead of tripping the redirect loop. This map
+        // is transient staking scratch (it is not serialized into the record); any future record
+        // serialization must exclude these folded child-dispatch entries.
+        context.forEachChildRecord(DeleteCapableTransactionStreamBuilder.class, child -> {
+            // Only fold committed child dispatches. forEachChildRecord also hands back reverted
+            // REVERSIBLE children (rollback keeps them in the list and does not clear their
+            // beneficiary map); a reverted delete leaves the account non-deleted, so its stale entry
+            // would never be consulted, but skipping it keeps the redirect's bound exact and rules out
+            // any fold-order ambiguity if the same account were deleted more than once in one txn.
+            if (child.status() != REVERTED_SUCCESS) {
+                child.forEachDeletedAccountBeneficiary(recordBuilder::addBeneficiaryForDeletedAccount);
+            }
+        });
         final var rewardsPaid = rewardsPayer.payRewardsIfPending(
                 rewardReceivers,
                 stakingRewardAccountId,
