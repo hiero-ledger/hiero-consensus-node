@@ -5,7 +5,6 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.annotations.LiveConsensusNode;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -13,6 +12,8 @@ import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
+import com.hedera.node.app.workflows.handle.dispatch.NoOpNodeControlledPayerGuard;
+import com.hedera.node.app.workflows.handle.dispatch.NodeControlledPayerGuard;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import dagger.Binds;
@@ -37,15 +38,14 @@ public interface StandaloneModule {
     }
 
     /**
-     * The standalone transaction executor is not a live consensus node. It legitimately dispatches NODE-category
-     * transactions (empty signature map) with a caller-chosen payer, so the NODE-payer due-diligence guard in
-     * {@code DispatchValidator} must not apply here.
+     * The standalone transaction executor legitimately dispatches NODE-category transactions (empty signature map)
+     * with a caller-chosen payer, so the NODE-payer due-diligence guard in {@code DispatchValidator} must not apply
+     * here; it binds a no-op that never rejects.
      */
     @Provides
     @Singleton
-    @LiveConsensusNode
-    static boolean provideIsLiveConsensusNode() {
-        return false;
+    static NodeControlledPayerGuard provideNodeControlledPayerGuard() {
+        return new NoOpNodeControlledPayerGuard();
     }
 
     @Provides
