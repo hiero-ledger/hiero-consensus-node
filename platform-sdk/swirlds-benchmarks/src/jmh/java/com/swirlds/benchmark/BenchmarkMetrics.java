@@ -66,6 +66,7 @@ public final class BenchmarkMetrics {
     private String origMetricString;
     private String curMetricString;
     private Metrics metrics;
+    private DefaultMetricsProvider metricsProvider;
 
     /*
      *    System metrics: time, memory, CPU
@@ -121,7 +122,7 @@ public final class BenchmarkMetrics {
 
     private static final LongGauge.Config TPS_CONFIG = new LongGauge.Config(BENCHMARK_CATEGORY, "tps")
             .withDescription("transactions per second")
-            .withFormat(FORMAT_FLOAT0);
+            .withFormat(FORMAT_INTEGER);
 
     private BenchmarkMetrics() {
         // prevent instantiation
@@ -246,15 +247,20 @@ public final class BenchmarkMetrics {
             logger.error("Can't parse {}: {} ", diskSectorSizeFile, ex);
             return;
         }
+        diskMetricsRegistered = true;
+        updateDiskMetrics(); // first call: only populates curDiskStats, prevDiskStats stays null
+        updateDiskMetrics(); // second call: shifts curDiskStats into prevDiskStats, repopulates curDiskStats
+        if (!diskMetricsRegistered) {
+            // updateDiskMetrics() failed and reset the flag; don't register gauges backed by null stats
+            return;
+        }
+
         metrics.getOrCreate(diskReadOpsConfig);
         metrics.getOrCreate(diskReadBytesConfig);
         metrics.getOrCreate(diskReadTimeConfig);
         metrics.getOrCreate(diskWriteOpsConfig);
         metrics.getOrCreate(diskWriteBytesConfig);
         metrics.getOrCreate(diskWriteTimeConfig);
-        diskMetricsRegistered = true;
-
-        updateDiskMetrics();
     }
 
     /*
@@ -343,7 +349,7 @@ public final class BenchmarkMetrics {
         metricService = Executors.newSingleThreadScheduledExecutor(
                 getStaticThreadManager().createThreadFactory("benchmark", "MetricsWriter"));
 
-        final DefaultMetricsProvider metricsProvider = new DefaultMetricsProvider(configuration);
+        metricsProvider = new DefaultMetricsProvider(configuration);
         metrics = metricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID);
 
         final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
@@ -414,5 +420,6 @@ public final class BenchmarkMetrics {
 
     public static void stop() {
         INSTANCE.metricService.shutdownNow();
+        INSTANCE.metricsProvider.stop();
     }
 }
