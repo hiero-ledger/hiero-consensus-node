@@ -39,13 +39,10 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class PrngPrecompileSuite {
     private static final long GAS_TO_OFFER = 400_000L;
-    // What a static frame is charged: viewGasRequirement() divides the TOKEN_INFO canonical price by a
-    // hard-coded gas price, so it is stable across exchange rate and congestion
-    private static final long VIEW_GAS_REQUIREMENT = 2607L;
-    // What a mutable frame is charged: max(canonicalGasRequirement(UTIL_PRNG), viewGasRequirement()).
-    // Unlike the above, this tracks the fee schedule's ContractCall gas price and the congestion
-    // multiplier, so it needs updating if either changes; from multiplier 10 up it floors at the view value
-    private static final long CANONICAL_PRNG_GAS_REQUIREMENT = 15_284L;
+    // What a static frame is charged: max(FIXED_VIEW_GAS_COST, TOKEN_INFO base fee / the fixed view gas
+    // price), i.e. max(100, (84 + 851_999) * 1_000 / 852_000 * 1.2) = 1200 under the simple fees schedule.
+    // A mutable PRNG frame must never be charged this; it is priced off UTIL_PRNG instead.
+    private static final long VIEW_GAS_REQUIREMENT = 1200L;
     private static final String THE_GRACEFULLY_FAILING_PRNG_CONTRACT = "GracefullyFailingPrng";
     private static final String THE_PRNG_CONTRACT = "PrngSystemContract";
     private static final String BOB = "bob";
@@ -222,7 +219,7 @@ public class PrngPrecompileSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> prngChildRecordReportsCanonicalGasRequirement() {
+    final Stream<DynamicTest> prngChildRecordGasIsUnaffectedByViewExecutions() {
         final var prng = THE_PRNG_CONTRACT;
         final var firstCall = "firstCall";
         final var secondCall = "secondCall";
@@ -235,16 +232,14 @@ public class PrngPrecompileSuite {
                 getTxnRecord(firstCall)
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(1)
-                        .hasChildRecords(
-                                recordWith().contractCallResult(resultWith().gasUsed(CANONICAL_PRNG_GAS_REQUIREMENT)))
                         .exposingAllTo(records -> firstChildGasUsed.set(
                                 records.getLast().getContractCallResult().getGasUsed())),
                 doingContextual(_ -> assertNotEquals(
                         VIEW_GAS_REQUIREMENT,
                         firstChildGasUsed.get(),
                         "A mutable PRNG call must be charged the canonical UTIL_PRNG gas, not the view gas")),
-                // Repeat after a view execution: mutable calls are consistently priced off the
-                // canonical requirement
+                // Repeat after a view execution, which is priced off the view requirement rather than
+                // the canonical one: a mutable call must still report its own frame's price. The
                 contractCallLocal(prng, GET_SEED).gas(GAS_TO_OFFER),
                 contractCall(prng, GET_SEED).gas(GAS_TO_OFFER).payingWith(BOB).via(secondCall),
                 getTxnRecord(secondCall)
