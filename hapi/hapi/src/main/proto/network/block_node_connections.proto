@@ -96,7 +96,9 @@ message BlockNodeConfig {
 
     /**
      * The port of the block node for accessing the service API.<br/>
-     * Valid port range is 1 to 65535.
+     * Valid port range is 1 to 65535.<br/>
+     * If this field is not present, it SHALL default to `streaming_port`, in which
+     * case a single listener serves both APIs.
      */
     google.protobuf.Int32Value service_port = 8;
 
@@ -113,10 +115,18 @@ message BlockNodeConfig {
     /**
      * Optional TLS configuration for the service API endpoint.<br/>
      * <p>
-     * If this field is present, the consensus node SHALL apply these settings when
-     * connecting to `service_port`.<br/>
-     * If this field is not present, the consensus node SHALL connect to
-     * `service_port` using plaintext.
+     * If this field is present and the service API has its own port, the consensus
+     * node SHALL apply these settings when connecting to `service_port`.<br/>
+     * If this field is not present and `service_port` differs from
+     * `streaming_port`, the consensus node SHALL connect to `service_port` using
+     * plaintext.<br/>
+     * If the service API shares the streaming endpoint (because `service_port` is
+     * absent or equal to `streaming_port`), one listener serves both APIs and
+     * negotiates TLS before it knows which API is being called, so both APIs
+     * necessarily share one TLS state. In that case, if this field is not present
+     * the consensus node SHALL apply `streaming_tls` to the service API as well,
+     * and if this field is present it MUST equal `streaming_tls`; a node whose two
+     * settings differ on a shared endpoint SHALL be rejected.
      */
     BlockNodeTlsConfig service_tls = 10;
 }

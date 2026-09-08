@@ -52,6 +52,10 @@ public class BlockNodeConfiguration {
      * TLS configuration for the service endpoint.
      */
     private final BlockNodeTlsConfiguration serviceTls;
+    /**
+     * Whether the service endpoint uses TLS solely because it shares the streaming endpoint and inherited its settings.
+     */
+    private final boolean serviceTlsInherited;
 
     private BlockNodeConfiguration(final Builder builder) {
         requireNonNull(builder.address, "Address must be specified");
@@ -59,8 +63,13 @@ public class BlockNodeConfiguration {
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
         // default the service port to the streaming port
         final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
+        streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
+        serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
         streamingTls = builder.streamingTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.streamingTls;
-        serviceTls = resolveServiceTls(builder, streamingTls, servicePort == builder.streamingPort);
+        serviceTls = resolveServiceTls(builder, streamingTls, streamingEndpoint, serviceEndpoint);
+        // Only flag inheritance that changes behavior: inheriting plaintext onto a plaintext endpoint is a no-op.
+        serviceTlsInherited =
+                streamingEndpoint.equals(serviceEndpoint) && builder.serviceTls == null && streamingTls.enabled();
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
@@ -84,9 +93,6 @@ public class BlockNodeConfiguration {
             throw new IllegalArgumentException("Message size hard limit (" + messageSizeHardLimitBytes
                     + ") must be greater than or equal to soft limit size (" + messageSizeSoftLimitBytes + ")");
         }
-
-        streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
-        serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
     }
 
     /**
@@ -100,14 +106,16 @@ public class BlockNodeConfiguration {
      *
      * @param builder the builder being validated
      * @param streamingTls the already-resolved TLS settings for the streaming endpoint
-     * @param sharedEndpoint whether both APIs resolve to the same host and port
+     * @param streamingEndpoint the endpoint of the streaming API
+     * @param serviceEndpoint the endpoint of the service API
      * @return the TLS settings for the service endpoint
      */
     private static @NonNull BlockNodeTlsConfiguration resolveServiceTls(
             @NonNull final Builder builder,
             @NonNull final BlockNodeTlsConfiguration streamingTls,
-            final boolean sharedEndpoint) {
-        if (!sharedEndpoint) {
+            @NonNull final BlockNodeEndpoint streamingEndpoint,
+            @NonNull final BlockNodeEndpoint serviceEndpoint) {
+        if (!streamingEndpoint.equals(serviceEndpoint)) {
             // Separate listeners are secured independently.
             return builder.serviceTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.serviceTls;
         }
@@ -115,7 +123,8 @@ public class BlockNodeConfiguration {
             return streamingTls;
         }
         if (!builder.serviceTls.equals(streamingTls)) {
-            throw new IllegalArgumentException("The streaming and service APIs share port " + builder.streamingPort
+            throw new IllegalArgumentException("The streaming and service APIs share endpoint "
+                    + streamingEndpoint.host() + ":" + streamingEndpoint.port()
                     + ", so they must have identical TLS settings, but the streaming endpoint declares "
                     + streamingTls + " and the service endpoint declares " + builder.serviceTls
                     + "; give the service API its own port or make the two settings match");
@@ -167,8 +176,23 @@ public class BlockNodeConfiguration {
         return streamingTls;
     }
 
+    /**
+     * The TLS settings applied to the service endpoint. When the service API shares the streaming endpoint and
+     * declared no settings of its own, this is the streaming endpoint's configuration; see
+     * {@link #serviceTlsInherited()}.
+     *
+     * @return the TLS settings for the service endpoint
+     */
     public @NonNull BlockNodeTlsConfiguration serviceTls() {
         return serviceTls;
+    }
+
+    /**
+     * @return true if the service endpoint uses TLS only because it shares the streaming endpoint and inherited its
+     * TLS settings; false if it declared its own settings, uses plaintext, or has a port of its own
+     */
+    public boolean serviceTlsInherited() {
+        return serviceTlsInherited;
     }
 
     @Override

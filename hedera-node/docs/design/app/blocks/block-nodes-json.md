@@ -70,17 +70,22 @@ A TLS block has two fields:
 
 #### When both APIs share a port
 
-`servicePort` defaults to `streamingPort`, in which case a single listener serves both APIs and cannot be both
-TLS and plaintext. So when the two ports are the same:
+A TCP listener negotiates TLS before it knows which gRPC method the client will call, so two APIs served from
+the same host and port necessarily share one TLS state; no server can require TLS for `publishBlockStream` and
+refuse it for `serverStatus` on the same port. The configuration follows that fact:
 
-- an omitted `serviceTls` **inherits** `streamingTls`, the same way an omitted `servicePort` inherits
-  `streamingPort`. Declaring only `streamingTls` therefore secures both APIs rather than leaving the service
-  API dialling a TLS listener in plaintext.
-- a `serviceTls` that is present and differs from `streamingTls` is rejected as contradictory, and the node is
-  skipped with a warning.
+- **When `servicePort` is omitted or equal to `streamingPort`**, both APIs use one listener, and an omitted
+  `serviceTls` inherits `streamingTls`. Declaring only `streamingTls` therefore secures both APIs rather than
+  leaving the service API dialling a TLS listener in plaintext, which would make every server-status probe fail
+  and leave the block node unused. When this inheritance actually turns TLS on for the service API, the
+  Consensus Node logs it at INFO when the file is loaded.
+- **When `servicePort` is omitted or equal to `streamingPort` and both blocks are present but differ**, the node
+  is rejected as contradictory and skipped with a warning; the other nodes in the file still load.
+- **When the two ports differ**, the two blocks are fully independent and nothing is inherited. An omitted
+  `serviceTls` means plaintext on `servicePort`, whatever `streamingTls` says.
 
-Securing only the publish API (`streamingTls` on, `serviceTls` off) therefore requires giving the service API
-its own `servicePort`.
+Securing only one API (for example `streamingTls` on and `serviceTls` off) is therefore only expressible with
+distinct ports, which is also the only way a block node can actually serve it.
 
 The Consensus Node only verifies the Block Node's identity; it does not present a client certificate, so
 mutual TLS is not supported. TLS on the Block Node side is expected to be terminated in front of the Block

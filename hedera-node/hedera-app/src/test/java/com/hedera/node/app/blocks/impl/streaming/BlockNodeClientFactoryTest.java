@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mockConstruction;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
-import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
-import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeTlsConfiguration;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
@@ -77,7 +75,7 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testTlsOnPublishApiOnly() {
-        config = newBlockNodeConfigWithTls(tls(true), BlockNodeTlsConfiguration.DISABLED);
+        config = newBlockNodeConfig("localhost", 8180, 8181, 2, tls(true), BlockNodeTlsConfiguration.DISABLED);
 
         assertClient(
                 f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
@@ -93,7 +91,7 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testTlsOnServiceApiOnly() {
-        config = newBlockNodeConfigWithTls(BlockNodeTlsConfiguration.DISABLED, tls(true));
+        config = newBlockNodeConfig("localhost", 8180, 8181, 2, BlockNodeTlsConfiguration.DISABLED, tls(true));
 
         assertClient(
                 f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
@@ -109,7 +107,7 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testTlsOnAllApis() {
-        config = newBlockNodeConfigWithTls(tls(true), tls(true));
+        config = newBlockNodeConfig("localhost", 8180, 8181, 2, tls(true), tls(true));
 
         assertClient(
                 f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
@@ -125,7 +123,7 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testPinnedCertificateTls() {
-        config = newBlockNodeConfigWithTls(tls(false), BlockNodeTlsConfiguration.DISABLED);
+        config = newBlockNodeConfig("localhost", 8180, 8181, 2, tls(false), BlockNodeTlsConfiguration.DISABLED);
 
         assertClient(
                 f -> f.createStreamingClient(config, timeout, BlockStreamGrpcCompressionType.NONE)
@@ -163,21 +161,5 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
         return useTrustStore
                 ? builder.build()
                 : builder.certificateSha384(FINGERPRINT).build();
-    }
-
-    private static BlockNodeConfiguration newBlockNodeConfigWithTls(
-            final BlockNodeTlsConfiguration streamingTls, final BlockNodeTlsConfiguration serviceTls) {
-        return BlockNodeConfiguration.newBuilder()
-                .address("localhost")
-                .streamingPort(8180)
-                .servicePort(8181)
-                .priority(2)
-                .messageSizeSoftLimitBytes(BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES)
-                .messageSizeHardLimitBytes(36L * 1024 * 1024)
-                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
-                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
-                .streamingTls(streamingTls)
-                .serviceTls(serviceTls)
-                .build();
     }
 }

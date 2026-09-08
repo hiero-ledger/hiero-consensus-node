@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -36,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.base.file.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,10 +83,12 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
     private ConfigProvider configProvider;
     private BlockNodeConfigService configService;
+    private LogCaptor logCaptor;
     private BlockNodeConnectionConfig bncConfig;
 
     @BeforeEach
     void beforeEach() {
+        logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeConfigService.class));
         bncConfig = mock(BlockNodeConnectionConfig.class);
         configProvider = mock(ConfigProvider.class);
         final VersionedConfiguration versionedConfiguration = mock(VersionedConfiguration.class);
@@ -101,6 +105,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
     @AfterEach
     void afterEach() {
+        logCaptor.stopCapture();
         if (configService != null) {
             configService.shutdown();
         }
@@ -969,6 +974,55 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(config).isNotNull();
         assertThat(config.configs()).hasSize(1);
         assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
+    }
+
+    @Test
+    void testLoadConfiguration_logsWhenServiceTlsIsInherited() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true }
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(line ->
+                        line.contains("[localhost:8443]") && line.contains("serviceTls inherited from streamingTls"));
+    }
+
+    @Test
+    void testLoadConfiguration_doesNotLogInheritanceForDistinctPortsOrPlaintext() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "servicePort": 8080,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true }
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9999,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        assertThat(configService.latestConfiguration().configs()).hasSize(2);
+        assertThat(logCaptor.infoLogs()).noneMatch(line -> line.contains("serviceTls inherited from streamingTls"));
     }
 
     // Utilities =========

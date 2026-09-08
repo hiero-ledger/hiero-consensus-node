@@ -208,7 +208,15 @@ public class BlockNodeConfigService {
         final Map<String, AtomicInteger> hostCounters = new HashMap<>();
         for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
             try {
-                nodeConfigs.add(BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes));
+                final BlockNodeConfiguration parsed = BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes);
+                nodeConfigs.add(parsed);
+                if (parsed.serviceTlsInherited()) {
+                    logger.info(
+                            "[{}:{}] Service API shares the streaming endpoint; serviceTls inherited from streamingTls ({})",
+                            parsed.serviceEndpoint().host(),
+                            parsed.serviceEndpoint().port(),
+                            parsed.streamingTls());
+                }
                 hostCounters
                         .computeIfAbsent(
                                 nodeConfig.address() + ":" + nodeConfig.streamingPort(), _ -> new AtomicInteger())

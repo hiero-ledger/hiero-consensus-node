@@ -18,7 +18,9 @@ import org.hiero.base.crypto.DigestType;
  * TLS configuration for a single block node API endpoint.
  * <p>
  * Each API the consensus node calls on a block node (the streaming/publish API and the service API) is configured
- * independently, so TLS may be required for one and not the other.
+ * independently, so TLS may be required for one and not the other when the two APIs use distinct ports. When they
+ * share a port they are served by one listener, which negotiates TLS before it knows which API is being called, so
+ * they necessarily share one TLS state; {@link BlockNodeConfiguration} resolves that case.
  * <p>
  * When a certificate fingerprint is supplied, the endpoint's certificate is accepted if and only if its SHA-384 hash
  * matches; neither the platform trust store nor hostname verification is consulted. This is what allows operators to
@@ -34,7 +36,7 @@ public class BlockNodeTlsConfiguration {
     private static final int FINGERPRINT_LENGTH_BYTES = DigestType.SHA_384.digestLength();
 
     /**
-     * Configuration used when an endpoint declares no TLS settings: connect using plaintext.
+     * Configuration used when an endpoint declares no TLS settings and does not inherit any: connect using plaintext.
      */
     public static final BlockNodeTlsConfiguration DISABLED = newBuilder().build();
 

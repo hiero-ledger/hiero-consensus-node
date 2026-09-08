@@ -130,13 +130,15 @@ public class BlockNodeTlsSuite {
                             "blockNode.extendedNodeCoolDownSeconds", "1"
                         })
             })
-    @Order(5)
+    @Order(3)
     final Stream<DynamicTest> statusOverTlsWithPlaintextPublishApi() {
         // A node is only ever selected for streaming after its status probe succeeded, so a successful stream
         // already implies the TLS-only service listener answered; the explicit assertion makes that visible.
+        final AtomicInteger servicePort = new AtomicInteger();
         final List<SpecOperation> ops = new ArrayList<>(List.of(streamingSuccessOps()));
-        ops.add(awaitBlockNodeCommsLogContainsText(
-                byNodeId(0), "Received the following block node server status", LOG_WAIT));
+        ops.add(doingContextual(spec -> servicePort.set(spec.getBlockNodeServicePortById(0))));
+        ops.add(sourcingContextual(spec ->
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), statusReceivedText(servicePort.get()), LOG_WAIT)));
         return hapiTest(ops.toArray(SpecOperation[]::new));
     }
 
@@ -165,7 +167,7 @@ public class BlockNodeTlsSuite {
                             "blockNode.extendedNodeCoolDownSeconds", "1"
                         })
             })
-    @Order(3)
+    @Order(4)
     final Stream<DynamicTest> tlsEnabledForOneBlockNodeOnly() {
         final AtomicInteger securedPort = new AtomicInteger();
         final AtomicInteger plaintextPort = new AtomicInteger();
@@ -224,9 +226,9 @@ public class BlockNodeTlsSuite {
                             "blockNode.extendedNodeCoolDownSeconds", "1"
                         })
             })
-    @Order(4)
+    @Order(5)
     final Stream<DynamicTest> mismatchedCertificateFingerprintIsRejected() {
-        return fallsBackToTheVerifiablePeer();
+        return fallsBackToTheVerifiablePeer("does not match the configured fingerprint");
     }
 
     /**
@@ -258,14 +260,18 @@ public class BlockNodeTlsSuite {
             })
     @Order(6)
     final Stream<DynamicTest> unpinnedTlsRejectsSelfSignedCertificate() {
-        return fallsBackToTheVerifiablePeer();
+        // the JDK's PKIX message for a certificate that chains to nothing in the trust store
+        return fallsBackToTheVerifiablePeer("unable to find valid certification path to requested target");
     }
 
     /**
      * Shared body for the negative cases: block node 0 is configured so that its certificate cannot be verified and
-     * block node 1 is plaintext. The consensus node must never stream to node 0 and must use node 1 instead.
+     * block node 1 is plaintext. The consensus node must never stream to node 0, must use node 1 instead, and must
+     * have logged the given reason for refusing node 0, so a failure for some unrelated cause cannot pass the test.
+     *
+     * @param expectedFailureReason text the consensus node logs when it refuses node 0's certificate
      */
-    private Stream<DynamicTest> fallsBackToTheVerifiablePeer() {
+    private Stream<DynamicTest> fallsBackToTheVerifiablePeer(final String expectedFailureReason) {
         final AtomicInteger untrustedPort = new AtomicInteger();
         final AtomicInteger trustedPort = new AtomicInteger();
         final AtomicReference<Set<Long>> untrustedBlocks = new AtomicReference<>();
@@ -277,9 +283,11 @@ public class BlockNodeTlsSuite {
                 }),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
 
-                // The higher-priority node cannot be verified, so the consensus node uses the lower-priority one
+                // The higher-priority node cannot be verified, so the consensus node uses the lower-priority one...
                 sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
                         byNodeId(0), activeConnectionText(trustedPort.get()), LOG_WAIT)),
+                // ...and it must have said why it refused the higher-priority one
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), expectedFailureReason, LOG_WAIT),
                 sourcingContextual(spec -> assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), activeConnectionText(untrustedPort.get()), Duration.ZERO)),
                 blockNode(0).getReceivedBlockNumbersExposing(untrustedBlocks::set),
@@ -330,5 +338,9 @@ public class BlockNodeTlsSuite {
 
     private static String activeConnectionText(final int port) {
         return String.format("/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE", port);
+    }
+
+    private static String statusReceivedText(final int servicePort) {
+        return String.format("/localhost:%s/ACTIVE] Received the following block node server status", servicePort);
     }
 }

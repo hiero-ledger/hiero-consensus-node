@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.node.internal.network.BlockNodeTlsConfig;
 import io.helidon.common.tls.Tls;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
 class BlockNodeTlsConfigurationTest {
@@ -78,7 +79,7 @@ class BlockNodeTlsConfigurationTest {
 
     @Test
     void testColonSeparatedFingerprintIsAccepted() {
-        final String colonSeparated = String.join(":", "ab".repeat(48).split("(?<=\\G..)"));
+        final String colonSeparated = String.join(":", Collections.nCopies(48, "ab"));
         final BlockNodeTlsConfiguration withColons = BlockNodeTlsConfiguration.from(BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
                 .certificateSha384(colonSeparated)
