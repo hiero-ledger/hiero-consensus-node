@@ -65,7 +65,7 @@ To change the environment a test runs on, edit the JSON config for that test typ
 | [860: [CALL] Validate Chewie JWT](/.github/workflows/860-call-validate-chewie-jwt.yaml)          | Validates the JWT before it is used to request an allocation                                     |
 | [861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml)                  | Reads `<test-type>-config.json` to produce the CN/aux quantities and CPU/memory requests         |
 | [862: [CALL] Get CITR Chewie Properties](/.github/workflows/862-call-get-chewie-properties.yaml) | Reads `default_duration`, `default_timeout` and `default_mdlt_length` from `.github/chewie.yaml` |
-| [863: [CALL] Get Chewie Allocation](/.github/workflows/863-call-get-chewie-allocation.yaml)      | GETs an allocation by id and emits the same detail fields `859` emits on create                  |
+| [863: [CALL] Get Chewie Allocation Details](/.github/workflows/863-call-get-chewie-allocation.yaml)      | GETs an allocation by id and emits the same detail fields `859` emits on create                  |
 
 The Chewie helper jobs run on the `hl-cn-chewie-lin-sm` runner label.
 
@@ -98,7 +98,7 @@ The controller acquires the allocation itself and hands the test workflow only t
    for approval until `chewie-request-timeout` seconds elapse.
 5. The controller calls `831`/`833` with `allocation-id` — no other Chewie-related input.
 6. `831`/`833` call `858`/`860` themselves (to authenticate the read), and their own `acquire-kubernetes-resources`
-   job calls `863: [CALL] Get Chewie Allocation`, which GETs the same allocation by id and emits the namespace,
+   job calls `863: [CALL] Get Chewie Allocation Details`, which GETs the same allocation by id and emits the namespace,
    cluster FQDN, CN/aux quantities, tolerations, node roles, network id, owner, and expiration — the same detail
    shape `859` produced on create, just fetched instead of created.
 7. On a passing scheduled run, `221`/`222` dispatch

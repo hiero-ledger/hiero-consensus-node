@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "863: [CALL] Get Chewie Allocation"
+name: "863: [CALL] Get Chewie Allocation Details"
 
 on:
   workflow_call:
