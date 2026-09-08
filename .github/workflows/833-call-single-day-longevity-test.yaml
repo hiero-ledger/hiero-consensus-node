@@ -616,7 +616,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
-          #FIXME export EXPLORER_VERSION="${{ inputs.explorerref }}"
+          export EXPLORER_VERSION="${{ inputs.explorerref }}"
           task solo:explorer
 
       - name: Add Relay
