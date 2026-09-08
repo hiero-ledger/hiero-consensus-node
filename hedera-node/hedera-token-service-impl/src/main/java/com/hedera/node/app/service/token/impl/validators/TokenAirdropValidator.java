@@ -268,6 +268,8 @@ public class TokenAirdropValidator {
         final var tokenRel = getIfUsable(senderAccount.accountIdOrThrow(), tokenId, tokenRelStore);
         // Add rather than Math.abs: Math.abs(Long.MIN_VALUE) wraps negative and passes for any balance.
         validateTrue(tokenRel.balance() + senderAmount.amount() >= 0, INSUFFICIENT_TOKEN_BALANCE);
+        validateTrue(senderAmount.amount() != Long.MIN_VALUE, INSUFFICIENT_TOKEN_BALANCE);
+        validateTrue(tokenRel.balance() >= -senderAmount.amount(), INSUFFICIENT_TOKEN_BALANCE);
     }
 
     private void validateNftTransfers(
