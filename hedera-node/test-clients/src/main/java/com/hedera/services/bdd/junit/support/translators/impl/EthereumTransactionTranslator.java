@@ -116,7 +116,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             } else {
                                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                             }
-                                            baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                            baseTranslator.addCreatedIdsTo(
+                                                    derivedBuilder, parts, remainingStateChanges);
                                             baseTranslator.addChangedContractNonces(
                                                     derivedBuilder, evmResult.contractNonces());
                                             Bytes initcode = null;
@@ -147,7 +148,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                 derivedBuilder, createdId, remainingStateChanges);
                                     } else if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
                                         mapTracesToVerboseLogs(derivedBuilder, parts.traces());
-                                        baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                        baseTranslator.addCreatedIdsTo(derivedBuilder, parts, remainingStateChanges);
                                         baseTranslator.addChangedContractNonces(
                                                 derivedBuilder, evmResult.contractNonces());
                                     }
