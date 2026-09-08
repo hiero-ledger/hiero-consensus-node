@@ -62,7 +62,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
-      ref: ${{ inputs.build-tag }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -70,7 +70,10 @@ jobs:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
-      ref: ${{ inputs.build-tag }}
+      # .citr-env is repo policy (which solo / block-node / NLG versions CITR deploys with), not
+      # build content, so read it from the workflow ref. An older build tag predates keys the current
+      # 855 requires - reading it from the tag is what broke MDLT dispatches.
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -190,6 +193,7 @@ jobs:
     with:
       # No test-asset / cluster / namespace: Chewie allocates the MDLT cluster and namespace.
       ref: "${{ inputs.build-tag }}"
+      bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "100000000"
       nlg-time: "3"
@@ -200,6 +204,7 @@ jobs:
       request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
       mdlt-length: ${{ fromJSON(needs.verify-citr-vars.outputs.mdlt-length) }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}

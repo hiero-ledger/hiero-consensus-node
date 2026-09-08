@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.state.persistence;
+package org.hiero.consensus.state;
 
 /**
  * Utility methods for dealing with signed states on disk.
  */
-public final class SignedStateFileUtils {
+public final class SignedStateFileConstants {
 
     public static final String SIGNATURE_SET_FILE_NAME = "signatureSet.pbj";
 
@@ -20,5 +20,5 @@ public final class SignedStateFileUtils {
      */
     public static final String CONSENSUS_SNAPSHOT_FILE_NAME = "consensusSnapshot.json";
 
-    private SignedStateFileUtils() {}
+    private SignedStateFileConstants() {}
 }

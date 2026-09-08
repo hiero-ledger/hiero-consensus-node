@@ -135,9 +135,21 @@ public class LearningSynchronizer {
             // send tasks can generate meaningful non-root requests.
             exchangeRootNode(exchanger, input, output);
 
-            for (int i = 0; i < syncConfig.numReceiveThreads(); i++) {
-                workGroup.fork("reconnect-learner-receiver", new LearnerPullVirtualTreeReceiveTask(input, exchanger));
+            final int learnerReceiveTasks = syncConfig.numReceiveThreads();
+            final CountDownLatch receiveTasksDone = new CountDownLatch(learnerReceiveTasks);
+            for (int i = 0; i < learnerReceiveTasks; i++) {
+                workGroup.fork(
+                        "reconnect-learner-receiver",
+                        new LearnerPullVirtualTreeReceiveTask(input, exchanger, receiveTasksDone));
             }
+
+            // Dedicated ordered leaf-apply thread. The leaf hash-feed must stay in anticipatedLeafPaths
+            // FIFO order, but running that drain on a receiver thread lets a long contiguous backlog
+            // block that receiver from reading the socket — stalling the TCP receive window and
+            // throttling the teacher. This single thread performs the ordered drain continuously,
+            // overlapping transfer, while the receivers stay free to drain the socket. It exits once
+            // every receiver has finished (receiveTasksDone) and the FIFO is fully drained.
+            workGroup.fork("reconnect-learner-applier", () -> exchanger.applierLoop(receiveTasksDone));
 
             final int learnerSendTasks = syncConfig.numSendThreads();
             final CountDownLatch sendTasksDone = new CountDownLatch(learnerSendTasks);

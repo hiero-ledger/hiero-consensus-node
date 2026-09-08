@@ -62,8 +62,9 @@ public class DispatchUsageManager {
     }
 
     /**
-     * Tracks usage of the given dispatch before it is sent to a handler. This is only checked for contract
-     * operations now. This code will be moved into the contract-service module in the future.
+     * Tracks usage of the given dispatch before it is sent to a handler. This is only checked for dispatches
+     * that opt into consensus throttling (currently contract operations and their child dispatches). This code
+     * will be moved into the contract-service module in the future.
      *
      * @param dispatch the dispatch
      * @throws ThrottleException if the dispatch should be throttled
@@ -81,6 +82,11 @@ public class DispatchUsageManager {
             } else if (isThrottled) {
                 throw ThrottleException.newNativeThrottleException();
             }
+            // Persist this dispatch's tracked usage into its own savepoint immediately, so that a
+            // subsequently dispatched child that resets its throttles from state sees this dispatch's
+            // usage instead of a stale snapshot (and thus cannot wipe it); if this dispatch is later
+            // reverted, the persisted usage is discarded along with its savepoint.
+            throttleServiceManager.saveThrottleSnapshotsAndCongestionLevelStartsTo(dispatch.stack());
         }
     }
 

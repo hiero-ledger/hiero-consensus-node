@@ -71,7 +71,10 @@ public class SwirldsLogValidator {
                 List.of("jvmPauseDetectorThread detected JVM paused"),
                 // Transient backpressure under load, e.g. while a node constructs WRAPS proofs
                 List.of("HealthMonitorLogger", "has been unhealthy for"),
-                List.of("DefaultSignedStateSentinel", "Old signed state detected"));
+                List.of("DefaultSignedStateSentinel", "Old signed state detected"),
+                // A node deliberately exits at startup when it detects an upgrade from a non-freeze state
+                // (see Hedera#assertFreezeStateOnUpgrade), exercised by UpgradeFromNonFreezeStateTest
+                List.of("SystemExitPayload", "UPGRADE_FROM_NON_FREEZE_STATE"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
