@@ -167,12 +167,16 @@ buffered future events and emit several decided rounds.
 7. After the loop, `freezeRoundController.filterAndModify` truncates
    any rounds beyond the freeze boundary.
 
-**Round computation (round created).** `ConsensusImpl.round` returns
-`ROUND_FIRST` for events with no parents; otherwise, when the parents'
-rounds differ, it inherits the maximum parent round; when the parents'
-rounds agree at parent round `r`, it counts the witnesses in round `r`
-that this event strongly sees (weighted by roster) and increments to
-`r + 1` if a super-majority is reached. As a short-circuit, any event
+**Round computation (round created).** For an event with no parents
+`ConsensusImpl.round` returns `ROUND_FIRST` only while the first round
+is still undecided (`getFameDecidedBelow() == ROUND_FIRST`) — a genuine
+genesis event; a later parentless event is not a descendant of the
+latest decided round's judges and gets `ROUND_NEGATIVE_INFINITY`
+instead (INV-015). Otherwise, when the parents' rounds differ, it
+inherits the maximum parent round; when the parents' rounds agree at
+parent round `r`, it counts the witnesses in round `r` that this event
+strongly sees (weighted by roster) and increments to `r + 1` if a
+super-majority is reached. As a short-circuit, any event
 whose nGen is below the latest decided round's judges
 (`ConsensusRounds.isOlderThanDecidedRoundGeneration`), and any consensus
 event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and

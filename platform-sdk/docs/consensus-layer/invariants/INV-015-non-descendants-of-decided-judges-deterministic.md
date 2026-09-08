@@ -15,8 +15,8 @@ source: >
   agreed by all deciders (INV-007) and re-derivable from a decided-round snapshot,
   combined with the reconnect/state-transfer design in which a node resumes
   consensus from the latest decided round downward.
-verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java — `round` assigns non-descendants the constant `ROUND_NEGATIVE_INFINITY` (the current implementation's bootstrap-independent choice) through its two short-circuits; `recalculateAndVote` preserves a decided-round judge only when all its parents are terminal
-provenance: elicitation-2026-07-27; re-diagnosis of SCN-002 (#26529); reworked 2026-07-29 from a fixed terminal value to bootstrap-determinism
+verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java — `round` assigns non-descendants the constant `ROUND_NEGATIVE_INFINITY` (the current implementation's bootstrap-independent choice) through its two short-circuits and, since #26604, through the no-parent branch as well; `recalculateAndVote` preserves a decided-round judge only when all its parents are terminal
+provenance: elicitation-2026-07-27; re-diagnosis of SCN-002 (#26529); reworked 2026-07-29 from a fixed terminal value to bootstrap-determinism; #26529 fixed in #26604 (2026-08-06)
 curated_by: Kelly Greco (@poulok)
 ---
 
@@ -77,14 +77,17 @@ node-local ordering — breaks the invariant: a reconnected node, lacking that e
 input, computes a different value and consensus diverges. Concrete mechanisms:
 
 - **Two assignment paths that give a non-descendant different values, chosen by
-  node-local ordering.** `ConsensusImpl.round` assigns a non-descendant the terminal
-  value through the RUL-005 frontier short-circuit, but assigns `ROUND_FIRST` through
-  the no-parent branch — correct only for a genuine genesis, when the pending round
-  is 1. Which path a no-parent non-descendant takes depends on where the frontier key
-  sorts it, which is node-local under a release-order key, so the same event is
-  terminal on one node and `ROUND_FIRST` on another. That is the latent bug #26529
-  behind SCN-002; the fix is to make the no-parent branch yield the same
-  bootstrap-fixed value once the pending round is greater than 1.
+  node-local ordering.** This is the shape of the historical bug #26529 behind
+  SCN-002: `ConsensusImpl.round` assigned a non-descendant the terminal value through
+  the RUL-005 frontier short-circuit, but `ROUND_FIRST` through the no-parent branch
+  — correct only for a genuine genesis, when the pending round is 1. Which path a
+  no-parent non-descendant took depended on where the frontier key sorted it, which
+  is node-local under a release-order key, so the same event was terminal on one node
+  and `ROUND_FIRST` on another. Fixed in #26604: the no-parent branch now yields
+  `ROUND_FIRST` only while the first round is still undecided
+  (`getFameDecidedBelow() == ROUND_FIRST`) and the bootstrap-fixed terminal value
+  otherwise. Re-introducing a second, ordering-dependent path would break the
+  invariant the same way.
 - **Deriving the value from the event's below-round ancestry.** A non-descendant's
   value must be fixed by bootstrap data; computing it from parents or witnesses below
   the decided round — which a reconnected node lacks — makes it history-dependent.
@@ -97,15 +100,16 @@ defect to be stopped, not a tradeoff — its symptom is an ISS (SCN-002).
 
 ## Notes
 
-- **Enforced today, with a latent defect.** The current implementation assigns
-  non-descendants the constant `ROUND_NEGATIVE_INFINITY` — a valid,
-  bootstrap-independent choice — and the RUL-005 frontier, keyed on `nGen`, keeps
-  every non-descendant below the frontier so they all take that path and never reach
-  the no-parent `ROUND_FIRST` branch (#26529, Change risk). That bug is masked, not
-  fixed: re-keying the frontier to the orphan-buffer sequence number without the fix
-  lets a non-descendant clear the frontier on some nodes and take the `ROUND_FIRST`
-  branch, so its value differs across nodes — the ISS in SCN-002. ADR-008 makes the
-  fix the prerequisite for that re-keying.
+- **Enforced today.** The current implementation assigns non-descendants the
+  constant `ROUND_NEGATIVE_INFINITY` — a valid, bootstrap-independent choice — on
+  every path: the RUL-005 frontier short-circuit, parent-propagation, and, since
+  #26604, the no-parent branch, which now falls through to the terminal value unless
+  the first round is still undecided. Enforcement no longer depends on the frontier
+  key: previously the `nGen` frontier was what kept every non-descendant away from
+  the `ROUND_FIRST` branch, so the defect was masked rather than fixed, and re-keying
+  to the orphan-buffer sequence number let a non-descendant clear the frontier on
+  some nodes and diverge (SCN-002). With the branch itself correct, the invariant
+  holds on either key and ADR-008's threshold conversion is unblocked.
 
 - RUL-005 and the round-assignment code choose the specific value
   (`ROUND_NEGATIVE_INFINITY`) that realizes this invariant today; INV-001 (voting
