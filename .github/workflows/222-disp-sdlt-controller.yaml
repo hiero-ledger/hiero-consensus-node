@@ -192,59 +192,34 @@ jobs:
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
-  release-chewie-jwt:
-    name: Get Chewie JWT for Release
-    needs:
-      - run-single-day-longevity-test
-    if: ${{ needs.run-single-day-longevity-test.outputs.result == 'success' }}
-    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
-    secrets:
-      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
-      chewie-host: ${{ secrets.CHEWIE_HOST }}
-
-  validate-release-chewie-jwt:
-    name: Validate Chewie JWT for Release
-    needs:
-      - release-chewie-jwt
-    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
-    with:
-      ref: ${{ github.ref }}
-      chewie-expiration: ${{ needs.release-chewie-jwt.outputs.expiration }}
-    secrets:
-      chewie-jwt: ${{ needs.release-chewie-jwt.outputs.jwt }}
-      checkout-token: ${{ secrets.GITHUB_TOKEN }}
-
   release-chewie-allocation:
     name: Release Chewie Allocation
-    runs-on: hl-cn-chewie-lin-sm
+    runs-on: hl-cn-default-lin-sm
     needs:
       - acquire-kubernetes-resources
       - run-single-day-longevity-test
-      - release-chewie-jwt
-      - validate-release-chewie-jwt
     if: ${{ needs.run-single-day-longevity-test.outputs.result == 'success' }}
     continue-on-error: true # best-effort early release; Chewie's own reaper/expiry remains the fallback
-    env:
-      HOST: "${{ secrets.CHEWIE_HOST }}"
-      API_EP_COMPUTE_ALLOCATION: "api/v1/compute/allocation"
-      ALLOCATION_ID: "${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}"
     steps:
-      - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
-          checkout-ref: ${{ github.ref }}
+          checkout-ref: "${{ github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
 
-      - name: Release Chewie Allocation
-        continue-on-error: true
-        env:
-          CHEWIE_JWT_B64: ${{ needs.release-chewie-jwt.outputs.jwt }}
-        run: |
-          .github/workflows/support/chewie/release-chewie-allocation.sh \
-            -o "${HOST}" \
-            -e "${API_EP_COMPUTE_ALLOCATION}" \
-            -i "${ALLOCATION_ID}"
+      - name: "Trigger 225: [DISP] Release Chewie Allocation"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/225-disp-release-chewie-allocation.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "chewie-allocation-id": "${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}"
+            }'
 
   tag-sdlt-result:
     name: Tag SDLT Result

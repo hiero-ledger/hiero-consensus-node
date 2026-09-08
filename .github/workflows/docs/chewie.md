@@ -101,9 +101,11 @@ The controller acquires the allocation itself and hands the test workflow only t
    job calls `863: [CALL] Get Chewie Allocation`, which GETs the same allocation by id and emits the namespace,
    cluster FQDN, CN/aux quantities, tolerations, node roles, network id, owner, and expiration — the same detail
    shape `859` produced on create, just fetched instead of created.
-7. On a passing scheduled run, `221`/`222` fetch a fresh JWT (the original one may be hours stale by the time the
-   test finishes) and call `support/chewie/release-chewie-allocation.sh` to release the allocation immediately
-   rather than waiting on Chewie's reaper/expiry. This is best-effort (`continue-on-error`) — a release failure does
+7. On a passing scheduled run, `221`/`222` dispatch
+   [225: [DISP] Release Chewie Allocation](/.github/workflows/225-disp-release-chewie-allocation.yaml) with
+   `chewie-allocation-id`, rather than fetching a JWT and releasing inline — `225` already owns fetching a fresh JWT
+   (the one obtained at acquisition time may be hours stale by the time the test finishes) and calling
+   `support/chewie/release-chewie-allocation.sh`. This is best-effort (`continue-on-error`) — a release failure does
    not fail the run. `201`/`202` (adhoc) do not self-release; Chewie's reaper/`workflow_run.completed` webhook
    remain their only release path.
 
