@@ -481,20 +481,12 @@ public class ParentTxnFactory {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final TransactionType type) {
+
+        final var txInfo = getTxnInfoFrom(payerId, body);
         // Internal transactions are synthetic and do not require pre-handle checks.
         if (type == INTERNAL_TRANSACTION) {
             return new PreHandleResult(
-                    payerId,
-                    null,
-                    SO_FAR_SO_GOOD,
-                    OK,
-                    getTxnInfoFrom(payerId, body),
-                    Set.of(),
-                    Set.of(),
-                    Set.of(),
-                    Map.of(),
-                    null,
-                    0);
+                    payerId, null, SO_FAR_SO_GOOD, OK, txInfo, Set.of(), Set.of(), Set.of(), Map.of(), null, 0);
         }
         try {
             final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
@@ -502,7 +494,6 @@ public class ParentTxnFactory {
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
-            final var txInfo = getTxnInfoFrom(payerId, body);
             return new PreHandleResult(
                     null,
                     null,
@@ -521,7 +512,7 @@ public class ParentTxnFactory {
                     null,
                     PRE_HANDLE_FAILURE,
                     e.responseCode(),
-                    null,
+                    txInfo,
                     emptySet(),
                     null,
                     emptySet(),
