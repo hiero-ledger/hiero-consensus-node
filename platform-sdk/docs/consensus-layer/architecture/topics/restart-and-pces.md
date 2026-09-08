@@ -39,7 +39,7 @@ only after the write completes. The interface is `InlinePcesWriter` (
 `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/InlinePcesWriter.java`); the
 default implementation is `DefaultInlinePcesWriter` (
 `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java#writeEvent`).
-`writeEvent` writes the event to the current mutable file unconditionally (`DefaultInlinePcesWriter.java#writeEvent`); the
+`writeEvent` writes the event to the current mutable file unconditionally; the
 underlying file writer is either a `PcesFileChannelWriter` (Linux default) or `PcesOutputStreamFileWriter` (macOS
 default, where `FileChannel` is ~150× slower).
 
@@ -119,15 +119,13 @@ Restart has two phases. State load and replay-bound derivation happen in `Platfo
    `initialState.get()`).
 2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (
    `initialSignedState.getRound()`) and the replay lower bound to its initial ancient threshold (`ancientThresholdOf(...)`);
-   both are passed to the `SwirldsPlatform` constructor (`PlatformBuilder.java#build`). For a genesis start, both are 0 (
-   `PlatformBuilder.java#build`).
+   both are passed to the `SwirldsPlatform` constructor. For a genesis start, both are 0.
 3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the wiring model (
    `SwirldsPlatform.java#start`).
-4. **Replay PCES.** `buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound)` (
-   `SwirldsPlatform.java#start`) runs the replay synchronously; control does not return until replay is done. See
-   [Replay](#replay) for details.
+4. **Replay PCES.** `buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound)` runs the
+   replay synchronously; control does not return until replay is done. See [Replay](#replay) for details.
 5. **Start gossip; event creation remains off.** Only after replay completes does
-   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run (`SwirldsPlatform.java#start`).
+   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run.
    Neither gossip nor event creation observes a partially-replayed state: gossip because it is started here, and event
    creation because it is gated on platform status. See [`event-creator.md`](event-creator.md#permission-gates) (the
    `PlatformStatusRule` gate) for the gating details.
@@ -149,9 +147,9 @@ on-disk PCES files rather than gossip.
   replayer's input wire.
 - **Emit side.** `PcesReplayer.replayPces(...)` (
   `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/replayer/PcesReplayer.java#replayPces`) drives
-  the iterator and forwards each event onto its output wire (`PcesReplayer.java#replayPces`); from there the event flows
+  the iterator and forwards each event onto its output wire; from there the event flows
   through the same intake pipeline that gossip-delivered events use.
-- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java#replayPces`, implementation at `PcesReplayer.java#waitUntilHealthy`)
+- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java#waitUntilHealthy`)
   before emitting, blocking when the wiring model reports an unhealthy duration above `replayHealthThreshold` (
   `PcesConfig.java#replayHealthThreshold`). Because the iterator is lazy — `PcesMultiFileIterator` opens the next file only when the
   current one is exhausted (`PcesMultiFileIterator.java#findNext`), and `PcesFileIterator` reads one event at a time from a

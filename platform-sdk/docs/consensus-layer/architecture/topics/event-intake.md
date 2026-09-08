@@ -121,11 +121,9 @@ the gate just not been added there?]
   Sequential scheduler, capacity 5000.
 - **What it does**: tracks seen `(descriptor, signature)` pairs in a
   birth-round-keyed `SequenceMap`. Drops any event whose
-  descriptor+signature has already been seen
-  ([handleEvent](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java#handleEvent)).
+  descriptor+signature has already been seen.
   When a descriptor is seen with a *new* signature, increments the
   `eventsWithDisparateSignature` accumulator
-  ([handleEvent](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java#handleEvent))
   — an indicator that a node is misbehaving by improperly signing the
   same event (not a branching signal) — and lets the event continue.
 - **Failure outcome**: duplicate → `null`, plus
@@ -151,8 +149,7 @@ common-case true duplicates.
   against the creator's public key, looked up in the current
   `RosterHistory`.
 - **Failure outcome**: invalid signature → `null` and
-  `validationFailedAccumulator.update(1)`
-  ([validateSignature](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java#validateSignature)).
+  `validationFailedAccumulator.update(1)`.
 - **Bypasses**:
   - Ancient → returns `null`.
   - `EventOrigin.RUNTIME` (self-events) → returns the event without
@@ -369,15 +366,12 @@ The wiring is in [ConsensusLayerWiring.java#wirePcesOutputs](../../../../swirlds
 
 1. `eventIntakeModule().validatedEventsOutputWire()` →
    `pcesModule().eventsToWriteInputWire()`.
-2. `pcesModule().writtenEventsOutputWire()` → `hashgraphModule().eventInputWire()`
-   ([wirePcesOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wirePcesOutputs));
+2. `pcesModule().writtenEventsOutputWire()` → `hashgraphModule().eventInputWire()`;
    the in-source comment reads: "Make sure that an event is persisted
    before being sent to consensus."
-3. `pcesModule().writtenEventsOutputWire()` → `gossipModule().eventToGossipInputWire()`
-   ([wirePcesOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wirePcesOutputs));
+3. `pcesModule().writtenEventsOutputWire()` → `gossipModule().eventToGossipInputWire()`;
    "Make sure events are persisted before being gossipped."
-4. `pcesModule().writtenEventsOutputWire()` → `eventCreatorModule().orderedEventInputWire()`
-   ([wirePcesOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wirePcesOutputs));
+4. `pcesModule().writtenEventsOutputWire()` → `eventCreatorModule().orderedEventInputWire()`;
    "Avoid using events as parents before they are persisted."
 
 The fourth wire feeds the event creator with persisted events so it

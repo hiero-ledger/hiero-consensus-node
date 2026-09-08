@@ -249,30 +249,28 @@ returns an empty output (`DefaultConsensusEngine.java#addEvent`) — the
 just-added event is not yet classified as pre-consensus, because it
 might already have been part of a previously decided round. The engine
 samples the flag both before and after `consensus.addEvent`
-(`waitingForJudgesBeforeAdd` / `waitingForJudgesAfterAdd`,
-`DefaultConsensusEngine.java#addEvent`); the post-add check is the
-transition point out of waiting. When the last init judge arrives,
-`ConsensusImpl.checkInitJudges`
-(`ConsensusImpl.java#checkInitJudges`) takes the judges' common ancestors that are
-neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
-under the `nonConsensusNonAncient` predicate) and marks each
-`setConsensus(true)` while deliberately leaving `roundReceived` unset:
-those events already reached consensus in the run that produced the
-loaded snapshot, so they are flagged decided solely to stop the
-algorithm from re-deciding them, and are never emitted as a consensus
-round. The engine then flushes the queued pre-consensus events into the
-output (`consensus.getPreConsensusEvents()`,
-`DefaultConsensusEngine.java#addEvent`). Usually the call that finds the
+(`waitingForJudgesBeforeAdd` / `waitingForJudgesAfterAdd`); the
+post-add check is the transition point out of waiting. When the last
+init judge arrives, `ConsensusImpl.checkInitJudges`
+(`ConsensusImpl.java#checkInitJudges`) takes the judges' common
+ancestors that are neither already consensus nor ancient
+(`AncestorSearch.commonAncestorsOf` under the `nonConsensusNonAncient`
+predicate) and marks each `setConsensus(true)` while deliberately
+leaving `roundReceived` unset: those events already reached consensus
+in the run that produced the loaded snapshot, so they are flagged
+decided solely to stop the algorithm from re-deciding them, and are
+never emitted as a consensus round. The engine then flushes the queued
+pre-consensus events into the output
+(`consensus.getPreConsensusEvents()`). Usually the call that finds the
 last judge decides no *new* rounds — `ConsensusImpl.addEvent` routes
-through `recalculateAndVote` (`ConsensusImpl.java#addEvent`), consensus
-simply resumes, and later events decide the next round. If that
-recalculation does decide a round immediately, the engine *also* places
-the round's events on the pre-consensus output
-(`DefaultConsensusEngine.java#addEvent`), because the gate suppressed
-them earlier and every accepted event must still appear on the
-pre-consensus stream exactly once. Why this gate exists at the
-restart/replay boundary — not re-handling transactions already baked
-into the loaded state — is covered in
+through `recalculateAndVote`, consensus simply resumes, and later
+events decide the next round. If that recalculation does decide a
+round immediately, the engine *also* places the round's events on the
+pre-consensus output, because the gate suppressed them earlier and
+every accepted event must still appear on the pre-consensus stream
+exactly once. Why this gate exists at the restart/replay boundary —
+not re-handling transactions already baked into the loaded state — is
+covered in
 [`../topics/restart-and-pces.md`](../topics/restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
 
 > **Note on the paper.** Round, witness, strongly-seeing, fame, and
