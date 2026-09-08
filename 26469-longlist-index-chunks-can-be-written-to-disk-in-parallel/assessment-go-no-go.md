@@ -1,8 +1,8 @@
 # LongList snapshot-write PR assessment
 
-## Recommendation
+## Accepted direction
 
-Proceed with the combined candidate in this PR:
+The combined optimization is accepted for this PR:
 
 1. parallel writer threads per LongList, with eight as the measured 1B candidate;
 2. removal of the final LongList `force(true)`; and
@@ -11,6 +11,12 @@ Proceed with the combined candidate in this PR:
 All three paths are implemented and correctness-tested. Complete-snapshot
 measurements at 100M and 1B leaves support their combination. The useful writer
 count depends on state size; final configuration defaults remain to be agreed.
+
+Compression was discussed with the team and dismissed because the measured
+gains are sufficient. The remaining work is to sync with main, remove
+experiment-only switches and tooling, simplify tests and benchmarks, and verify
+the final production path. Preserve these results for the PR description before
+removing the experiment directory from the final diff.
 
 ## Parallel writer
 

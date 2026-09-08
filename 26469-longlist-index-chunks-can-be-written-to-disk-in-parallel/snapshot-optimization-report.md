@@ -17,11 +17,16 @@ and raw evidence remain in the result documents linked below.
 | Parallel LongList writes | Implemented and measured across all five implementations. Eight writers capture most of the combined-mode gain at 1B; the earlier 100M run gained little beyond two. |
 | Writing the same bytes more efficiently | The prepared-memory control and follow-up diagnostics did not justify physical preallocation or direct I/O. |
 | Removing the final LongList force | Earlier `writeToFile()` return is established; both 100M and 1B campaigns also confirmed earlier complete-snapshot return. |
-| Compression | Still worth discussing because it could reduce storage traffic, but it changes the file format and adds CPU work. No experiment starts without team agreement. |
+| Compression | Discussed with the team and dismissed: the measured gains are sufficient. No experiment is planned. |
 | Hash-cache pre-flush overlap | With force disabled, overlap improved every tested configuration in every block at both 100M and 1B. Final defaults remain to be agreed. |
 
 The result documents are the source of truth for measurements. This report
 keeps only the evidence needed to understand each decision.
+
+The combined optimization is accepted: keep parallel writes, remove the final
+LongList force, and overlap the hash-cache flush with independent snapshot
+tasks. The investigation is complete; the next step is preparing the PR for
+main. The per-list writer default remains to be agreed.
 
 ## 2. Parallel LongList writes
 
@@ -208,19 +213,9 @@ See:
 
 ## 5. Compression
 
-Compression remains a possible way to reduce the bytes written to storage.
-LongList values contain related file identifiers and offsets, so real index
-data may compress well. A smaller snapshot may take less time to write and
-load even when storage throughput does not change.
-
-The tradeoff is significant. Compression creates a new LongList file format,
-adds CPU work during snapshots, and adds decompression work while loading.
-Parallel compression may also compete with other snapshot tasks.
-
-This idea requires team agreement before an experiment. The first measurement
-should use representative index files and report compression ratio,
-compression time, and decompression/load time. A production prototype is
-justified only if those measurements predict an end-to-end benefit.
+The team discussed compression and dismissed it because the measured gains
+from the accepted changes are sufficient. No compression experiment or file
+format change is planned for this PR.
 
 ## 6. Hash-cache pre-flush overlap
 
@@ -274,10 +269,9 @@ the earlier combined-mode run gained little beyond two writers. Final defaults
 remain to be agreed because the useful count changes with state size and the
 largest tested count is not best for every implementation.
 
-Compression is not part of the current candidate. If the team approves it and
-its own measurements show a benefit, it can later be added to the same
-complete-snapshot comparison. There is no separate reason to combine no-force
-with preallocation or direct I/O because those hypotheses were closed.
+Compression has been dismissed by the team. There is no separate reason to
+combine no-force with preallocation or direct I/O because those hypotheses
+were closed.
 
 ## 8. Benchmark rules
 
@@ -322,10 +316,16 @@ current conclusions were reached.
 8. **Hash-cache pre-flush overlap — initial gate complete.** The
    dependency-aware schedule won every 100-million-leaf configuration and
    selected unforced overlap with two writers as the combined candidate.
-9. **Compression — team discussion.** Measure representative compression and
-   load cost only if the team chooses to pursue the file-format change.
+9. **Compression — dismissed after team discussion.** The measured gains are
+   sufficient; no experiment is planned.
 10. **Larger-state complete-snapshot confirmation — complete.** The 1B campaign
    covered all five implementations, both force settings, both flush schedules,
    and one, two, eight, sixteen, and thirty-two writers. Eight captures most of
    the combined-mode gain; the tables retain the anomalous first forced-Segment
-   block with a caveat. Review these results before agreeing on final defaults.
+   block with a caveat. The combined optimization is accepted; the per-list
+   writer default remains to be agreed during PR preparation.
+11. **PR preparation — next.** Agree on the cleanup plan, sync with main, and
+    reduce the branch to the accepted production changes, readable benchmarks,
+    and focused tests. Use these results in the PR description, preserve raw
+    evidence not tracked by Git, then remove this experiment directory from the
+    final diff.

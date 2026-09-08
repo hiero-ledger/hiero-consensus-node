@@ -14,6 +14,9 @@ Start with:
 
 ## Current state
 
+- The investigation is complete. Keep parallel LongList writes, removal of the
+  final LongList force, and hash-cache pre-flush overlap. The next step is PR
+  cleanup, not another optimization experiment.
 - Parallel LongList chunk writing is implemented, correctness-tested, and
   measured with the isolated Linux LongList benchmark.
 - Removing the final LongList `force(true)` improves both isolated LongList and
@@ -26,8 +29,13 @@ Start with:
   beyond two writers; a universal production default has not been selected.
 - The diagnostics closed the physical-preallocation and direct-I/O hypotheses
   without prototypes.
-- Compression remains an idea for team discussion because it changes the file
-  format and shifts work from storage to the CPU.
+- Compression was discussed with the team and dismissed: the measured gains
+  are sufficient, so no compression experiment is planned.
+
+This directory is a temporary branch record, not part of the intended main
+branch change. Preserve the evidence and use it to prepare the PR description
+before removing the directory. Some raw archives and logs are ignored by Git;
+those files need a separate backup because Git history does not preserve them.
 
 ## Documents
 
