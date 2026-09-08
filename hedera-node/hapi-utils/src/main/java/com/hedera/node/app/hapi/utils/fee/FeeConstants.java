@@ -122,7 +122,14 @@ public final class FeeConstants {
      * @return tinyHbars
      */
     public static long getTinybarsFromTinyCents(final ExchangeRate exchangeRate, final long tinyCentsFee) {
-        return getAFromB(tinyCentsFee, exchangeRate.getHbarEquiv(), exchangeRate.getCentEquiv());
+        final var hbarEquiv = exchangeRate.getHbarEquiv();
+        final var centEquiv = exchangeRate.getCentEquiv();
+        // A non-positive centEquiv would divide by zero, and a non-positive hbarEquiv would make the fee
+        // free or negative; saturate to Long.MAX_VALUE instead of throwing, matching tinycentsToTinybars.
+        if (centEquiv <= 0 || hbarEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
+        return getAFromB(tinyCentsFee, hbarEquiv, centEquiv);
     }
 
     /**
@@ -153,6 +160,7 @@ public final class FeeConstants {
         return BigInteger.valueOf(bAmount)
                 .multiply(aMultiplier)
                 .divide(bDivisor)
+                .min(BigInteger.valueOf(Long.MAX_VALUE))
                 .longValueExact();
     }
 
