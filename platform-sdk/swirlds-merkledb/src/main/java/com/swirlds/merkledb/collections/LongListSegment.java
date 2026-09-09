@@ -282,18 +282,16 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         return chunk;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Writes the assigned chunk range to the file channel. Each chunk's {@link MemorySegment}
-     * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
-     * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
-     * pre-allocated zero-filled buffer is written instead.
-     *
-     * <p>Snapshot range invocations may run concurrently, but the snapshot is sequenced after
-     * flush completion by the virtual pipeline. No concurrent {@link #closeChunk} can invalidate
-     * a chunk's arena during this operation.
-     */
+    /// {@inheritDoc}
+    ///
+    /// Writes the assigned chunk range to the file channel. Each chunk's {@link MemorySegment}
+    /// is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
+    /// for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
+    /// pre-allocated zero-filled buffer is written instead.
+    ///
+    /// Snapshot range invocations may run concurrently, but the snapshot is sequenced after
+    /// flush completion by the virtual pipeline. No concurrent {@link #closeChunk} can invalidate
+    /// a chunk's arena during this operation.
     @Override
     protected void writeLongsData(
             @NonNull final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)

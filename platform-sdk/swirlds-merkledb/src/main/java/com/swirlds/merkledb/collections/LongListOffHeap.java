@@ -143,7 +143,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
         return MemoryUtils.compareAndSwapLong(chunk, subIndexBytes, oldValue, newValue);
     }
 
-    /** {@inheritDoc} */
+    /// {@inheritDoc}
     @Override
     protected void writeLongsData(final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
             throws IOException {

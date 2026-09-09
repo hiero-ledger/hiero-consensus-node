@@ -502,7 +502,7 @@ public abstract class AbstractLongList<C> implements LongList {
         writeToFile(file, null, 1);
     }
 
-    /** {@inheritDoc} */
+    /// {@inheritDoc}
     @Override
     public void writeToFile(final Path file, final Executor executor, final int threadCount) throws IOException {
         try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
@@ -519,24 +519,39 @@ public abstract class AbstractLongList<C> implements LongList {
 
     private void writeLongsDataInParallel(final FileChannel fc, final Executor executor, final int threadCount)
             throws IOException {
+        // First chunk containing list data, used as the partition's inclusive lower bound.
         final int firstChunkWithDataIndex = toIntExact(minValidIndex.get() / longsPerChunk);
+        // Chunk index just past the list's end, used as the partition's exclusive upper bound.
         final int totalNumOfChunks = calculateNumberOfChunks(size());
+        // Number of chunks to write, used to bound and balance the writer ranges.
         final int activeChunkCount = totalNumOfChunks - firstChunkWithDataIndex;
         if (activeChunkCount <= 0) {
             return;
         }
-        // Chunks are equal-sized except at the edges, so balanced contiguous ranges keep writes moving forward.
+        // Number of writer tasks, capped so every task owns at least one chunk.
         final int taskCount = min(threadCount, activeChunkCount);
+        // Minimum chunks per range, used as the base size of the balanced partition.
         final int chunksPerRange = activeChunkCount / taskCount;
+        // Leading ranges with one extra chunk, used to distribute the partition remainder.
         final int rangesWithOneMoreChunk = activeChunkCount % taskCount;
+
+        // Submitted writer tasks, retained so all workers can be joined before closing the file.
         final List<CompletableFuture<Void>> tasks = new ArrayList<>(taskCount);
+
+        // Start of the next range, advanced as writer ranges are assigned.
         int rangeFirstChunkInclusive = firstChunkWithDataIndex;
         try {
+            // Chunks are equal-sized except at the edges, so balanced contiguous ranges keep writes moving forward.
             for (int rangeIndex = 0; rangeIndex < taskCount; rangeIndex++) {
+                // Chunks in this writer range, including one remainder chunk when applicable.
                 final int rangeChunkCount = chunksPerRange + (rangeIndex < rangesWithOneMoreChunk ? 1 : 0);
+                // End of this writer range, used as the start of the following range.
                 final int rangeLastChunkExclusive = rangeFirstChunkInclusive + rangeChunkCount;
+                // First list index in this range, used as the source lower bound.
                 final long startIndex = max(minValidIndex.get(), (long) rangeFirstChunkInclusive * longsPerChunk);
+                // Exclusive last list index in this range, used as the source upper bound.
                 final long endIndex = min(size(), (long) rangeLastChunkExclusive * longsPerChunk);
+                // Absolute target position for this range, used by positional writes.
                 final long fileOffset = FILE_HEADER_SIZE_V3 + (startIndex - minValidIndex.get()) * Long.BYTES;
                 tasks.add(CompletableFuture.runAsync(
                         () -> {
@@ -584,15 +599,13 @@ public abstract class AbstractLongList<C> implements LongList {
         fc.position(currentFileHeaderSize);
     }
 
-    /**
-     * Writes the specified index range using positional writes.
-     *
-     * @param fc target file channel
-     * @param startIndex first list index to write, inclusive
-     * @param endIndex last list index to write, exclusive
-     * @param fileOffset absolute target offset for {@code startIndex}
-     * @throws IOException if the range cannot be written
-     */
+    /// Writes the specified index range using positional writes.
+    ///
+    /// @param fc target file channel
+    /// @param startIndex first list index to write, inclusive
+    /// @param endIndex last list index to write, exclusive
+    /// @param fileOffset absolute target offset for `startIndex`
+    /// @throws IOException if the range cannot be written
     protected abstract void writeLongsData(
             @NonNull final FileChannel fc, final long startIndex, final long endIndex, final long fileOffset)
             throws IOException;

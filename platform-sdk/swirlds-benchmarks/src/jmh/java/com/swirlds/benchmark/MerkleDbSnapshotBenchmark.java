@@ -37,10 +37,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-/**
- * Measures complete snapshots of a state containing {@code numFiles * numRecords} leaves.
- * Fixture generation and optional restored-record checks are outside the measured operation.
- */
+/// Measures complete snapshots of a state containing `numFiles * numRecords` leaves.
+/// Fixture generation and optional restored-record checks are outside the measured operation.
 @Fork(1)
 @Threads(1)
 @Warmup(iterations = 1)
@@ -71,7 +69,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         super.configureBenchmarkConfiguration(configurationBuilder);
         configurationBuilder.withSource(new SimpleConfigSource()
                 .withValue("merkleDb.useDiskIndices", useDiskIndices)
-                .withValue("merkleDb.longListSnapshotThreadsPerList", threadsPerLongList)
+                .withValue("merkleDb.longListWriteThreads", threadsPerLongList)
                 .withOrdinal(Integer.MAX_VALUE));
     }
 

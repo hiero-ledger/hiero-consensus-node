@@ -150,7 +150,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         return chunk.compareAndSet(subIndex, oldValue, newValue);
     }
 
-    /** {@inheritDoc} */
+    /// {@inheritDoc}
     @Override
     protected void writeLongsData(final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
             throws IOException {

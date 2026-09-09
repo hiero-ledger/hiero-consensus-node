@@ -37,12 +37,13 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-/** Measures writes of a dense leaf index, populated once per trial outside the measured operation. */
+/// Measures snapshot writes of the leaf-path-to-K/V-record-location index.
+/// Populates the index once per trial with synthetic record locations, outside the timed operation.
 @State(Scope.Benchmark)
 @Fork(1)
 @Threads(1)
 @Warmup(iterations = 1)
-@Measurement(iterations = 2)
+@Measurement(iterations = 3)
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class LongListSnapshotBenchmark {
@@ -53,7 +54,7 @@ public class LongListSnapshotBenchmark {
     @Param({"1", "4"})
     public int threadsPerLongList;
 
-    /** Number of leaves represented by the valid index range {@code [N - 1, 2N - 2]}. */
+    /// Number of leaves represented by the valid index range `[N - 1, 2N - 2]`.
     @Param({"10000000"})
     public long leafCount;
 
@@ -63,7 +64,7 @@ public class LongListSnapshotBenchmark {
     @Param({"build/tmp/long-list-snapshot-benchmark"})
     public String workDir;
 
-    /** Compare each snapshot with a sequential write during untimed cleanup. */
+    /// Compare each snapshot with a sequential write during untimed cleanup.
     @Param({"false"})
     public boolean verify;
 

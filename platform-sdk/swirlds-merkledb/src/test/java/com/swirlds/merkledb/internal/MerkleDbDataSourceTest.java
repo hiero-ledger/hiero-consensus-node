@@ -439,7 +439,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 .autoDiscoverExtensions()
                 .withValue(MerkleDbConfig_.HASH_CHUNK_CACHE_THRESHOLD, "1000")
                 .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "33")
-                .withValue(MerkleDbConfig_.LONG_LIST_SNAPSHOT_THREADS_PER_LIST, "16")
+                .withValue(MerkleDbConfig_.LONG_LIST_WRITE_THREADS, "16")
                 .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "100000")
                 .withValue(MerkleDbConfig_.USE_DISK_INDICES, Boolean.toString(useDiskIndices))
                 .build();

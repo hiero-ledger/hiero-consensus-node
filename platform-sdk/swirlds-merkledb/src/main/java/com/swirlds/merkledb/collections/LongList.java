@@ -98,28 +98,22 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      * via put methods while this LongList is being written to a file. If you need consistency while
      * calling put concurrently then use a BufferedLongListWrapper. </b>
      *
-     * <p>All writes complete before this method returns, but the file is not forced to storage.
-     *
      * @param file The file to write into, it should not exist but its parent directory should exist
      *             and be writable.
      * @throws IOException If there was a problem creating or writing to the file.
      */
     void writeToFile(Path file) throws IOException;
 
-    /**
-     * Write all longs in this LongList into a file using the requested number of writer threads. This method has the
-     * same completion and concurrent-mutation semantics as {@link #writeToFile(Path)}.
-     *
-     * <p>The caller owns {@code executor}; this method neither shuts it down nor returns before its submitted tasks
-     * complete. A thread count of one uses the sequential writer and does not submit a task. For higher values, the
-     * calling thread coordinates at most {@code threadCount} tasks and does not write an additional range. The executor
-     * must be able to run those tasks while the caller waits for them.
-     *
-     * @param file The file to write into, it should not exist but its parent directory should exist and be writable.
-     * @param executor executor for parallel write tasks
-     * @param threadCount total number of writer threads for this list, at least one
-     * @throws IOException If there was a problem creating or writing to the file.
-     */
+    /// Writes all longs in this LongList to a file.
+    /// If another thread calls `put()` during the write, the file may contain both old and updated values.
+    ///
+    /// With one thread, writes on the calling thread. Otherwise, submits up to `threadCount` tasks
+    /// to `executor` and waits for them to finish. The caller owns the executor.
+    ///
+    /// @param file new file to write; its parent directory must exist and be writable
+    /// @param executor executor able to run writer tasks while this method waits
+    /// @param threadCount maximum number of writer threads for this list, at least one
+    /// @throws IOException If there was a problem creating or writing to the file.
     void writeToFile(Path file, Executor executor, int threadCount) throws IOException;
 
     /**

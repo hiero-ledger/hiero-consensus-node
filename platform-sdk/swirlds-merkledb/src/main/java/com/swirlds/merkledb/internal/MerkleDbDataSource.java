@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.FieldDefinition;
@@ -175,10 +176,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /** Thread pool storing key-to-path mappings */
     private final ExecutorService storeLeafKeysExecutor;
 
-    /** Thread group for all threads owned by this data source */
+    /// Thread group for all threads owned by this data source.
     private final ThreadGroup threadGroup;
 
-    /** Thread pool for the six top-level snapshot tasks. LongList writers use a separate snapshot-scoped pool. */
+    /// Thread pool for the six top-level snapshot tasks. LongList writers use a separate snapshot-scoped pool.
     private final ExecutorService snapshotExecutor;
 
     /** Flag for if a snapshot is in progress */
@@ -894,7 +895,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>();
             InterruptedException snapshotInterrupted = null;
             try {
-                final int threadsPerLongList = merkleDbConfig.longListSnapshotThreadsPerList();
+                final int threadsPerLongList = merkleDbConfig.longListWriteThreads();
                 // Number of LongLists written concurrently, used to size the shared writer pool.
                 final int longListCount = 3;
                 try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
@@ -1118,35 +1119,28 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
-    /**
-     * Even after a failure or interruption, finish waiting so no task keeps writing after the
-     * caller regains ownership of the snapshot directory.
-     */
+    /// Even after a failure or interruption, finish waiting so no task keeps writing after the
+    /// caller regains ownership of the snapshot directory.
+    ///
+    /// @param countDownLatch tracks the snapshot tasks that have not finished
+    /// @throws InterruptedException if interrupted while waiting, after all tasks have finished
     private static void awaitSnapshotTasks(final CountDownLatch countDownLatch) throws InterruptedException {
-        InterruptedException interruption = null;
-        while (countDownLatch.getCount() > 0) {
-            try {
-                countDownLatch.await();
-            } catch (final InterruptedException e) {
-                if (interruption == null) {
-                    interruption = e;
-                }
-            }
-        }
-        if (interruption != null) {
-            throw interruption;
+        try {
+            countDownLatch.await();
+        } catch (final InterruptedException e) {
+            // Finish the started tasks before reporting the interruption to the caller.
+            retryIfInterrupted(() -> countDownLatch.await());
+            throw e;
         }
     }
 
-    /**
-     * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
-     * done.
-     *
-     * @param countDownLatch latch to count down when done
-     * @param snapshotFailure receives the first task failure
-     * @param taskName the name of the task for logging
-     * @param runnable the code to run
-     */
+    /// Run a runnable on background thread using snapshot ExecutorService, counting down latch when
+    /// done.
+    ///
+    /// @param countDownLatch latch to count down when done
+    /// @param snapshotFailure receives the first task failure
+    /// @param taskName the name of the task for logging
+    /// @param runnable the code to run
     private void runWithSnapshotExecutor(
             final CountDownLatch countDownLatch,
             final AtomicReference<Throwable> snapshotFailure,
