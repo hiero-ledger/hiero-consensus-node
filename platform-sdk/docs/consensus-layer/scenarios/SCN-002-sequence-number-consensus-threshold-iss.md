@@ -12,7 +12,7 @@ related:
   decisions: [ADR-008]
   scenarios: [SCN-001]
   tests:
-    - swirlds-cli/src/test/java/org/hiero/consensus/pcli/MinConsensusRelevantThresholdTest.java
+    - consensus-hashgraph-impl/src/test/java/org/hiero/consensus/hashgraph/impl/consensus/MinConsensusRelevantThresholdTest.java
 status: verified
 provenance: hiero-consensus-node#26319 (interim revert); re-diagnosed to #26529; reproduced by MinConsensusRelevantThresholdTest
 curated_by: Kelly Greco (@poulok)
@@ -135,9 +135,8 @@ asserts round-by-round internal equality.
 ## Verification
 
 `test-reproduced`. `MinConsensusRelevantThresholdTest` (consensus-hashgraph) was built
-from the healthy node's and the ISS node's captured PCES; before #26604 it failed
-when the threshold was keyed on the sequence number and passed on nGen. Its own
-javadoc now describes the defect as "a bug that has since been fixed". The
+from the healthy node's and the ISS node's captured PCES; before the fix it failed
+when the threshold was keyed on the sequence number and passed on nGen. The
 underlying ISS was also observed in a live run from genesis before the fix.
 
 ## Open questions

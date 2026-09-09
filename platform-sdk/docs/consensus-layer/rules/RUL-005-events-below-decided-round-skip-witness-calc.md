@@ -48,11 +48,10 @@ the latest decided round, set in `ConsensusRounds.currentElectionDecided` from
 `ConsensusRounds.isOlderThanDecidedRoundGeneration(x)`, which is just
 `consensusRelevantNGen > x.getNGen()`. nGen is assigned once per event at the
 orphan buffer's exit (`DefaultOrphanBuffer`). ADR-008 migrated this key to the
-orphan-buffer sequence number; that exposed a latent round-assignment bug (#26529)
-and was reverted to nGen in #26319 as a stopgap. #26529 was fixed in #26604
-(2026-08-06). The frontier is a valid short-circuit on either key — see *Why it
-holds now* — so the threshold can now key on the sequence number, though it has not
-been re-keyed yet; see
+orphan-buffer sequence number; that exposed a latent round-assignment bug (#26529,
+SCN-002) and was reverted to nGen in #26319 as a stopgap. The bug is now fixed and
+the frontier is a valid short-circuit on either key — see *Why it holds now* — so
+the conversion to the sequence number is unblocked but not yet made; see
 [ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ## Why it holds now
@@ -77,15 +76,12 @@ numbered before its child), as ADR-008 works through. And because parent-propaga
 reaches the same terminal value without entering the strongly-see walk, the frontier
 is not what averts the dominant cost.
 
-Until #26604 its load-bearing role was correctness, not speed: while #26529 was
-unfixed, the frontier kept an event with no non-ancient parents — whose nGen has
-reset to 1, so it always sorts below the frontier — away from the `ROUND_FIRST`
-branch that would otherwise mis-assign it a real round; that branch, not the key,
-diverged consensus in SCN-002. #26604 fixed the branch itself, so the frontier now
-masks nothing; with parent-propagation reaching the same terminal value, it is
-redundant for correctness as well as for cost (see Notes).
-The nGen reset is benign here either way: it only ever *under*-counts height,
-pushing an affected event further below the frontier, never above.
+Nor does it carry correctness: the no-parent branch is terminal on its own for a
+non-descendant, so nothing depends on the frontier to keep an event with no
+non-ancient parents from being assigned a real round — the failure SCN-002 records.
+It is redundant for correctness as well as for cost (see Notes). The nGen reset for
+such an event is benign here: it only ever *under*-counts height, pushing the event
+further below the frontier, never above.
 
 `round(x)` assigns `ROUND_NEGATIVE_INFINITY` through two short-circuits: this
 frontier check (`isOlderThanDecidedRoundGeneration`) and, separately, the case
@@ -109,20 +105,16 @@ SCN-002 ISS. See INV-001, INV-015, and SCN-001.
   any key for which a judge's descendant outranks the judge — nGen and the sequence
   number both qualify (see *Why it holds now*) — *provided* every non-descendant of
   the decided judges still resolves to the same value on every node (INV-015). The
-  hazard was never the key's units but the then-unfixed #26529: keyed on the sequence
-  number, a non-descendant with no non-ancient parents cleared the frontier and
-  reached the branch that assigns a real round, so its value differed across nodes and
-  consensus diverged (SCN-002). With #26604 that branch is correct, so re-keying is
-  unblocked (ADR-008); INV-015 remains the property any new key must preserve.
-- **Removing the short-circuit.** With #26529 fixed the short-circuit is redundant
-  (see Notes) and removing it is safe; the forced memoization in `calculateMetadata`
-  already guards against deep recursion. Before #26604 this was not merely a
-  performance regression: without the frontier check, an event with no non-ancient
-  parents that is a non-descendant of the decided judges reached the `ROUND_FIRST`
-  branch and was mis-assigned a real round — the SCN-002 ISS. Regardless, the
-  `ROUND_NEGATIVE_INFINITY` sentinel is part of the machinery that keeps
-  cleared old events from being recomputed under a new roster during
-  `recalculateAndVote` (INV-001, SCN-001), so weigh changes against that interaction.
+  hazard is not the key's units: a key that lets a non-descendant clear the frontier
+  is safe only while every other assignment path is terminal for it, which is what
+  SCN-002 caught when it was not. Re-keying to the sequence number is unblocked
+  (ADR-008); INV-015 remains the property any new key must preserve.
+- **Removing the short-circuit.** The short-circuit is redundant (see Notes) and
+  removing it is safe; the forced memoization in `calculateMetadata` already guards
+  against deep recursion. The `ROUND_NEGATIVE_INFINITY` sentinel it assigns is
+  separately part of the machinery that keeps cleared old events from being
+  recomputed under a new roster during `recalculateAndVote` (INV-001, SCN-001), so
+  weigh changes against that interaction.
 
 Breaking this rule is a **flag for confirmation**. Confirmation looks like
 answering: does the frontier remain a sound lower bound — is every event below it
@@ -143,11 +135,8 @@ agreement / liveness risk, or an ISS (SCN-002).
   ancestry stalls consensus) both concern how old events' rounds are frozen or
   cleared across roster changes; the sentinel assigned here is part of that
   mechanism.
-- **The short-circuit is redundant for correctness since #26604.** A non-descendant
-  that has no non-ancient parents is now assigned `ROUND_NEGATIVE_INFINITY` rather
-  than `ROUND_FIRST`, so every non-descendant reaches terminal anyway — via
-  `x.isConsensus()`, parent-propagation, and the fixed no-parent branch, none
-  entering the strongly-see walk. The check could therefore be removed (memoization
-  already bounds recursion depth); it is kept as a short-circuit, not as the thing
-  that enforces INV-015. See *Why it holds now* for how the frontier enforces INV-015
-  on either key.
+- **The short-circuit is redundant for correctness.** Every non-descendant reaches
+  the terminal value without it — via `x.isConsensus()`, parent-propagation, or the
+  no-parent branch, none entering the strongly-see walk. The check could therefore
+  be removed (memoization already bounds recursion depth); it is kept as a
+  short-circuit, not as the thing that enforces INV-015.

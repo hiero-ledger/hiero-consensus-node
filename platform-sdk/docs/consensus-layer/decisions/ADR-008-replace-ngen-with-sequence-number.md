@@ -80,11 +80,10 @@ fundamental need for a graph height:
   must be terminal (`ROUND_NEGATIVE_INFINITY`), not round 1; assigning it a real
   round violates INV-015. `nGen` masked the bug by always sorting such an event below
   the frontier (short-circuited to `ROUND_NEGATIVE_INFINITY`); the sequence number
-  let it sort above the frontier and reach the branch. **#26529 was fixed in
-  [#26604](https://github.com/hiero-ledger/hiero-consensus-node/issues/26604)
-  (2026-08-06)**: the branch now gives `ROUND_FIRST` only while the first round is
-  undecided and the terminal value otherwise. INV-015 is restored, so the sequence
-  number is safe here (see [Why the threshold is
+  let it sort above the frontier and reach the branch. Fixed in
+  [#26604](https://github.com/hiero-ledger/hiero-consensus-node/issues/26604): the
+  branch gives `ROUND_FIRST` only while the first round is undecided and the terminal
+  value otherwise, so the sequence number is safe here (see [Why the threshold is
   safe](#why-the-threshold-is-safe-on-the-sequence-number)).
 - **Event creator `lastSelfEvent` → a branch (SCN-003).** After a fast
   reconnect a re-received self-ancestor got a higher *new* sequence number than
@@ -107,13 +106,12 @@ metrics. The new field had to be disambiguated from it.
 **Adopt the orphan-buffer sequence number as the canonical local ordering key and
 remove `nGen`.** Every consumer that still reads `nGen` moves to the sequence
 number — or stops needing an ordering key — and once all have,
-`NonDeterministicGeneration` is deleted. The migration was staged only by
-readiness; with #26529 fixed in #26604, all three remaining conversions are
-unblocked and none has been made yet:
+`NonDeterministicGeneration` is deleted. All three remaining conversions are
+unblocked; none has been made yet:
 
 |           Consumer           |                Anchor                 | Current key |                    Prerequisite to convert                     |
 |------------------------------|---------------------------------------|-------------|----------------------------------------------------------------|
-| Consensus-relevant threshold | RUL-005                               | `nGen`      | none — #26529 fixed in #26604, restoring INV-015               |
+| Consensus-relevant threshold | RUL-005                               | `nGen`      | none — INV-015 holds on either key (RUL-005)                   |
 | `cGen` topological sort      | `LocalConsensusGeneration.assignCGen` | `nGen`      | none — a topological order of an already-agreed round suffices |
 | Developer tools (GUI, CLI)   | `PictureMetadata`, `HashgraphPicture` | `nGen`      | none — a rendering choice, not an ordering requirement         |
 
@@ -153,9 +151,9 @@ than that judge (a parent leaves the orphan buffer before its child):
 
 The only gap was a non-descendant with **no non-ancient parents** — nothing to
 inherit terminal from, so it fell to the no-parent branch and was assigned
-`ROUND_FIRST` as though the pending round were 1 (SCN-002, #26529). #26604 closed
-that gap — terminal, not round 1, whenever the pending round is greater than 1 — so
-the frontier is now correct on either key.
+`ROUND_FIRST` as though the pending round were 1 (SCN-002, #26529). That gap is
+closed — terminal, not round 1, whenever the pending round is greater than 1 — so
+the frontier is correct on either key.
 
 ## Limitations
 
@@ -275,9 +273,9 @@ See **Decision** above.
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, phrased in
   terms of sequence numbers.
 - Regression guards for the two reverted stages:
-  `swirlds-cli/.../pcli/MinConsensusRelevantThresholdTest.java` (threshold, #26319,
-  SCN-002), kept as the guard for the threshold conversion; and, for `lastSelfEvent`
-  (#26376, SCN-003),
+  `consensus-hashgraph-impl/.../consensus/MinConsensusRelevantThresholdTest.java`
+  (threshold, #26319, SCN-002), kept as the guard for the threshold conversion; and,
+  for `lastSelfEvent` (#26376, SCN-003),
   `consensus-otter-tests/.../otter/test/ReconnectTest.java`
   (`testSyntheticBottleneckReconnect`) plus, in `consensus-event-creator-impl`,
   `TipsetEventCreatorTests.selfAncestorDoesNotDisplaceLastSelfEvent`, which guards
