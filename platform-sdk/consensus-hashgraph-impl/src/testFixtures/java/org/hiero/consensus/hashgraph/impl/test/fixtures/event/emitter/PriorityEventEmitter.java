@@ -5,7 +5,6 @@ import java.util.List;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Emits events based on node priority while maintaining a topologically correct order.
@@ -46,7 +45,11 @@ public class PriorityEventEmitter extends BufferingEventEmitter {
         // Emit the next event from the highest priority node, if possible. If not possible, try the next priority node.
         // Repeat in priority order until an event can be emitted.
         for (final int nodeIndex : nodePriorities) {
-            final NodeId nodeId = RosterUtils.getNodeId(getGraphGenerator().getRoster(), nodeIndex);
+            final NodeId nodeId = getGraphGenerator()
+                    .getRoster()
+                    .rosterEntries()
+                    .get(nodeIndex)
+                    .nodeId();
             attemptToGenerateEventFromNode(nodeId);
             if (isReadyToEmitEvent(nodeId)) {
                 eventEmittedFromBuffer();

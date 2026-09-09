@@ -36,7 +36,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
-import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 
 class SyncFilteringTest {
@@ -112,8 +111,12 @@ class SyncFilteringTest {
                 .setNumNodes(32)
                 .build();
 
-        final NodeId selfId =
-                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
+        final NodeId selfId = eventEmitter
+                .getGraphGenerator()
+                .getRoster()
+                .rosterEntries()
+                .getFirst()
+                .nodeId();
 
         final Instant startingTime = Instant.ofEpochMilli(random.nextInt());
         final Duration timeStep = Duration.ofMillis(10);
@@ -205,8 +208,12 @@ class SyncFilteringTest {
                 .setNumNodes(16)
                 .build();
 
-        final NodeId selfId =
-                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
+        final NodeId selfId = eventEmitter
+                .getGraphGenerator()
+                .getRoster()
+                .rosterEntries()
+                .getFirst()
+                .nodeId();
 
         // Create enough events to almost certainly include:
         // - at least one self event near the end of the list (candidate to send first)
@@ -247,8 +254,12 @@ class SyncFilteringTest {
                 .setNumNodes(16)
                 .build();
 
-        final NodeId selfId =
-                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
+        final NodeId selfId = eventEmitter
+                .getGraphGenerator()
+                .getRoster()
+                .rosterEntries()
+                .getFirst()
+                .nodeId();
 
         // Create enough events to almost certainly include:
         // - at least one self event near the end of the list (candidate to send first)

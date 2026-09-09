@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -12,7 +11,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGen
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * A base event emitter class that buffers events created by the {@link GraphGenerator}. Buffering events allows
@@ -66,10 +65,10 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
     }
 
     protected void clearEvents() {
-        final Roster roster = getGraphGenerator().getRoster();
+        final RosterWrapper roster = getGraphGenerator().getRoster();
         events = new HashMap<>(getGraphGenerator().getNumberOfSources());
         for (int index = 0; index < getGraphGenerator().getNumberOfSources(); index++) {
-            events.put(RosterUtils.getNodeId(roster, index), new LinkedList<>());
+            events.put(roster.rosterEntries().get(index).nodeId(), new LinkedList<>());
         }
         bufferedEvents = 0;
     }
