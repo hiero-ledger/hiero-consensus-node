@@ -468,17 +468,22 @@ public final class BlocksToPcesWorkflow {
                     firstSelectedMinRound, leftRound));
         }
 
-        // Right-boundary validation: the target round must actually be covered by the available blocks.
-        // The GCS BlockRangeResolver enforces this (it errors if targetRound exceeds the last available
-        // round); the local path must enforce it too, otherwise a directory that stops short of the target
-        // silently yields a PCES stream that never reaches the requested target round.
+        // Coverage guard (right boundary): the selected blocks must actually reach the target round. If the
+        // local directory stops short of the block containing targetRound, the left-boundary guards above
+        // still pass (the origin tail is present) and selection returns a short set — blocks-to-pces would
+        // then "succeed" with a PCES stream that never reaches the target, and the only symptom is an
+        // unclosed target block at replay time. Fail here instead. (This mirrors the GCS path's
+        // BlockRangeResolver.findBlockForTargetRound "target round exceeds last available round" guard.)
         if (maxSelectedRound < targetRound) {
             throw new IllegalArgumentException(String.format(
-                    "Target round %d is not covered by the available block files (highest round present is %d). "
-                            + "Provide blocks through at least the block containing round %d, or lower "
-                            + "--target-round.",
-                    targetRound, maxSelectedRound, targetRound));
+                    "Block stream does not reach the target round: the highest round present in the selected "
+                            + "blocks is %d, but --target-round is %d. The block containing the target round is not "
+                            + "in the input. Provide block files through at least the block containing round %d "
+                            + "(plus the following block, which supplies the events that close the target block), "
+                            + "or lower --target-round.",
+                    maxSelectedRound, targetRound, targetRound));
         }
+
         return selected;
     }
 
