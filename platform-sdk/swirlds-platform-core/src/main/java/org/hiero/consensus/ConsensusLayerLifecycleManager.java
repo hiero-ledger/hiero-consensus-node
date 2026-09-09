@@ -23,7 +23,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 public class ConsensusLayerLifecycleManager implements Supplier<ConsensusLayer> {
 
     private ConsensusLayerInputs consensusLayerInputs;
-    private ConsensusLayer consensusLayer;
+    private volatile ConsensusLayer consensusLayer;
 
     public ConsensusLayerLifecycleManager(@NonNull final ConsensusLayerInputs consensusLayerInputs) {
         this.consensusLayerInputs = requireNonNull(consensusLayerInputs, "inputs must not be null");
@@ -52,8 +52,7 @@ public class ConsensusLayerLifecycleManager implements Supplier<ConsensusLayer> 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
 
-        consensusLayerInputs = consensusLayerInputs.copyWithNewValues(consensusLayerInputs, consensusSnapshot,
-                runningEventHashOverride);
+        consensusLayerInputs = consensusLayerInputs.copyWithNewValues(consensusSnapshot, runningEventHashOverride);
 
         createConsensusLayer();
     }

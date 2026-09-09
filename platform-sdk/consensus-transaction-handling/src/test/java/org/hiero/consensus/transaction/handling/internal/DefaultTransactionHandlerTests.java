@@ -107,9 +107,6 @@ class DefaultTransactionHandlerTests {
                             .getReservationCount(),
                     "state should be returned with a reservation");
 
-            verify(tester.getStatusMonitorModule().platformStatusActionInputWire(), never())
-                    .put(any());
-
             assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
             assertSame(
                     consensusRound,

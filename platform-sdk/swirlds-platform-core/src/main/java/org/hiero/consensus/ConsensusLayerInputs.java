@@ -42,28 +42,27 @@ public record ConsensusLayerInputs(
         @Nullable SecureRandom secureRandom,
         @NonNull Map<String, Object> additionalProperties) {
 
-    public ConsensusLayerInputs copyWithNewValues(@NonNull final ConsensusLayerInputs inputsToCopy,
-            @NonNull final ConsensusSnapshot newSnapshot,
+    public ConsensusLayerInputs copyWithNewValues(@NonNull final ConsensusSnapshot newSnapshot,
             @NonNull final RunningEventHashOverride newRunningEventHashOverride) {
         return new ConsensusLayerInputs(
-                inputsToCopy.configuration(),
-                inputsToCopy.metrics(),
-                inputsToCopy.time(),
-                inputsToCopy.rosterHistory(),
-                inputsToCopy.keysAndCerts(),
-                inputsToCopy.selfId(),
-                inputsToCopy.recycleBin(),
-                inputsToCopy.fileSystemManager(),
-                inputsToCopy.executionLayerCallbacks(),
+                configuration(),
+                metrics(),
+                time(),
+                rosterHistory(),
+                keysAndCerts(),
+                selfId(),
+                recycleBin(),
+                fileSystemManager(),
+                executionLayerCallbacks(),
                 newSnapshot,
                 newRunningEventHashOverride,
-                inputsToCopy.consensusEventStreamName(),
-                inputsToCopy.version(),
-                inputsToCopy.transactionOffsetNanos(),
-                inputsToCopy.transactionLimits(),
-                inputsToCopy.freezeTime(),
-                inputsToCopy.wiringModel(),
-                inputsToCopy.secureRandom(),
-                inputsToCopy.additionalProperties());
+                consensusEventStreamName(),
+                version(),
+                transactionOffsetNanos(),
+                transactionLimits(),
+                freezeTime(),
+                wiringModel(),
+                secureRandom(),
+                additionalProperties());
     }
 }

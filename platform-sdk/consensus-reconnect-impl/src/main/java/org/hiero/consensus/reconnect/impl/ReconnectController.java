@@ -82,7 +82,7 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
     private final ReconnectCoordinator reconnectCoordinator;
     private final NotificationEngine notificationEngine;
     private volatile long reconnectRoundNumber;
-    private volatile boolean waitingForReconnectStateOnDisk = false;
+    private final AtomicBoolean waitingForReconnectStateOnDisk = new AtomicBoolean(false);
     private volatile ReservedSignedState acquiredReservedState;
 
     public ReconnectController(
@@ -141,7 +141,7 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
                 fallenBehindMonitor.awaitFallenBehind(); // Block until the monitor notifies the node is behind
                 exitIfReconnectDisabled();
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, destroying the consensus layer");
-                waitingForReconnectStateOnDisk = true;
+                waitingForReconnectStateOnDisk.set(true);
                 consensusLayerLifecycleManager.get().destroy();
 
                 final State currentState = stateLifecycleManager.getMutableState();
@@ -223,13 +223,11 @@ public class ReconnectController implements StateWriteToDiskCompleteListener, Ru
             return;
         }
 
-        if (waitingForReconnectStateOnDisk) {
+        if (waitingForReconnectStateOnDisk.compareAndExchange(true, false)) {
             // Notify any listeners that the reconnect has been completed
             sendReconnectCompleteNotification();
-            acquiredReservedState.close();
-            waitingForReconnectStateOnDisk = false;
-
             consensusLayerLifecycleManager.recreateConsensusLayer(acquiredReservedState);
+            acquiredReservedState.close();
         }
     }
 

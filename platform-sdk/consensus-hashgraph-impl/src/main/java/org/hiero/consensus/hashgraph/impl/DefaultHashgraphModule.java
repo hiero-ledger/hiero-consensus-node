@@ -40,6 +40,11 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @Nullable
     private OutputWire<PlatformEvent> staleEventOutputWire;
 
+    private ConsensusEngineOutputBuffer roundBuffer;
+
+    // TODO buffer any rounds that reach consensus past a single round, and return them first
+    // when the next round is requested. Only resume gossip when there are no buffered rounds to return.
+
     /**
      * {@inheritDoc}
      */
@@ -59,6 +64,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
         if (consensusEngineWiring != null) {
             throw new IllegalStateException("Already initialized");
         }
+
+        this.roundBuffer = new ConsensusEngineOutputBuffer();
 
         final HashgraphWiringConfig wiringConfig = configuration.getConfigData(HashgraphWiringConfig.class);
 

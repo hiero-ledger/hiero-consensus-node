@@ -28,8 +28,8 @@ import java.time.Duration;
  */
 @ConfigData("platform.wiring")
 public record WiringConfig(
-        @ConfigProperty(defaultValue = "true") boolean healthMonitorEnabled,
-        @ConfigProperty(defaultValue = "false") boolean hardBackpressureEnabled,
+        @ConfigProperty(defaultValue = "false") boolean healthMonitorEnabled,
+        @ConfigProperty(defaultValue = "true") boolean hardBackpressureEnabled,
         @ConfigProperty(defaultValue = "0") double defaultPoolMultiplier,
         @ConfigProperty(defaultValue = "8") int defaultPoolConstant,
         @ConfigProperty(defaultValue = "500") int healthMonitorSchedulerCapacity,

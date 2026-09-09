@@ -92,7 +92,7 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     @Override
     public void onRound(@NonNull final Round round) {
         stateModule.consensusRoundInputWire().inject(round);
-        transactionHandlingModule.handleConsensusRoundInputWire().put(round);
+        // TODO send to consensus round requester
     }
 
     @Override
