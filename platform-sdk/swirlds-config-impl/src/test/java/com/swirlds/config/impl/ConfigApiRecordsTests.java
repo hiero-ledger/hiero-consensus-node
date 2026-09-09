@@ -564,6 +564,37 @@ class ConfigApiRecordsTests {
     }
 
     @Nested
+    class ConfigDefaultWithUndefinedMarkerValueIsRejected {
+
+        /**
+         * Not declaring an override for a property already means it has no default here, so
+         * {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE} has nothing left to mean as a
+         * {@link ConfigDefault#defaultValue()}.
+         */
+        @Test
+        void test() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UndefinedDefaultOverrideRoot.class);
+
+            verifyBuildFails(
+                    builder,
+                    "root.leaf",
+                    ConfigDefault.class.getSimpleName(),
+                    ConfigProperty.class.getSimpleName(),
+                    "no default here");
+        }
+
+        @ConfigData("root")
+        public record UndefinedDefaultOverrideRoot(
+                @ConfigDefault(property = "value", defaultValue = ConfigProperty.UNDEFINED_DEFAULT_VALUE)
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
     class DottedAndDuplicatePropertyPathOverrides {
 
         @Test

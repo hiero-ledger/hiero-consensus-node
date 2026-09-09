@@ -384,8 +384,10 @@ same property names that the equivalent flat declaration would use. In the examp
 
 `ConfigDefault.defaultValue()` behaves exactly like `ConfigProperty.defaultValue()`: it is a raw string that is
 converted to the targeted property's type, so `ConfigProperty.NULL_DEFAULT_VALUE`, lists and sets all work the same
-way. When several components on the path to the same leaf property override it, the override declared closest to
-the config data root wins.
+way. `ConfigProperty.UNDEFINED_DEFAULT_VALUE` is rejected instead: not declaring an override for a property already
+means it has no default here, so there is nothing left for the marker to mean as a `defaultValue`. When several
+components on the path to the same leaf property override it, the override declared closest to the config data root
+wins.
 
 Nesting can go any number of levels deep, and a cycle in the record types, where a record contains itself directly or
 through other records, is detected and fails the creation of the configuration. Like any config data record a nested

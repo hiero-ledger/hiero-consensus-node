@@ -206,7 +206,27 @@ public final class NestedRecordExpander {
 
         final PropertyPaths propertyPaths = PropertyPaths.of(this, nestedRecord);
         for (final ConfigDefault override : overrides) {
+            validateDefaultValueIsDefined(propertyName, override);
             propertyPaths.validate(propertyName, override);
+        }
+    }
+
+    /**
+     * Checks that the given override actually defines a default value. {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE}
+     * marks a property that has no default at all, which is already what not declaring an override for it means, so
+     * there is nothing left for it to mean here.
+     *
+     * @param holderName the full name of the property that holds the nested config data object
+     * @param override   the override to check
+     */
+    private static void validateDefaultValueIsDefined(
+            @NonNull final String holderName, @NonNull final ConfigDefault override) {
+        if (Objects.equals(ConfigProperty.UNDEFINED_DEFAULT_VALUE, override.defaultValue())) {
+            throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName() + "(property = '"
+                    + override.property() + "') on the property '" + holderName + "' with "
+                    + ConfigProperty.class.getSimpleName() + ".UNDEFINED_DEFAULT_VALUE as its default value, since not"
+                    + " declaring an override for '" + override.property() + "' already means it has no default here."
+                    + " Remove the override instead");
         }
     }
 

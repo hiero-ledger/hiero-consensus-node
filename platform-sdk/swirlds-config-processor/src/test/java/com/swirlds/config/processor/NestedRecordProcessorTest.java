@@ -495,6 +495,32 @@ class NestedRecordProcessorTest {
         assertTrue(messages.contains("nested config data object"), messages);
     }
 
+    /**
+     * Not declaring an override for a property already means it has no default here, so
+     * {@code ConfigProperty.UNDEFINED_DEFAULT_VALUE} has nothing left to mean as a {@code ConfigDefault.defaultValue()}.
+     */
+    @Test
+    void configDefaultWithUndefinedMarkerValueIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+                import com.swirlds.config.api.ConfigProperty;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "type", defaultValue = ConfigProperty.UNDEFINED_DEFAULT_VALUE)
+                        LeafConfig leaf) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("ConfigDefault"), messages);
+        assertTrue(messages.contains("ConfigProperty"), messages);
+        assertTrue(messages.contains("no default here"), messages);
+    }
+
     @Test
     void configDefaultOnPlainPropertyIsReported() throws IOException {
         final String root = """

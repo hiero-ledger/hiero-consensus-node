@@ -36,7 +36,8 @@ import java.lang.annotation.Target;
 ///
 /// Like [ConfigProperty#defaultValue()], the [#defaultValue()] is a raw string value that is converted to the
 /// type of the targeted property. It therefore supports [ConfigProperty#NULL_DEFAULT_VALUE] and collection values
-/// in exactly the same way.
+/// in exactly the same way. [ConfigProperty#UNDEFINED_DEFAULT_VALUE] is rejected: not declaring an override for a
+/// property already means it has no default here, so the marker has nothing left to mean as a [#defaultValue()].
 ///
 /// When several components on the path to the same leaf property define an override for it, the override declared
 /// closest to the config data root wins.
