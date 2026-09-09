@@ -12,7 +12,6 @@ module org.hiero.base.crypto {
             com.swirlds.common.test.fixtures,
             org.hiero.base.crypto.test.fixtures;
 
-    // spotless:off
     opens org.hiero.base.crypto to
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
