@@ -178,7 +178,7 @@ public class ConsensusNoOpModules {
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(
