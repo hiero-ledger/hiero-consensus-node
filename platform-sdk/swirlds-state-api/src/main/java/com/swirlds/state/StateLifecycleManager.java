@@ -27,10 +27,11 @@ import org.hiero.base.crypto.Hash;
  */
 public interface StateLifecycleManager<S, D> {
 
-    /**
-     * Prepare the current state for a platform freeze.
-     * Implementations must not wait for ongoing background tasks to complete.
-     */
+    ///
+    /// Prepare the current state for a platform freeze.
+    ///
+    /// Implementations must not wait for ongoing background tasks to complete.
+    ///
     void prepareForFreeze();
 
     /**

@@ -103,11 +103,12 @@ class MerkleDbCompactionCoordinator {
     // Synchronized on this
     private boolean compactionEnabled = false;
 
-    /**
-     * Active compactors by task key (e.g. "IdToHashChunk_compact_0_1"). Synchronized on this. Only populated when a
-     * compaction task has created a DataFileCompactor and is actively compacting. Used for pause/resume during
-     * snapshots and for interruption when background compaction is disabled.
-     */
+    ///
+    /// Active compactors by task key (e.g. `IdToHashChunk_compact_0_1`). Synchronized on this.
+    /// Only populated when a compaction task has created a `DataFileCompactor` and is actively
+    /// compacting. Used for pause/resume during snapshots and for interruption when background
+    /// compaction is disabled.
+    ///
     final Map<String, DataFileCompactor> compactorsByName = new HashMap<>(16);
 
     /**
@@ -173,17 +174,17 @@ class MerkleDbCompactionCoordinator {
         }
     }
 
-    /**
-     * Disables background compaction and interrupts all compactions in progress. All subsequent calls to compacting
-     * methods will be ignored until {@link #enableBackgroundCompaction()} is called. Scanner tasks are not interrupted
-     * (they are read-only and will finish harmlessly).
-     *
-     * <p>Queued compaction tasks that have not yet started will check {@code compactionEnabled} when they begin
-     * execution and exit immediately.
-     *
-     * @param waitForTasksToComplete whether to wait, up to {@link #SHUTDOWN_TIMEOUT_MILLIS}, for all current background
-     *                               compaction tasks, including scanner tasks, to complete
-     */
+    ///
+    /// Disables background compaction and interrupts all compactions in progress. All subsequent
+    /// calls to compacting methods will be ignored until {@link #enableBackgroundCompaction()} is
+    /// called. Scanner tasks are not interrupted (they are read-only and will finish harmlessly).
+    ///
+    /// Queued compaction tasks that have not yet started will check `compactionEnabled` when they
+    /// begin execution and exit immediately.
+    ///
+    /// @param waitForTasksToComplete whether to wait, up to {@link #SHUTDOWN_TIMEOUT_MILLIS}, for
+    ///     all current background compaction tasks, including scanner tasks, to complete
+    ///
     synchronized void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
         compactionEnabled = false;
         for (final DataFileCompactor compactor : compactorsByName.values()) {

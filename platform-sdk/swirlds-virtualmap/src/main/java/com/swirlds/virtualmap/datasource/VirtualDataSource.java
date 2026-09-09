@@ -158,12 +158,12 @@ public interface VirtualDataSource {
      */
     void enableBackgroundCompaction();
 
-    /**
-     * Disables background compaction and interrupts all compactions that are currently running.
-     *
-     * @param waitForTasksToComplete whether to wait, up to the implementation's shutdown timeout, for all current
-     *                               background compaction tasks, including scanner tasks, to complete
-     */
+    ///
+    /// Disables background compaction and interrupts all compactions that are currently running.
+    ///
+    /// @param waitForTasksToComplete whether to wait, up to the implementation's shutdown timeout,
+    ///     for all current background compaction tasks, including scanner tasks, to complete
+    ///
     void stopAndDisableBackgroundCompaction(boolean waitForTasksToComplete);
 
     /**
