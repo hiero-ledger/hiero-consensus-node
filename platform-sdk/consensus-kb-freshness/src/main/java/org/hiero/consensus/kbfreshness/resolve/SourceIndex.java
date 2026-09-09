@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ParsedFile;
 
@@ -22,11 +23,23 @@ import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ParsedFile;
  * paths declaring it — enough to tell "gone" from "moved to another module" — records every package
  * holding an indexed source (for the prose package/FQN checks), and offers filesystem existence
  * checks plus a cached parse-only view of any file. No compilation, no network.
+ *
+ * <p>The basename map spans every {@code src/<sourceSet>/java} tree, not just {@code src/main/java}:
+ * the KB legitimately cites regression tests as the verification for an invariant or scenario, and a
+ * main-only index reported every such citation as GONE — a false assert that no correct citation
+ * could avoid. The package set stays main-only, so widening the file lookup cannot widen the prose
+ * package/FQN assert surface (see {@link #packageExists}).
  */
 public final class SourceIndex {
 
     /** The path segment separating a module root from the package tree of its main sources. */
     private static final String MAIN_SOURCE_TREE = "/src/main/java/";
+
+    /**
+     * A Gradle source-set tree: {@code /src/<sourceSet>/java/}. Matching the convention rather than a
+     * fixed list keeps a newly added source set (as {@code testOtter} once was) indexed on sight.
+     */
+    private static final Pattern SOURCE_TREE = Pattern.compile("/src/[^/]+/java/");
 
     /** Absolute, normalized repository root. */
     private final Path repoRoot;
@@ -53,7 +66,8 @@ public final class SourceIndex {
 
     /**
      * Builds the index by walking the given repo-relative module roots for {@code *.java} files under
-     * a {@code src/main/java} tree.
+     * any {@code src/<sourceSet>/java} tree. Only main sources contribute packages, so a test class
+     * can be located by basename without making its package assert-worthy in prose.
      *
      * @param repoRoot    the repository root; resolved to an absolute, normalized path.
      * @param moduleRoots the repo-relative module roots to scan.
@@ -72,7 +86,9 @@ public final class SourceIndex {
             try (Stream<Path> walk = Files.walk(start)) {
                 walk.filter(Files::isRegularFile)
                         .filter(p -> p.getFileName().toString().endsWith(".java"))
-                        .filter(p -> p.toString().replace('\\', '/').contains(MAIN_SOURCE_TREE))
+                        .filter(p -> SOURCE_TREE
+                                .matcher(p.toString().replace('\\', '/'))
+                                .find())
                         .forEach(p -> {
                             final String basename = p.getFileName().toString();
                             final String rel = root.relativize(p).toString().replace('\\', '/');

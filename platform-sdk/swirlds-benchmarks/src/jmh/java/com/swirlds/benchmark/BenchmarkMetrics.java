@@ -63,10 +63,10 @@ public final class BenchmarkMetrics {
     private Path csvMetricsFilePath;
     private Path csvMetricNamesFilePath;
     private ScheduledExecutorService metricService;
-    private DefaultMetricsProvider metricsProvider;
     private String origMetricString;
     private String curMetricString;
     private Metrics metrics;
+    private DefaultMetricsProvider metricsProvider;
 
     /*
      *    System metrics: time, memory, CPU
@@ -122,7 +122,7 @@ public final class BenchmarkMetrics {
 
     private static final LongGauge.Config TPS_CONFIG = new LongGauge.Config(BENCHMARK_CATEGORY, "tps")
             .withDescription("transactions per second")
-            .withFormat(FORMAT_FLOAT0);
+            .withFormat(FORMAT_INTEGER);
 
     private BenchmarkMetrics() {
         // prevent instantiation
@@ -166,7 +166,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskReadOpsConfig = new FunctionGauge.Config<>(
                     "ADA",
-                    "diskReadOps/s",
+                    "diskReadOps_per_s",
                     Double.class,
                     () -> 1000. * (curDiskStats[DISK_STAT_ROPS] - prevDiskStats[DISK_STAT_ROPS]) / (curTime - prevTime))
             .withDescription("Disk read operations per sec")
@@ -174,7 +174,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskReadBytesConfig = new FunctionGauge.Config<>(
                     "ADB",
-                    "diskReadBytes/s",
+                    "diskReadBytes_per_s",
                     Double.class,
                     () -> 1000.
                             * sectorSize
@@ -193,7 +193,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskWriteOpsConfig = new FunctionGauge.Config<>(
                     "ADD",
-                    "diskWriteOps/s",
+                    "diskWriteOps_per_s",
                     Double.class,
                     () -> 1000. * (curDiskStats[DISK_STAT_WOPS] - prevDiskStats[DISK_STAT_WOPS]) / (curTime - prevTime))
             .withDescription("Disk write operations per sec")
@@ -201,7 +201,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskWriteBytesConfig = new FunctionGauge.Config<>(
                     "ADE",
-                    "diskWriteBytes/s",
+                    "diskWriteBytes_per_s",
                     Double.class,
                     () -> 1000.
                             * sectorSize
@@ -247,15 +247,20 @@ public final class BenchmarkMetrics {
             logger.error("Can't parse {}: {} ", diskSectorSizeFile, ex);
             return;
         }
+        diskMetricsRegistered = true;
+        updateDiskMetrics(); // first call: only populates curDiskStats, prevDiskStats stays null
+        updateDiskMetrics(); // second call: shifts curDiskStats into prevDiskStats, repopulates curDiskStats
+        if (!diskMetricsRegistered) {
+            // updateDiskMetrics() failed and reset the flag; don't register gauges backed by null stats
+            return;
+        }
+
         metrics.getOrCreate(diskReadOpsConfig);
         metrics.getOrCreate(diskReadBytesConfig);
         metrics.getOrCreate(diskReadTimeConfig);
         metrics.getOrCreate(diskWriteOpsConfig);
         metrics.getOrCreate(diskWriteBytesConfig);
         metrics.getOrCreate(diskWriteTimeConfig);
-        diskMetricsRegistered = true;
-
-        updateDiskMetrics();
     }
 
     /*
@@ -415,7 +420,6 @@ public final class BenchmarkMetrics {
 
     public static void stop() {
         INSTANCE.metricService.shutdownNow();
-        // Close the Prometheus server so the benchmark JVM can exit after the trial.
         INSTANCE.metricsProvider.stop();
     }
 }

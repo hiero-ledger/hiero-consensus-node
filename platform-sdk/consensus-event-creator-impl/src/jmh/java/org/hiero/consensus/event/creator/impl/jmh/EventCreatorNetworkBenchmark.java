@@ -92,7 +92,8 @@ public class EventCreatorNetworkBenchmark {
     @Setup(Level.Trial)
     public void setupTrial() {
         // Build a roster with real keys
-        roster = randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED);
+        roster = randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
+                .roster();
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 

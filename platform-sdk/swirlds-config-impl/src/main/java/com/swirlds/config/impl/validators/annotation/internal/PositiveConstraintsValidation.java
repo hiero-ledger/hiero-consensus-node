@@ -8,6 +8,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.impl.internal.ConfigNumberUtils;
 import com.swirlds.config.impl.validators.DefaultConfigViolation;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.stream.Stream;
 
 /**
@@ -16,8 +17,9 @@ import java.util.stream.Stream;
  */
 public class PositiveConstraintsValidation implements ConfigValidator {
 
+    @NonNull
     @Override
-    public Stream<ConfigViolation> validate(final Configuration configuration) {
+    public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(Positive.class, configuration)
                 .stream()
                 .filter(property -> ConfigNumberUtils.isNumber(property.propertyType()))

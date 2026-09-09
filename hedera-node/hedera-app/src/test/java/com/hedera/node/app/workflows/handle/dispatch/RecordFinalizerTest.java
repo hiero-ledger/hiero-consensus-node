@@ -12,6 +12,7 @@ import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletion
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -112,8 +113,10 @@ public class RecordFinalizerTest {
 
         subject.finalizeRecord(dispatch);
 
-        verify(finalizeRecordHandler).finalizeStakingRecord(any(), any(), any(), any());
-        verify(finalizeRecordHandler, never()).finalizeNonStakingRecord(any(), any());
+        verify(finalizeRecordHandler)
+                .finalizeStakingRecord(
+                        eq(finalizeContext), eq(HederaFunctionality.CRYPTO_TRANSFER), eq(TX_BODY), any(), any());
+        verify(finalizeRecordHandler, never()).finalizeNonStakingRecord(any(), any(), any());
     }
 
     @Test
@@ -122,8 +125,9 @@ public class RecordFinalizerTest {
 
         subject.finalizeRecord(dispatch);
 
-        verify(finalizeRecordHandler, never()).finalizeStakingRecord(any(), any(), any(), any());
-        verify(finalizeRecordHandler).finalizeNonStakingRecord(any(), any());
+        verify(finalizeRecordHandler, never()).finalizeStakingRecord(any(), any(), any(), any(), any());
+        verify(finalizeRecordHandler)
+                .finalizeNonStakingRecord(finalizeContext, HederaFunctionality.CRYPTO_TRANSFER, TX_BODY);
     }
 
     @Test

@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
@@ -34,6 +33,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -65,7 +65,7 @@ public class TestIntake {
      *
      * @param roster the roster used by this intake
      */
-    public TestIntake(@NonNull final Roster roster) {
+    public TestIntake(@NonNull final RosterWrapper roster) {
         this(new TestConfigBuilder().getOrCreateConfig(), roster);
     }
 
@@ -75,7 +75,7 @@ public class TestIntake {
      * @param configuration the configuration to use for this intake.
      * @param roster the roster used by this intake
      */
-    public TestIntake(@NonNull final Configuration configuration, @NonNull final Roster roster) {
+    public TestIntake(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
         this(configuration, new NoOpMetrics(), Time.getCurrent(), roster);
     }
 
@@ -91,7 +91,7 @@ public class TestIntake {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Roster roster) {
+            @NonNull final RosterWrapper roster) {
         final NodeId selfId = NodeId.of(0);
         roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
