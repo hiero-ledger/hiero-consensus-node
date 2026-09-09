@@ -354,14 +354,17 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Bytes targetRosterHash) {
         final var ac = requireNonNull(activeConstruction.get());
         log.info(
-                "Created {} construction #{} for rosters (source={}, target={}) {} source proof",
+                "Created {} construction #{} for rosters (source={}, target={}) {} source proof{}",
                 slot,
                 construction.constructionId(),
                 sourceRosterHash,
                 targetRosterHash,
                 ac.hasTargetProof()
                         ? ("WITH" + (isWrapsExtensible(ac.targetProofOrThrow()) ? " WRAPS-extensible" : ""))
-                        : "WITHOUT");
+                        : "WITHOUT",
+                ac.hasTargetProof() && isWrapsExtensible(ac.targetProofOrThrow())
+                        ? " (built under proving key " + ac.targetProofOrThrow().wrapsProvingKeyHash() + ")"
+                        : "");
     }
 
     /**

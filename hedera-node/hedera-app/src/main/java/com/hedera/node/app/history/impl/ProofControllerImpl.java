@@ -511,9 +511,10 @@ public class ProofControllerImpl implements ProofController {
         historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
         historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
         log.info(
-                "History proof constructed (#{}, WRAPS-extensible? {})",
+                "History proof constructed (#{}, WRAPS-extensible? {}) under proving key {}",
                 construction.constructionId(),
-                isWrapsExtensible(proof));
+                isWrapsExtensible(proof),
+                proof.wrapsProvingKeyHash());
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
         // Clear the in-memory votes so the network can re-vote to convert this into a
         // WRAPS-extensible proof. Only purge the PERSISTED votes when such a re-vote actually
