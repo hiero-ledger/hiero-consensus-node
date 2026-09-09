@@ -51,8 +51,8 @@ class KeysAndCertsTest {
 
         // choose a random node to test
         final Random random = new Random();
-        final int node = random.nextInt(roster.rosterEntries().size());
-        final RosterEntryWrapper entry = roster.rosterEntries().get(node);
+        final int node = random.nextInt(roster.size());
+        final RosterEntryWrapper entry = roster.rosterEntry(node);
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts.get(entry.nodeId()));
         testSignVerify(signer, entry.gossipCaCertificate().getPublicKey());

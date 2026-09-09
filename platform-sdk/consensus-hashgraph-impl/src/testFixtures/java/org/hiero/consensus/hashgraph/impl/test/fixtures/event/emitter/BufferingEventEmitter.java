@@ -68,7 +68,7 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
         final RosterWrapper roster = getGraphGenerator().getRoster();
         events = new HashMap<>(getGraphGenerator().getNumberOfSources());
         for (int index = 0; index < getGraphGenerator().getNumberOfSources(); index++) {
-            events.put(roster.rosterEntries().get(index).nodeId(), new LinkedList<>());
+            events.put(roster.rosterEntry(index).nodeId(), new LinkedList<>());
         }
         bufferedEvents = 0;
     }

@@ -977,7 +977,7 @@ public class ConsensusImpl implements Consensus {
         x.initLastSee(roster.size());
 
         for (int mm = 0; mm < roster.size(); mm++) {
-            if (roster.getIndex(x.getCreatorId()) == mm) {
+            if (roster.isIdAtIndex(x.getCreatorId(), mm)) {
                 // mm created x, so x is considered to see itself
                 x.setLastSee(mm, x);
                 continue;
@@ -1033,7 +1033,7 @@ public class ConsensusImpl implements Consensus {
         if (notRelevantForConsensus(x)) {
             return null;
         }
-        if (m == m2 && roster.getIndex(x.getCreatorId()) == m2) {
+        if (m == m2 && roster.isIdAtIndex(x.getCreatorId(), m2)) {
             return firstSelfWitnessS(selfParent(x));
         }
         return firstSee(lastSee(x, m2), m);
@@ -1089,7 +1089,7 @@ public class ConsensusImpl implements Consensus {
                 long weight = 0;
                 for (int m3 = 0; m3 < roster.size(); m3++) {
                     if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
-                        weight += roster.rosterEntries().get(m3).weight();
+                        weight += roster.getWeight(m3);
                     }
                 }
                 if (Threshold.SUPER_MAJORITY.isSatisfiedBy(
@@ -1209,7 +1209,7 @@ public class ConsensusImpl implements Consensus {
         int numStronglySeen = 0;
         for (int m = 0; m < numMembers; m++) {
             if (timedStronglySeeP(x, m) != null) {
-                weight += roster.rosterEntries().get(m).weight();
+                weight += roster.getWeight(m);
                 numStronglySeen++;
             }
         }
