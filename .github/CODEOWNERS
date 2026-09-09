@@ -163,6 +163,7 @@
 /.github/workflows/860-call-validate-chewie-jwt.yaml            @hiero-ledger/github-maintainers
 /.github/workflows/861-call-get-test-config.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/862-call-get-chewie-properties.yaml          @hiero-ledger/github-maintainers
+/.github/workflows/863-call-get-chewie-allocation.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/901-cron-promote-build-candidate.yaml        @hiero-ledger/github-maintainers
 /.github/workflows/902-cron-auto-namespace-delete.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/903-cron-clean.yaml                          @hiero-ledger/github-maintainers

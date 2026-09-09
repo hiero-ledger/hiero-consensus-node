@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.roster;
+package org.hiero.consensus.model.roster;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Fail.fail;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
@@ -15,14 +13,13 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
-import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Test;
 
-class RosterFactoryTests {
+class RosterWrapperFactoryTests {
 
     /**
      * Assert that the given keys are unique.
@@ -54,30 +51,26 @@ class RosterFactoryTests {
         final int size = 3;
 
         final RosterWithKeys rosterWithKeysA =
-                RosterFactory.randomRosterWithKeys(randotron, size, WeightGenerators.GAUSSIAN);
-        final Roster rosterA = rosterWithKeysA.getRoster();
+                RosterWrapperFactory.randomRosterWithKeys(randotron, size, WeightGenerators.GAUSSIAN);
+        final RosterWrapper rosterA = rosterWithKeysA.roster();
 
-        final Roster rosterB = RosterFactory.randomRosterWithKeys(
+        final RosterWrapper rosterB = RosterWrapperFactory.randomRosterWithKeys(
                         randotron.copyAndReset(), size, WeightGenerators.GAUSSIAN)
-                .getRoster();
+                .roster();
 
         // The address book should be the same (keys should be deterministic)
-        assertEquals(RosterUtils.hash(rosterA), RosterUtils.hash(rosterB));
+        assertThat(rosterA).isEqualTo(rosterB);
 
         // Verify that each address has unique keys
         for (int i = 0; i < size; i++) {
             for (int j = i + 1; j < size; j++) {
-                if (i == j) {
-                    continue;
-                }
-
-                final RosterEntry addressI = rosterA.rosterEntries().get(i);
+                final RosterEntryWrapper entryI = rosterA.rosterEntries().get(i);
                 final PublicKey signaturePublicKeyI =
-                        RosterUtils.fetchGossipCaCertificate(addressI).getPublicKey();
+                        entryI.gossipCaCertificate().getPublicKey();
 
-                final RosterEntry addressJ = rosterA.rosterEntries().get(j);
+                final RosterEntryWrapper entryJ = rosterA.rosterEntries().get(j);
                 final PublicKey signaturePublicKeyJ =
-                        RosterUtils.fetchGossipCaCertificate(addressJ).getPublicKey();
+                        entryJ.gossipCaCertificate().getPublicKey();
 
                 assertKeysAreUnique(signaturePublicKeyI, signaturePublicKeyJ);
             }
@@ -85,11 +78,9 @@ class RosterFactoryTests {
 
         // Verify that the private key can produce valid signatures that can be verified by the public key
         for (int i = 0; i < size; i++) {
-            final RosterEntry address = rosterA.rosterEntries().get(i);
-            final NodeId id = NodeId.of(address.nodeId());
-            final PublicKey signaturePublicKey =
-                    RosterUtils.fetchGossipCaCertificate(address).getPublicKey();
-            final KeysAndCerts privateKeys = rosterWithKeysA.getKeysAndCerts(id);
+            final RosterEntryWrapper entry = rosterA.rosterEntries().get(i);
+            final PublicKey signaturePublicKey = entry.gossipCaCertificate().getPublicKey();
+            final KeysAndCerts privateKeys = rosterWithKeysA.privateKey(entry.nodeId());
 
             final byte[] dataArray = randotron.nextByteArray(64);
             final Bytes dataBytes = Bytes.wrap(dataArray);
@@ -98,10 +89,8 @@ class RosterFactoryTests {
             assertTrue(CryptoUtils.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
 
             // Sanity check: validating using the wrong public key should fail
-            final RosterEntry wrongAddress = rosterA.rosterEntries().get((i + 1) % size);
-            final NodeId wrongId = NodeId.of(wrongAddress.nodeId());
-            final PublicKey wrongPublicKey =
-                    RosterUtils.fetchGossipCaCertificate(wrongAddress).getPublicKey();
+            final RosterEntryWrapper wrongEntry = rosterA.rosterEntries().get((i + 1) % size);
+            final PublicKey wrongPublicKey = wrongEntry.gossipCaCertificate().getPublicKey();
             assertFalse(CryptoUtils.verifySignature(dataBytes, signature.getBytes(), wrongPublicKey));
 
             // Sanity check: validating against the wrong data should fail

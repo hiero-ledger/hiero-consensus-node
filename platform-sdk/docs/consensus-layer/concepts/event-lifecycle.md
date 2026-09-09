@@ -65,9 +65,9 @@ and `expiredThreshold = 80`.
 
 Both thresholds live on
 [`EventWindow`](../../../consensus-model/src/main/java/org/hiero/consensus/model/hashgraph/EventWindow.java)
-as the record fields `ancientThreshold` (line 17) and
-`expiredThreshold` (line 18); `EventWindow.isAncient` tests
-`event.getBirthRound() < ancientThreshold` (line 87).
+as the record fields `ancientThreshold` and
+`expiredThreshold`; `EventWindow.isAncient` tests
+`event.getBirthRound() < ancientThreshold`.
 
 The ancient threshold is honoured by the hashgraph linker
 ([`ConsensusLinker.linkEvent`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/linking/ConsensusLinker.java))
@@ -76,16 +76,16 @@ and by intake stages such as
 The expired threshold is honoured at retention sites.
 [`ConsensusRounds`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusRounds.java)
 keeps a `minimumJudgeStorage` ring buffer of per-round
-`MinimumJudgeInfo`; `getExpiredThreshold` (line 243) reports the
+`MinimumJudgeInfo`; `getExpiredThreshold` reports the
 oldest still-tracked round's minimum-judge birth round, and the ring
 is trimmed each time an election is decided —
 `currentElectionDecided` calls
 `minimumJudgeStorage.removeOlderThan(getFameDecidedBelow() - config.roundsExpired())`
-(line 147) to drop newly-expired round metadata. The gossip
+to drop newly-expired round metadata. The gossip
 [`Shadowgraph`](../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/Shadowgraph.java)
 consumes the same threshold to maintain its `oldestUnexpiredIndicator`
-pointer (line 121) and to drive event eviction during sync
-reservations (line 168).
+pointer and to drive event eviction during sync
+reservations.
 
 Earlier code named the two thresholds `minGenNonAncient` and
 `minGenNonExpired` and computed them against event generations;

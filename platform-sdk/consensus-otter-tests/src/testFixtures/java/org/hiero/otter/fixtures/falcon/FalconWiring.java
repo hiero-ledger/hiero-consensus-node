@@ -96,7 +96,7 @@ public class FalconWiring implements TimeTickReceiver {
         final long transactionOffsetNanos = 0L;
         final HashgraphWiringConfig hashgraphConfig = configuration.getConfigData(HashgraphWiringConfig.class);
         final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
-                configuration, metrics, time, pbjRoster, selfId, freezePeriodChecker, transactionOffsetNanos);
+                configuration, metrics, time, roster, selfId, freezePeriodChecker, transactionOffsetNanos);
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, hashgraphConfig.consensusEngine());
         consensusEngineWiring.bind(consensusEngine);
 
