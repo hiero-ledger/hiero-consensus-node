@@ -8,7 +8,12 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -40,7 +45,10 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -917,6 +925,98 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void redirectsRewardForAccountDeletedInChildDispatch() {
+        // Same reward situation as rewardsUltimateBeneficiaryInsteadOfDeletedAccount, except the
+        // deleted -> beneficiary mapping is recorded on a CHILD dispatch builder (as happens for the
+        // inner CryptoDelete of an atomic batch), not on the root builder consulted by the redirect.
+        // The handler must fold the child mapping into the root builder, otherwise the redirect loop
+        // throws IllegalStateException and the batch is rolled back to a zero-fee FAIL_INVALID record.
+        final var accountBalance = 555L * HBARS_TO_TINYBARS;
+        final var ownerBalance = 111L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(true)
+                .build();
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(0)
+                .stakedNodeId(0L)
+                .build());
+        writableAccountStore.put(ownerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(ownerBalance + accountBalance)
+                .stakedNodeId(0L)
+                .build());
+        writableAccountStore.put(Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(800).build())
+                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+
+        // The root builder starts with an EMPTY deleted-account map; the mapping only exists on the
+        // child dispatch builder. Back the root builder mock with a real map so the fold is observable.
+        final Map<AccountID, AccountID> rootBeneficiaries = new HashMap<>();
+        given(recordBuilder.getNumberOfDeletedAccounts()).willAnswer(inv -> rootBeneficiaries.size());
+        given(recordBuilder.getDeletedAccountBeneficiaryFor(any()))
+                .willAnswer(inv -> rootBeneficiaries.get(inv.<AccountID>getArgument(0)));
+        doAnswer(inv -> {
+                    rootBeneficiaries.put(inv.getArgument(0), inv.getArgument(1));
+                    return null;
+                })
+                .when(recordBuilder)
+                .addBeneficiaryForDeletedAccount(any(), any());
+
+        // A child dispatch recorded (payer -> owner) on its own builder; expose it via forEachChildRecord.
+        final DeleteCapableTransactionStreamBuilder childBuilder = mock(DeleteCapableTransactionStreamBuilder.class);
+        doAnswer(inv -> {
+                    final BiConsumer<AccountID, AccountID> action = inv.getArgument(0);
+                    action.accept(payerId, ownerId);
+                    return null;
+                })
+                .when(childBuilder)
+                .forEachDeletedAccountBeneficiary(any());
+        doAnswer(inv -> {
+                    final Consumer<DeleteCapableTransactionStreamBuilder> consumer = inv.getArgument(1);
+                    consumer.accept(childBuilder);
+                    return null;
+                })
+                .when(context)
+                .forEachChildRecord(eq(DeleteCapableTransactionStreamBuilder.class), any());
+
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+        mockEntityIdFactory();
+
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+
+        // The reward is redirected to the (non-deleted) beneficiary, exactly as in the non-batch case.
+        assertThat(rewards).hasSize(1);
+        assertThat(rewards).containsEntry(ownerId, 178900L);
+        // And the child dispatch's mapping was folded into the root builder.
+        assertThat(rootBeneficiaries).containsEntry(payerId, ownerId);
+    }
+
+    @Test
     void doesntTrackAnythingIfRedirectBeneficiaryDeclinedReward() {
         final var payerInitialBalance = 555L * HBARS_TO_TINYBARS;
         final var ownerInitialBalance = 111L * HBARS_TO_TINYBARS;
@@ -1095,6 +1195,124 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         final var node0InfoAfter = writableStakingInfoStore.get(node0Id.number());
         assertThat(node0InfoAfter.stakeToReward()).isEqualTo(node0InfoBefore.stakeToReward() - HBARS_TO_TINYBARS);
         assertThat(node0InfoAfter.unclaimedStakeRewardStart()).isZero();
+    }
+
+    @Test
+    void redirectsRewardOfStakeeDeletedInInnerBatchTransactionToBeneficiary() {
+        // Atomic-batch case of the deleted-stakee freeze, exercising the child-dispatch beneficiary fold. In an
+        // atomic batch the stakee is deleted by an inner (BATCH_INNER) transaction, which does not pay staking
+        // rewards and records its delete->beneficiary mapping only on its own child record builder. Reward
+        // finalization runs once, on the parent batch, where the stakee's start-of-batch (original) value is
+        // still non-deleted -- so it is (correctly) rediscovered as a reward receiver whose reward must be
+        // redirected to the beneficiary. Without folding the child builder's mapping onto the parent (root)
+        // builder, payRewardsIfPending throws IllegalStateException (parent has no beneficiary,
+        // getNumberOfDeletedAccounts() == 0) and the batch is rolled back to a zero-fee FAIL_INVALID record.
+        // Complements redirectsRewardForAccountDeletedInChildDispatch (a node staker deleted in a PRIOR txn):
+        // here the deleted account is a node stakee with an indirect staker, deleted in the CURRENT txn, so it
+        // also exercises the node-stake settlement path (its stake is withdrawn exactly once).
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        // The indirect staker (payer) stakes to the stakee (owner) and is touched in the batch.
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedToMe(0L)
+                .withStakedAccountId(ownerId)
+                .build();
+        // The rewardable stakee is NOT deleted at the start of the batch; unlike the prior-transaction case, it
+        // is deleted only by an inner transaction within this batch, so its original value is still non-deleted.
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(0L)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .withStakedNodeId(node0Id.number())
+                .withStakedToMe(accountBalance)
+                .build();
+        // transferAccount is the beneficiary the inner CryptoDelete redirected the stakee's balance to.
+        addToState(
+                Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore, transferAccountId, transferAccount));
+
+        mockEntityIdFactory();
+
+        final var node0InfoBefore = writableStakingInfoState.get(node0Id);
+
+        // The staker sends 1 hbar, which rediscovers the (still non-deleted at start-of-batch) stakee.
+        writableAccountStore.put(account.copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedAccountId(ownerId)
+                .build());
+        // The inner transaction marked the stakee deleted (its remaining balance moved to the beneficiary).
+        writableAccountStore.put(ownerAccountBefore
+                .copyBuilder()
+                .deleted(true)
+                .tinybarBalance(0L)
+                .build());
+
+        given(context.consensusTime())
+                .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
+                        .atStartOfDay(ZoneOffset.UTC)
+                        .toInstant());
+        given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+        stakePeriodManager.setCurrentStakePeriodFor(context.consensusTime());
+
+        // The parent (root) builder starts WITHOUT any deleted-account beneficiary (the mapping is on the inner
+        // delete's child builder). Back it with a real map so the fold -> redirect chain is exercised for real.
+        final Map<AccountID, AccountID> rootBeneficiaries = new HashMap<>();
+        given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
+                .willReturn(recordBuilder);
+        willAnswer(inv -> {
+                    rootBeneficiaries.put(inv.getArgument(0), inv.getArgument(1));
+                    return null;
+                })
+                .given(recordBuilder)
+                .addBeneficiaryForDeletedAccount(any(AccountID.class), any(AccountID.class));
+        given(recordBuilder.getNumberOfDeletedAccounts()).willAnswer(inv -> rootBeneficiaries.size());
+        given(recordBuilder.getDeletedAccountBeneficiaryFor(any(AccountID.class)))
+                .willAnswer(inv -> rootBeneficiaries.get(inv.<AccountID>getArgument(0)));
+
+        // The inner (child) dispatch builder carries the delete->beneficiary mapping, exposed the same way the
+        // production fold reads it -- via forEachDeletedAccountBeneficiary, as CryptoDelete records it.
+        final var childRecordBuilder = mock(DeleteCapableTransactionStreamBuilder.class);
+        willAnswer(inv -> {
+                    final BiConsumer<AccountID, AccountID> action = inv.getArgument(0);
+                    action.accept(ownerId, transferAccountId);
+                    return null;
+                })
+                .given(childRecordBuilder)
+                .forEachDeletedAccountBeneficiary(any());
+        willAnswer(inv -> {
+                    final Consumer<DeleteCapableTransactionStreamBuilder> consumer = inv.getArgument(1);
+                    consumer.accept(childRecordBuilder);
+                    return null;
+                })
+                .given(context)
+                .forEachChildRecord(eq(DeleteCapableTransactionStreamBuilder.class), any());
+
+        // Finalization must not throw (it used to fail with IllegalStateException), and the reward must be
+        // redirected to the beneficiary exactly once -- never to the deleted stakee.
+        final var rewards =
+                assertDoesNotThrow(() -> subject.applyStakingRewards(context, Collections.emptySet(), emptyMap()));
+        assertThat(rewards).hasSize(1).containsKey(transferAccountId).doesNotContainKey(ownerId);
+        assertThat(rewards.get(transferAccountId)).isPositive();
+
+        // The child dispatch's mapping was folded into the parent (root) builder.
+        assertThat(rootBeneficiaries).containsEntry(ownerId, transferAccountId);
+
+        // A batch has a single finalization, so the delete settles the stakee's node stake exactly once --
+        // withdrawn, and not re-awarded because the account is deleted -- exactly as a standalone CryptoDelete
+        // does; the indirect-staker touch adds no further change. So stakeToReward drops by precisely the
+        // stakee's totalStake: neither left stale (no withdrawal) nor drained twice. That a LATER transaction
+        // touching the orphaned staker must not re-withdraw is covered by
+        // doesNotWithdrawNodeStakeForStakeeDeletedInPriorTransaction.
+        final var node0InfoAfter = writableStakingInfoStore.get(node0Id.number());
+        assertThat(node0InfoAfter.stakeToReward())
+                .isEqualTo(node0InfoBefore.stakeToReward() - roundedToHbar(totalStake(ownerAccountBefore)));
     }
 
     @Test
