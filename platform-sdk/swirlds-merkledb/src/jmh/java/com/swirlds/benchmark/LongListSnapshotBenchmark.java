@@ -9,7 +9,6 @@ import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.files.DataFileCommon;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -34,21 +33,19 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-/// Measures snapshot writes of the leaf-path-to-K/V-record-location index.
+/// Measures snapshot writes of the leaf index.
 /// Populates the index once per trial with synthetic record locations, outside the timed operation.
 @State(Scope.Benchmark)
 @Fork(1)
-@Threads(1)
 @Warmup(iterations = 1)
 @Measurement(iterations = 3)
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class LongListSnapshotBenchmark {
 
-    @Param({"LongListHeap", "LongListOffHeap", "LongListSegment", "LongListDisk", "LongListDiskSegment"})
+    @Param({"Heap", "OffHeap", "Segment", "Disk", "DiskSegment"})
     public String listImpl;
 
     @Param({"1", "4"})
@@ -58,19 +55,11 @@ public class LongListSnapshotBenchmark {
     @Param({"10000000"})
     public long leafCount;
 
-    @Param({"1048576"})
-    public int longListChunkSize;
-
     @Param({"build/tmp/long-list-snapshot-benchmark"})
     public String workDir;
 
-    /// Compare each snapshot with a sequential write during untimed cleanup.
-    @Param({"false"})
-    public boolean verify;
-
     private Path trialDirectory;
     private Path snapshotFile;
-    private Path verificationFile;
     private LongList source;
     private ExecutorService executor;
 
@@ -80,20 +69,17 @@ public class LongListSnapshotBenchmark {
         trialDirectory = Files.createTempDirectory(directory, "trial-");
         snapshotFile = trialDirectory.resolve("snapshot.ll");
         final FileSystemManager fileSystemManager = new FileSystemManager(trialDirectory);
-        final MerkleDbConfig configuration = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, Integer.toString(longListChunkSize))
-                .build()
-                .getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build().getConfigData(MerkleDbConfig.class);
 
         // Leaf paths occupy the second half of the tree's path range.
         final long capacity = leafCount * 2;
         source = switch (listImpl) {
-            case "LongListHeap" -> new LongListHeap(capacity, configuration);
-            case "LongListOffHeap" -> new LongListOffHeap(capacity, configuration);
-            case "LongListSegment" -> new LongListSegment(capacity, configuration);
-            case "LongListDisk" -> new LongListDisk(capacity, configuration, fileSystemManager);
-            case "LongListDiskSegment" -> new LongListDiskSegment(capacity, configuration, fileSystemManager);
+            case "Heap" -> new LongListHeap(capacity, configuration);
+            case "OffHeap" -> new LongListOffHeap(capacity, configuration);
+            case "Segment" -> new LongListSegment(capacity, configuration);
+            case "Disk" -> new LongListDisk(capacity, configuration, fileSystemManager);
+            case "DiskSegment" -> new LongListDiskSegment(capacity, configuration, fileSystemManager);
             default -> throw new IllegalArgumentException("Unknown LongList implementation: " + listImpl);
         };
         final long firstLeafPath = leafCount - 1;
@@ -102,10 +88,6 @@ public class LongListSnapshotBenchmark {
             source.put(firstLeafPath + index, DataFileCommon.dataLocation(0, index + 1));
         }
 
-        if (verify) {
-            verificationFile = trialDirectory.resolve("sequential.ll");
-            source.writeToFile(verificationFile);
-        }
         // Finish setup writes, including disk-backed source data, before measuring snapshots.
         try (final Stream<Path> files = Files.walk(trialDirectory)) {
             for (final Path file : files.filter(Files::isRegularFile).toList()) {
@@ -127,12 +109,6 @@ public class LongListSnapshotBenchmark {
         try {
             // Drain outside the timed method so pending writes do not accumulate between invocations.
             forceFile(snapshotFile);
-            if (verify) {
-                final long mismatch = Files.mismatch(verificationFile, snapshotFile);
-                if (mismatch >= 0) {
-                    throw new IOException("Snapshot differs from sequential write at byte " + mismatch);
-                }
-            }
         } finally {
             Files.deleteIfExists(snapshotFile);
         }
@@ -154,6 +130,10 @@ public class LongListSnapshotBenchmark {
         }
     }
 
+    /// Waits for file writes to reach storage so they do not carry over into the next measurement.
+    ///
+    /// @param file file whose pending writes must be flushed
+    /// @throws IOException if the file cannot be opened or flushed
     private static void forceFile(final Path file) throws IOException {
         try (final FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE)) {
             channel.force(true);

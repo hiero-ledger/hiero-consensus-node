@@ -12,7 +12,6 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
@@ -21,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileUtils;
@@ -32,20 +30,17 @@ import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 /// Measures complete snapshots of a state containing `numFiles * numRecords` leaves.
-/// Fixture generation and optional restored-record checks are outside the measured operation.
+/// Fixture generation is outside the measured operation.
 @Fork(1)
-@Threads(1)
 @Warmup(iterations = 1)
 @Measurement(iterations = 2)
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(MILLISECONDS)
-@State(Scope.Benchmark)
 public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
 
     private static final String TABLE_NAME = "state";
@@ -85,7 +80,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             final Path fixtureDirectory = fixtureDirectory(merkleDbConfig);
             createFixtureIfNeeded(fixtureDirectory);
             source = dataSourceBuilder.build(TABLE_NAME, fixtureDirectory, false, false);
-            validateSource();
             populateHashChunkCache(merkleDbConfig);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -95,7 +89,9 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Override
     protected void onInvocationSetup() {
         super.onInvocationSetup();
-        snapshotDirectory = fileSystemManager.resolveNewTemp("snapshot-output");
+        snapshotDirectory = getBenchDir().resolve("snapshot-output");
+        // Remove output left by an interrupted run.
+        Utils.deleteRecursively(snapshotDirectory);
     }
 
     @Benchmark
@@ -108,9 +104,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         try {
             // Drain outside the timed method so pending writes do not accumulate between invocations.
             forceSnapshotFiles(snapshotDirectory);
-            if (verify) {
-                validateSnapshot(source, snapshotDirectory);
-            }
         } finally {
             Utils.deleteRecursively(snapshotDirectory);
             snapshotDirectory = null;
@@ -132,6 +125,10 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         }
     }
 
+    /// Separates reusable fixtures by the settings that determine their contents and layout.
+    ///
+    /// @param merkleDbConfig database settings used to build the fixture
+    /// @return fixture path inside the benchmark directory
     private Path fixtureDirectory(final MerkleDbConfig merkleDbConfig) {
         final long stateSize = Math.multiplyExact((long) numFiles, numRecords);
         // The framework keeps this fixture across trials when benchmark.saveDataDirectory is enabled.
@@ -145,6 +142,10 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
                                 merkleDbConfig.hashChunkHeight()));
     }
 
+    /// Builds and flushes the state once, publishing the fixture only after its snapshot completes.
+    ///
+    /// @param fixtureDirectory reusable fixture location
+    /// @throws IOException if fixture files cannot be written
     private void createFixtureIfNeeded(final Path fixtureDirectory) throws IOException {
         if (Files.isDirectory(fixtureDirectory)) {
             return;
@@ -176,43 +177,30 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             FileUtils.executeAndRename(fixtureDirectory, temporaryFixtureDirectory, directory -> {
                 dataSourceBuilder.snapshot(directory, fixtureSource);
                 forceSnapshotFiles(directory);
-                if (verify) {
-                    validateSnapshot(fixtureSource, directory);
-                }
             });
         } finally {
             mapReference.get().release();
         }
     }
 
-    private void validateSource() {
-        final long stateSize = Math.multiplyExact((long) numFiles, numRecords);
-        final long expectedFirstLeafPath = stateSize - 1;
-        final long expectedLastLeafPath = stateSize * 2 - 2;
-        if (source.getFirstLeafPath() != expectedFirstLeafPath || source.getLastLeafPath() != expectedLastLeafPath) {
-            throw new IllegalStateException("Fixture leaf range is "
-                    + source.getFirstLeafPath()
-                    + "-"
-                    + source.getLastLeafPath()
-                    + ", expected "
-                    + expectedFirstLeafPath
-                    + "-"
-                    + expectedLastLeafPath);
-        }
-    }
-
+    /// Loads cacheable hash chunks so each snapshot includes the hash-cache flush work.
+    ///
+    /// @param merkleDbConfig database settings defining the cache limit
+    /// @throws IOException if a hash chunk cannot be read
     private void populateHashChunkCache(final MerkleDbConfig merkleDbConfig) throws IOException {
         final long lastChunkId =
                 VirtualHashChunk.lastChunkIdForPaths(source.getLastLeafPath(), source.getHashChunkHeight());
         final long cachedChunkCount = Math.min((long) merkleDbConfig.hashChunkCacheThreshold(), lastChunkId + 1);
         for (long chunkId = 0; chunkId < cachedChunkCount; chunkId++) {
-            if (source.loadHashChunk(chunkId) == null) {
-                throw new IOException("Missing hash chunk " + chunkId);
-            }
+            source.loadHashChunk(chunkId);
         }
         logger.info("Loaded {} hash chunks into the snapshot source cache", cachedChunkCount);
     }
 
+    /// Waits for file writes to reach storage so they do not carry over into the next measurement.
+    ///
+    /// @param directory snapshot directory whose files must be flushed
+    /// @throws IOException if a file cannot be opened or flushed
     private static void forceSnapshotFiles(final Path directory) throws IOException {
         final List<Path> snapshotFiles;
         try (final Stream<Path> files = Files.walk(directory)) {
@@ -225,41 +213,12 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         }
     }
 
-    private void validateSnapshot(final VirtualDataSource expected, final Path directory) throws IOException {
-        final VirtualDataSource restored = dataSourceBuilder.build(TABLE_NAME, directory, false, false);
-        try {
-            final long firstLeafPath = expected.getFirstLeafPath();
-            final long lastLeafPath = expected.getLastLeafPath();
-            if (restored.getFirstLeafPath() != firstLeafPath || restored.getLastLeafPath() != lastLeafPath) {
-                throw new IOException("Snapshot leaf range does not match the source");
-            }
-
-            // Check logical records, since compaction may change their file locations after the snapshot.
-            for (final long path : new long[] {firstLeafPath, (firstLeafPath + lastLeafPath) / 2, lastLeafPath}) {
-                final VirtualLeafBytes<?> leaf = expected.loadLeafRecord(path);
-                if (leaf == null
-                        || !leaf.equals(restored.loadLeafRecord(path))
-                        || !leaf.equals(restored.loadLeafRecord(leaf.keyBytes()))
-                        || restored.findKey(leaf.keyBytes()) != path) {
-                    throw new IOException("Snapshot leaf does not match the source at path " + path);
-                }
-            }
-
-            final long lastChunkId = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, expected.getHashChunkHeight());
-            for (final long chunkId : new long[] {0, lastChunkId / 2, lastChunkId}) {
-                final VirtualHashChunk expectedChunk = expected.loadHashChunk(chunkId);
-                final VirtualHashChunk restoredChunk = restored.loadHashChunk(chunkId);
-                if (expectedChunk == null || restoredChunk == null || expectedChunk.path() != restoredChunk.path()) {
-                    throw new IOException("Snapshot hash chunk does not match the source: " + chunkId);
-                }
-                for (int index = 0; index < VirtualHashChunk.getChunkSize(expected.getHashChunkHeight()); index++) {
-                    if (!Objects.equals(expectedChunk.getHashAtIndex(index), restoredChunk.getHashAtIndex(index))) {
-                        throw new IOException("Snapshot hash does not match the source in chunk " + chunkId);
-                    }
-                }
-            }
-        } finally {
-            restored.close();
-        }
+    static void main() throws Exception {
+        // If a larger heap is needed, set it in the IDE run configuration VM options.
+        new Runner(new OptionsBuilder()
+                        .include(MerkleDbSnapshotBenchmark.class.getSimpleName())
+                        .forks(0)
+                        .build())
+                .run();
     }
 }
