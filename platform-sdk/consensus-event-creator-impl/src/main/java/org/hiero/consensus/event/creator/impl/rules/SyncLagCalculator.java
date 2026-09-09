@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 // utility class to hold weight and lag in a map value
 record WeightAndLag(long weight, long lag) {}
@@ -43,17 +43,17 @@ public class SyncLagCalculator {
      * @param selfId current node id
      * @param roster roster of all the nodes in network
      */
-    public SyncLagCalculator(final NodeId selfId, final Roster roster) {
+    public SyncLagCalculator(final NodeId selfId, final RosterWrapper roster) {
         this.selfId = selfId;
         otherNodesTotalWeight = roster.rosterEntries().stream()
-                .peek(entry -> weightMap.put(NodeId.of(entry.nodeId()), entry.weight()))
+                .peek(entry -> weightMap.put(entry.nodeId(), entry.weight()))
                 .peek(entry -> {
-                    if (selfId.id() != entry.nodeId()) {
-                        consensusLag.put(NodeId.of(entry.nodeId()), new WeightAndLag(entry.weight(), 0));
+                    if (!selfId.equals(entry.nodeId())) {
+                        consensusLag.put(entry.nodeId(), new WeightAndLag(entry.weight(), 0));
                     }
                 })
                 .mapToLong(entry -> {
-                    if (selfId.id() == entry.nodeId()) {
+                    if (selfId.equals(entry.nodeId())) {
                         return 0;
                     } else {
                         return entry.weight();

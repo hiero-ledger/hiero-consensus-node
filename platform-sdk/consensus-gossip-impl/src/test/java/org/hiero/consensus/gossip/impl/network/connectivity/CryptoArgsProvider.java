@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.roster.test.fixtures;
+package org.hiero.consensus.gossip.impl.network.connectivity;
 
 import java.util.stream.Stream;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.params.provider.Arguments;
@@ -16,8 +18,8 @@ public class CryptoArgsProvider {
      * @return 1 set of arguments (generated)
      */
     static Stream<Arguments> basicTestArgs() {
-        final RosterWithKeys rosterWithKeys = RosterFactory.randomRosterWithKeys(
+        final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
                 Randotron.create(), NUMBER_OF_ADDRESSES, WeightGenerators.BALANCED_1000_PER_NODE);
-        return Stream.of(Arguments.of(rosterWithKeys.getRoster(), rosterWithKeys.getAllKeysAndCerts()));
+        return Stream.of(Arguments.of(rosterWithKeys.roster().toPbj(), rosterWithKeys.privateKeys()));
     }
 }

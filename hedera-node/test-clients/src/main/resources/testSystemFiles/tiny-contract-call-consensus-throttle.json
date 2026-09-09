@@ -1,0 +1,44 @@
+{
+  "buckets": [
+    {
+      "name": "IsolatedContractCallLimit",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [ "ContractCall" ]
+        }
+      ]
+    },
+    {
+      "name": "BulkLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100000,
+          "operations": [
+            "TokenMint", "TokenBurn", "CryptoCreate", "TokenCreate", "TokenAssociateToAccount",
+            "TokenDissociateFromAccount", "CryptoTransfer", "CryptoUpdate", "CryptoDelete", "ContractCreate",
+            "ContractUpdate", "ContractDelete", "EthereumTransaction", "FileCreate", "FileUpdate", "FileAppend",
+            "FileDelete", "ConsensusCreateTopic", "ConsensusSubmitMessage", "ScheduleCreate", "UtilPrng",
+            "AtomicBatch", "CryptoApproveAllowance", "TokenUpdate"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000000,
+          "operations": [
+            "TransactionGetReceipt", "TransactionGetRecord", "CryptoGetAccountBalance", "CryptoGetInfo",
+            "ContractGetInfo", "ContractGetBytecode", "ContractCallLocal", "GetVersionInfo", "TokenGetInfo",
+            "TokenGetNftInfo", "FileGetInfo", "FileGetContents"
+          ]
+        }
+      ]
+    }
+  ]
+}
