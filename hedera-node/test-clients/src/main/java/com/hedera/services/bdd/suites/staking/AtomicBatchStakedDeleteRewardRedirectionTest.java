@@ -197,7 +197,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 assertionsHold((spec, log) -> {
                     // Fees are charged for the inner work and the outer batch (the work is not free).
                     Assertions.assertThat(workPayerBefore.get() - workPayerAfter.get())
-                            .as("the fifteen fee-bearing storage calls must charge the work payer")
+                            .as("the fifteen fee-bearing transfers must charge the work payer")
                             .isPositive();
                     Assertions.assertThat(outerPayerBefore.get() - outerPayerAfter.get())
                             .as("the outer batch fee must be charged")
