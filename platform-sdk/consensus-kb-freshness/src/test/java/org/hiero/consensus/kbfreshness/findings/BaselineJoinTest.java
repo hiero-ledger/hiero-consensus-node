@@ -73,6 +73,7 @@ class BaselineJoinTest {
                 List.of(),
                 null,
                 null,
+                null,
                 null);
     }
 }

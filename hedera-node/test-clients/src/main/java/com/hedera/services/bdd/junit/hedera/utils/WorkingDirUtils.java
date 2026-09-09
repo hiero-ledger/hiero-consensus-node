@@ -3,7 +3,7 @@ package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.crypto.KeysAndCertsGenerator.generateKeysAndCerts;
+import static org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator.generateKeysAndCerts;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;

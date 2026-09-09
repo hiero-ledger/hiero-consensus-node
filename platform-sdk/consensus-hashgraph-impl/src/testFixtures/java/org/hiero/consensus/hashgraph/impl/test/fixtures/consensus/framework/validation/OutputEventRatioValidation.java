@@ -101,12 +101,12 @@ public class OutputEventRatioValidation implements ConsensusOutputValidation {
         final double consensusRatio = ((double) numConsensus) / allEvents1.size();
 
         assertThat(consensusRatio)
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "Consensus ratio %s is less than the expected minimum %s",
                         consensusRatio, minimumConsensusRatio))
                 .isGreaterThanOrEqualTo(minimumConsensusRatio);
         assertThat(consensusRatio)
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "Consensus ratio %s is more than the expected maximum %s",
                         consensusRatio, maximumConsensusRatio))
                 .isLessThanOrEqualTo(maximumConsensusRatio);
@@ -115,11 +115,11 @@ public class OutputEventRatioValidation implements ConsensusOutputValidation {
         final double staleRatio = ((double) output1.getStaleEvents().size()) / allEvents1.size();
 
         assertThat(staleRatio)
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio))
                 .isGreaterThanOrEqualTo(minimumStaleRatio);
         assertThat(staleRatio)
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio))
                 .isLessThanOrEqualTo(maximumStaleRatio);
     }

@@ -31,7 +31,7 @@ import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;

@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Set;
 import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.FallenBehindConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.wiring.framework.WiringConfig;
 import org.junit.jupiter.api.Test;
 
@@ -45,6 +46,7 @@ class PlatformConfigurationExtensionTests {
         assertThat(extension.getConfigDataTypes())
                 .containsExactlyInAnyOrderElementsOf(Arrays.asList(
                         BasicConfig.class,
+                        PathsConfig.class,
                         ModulesConfig.class,
                         FallenBehindConfig.class,
                         OSHealthCheckConfig.class,

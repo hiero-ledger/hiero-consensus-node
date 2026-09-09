@@ -50,8 +50,8 @@ holds four collaborating objects:
   keeps the set of non-ancient peer events that have no observed
   children; these are the eligible other-parent pool.
 - **Last self-event and event window** — `TipsetEventCreator` itself
-  retains `lastSelfEvent` (used as self-parent) and the most recent
-  `EventWindow`.
+  retains `lastSelfEvent` (used as self-parent, see [Latest self
+  event](#latest-self-event)) and the most recent `EventWindow`.
 
 Around the `EventCreator`, `DefaultEventCreationManager`
 (`consensus-event-creator-impl/.../DefaultEventCreationManager.java`)
@@ -72,10 +72,11 @@ input and output wires plus an `EventTransactionSupplier` passed at
 - **Validated events from event intake** — `orderedEventInputWire`
   delivers `PlatformEvent`s; they pass through `FutureEventBuffer` in
   `DefaultEventCreationManager#registerEvent` and reach
-  `TipsetEventCreator#registerEvent`, which routes self-events to
-  `TipsetTracker#addSelfEvent` and peer events to
-  `TipsetTracker#addPeerEvent` (the latter advances both the per-event
-  tipset and `latestGenerations` using the event's sequence number). See
+  `TipsetEventCreator#registerEvent`, which routes peer events to
+  `TipsetTracker#addPeerEvent` (advancing both the per-event tipset and
+  `latestGenerations` using the event's sequence number) and adopted
+  self-events to `TipsetTracker#addSelfEvent` — self-events are adopted
+  selectively, see [Latest self event](#latest-self-event). See
   [event-intake.md](event-intake.md).
 - **Event window from hashgraph** — `consensusRoundInputWire` delivers each
   `ConsensusRound`, whose `EventWindow` (`ConsensusRound::getEventWindow`)
@@ -128,9 +129,9 @@ of an event is the per-node maximum over its parents' tipsets, with the
 event's own creator entry advanced to the event's sequence number.
 
 The data structure is `Tipset` (`tipset/Tipset.java`). Two operations
-matter most: `Tipset#merge(List<Tipset>)` (lines 63–80) takes the
+matter most: `Tipset#merge(List<Tipset>)` takes the
 per-node maximum across a list of parent tipsets, and `Tipset#advance(NodeId, long)`
-(lines 113–117) raises a single entry to the supplied sequence number.
+raises a single entry to the supplied sequence number.
 
 ### Advancement score
 
@@ -145,8 +146,8 @@ The score is a `TipsetAdvancementWeight` record
 `advancementWeight` for non-zero-weight nodes (which contribute to
 quorum) and `zeroWeightAdvancementCount` for zero-weight nodes (which
 must still be allowed to advance, but separately). The score itself is
-computed by `Tipset#getTipAdvancementWeight(NodeId selfId, Tipset that)`
-(lines 140–163), which iterates the roster and skips the self index.
+computed by `Tipset#getTipAdvancementWeight(NodeId selfId, Tipset that)`,
+which iterates the roster and skips the self index.
 
 ### Snapshot updates
 
@@ -154,7 +155,7 @@ The snapshot is the moving baseline against which improvement is
 measured. `TipsetWeightCalculator` holds the current `snapshot` and a
 bounded `snapshotHistory` (sized by `tipsetSnapshotHistorySize`, TUN-136).
 Whenever `TipsetWeightCalculator#addEventAndGetAdvancementWeight`
-(lines 165–198) is called for a new self-event, it computes the
+is called for a new self-event, it computes the
 partial-weighted score of that event's tipset against the current
 snapshot and, when the score plus this node's own weight reaches
 super-majority of total weight, replaces the snapshot with the new
@@ -172,7 +173,7 @@ if (SUPER_MAJORITY.isSatisfiedBy(advancementWeight.advancementWeight() + selfWei
 ```
 
 Per-event tipsets for peer events are constructed in
-`TipsetTracker#addPeerEvent` (lines 125–138); the call
+`TipsetTracker#addPeerEvent`; the call
 `new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber())`
 shows that tipset entries are event sequence numbers.
 
@@ -203,9 +204,9 @@ consensus is reached in fewer rounds. This is the
 snapshot-improvement-score gate from the source doc.
 
 The gate is implemented in
-`TipsetEventCreator#createEventCombinedAlgorithm` (lines 273–352): the
-non-zero filter is at line 287, and the no-eligible-parent branch is at
-lines 301–312 (returns `null` unless this is the genesis event). The
+`TipsetEventCreator#createEventCombinedAlgorithm`: the non-zero
+filter runs first, and the no-eligible-parent branch returns `null`
+unless this is the genesis event. The
 actual snapshot-update happens later in
 `TipsetWeightCalculator#addEventAndGetAdvancementWeight` once the event
 has been assembled.
@@ -226,12 +227,12 @@ swaps the lowest-scoring tipset parent for an event from an ignored
 peer, weighted by the peer's selfishness score.
 
 The score is computed in
-`TipsetWeightCalculator#getSelfishnessScoreForNode` (lines 275–315);
-the maximum across all childless peers is `getMaxSelfishnessScore`
-(lines 255–261). The pity-pick selection is
-`TipsetEventCreator#selectParentToReduceSelfishness` (lines 374–439),
+`TipsetWeightCalculator#getSelfishnessScoreForNode`;
+the maximum across all childless peers is `getMaxSelfishnessScore`.
+The pity-pick selection is
+`TipsetEventCreator#selectParentToReduceSelfishness`,
 called probabilistically with `beNiceChance = (selfishness - 1) / antiSelfishnessFactor`
-(line 319, with `antiSelfishnessFactor` defaulting to `10`).
+(`antiSelfishnessFactor` defaults to `10`).
 
 The value `10` is a heuristic. It has no derivation in the code,
 comments, or commit history, and has been carried forward unchanged
@@ -254,9 +255,9 @@ with no coordination between nodes.
 ## Permission gates
 
 Before delegating to the tipset algorithm,
-`DefaultEventCreationManager#maybeCreateEvent` (lines 133–157) consults
-an `AggregateEventCreationRules` chain assembled in the constructor
-(lines 106–115). Each rule independently vetoes event creation when
+`DefaultEventCreationManager#maybeCreateEvent` consults
+an `AggregateEventCreationRules` chain assembled in the constructor.
+Each rule independently vetoes event creation when
 its condition is not met; the chain permits creation only when every
 rule agrees. The rules cover distinct concerns.
 
@@ -294,6 +295,63 @@ rule agrees. The rules cover distinct concerns.
   or network freeze) is approaching, so an idle network stops producing
   empty events. See [quiescence.md](quiescence.md).
 
+## Latest self event
+
+The self-parent of the next event is whatever `TipsetEventCreator`
+(`consensus-event-creator-impl/.../tipset/TipsetEventCreator.java`)
+currently holds in `lastSelfEvent`. It is set in two places:
+
+- **At creation** — `TipsetEventCreator#maybeCreateEvent` stores the
+  event it just signed, so the node chains off its own newest event
+  rather than waiting for that event to come back through intake.
+- **On registration** — `TipsetEventCreator#registerEvent` adopts a
+  self-event arriving from event intake in exactly three cases: nothing
+  is held yet, the arriving event's birth round is higher than the held
+  event's, or the arriving event's self-parent *is* the held event. Every
+  other self-event is discarded.
+
+What must never happen is building on an *ancestor* of the node's newest
+self-event: the new event then shares a self-parent with the event already
+extending that ancestor — a branch
+([branching.md](../../concepts/branching.md)). Each of the two tests rules
+that out.
+
+- **Higher birth round.** Birth round never decreases along ancestry
+  (INV-011), so an event with a strictly higher birth round cannot be an
+  ancestor of the held one. It does not follow that it is a descendant —
+  the remaining possibility is a branched self-event, which exists only if
+  the node has already branched, and adopting the later-born of the two
+  costs nothing.
+- **Self-parent match.** A direct child is a descendant by construction,
+  and is adopted whatever its birth round. This is what advances the held
+  event within a single birth round, where the comparison above cannot
+  separate two self-events.
+
+Both tests read only the arriving event and the held one — the birth round
+carried in the signed event core, and the self-parent edge. No local
+ordering number takes part, so no re-numbering of a re-received self-event
+can displace the held one. That is what closed SCN-003.
+
+Two consequences follow.
+
+1. **Advancing within a birth round depends on topological arrival
+   order.** A same-birth-round descendant that reaches `registerEvent`
+   before its own self-parent is discarded, and the held event stays where
+   it is. Nothing in the event creator enforces that order; the orphan
+   buffer establishes it and the stages below it preserve it (see
+   [event-intake.md](event-intake.md#orphan-buffer)). Across birth rounds
+   no gap can strand the held event, because the birth-round comparison
+   bridges it — including after a restart or a long outage, where the
+   self-events the node still holds have gone ancient and the intermediate
+   ones are never re-delivered.
+2. **An adopted self-event never out-runs the birth round of the event
+   built on it.** The creator's `FutureEventBuffer` withholds any event
+   whose birth round exceeds `EventWindow#newEventBirthRound`
+   (`consensus-utility/.../event/FutureEventBufferingOption.java#getMaximumReleasableRound`),
+   and `DefaultEventCreationManager#setEventWindow` refreshes the creator
+   before draining that buffer — so the self-parent edge of each created
+   event stays birth-round monotonic, as INV-011 requires.
+
 ## Self-event persistence
 
 `TipsetEventCreator#maybeCreateEvent` returns a signed `PlatformEvent`
@@ -317,7 +375,8 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
   `maxAllowedSyncLag`, `maxOtherParents`, `maxCreationRate`, `period`.
 - Source doc: [../../../core/tipset-algorithm.md](../../../core/tipset-algorithm.md).
 - Invariants: INV-011 — birth round is monotonic along ancestry; INV-013 — an honest event's coin value is unpredictable; INV-005 — every honest event eventually reaches consensus or becomes stale.
-- Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
+- Decisions: ADR-005 — the future-event buffer is embedded in `DefaultEventCreationManager`; ADR-008 — the local ordering key the creator's tipsets are built on.
+- Scenarios: SCN-003 — a re-received self-ancestor displacing the latest self event, and the branch it caused.
 
 ## Future state
 

@@ -39,6 +39,22 @@ class GitTest {
         assertThat(git.findDeletion("*/NeverExisted.java")).isNull();
     }
 
+    @Test
+    void headCommitDateReportsTheCheckoutTipDate() throws Exception {
+        assumeTrue(runGit("init"), "git unavailable");
+        Files.createDirectories(tmp.resolve("m/src/main/java"));
+        Files.writeString(tmp.resolve("m/src/main/java/Present.java"), "class Present {}");
+        assumeTrue(runGit("add", "."), "git add failed");
+        assumeTrue(runGit("commit", "-m", "add Present"), "git commit failed");
+
+        final Git git = new Git(tmp);
+        assumeTrue(git.available(), "git probe failed");
+        final String head = git.headCommitDate();
+        assertThat(head).matches("\\d{4}-\\d{2}-\\d{2}");
+        // The tip commit touched Present.java, so its per-file date equals HEAD's date.
+        assertThat(git.lastCommitDate("m/src/main/java/Present.java")).isEqualTo(head);
+    }
+
     /**
      * Runs a git command in the temp repository with a hermetic identity, reporting success.
      *

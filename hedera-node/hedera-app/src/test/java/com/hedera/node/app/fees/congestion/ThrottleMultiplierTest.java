@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees.congestion;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -89,5 +90,41 @@ class ThrottleMultiplierTest {
 
         assertEquals(startTimes[0], subject.congestionLevelStarts()[0]);
         assertEquals(startTimes[1], subject.congestionLevelStarts()[1]);
+    }
+
+    @Test
+    void testResetCongestionLevelStartsIgnoresTierCountMismatch() {
+        when(congestionMultipliers.multipliers()).thenReturn(new long[] {2L, 3L, 4L});
+        when(congestionMultipliers.usagePercentTriggers()).thenReturn(new int[] {5, 10, 90});
+        when(throttle.capacity()).thenReturn(THROTTLE_CAPACITY);
+        subject.resetExpectations();
+
+        // A restored array whose length no longer matches the active tier count (the number of
+        // congestion multiplier tiers changed since it was saved) must be ignored, not adopted,
+        // so the handle path does not index out of bounds on the next update.
+        final Instant[] staleStarts = {Instant.now(), Instant.now()};
+        subject.resetCongestionLevelStarts(staleStarts);
+
+        assertEquals(3, subject.congestionLevelStarts().length);
+        assertDoesNotThrow(() -> subject.updateMultiplier(Instant.now()));
+    }
+
+    @Test
+    void testResetCongestionLevelStartsAdoptsMatchingTierCount() {
+        when(congestionMultipliers.multipliers()).thenReturn(new long[] {2L, 3L, 4L});
+        when(congestionMultipliers.usagePercentTriggers()).thenReturn(new int[] {5, 10, 90});
+        when(throttle.capacity()).thenReturn(THROTTLE_CAPACITY);
+        subject.resetExpectations();
+
+        // A restored array whose length matches the active tier count is adopted as-is.
+        final Instant[] startTimes = {
+            Instant.now(), Instant.now().plusSeconds(10), Instant.now().plusSeconds(20)
+        };
+        subject.resetCongestionLevelStarts(startTimes);
+
+        assertEquals(startTimes.length, subject.congestionLevelStarts().length);
+        assertEquals(startTimes[0], subject.congestionLevelStarts()[0]);
+        assertEquals(startTimes[1], subject.congestionLevelStarts()[1]);
+        assertEquals(startTimes[2], subject.congestionLevelStarts()[2]);
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
@@ -81,9 +82,21 @@ public class ThrottleParser {
      * Checks if the throttle definitions are valid.
      */
     private void validate(ThrottleDefinitions throttleDefinitions) {
+        checkForEmptyBuckets(throttleDefinitions);
         checkForZeroOpsPerSec(throttleDefinitions);
         checkForRepeatedOperations(throttleDefinitions);
         validateLeastCommonMultipleDoesNotOverflow(throttleDefinitions);
+    }
+
+    /**
+     * Checks if there are throttle buckets defined with no throttle groups.
+     */
+    private void checkForEmptyBuckets(ThrottleDefinitions throttleDefinitions) {
+        for (var bucket : throttleDefinitions.throttleBuckets()) {
+            if (bucket.throttleGroups().isEmpty()) {
+                throw new HandleException(BUCKET_HAS_NO_THROTTLE_GROUPS);
+            }
+        }
     }
 
     /**
@@ -138,7 +151,8 @@ public class ThrottleParser {
         try {
             for (var bucket : throttleDefinitions.throttleBuckets()) {
                 var lcm = leastCommonMultiple(bucket.throttleGroups());
-                final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
+                final var unscaledCapacity =
+                        Math.multiplyExact(Math.multiplyExact(lcm, NTPS_PER_MTPS), CAPACITY_UNITS_PER_NANO_TXN) / 1_000;
                 if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
                     throw new ArithmeticException();
                 }

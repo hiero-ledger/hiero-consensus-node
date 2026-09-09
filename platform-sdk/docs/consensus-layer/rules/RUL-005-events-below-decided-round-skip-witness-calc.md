@@ -17,6 +17,7 @@ status: holds
 confidence: high
 provenance: elicitation-2026-06-23; revised from #26319 (sequence-number threshold reverted to nGen); re-diagnosed 2026-07-27 (SCN-002 root cause is #26529, not the key; frontier safety rests on INV-015)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # RUL-005 — Events below the latest decided round's judges are excluded from witness calculation

@@ -4,8 +4,8 @@ open module org.hiero.sloth.test.performance {
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
-    requires org.hiero.consensus.utility;
     requires org.hiero.sloth.fixtures;
+    requires org.hiero.consensus.fakes;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
 }

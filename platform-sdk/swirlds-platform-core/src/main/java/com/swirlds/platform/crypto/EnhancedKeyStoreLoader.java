@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Key;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -62,9 +63,8 @@ import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyGeneratingException;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.node.NodeUtilities;
@@ -238,6 +238,22 @@ public class EnhancedKeyStoreLoader {
     }
 
     /**
+     * Generates a new agreement key pair using {@link SecureRandom#getInstanceStrong()} as the CSPRNG.
+     *
+     * @return the generated agreement key pair
+     */
+    @NonNull
+    private static KeyPair generateAgreementKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
+        // getInstanceStrong() is no longer blocking - https://blogs.oracle.com/linux/post/rngd1
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        // generate the agreement key pair
+        final KeyPairGenerator keyPairGenerator =
+                KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
+        keyPairGenerator.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, secureRandom);
+        return keyPairGenerator.generateKeyPair();
+    }
+
+    /**
      * Scan the directory specified by {@code paths.keyDirPath} configuration element for key stores. This method will
      * process and load keys found in both the legacy or enhanced formats.
      *
@@ -277,7 +293,7 @@ public class EnhancedKeyStoreLoader {
             if (!agrPrivateKeys.containsKey(nodeId)) {
                 logger.info(STARTUP.getMarker(), "Generating agreement key pair for local nodeId {}", nodeId);
                 // Generate a new agreement key since it does not exist
-                final KeyPair agrKeyPair = KeysAndCertsGenerator.generateAgreementKeyPair();
+                final KeyPair agrKeyPair = generateAgreementKeyPair();
                 agrPrivateKeys.put(nodeId, agrKeyPair.getPrivate());
 
                 // recover signing key pair to be root of trust on agreement certificate

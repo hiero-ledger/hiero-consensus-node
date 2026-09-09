@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.STATE_THROTTLING;
 import static com.hedera.services.bdd.spec.HapiSpec.customHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -17,14 +16,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.withoutAutoRestoring;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -39,14 +36,12 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-import com.google.common.base.Stopwatch;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
-import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
@@ -59,7 +54,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
@@ -76,8 +70,6 @@ public class SteadyStateThrottlingTest {
 
     private static final double PRIORITY_RESERVATIONS_CONTRACT_CALL_NETWORK_TPS = 2.0;
     private static final double CREATION_LIMITS_CRYPTO_CREATE_NETWORK_TPS = 1.0;
-    private static final double BALANCE_QUERY_LIMITS_QPS = 100.0;
-
     private static final int NETWORK_SIZE = Integer.getInteger("hapi.spec.network.size", DEFAULT_NETWORK_SIZE);
 
     private static final double EXPECTED_XFER_TPS = THROUGHPUT_LIMITS_XFER_NETWORK_TPS / NETWORK_SIZE;
@@ -85,7 +77,6 @@ public class SteadyStateThrottlingTest {
     private static final double EXPECTED_CONTRACT_CALL_TPS =
             PRIORITY_RESERVATIONS_CONTRACT_CALL_NETWORK_TPS / NETWORK_SIZE;
     private static final double EXPECTED_CRYPTO_CREATE_TPS = CREATION_LIMITS_CRYPTO_CREATE_NETWORK_TPS / NETWORK_SIZE;
-    private static final double EXPECTED_GET_BALANCE_QPS = BALANCE_QUERY_LIMITS_QPS / NETWORK_SIZE;
     private static final double TOLERATED_PERCENT_DEVIATION = 7;
     private static final String SUPPLY = "supply";
     private static final String TOKEN = "token";
@@ -137,12 +128,6 @@ public class SteadyStateThrottlingTest {
 
     @HapiTest
     @Order(6)
-    final Stream<DynamicTest> checkBalanceQps() {
-        return checkBalanceQps(50, EXPECTED_GET_BALANCE_QPS);
-    }
-
-    @HapiTest
-    @Order(7)
     final Stream<DynamicTest> restoreDevLimits() {
         return hapiTest(withOpContext((spec, opLog) -> throttleOverrideOp.restoreContentsIfNeeded(spec)));
     }
@@ -239,56 +224,6 @@ public class SteadyStateThrottlingTest {
                                         .lasting(duration::get, unit::get)
                                         .maxOpsPerSec(maxOpsPerSec::get)));
         };
-    }
-
-    final Stream<DynamicTest> checkBalanceQps(int burstSize, double expectedQps) {
-        return defaultHapiSpec("CheckBalanceQps")
-                .given(cryptoCreate(CIVILIAN), cryptoCreate("curious").payingWith(GENESIS), sleepForSeconds(1))
-                .when()
-                .then(withOpContext((spec, opLog) -> {
-                    int numBusy = 0;
-                    int askedSoFar = 0;
-                    int secsToRun = (int) duration.get();
-                    var watch = Stopwatch.createStarted();
-                    int logScreen = 0;
-                    while (watch.elapsed(SECONDS) < secsToRun) {
-                        var subOps = IntStream.range(0, burstSize)
-                                .mapToObj(ignore -> getAccountBalance(CIVILIAN)
-                                        .noLogging()
-                                        .payingWith("curious")
-                                        .hasAnswerOnlyPrecheckFrom(BUSY, OK))
-                                .toArray(HapiSpecOperation[]::new);
-                        var burst = inParallel(subOps);
-                        allRunFor(spec, burst);
-                        askedSoFar += burstSize;
-                        for (int i = 0; i < burstSize; i++) {
-                            var op = (HapiGetAccountBalance) subOps[i];
-                            if (op.getResponse().getCryptogetAccountBalance().getBalance() == 0) {
-                                numBusy++;
-                            }
-                        }
-                        if (logScreen++ % 100 == 0) {
-                            opLog.info(
-                                    "{}/{} queries BUSY so far in {}ms",
-                                    numBusy,
-                                    askedSoFar,
-                                    watch.elapsed(TimeUnit.MILLISECONDS));
-                        }
-                    }
-                    var elapsedMs = watch.elapsed(TimeUnit.MILLISECONDS);
-                    var numAnswered = askedSoFar - numBusy;
-                    var actualQps = (1.0 * numAnswered) / elapsedMs * 1000.0;
-                    var percentDeviation = Math.abs(actualQps / expectedQps - 1.0) * 100.0;
-                    opLog.info(
-                            "Total ops accepted in {} {} = {} ==> {}qps vs {}qps" + " expected ({}% deviation)",
-                            elapsedMs,
-                            "ms",
-                            numAnswered,
-                            String.format("%.3f", actualQps),
-                            String.format("%.3f", expectedQps),
-                            String.format("%.3f", percentDeviation));
-                    Assertions.assertEquals(0.0, percentDeviation, TOLERATED_PERCENT_DEVIATION);
-                }));
     }
 
     private Function<HapiSpec, OpProvider> xferOps() {

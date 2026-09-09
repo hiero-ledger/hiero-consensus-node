@@ -12,7 +12,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -122,7 +121,7 @@ public class VirtualLeafBytes<V> {
      *
      * <p>This method should not be called for records with invalid paths. Such leaf records
      * should never be used for any purposes than marker instances like {@link
-     * VirtualNodeCache#DELETED_LEAF_RECORD}.
+     * com.swirlds.virtualmap.internal.cache.VirtualNodeCache#DELETED_LEAF_RECORD}.
      */
     public boolean isNewOrMoved() {
         assert path >= 0 : "isNewOrMoved() must not be called for records with invalid paths";

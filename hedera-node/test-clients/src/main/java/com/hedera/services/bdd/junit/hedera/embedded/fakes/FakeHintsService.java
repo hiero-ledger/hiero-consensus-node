@@ -29,7 +29,7 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;

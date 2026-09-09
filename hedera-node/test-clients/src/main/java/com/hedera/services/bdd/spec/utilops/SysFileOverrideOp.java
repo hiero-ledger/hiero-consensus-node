@@ -28,7 +28,6 @@ public class SysFileOverrideOp extends UtilOp {
      * Defines a target system file to override by its default number (which we never override in test).
      */
     public enum Target {
-        FEES(111L),
         SIMPLE_FEES(113L),
         EXCHANGE_RATES(112L),
         THROTTLES(123L),
@@ -89,7 +88,7 @@ public class SysFileOverrideOp extends UtilOp {
                     spec,
                     updateLargeFile(
                             GENESIS, fileNumber, ByteString.copyFrom(rawContents), true, OptionalLong.of(ONE_HBAR)));
-            if (target == Target.FEES) {
+            if (target == Target.SIMPLE_FEES) {
                 if (!spec.tryReinitializingFees()) {
                     log.warn("Failed to reinitialize fees");
                 }

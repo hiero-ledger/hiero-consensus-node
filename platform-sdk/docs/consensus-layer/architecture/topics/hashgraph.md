@@ -183,23 +183,23 @@ strongly-seeing work — see RUL-005. For the conceptual background see
 its round is greater than `ROUND_NEGATIVE_INFINITY` and its round
 exceeds its self-parent's round (or it has no self-parent).
 
-**Strongly-seeing.** `ConsensusImpl.stronglySeeP` (line 1045) memoizes,
+**Strongly-seeing.** `ConsensusImpl.stronglySeeP` memoizes,
 for an event `x` and member `m`, the canonical witness in the parent
 round that `x` strongly sees through `m` — defined by a super-majority
 of weight among intermediates that all see the same canonical witness.
-`timedStronglySeeP` (line 871) wraps that with timing constraints used
+`timedStronglySeeP` wraps that with timing constraints used
 during the round-creation walk. Both rest on
-`lastSee(x, m)` (line 956), the most recent ancestor of `x` by
+`lastSee(x, m)`, the most recent ancestor of `x` by
 member `m`, memoized per event. Conceptual background:
 [`../../concepts/strongly-seeing.md`](../../concepts/strongly-seeing.md).
 
 **Fame voting.** When a witness is added to round `r + d`, it votes
 on every undecided witness in earlier rounds via
-`ConsensusImpl.voteInAllElections` (line 497). For round difference
+`ConsensusImpl.voteInAllElections`. For round difference
 `d == 1` the vote is the direct-visibility first vote; for `d > 1` the
-vote is a counting vote (`getCountingVote`, line 578) that tallies
+vote is a counting vote (`getCountingVote`) that tallies
 weighted YES/NO across witnesses of the previous round that the voter
-strongly sees. When `isCoinRound(d)` returns true (line 613), the
+strongly sees. When `isCoinRound(d)` returns true, the
 counting vote falls back to a coin-bit derived from the voter's
 `EventCore.coin` field (via `ConsensusUtils.coin`). Fame is decided
 when a super-majority is reached on either side. See
@@ -208,7 +208,7 @@ when a super-majority is reached on either side. See
 
 **Judges and round-decided.** When `RoundElections.isDecided()` is
 true and the engine is no longer waiting for init judges,
-`ConsensusImpl.roundDecided` (line 697) drives the rest:
+`ConsensusImpl.roundDecided` drives the rest:
 `RoundElections.findAllJudges` collapses the famous witnesses to one
 per creator (using a deterministic merge on branched creators) and
 returns the judges sorted by creator id. The judges' hashes are XOR-ed
@@ -244,35 +244,33 @@ restart or reconnect, `Consensus.waitingForInitJudges()` returns
 `true` until the linker has supplied enough events to reconstruct the
 snapshot's judges (handled by `InitJudges`). While that flag is set,
 `ConsensusImpl.addEvent` short-circuits to an empty result
-(`ConsensusImpl.java:290-293`) and `DefaultConsensusEngine.addEvent`
-returns an empty output (`DefaultConsensusEngine.java:148-153`) — the
+(`ConsensusImpl.java#addEvent`) and `DefaultConsensusEngine.addEvent`
+returns an empty output (`DefaultConsensusEngine.java#addEvent`) — the
 just-added event is not yet classified as pre-consensus, because it
 might already have been part of a previously decided round. The engine
 samples the flag both before and after `consensus.addEvent`
-(`waitingForJudgesBeforeAdd` / `waitingForJudgesAfterAdd`,
-`DefaultConsensusEngine.java:140-144`); the post-add check is the
-transition point out of waiting. When the last init judge arrives,
-`ConsensusImpl.checkInitJudges`
-(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
-neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
-under the `nonConsensusNonAncient` predicate) and marks each
-`setConsensus(true)` while deliberately leaving `roundReceived` unset:
-those events already reached consensus in the run that produced the
-loaded snapshot, so they are flagged decided solely to stop the
-algorithm from re-deciding them, and are never emitted as a consensus
-round. The engine then flushes the queued pre-consensus events into the
-output (`consensus.getPreConsensusEvents()`,
-`DefaultConsensusEngine.java:168-172`). Usually the call that finds the
+(`waitingForJudgesBeforeAdd` / `waitingForJudgesAfterAdd`); the
+post-add check is the transition point out of waiting. When the last
+init judge arrives, `ConsensusImpl.checkInitJudges`
+(`ConsensusImpl.java#checkInitJudges`) takes the judges' common
+ancestors that are neither already consensus nor ancient
+(`AncestorSearch.commonAncestorsOf` under the `nonConsensusNonAncient`
+predicate) and marks each `setConsensus(true)` while deliberately
+leaving `roundReceived` unset: those events already reached consensus
+in the run that produced the loaded snapshot, so they are flagged
+decided solely to stop the algorithm from re-deciding them, and are
+never emitted as a consensus round. The engine then flushes the queued
+pre-consensus events into the output
+(`consensus.getPreConsensusEvents()`). Usually the call that finds the
 last judge decides no *new* rounds — `ConsensusImpl.addEvent` routes
-through `recalculateAndVote` (`ConsensusImpl.java:295-297`), consensus
-simply resumes, and later events decide the next round. If that
-recalculation does decide a round immediately, the engine *also* places
-the round's events on the pre-consensus output
-(`DefaultConsensusEngine.java:163-166`), because the gate suppressed
-them earlier and every accepted event must still appear on the
-pre-consensus stream exactly once. Why this gate exists at the
-restart/replay boundary — not re-handling transactions already baked
-into the loaded state — is covered in
+through `recalculateAndVote`, consensus simply resumes, and later
+events decide the next round. If that recalculation does decide a
+round immediately, the engine *also* places the round's events on the
+pre-consensus output, because the gate suppressed them earlier and
+every accepted event must still appear on the pre-consensus stream
+exactly once. Why this gate exists at the restart/replay boundary —
+not re-handling transactions already baked into the loaded state — is
+covered in
 [`../topics/restart-and-pces.md`](../topics/restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
 
 > **Note on the paper.** Round, witness, strongly-seeing, fame, and

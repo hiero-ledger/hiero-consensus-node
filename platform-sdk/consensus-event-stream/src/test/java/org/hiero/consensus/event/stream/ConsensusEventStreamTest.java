@@ -13,7 +13,7 @@ import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;

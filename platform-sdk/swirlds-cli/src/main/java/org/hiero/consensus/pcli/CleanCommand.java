@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import picocli.CommandLine;
 

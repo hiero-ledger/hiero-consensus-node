@@ -31,6 +31,9 @@ import org.hiero.consensus.kbfreshness.util.Hashing;
  * @param statedModule the module asserted in prose next to the citation (e.g. a {@code Module: `X`}
  *                    label), or {@code null} when none is stated. Kept off the machine artifact; used
  *                    only to complete a path-move auto-fix by rewriting a stale on-line module label.
+ * @param autoFixSymbol for a {@code File.java:NN} reference whose line NN is a declaration, the symbol
+ *                    name the reference migrates to (drives a {@code :NN}→{@code #symbol} auto-fix);
+ *                    otherwise {@code null}.
  */
 public record Finding(
         String id,
@@ -48,7 +51,8 @@ public record Finding(
         List<Occurrence> occurrences,
         Integer autoFixLine,
         String resolvedPath,
-        String statedModule) {
+        String statedModule,
+        String autoFixSymbol) {
 
     /**
      * Creates a finding, deriving the stable {@link #id} from {@code (entry.key(), target, kind)} so the
@@ -96,6 +100,7 @@ public record Finding(
                 occurrences,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -117,7 +122,8 @@ public record Finding(
                 occurrences,
                 newAutoFixLine,
                 resolvedPath,
-                statedModule);
+                statedModule,
+                autoFixSymbol);
     }
 
     /** Returns a copy of this finding with the resolved package/path-move location set. */
@@ -138,7 +144,8 @@ public record Finding(
                 occurrences,
                 autoFixLine,
                 newResolvedPath,
-                statedModule);
+                statedModule,
+                autoFixSymbol);
     }
 
     /** Returns a copy of this finding with the prose-stated module label set. */
@@ -159,7 +166,30 @@ public record Finding(
                 occurrences,
                 autoFixLine,
                 resolvedPath,
-                newStatedModule);
+                newStatedModule,
+                autoFixSymbol);
+    }
+
+    /** Returns a copy of this finding with the {@code :NN}→{@code #symbol} migration symbol set. */
+    public Finding withAutoFixSymbol(final String newAutoFixSymbol) {
+        return new Finding(
+                id,
+                entryKey,
+                entryPath,
+                entryType,
+                kind,
+                target,
+                citedModule,
+                citedScope,
+                outcome,
+                lane,
+                question,
+                evidence,
+                occurrences,
+                autoFixLine,
+                resolvedPath,
+                statedModule,
+                newAutoFixSymbol);
     }
 
     /**

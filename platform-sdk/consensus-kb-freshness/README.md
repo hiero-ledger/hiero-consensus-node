@@ -70,8 +70,12 @@ Two principles drive the split:
 
 - **Depth vs. safety.** Deeper checks catch more drift but are easier to get wrong, so each is
   constrained to what the source states unambiguously. Line numbers, for instance, are *never*
-  asserted on: a named symbol that resolves but whose cited line moved yields an *auto-fix
-  suggestion*, not a finding, because a shifted line is a navigation nit, not drift. Overloads,
+  asserted on: a `File.java:NN` reference whose line is a declaration is auto-migrated — code span or
+  markdown link alike — to the durable `File.java#symbol` form, so the volatile line becomes a named
+  method/field/enum/type that the symbol check tracks (a rename or removal then asserts). A line that is
+  *not* a declaration — inside a method body, or past the file's end — cannot become one symbol, so it
+  yields a non-asserting *suggestion* naming the enclosing declaration to cite instead, never a drift
+  finding, because a shifted line is a navigation nit, not drift. Overloads,
   inheritance, and generics-as-written are compared at Tier 2 only where the source is unambiguous;
   anything looser is left to Tier 3.
 - **Escalation.** Each tier assumes the ones beneath it hold — there is no point comparing a method
@@ -88,7 +92,7 @@ semantic pass rather than scraped into a brittle Tier-2 assertion that would mis
 The semantic pass is the only part that *reasons* rather than *resolves*, so it is fenced in tightly
 to keep it from becoming a false-positive source of its own:
 
-- **It reads the current source, never memory.** For each worklisted topic it opens the exact files
+- **It reads the current source, never memory.** For each worklisted document it opens the exact files
   the engine located and judges each load-bearing prose claim against what the code now says.
 - **Only `contradicted`-with-citation survives.** Each claim is judged `supported`, `contradicted`,
   or `can't-determine`. Only `contradicted` claims that can point at the specific current code
@@ -98,17 +102,26 @@ to keep it from becoming a false-positive source of its own:
   section, after and distinct from the deterministic report — never intermixed with engine-verified
   findings.
 - **It looks only where the code moved.** It processes only worklist entries whose status is
-  `review` or `unknown`; `fresh` topics are skipped.
+  `review` or `unknown`; `fresh` entries are skipped.
 
-The worklist that drives it is built by the engine from git history: for each topic it compares the
-last-commit date of the topic's anchored source against the topic's `last_reviewed` date.
+The worklist that drives it is built by the engine from git history for **every** scanned document: it
+flags review when any anchored source was committed **on or after** the document's `last_reviewed` date.
+A document that anchors no code (glossary, symptoms, README indexes) is `unknown` — there is nothing to
+date its prose against.
 
-The loop closes by bumping `last_reviewed`: a topic whose semantic pass found every claim supported
+The loop closes by bumping `last_reviewed`: a document whose semantic pass found every claim supported
 (or whose contradictions were fixed) should be marked reviewed — mechanically, via
 `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; rewrites only an *existing*
-`last_reviewed:` frontmatter line) — or every future run re-worklists the same topics. A reference to
+`last_reviewed:` frontmatter line) — or every future run re-worklists the same documents. A reference to
 a renamed or removed symbol counts as a contradiction (even if the behavior survives), so it blocks
 the bump.
+
+The date to record is the document's **newest anchored-source commit date** — the state this run
+reviewed, shown as `newestAnchoredCommit` in `worklist.json`. A bare `--mark-reviewed <key>` records
+it automatically, derived from the scanned checkout, never the wall clock — so a run against a stale
+`main` cannot mark commits it never reviewed as reviewed. A document that anchors no source is dated by
+the reviewed checkout's **HEAD commit** instead (it was still reviewed against that commit); wall-clock
+`--date` is only the last resort when git is unavailable.
 
 ## Lanes — how a result is routed
 
@@ -162,19 +175,19 @@ java -jar build/libs/consensus-kb-freshness-*-all.jar --kb platform-sdk/docs/con
 
 Options (`--help` for the full list):
 
-|             Option             |           Default           |                                                     Purpose                                                      |
-|--------------------------------|-----------------------------|------------------------------------------------------------------------------------------------------------------|
-| `--kb <path>`                  | *(required)*                | KB root to scan; resolved against `--repo`.                                                                      |
-| `--repo <path>`                | `.`                         | Repo root all relative paths and source resolution anchor to.                                                    |
-| `--out <dir>`                  | `<repo>/build/kb-freshness` | Where the artifacts are written.                                                                                 |
-| `--baseline <file>`            | *(none)*                    | Baseline TSV to join findings against (see below).                                                               |
-| `--modules <csv>`              | `platform-sdk,hedera-node`  | Source roots to index for symbol resolution.                                                                     |
-| `--allowlist <file>`           | *(none)*                    | Extra generated/external allowlist directives (see `allowlist.example.txt`).                                     |
-| `--date <str>`                 | `""`                        | Run date recorded as `first_seen` for newly-seen findings.                                                       |
-| `--write-baseline`             | off                         | Overwrite `--baseline` with the proposed baseline.                                                               |
-| `--fail-on-drift`              | off                         | Exit `2` if any new (not-baselined, not-dismissed) assertion is found — for future CI.                           |
-| `--fix`                        | off                         | Apply the certain auto-fix edits (moved lines and unique path moves) to the KB in place.                         |
-| `--mark-reviewed <key[=date]>` | *(none)*                    | Bump an entry's existing `last_reviewed:` frontmatter date (repeatable); a spec without `=<date>` uses `--date`. |
+|             Option             |           Default           |                                                                                                                   Purpose                                                                                                                   |
+|--------------------------------|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--kb <path>`                  | *(required)*                | KB root to scan; resolved against `--repo`.                                                                                                                                                                                                 |
+| `--repo <path>`                | `.`                         | Repo root all relative paths and source resolution anchor to.                                                                                                                                                                               |
+| `--out <dir>`                  | `<repo>/build/kb-freshness` | Where the artifacts are written.                                                                                                                                                                                                            |
+| `--baseline <file>`            | *(none)*                    | Baseline TSV to join findings against (see below).                                                                                                                                                                                          |
+| `--modules <csv>`              | `platform-sdk,hedera-node`  | Source roots to index for symbol resolution.                                                                                                                                                                                                |
+| `--allowlist <file>`           | *(none)*                    | Extra generated/external allowlist directives (see `allowlist.example.txt`).                                                                                                                                                                |
+| `--date <str>`                 | `""`                        | Run date recorded as `first_seen` for newly-seen findings.                                                                                                                                                                                  |
+| `--write-baseline`             | off                         | Overwrite `--baseline` with the proposed baseline.                                                                                                                                                                                          |
+| `--fail-on-drift`              | off                         | Exit `2` if any new (not-baselined, not-dismissed) assertion is found — for future CI.                                                                                                                                                      |
+| `--fix`                        | off                         | Apply the certain auto-fix edits (moved lines and unique path moves) to the KB in place.                                                                                                                                                    |
+| `--mark-reviewed <key[=date]>` | *(none)*                    | Bump an entry's existing `last_reviewed:` frontmatter date (repeatable). A bare spec records the topic's newest anchored-source commit date (`newestAnchoredCommit`), falling back to `--date` only when the topic anchors no dated source. |
 
 Exit codes: `0` success · `1` usage/IO error · `2` new drift with `--fail-on-drift`.
 
@@ -227,7 +240,8 @@ the engine can parse. **This is not drift** — it is the audit trail proving th
 over a guess. Skim it to confirm nothing that *should* be checkable is silently landing here.
 
 **`auto-fix.md` — ready corrections.** Three shapes: a *named* symbol that still resolves but whose
-cited line number moved (a navigation nit, never a drift finding), a **MOVED** source that
+cited `:NN` line either moved (corrected in place) or lands on a declaration (migrated to the durable
+`File.java#symbol` form) — a navigation nit, never a drift finding — a **MOVED** source that
 resolves at exactly one new path (a drift finding in `report.md`, repeated here as a ready
 before/after path rewrite in whatever citation style the KB line uses, plus a stale on-line
 `Module:` label), and a **MOVED** prose fully-qualified type rewritten to its new FQN. When the move
@@ -247,9 +261,12 @@ unambiguous it is made **actionable**: a topics-slug tag with a single strong ma
 `rename topics: slug X → Y`, a body doc link resolving at exactly one other KB doc gets a ready
 relative-link rewrite, a gone config key another `@ConfigData` record now declares is reported as a
 **key migration**, and a source an ADR cites as removed gets a nudge to mark it `historical:`. A
-closing **Prose naming moved packages** section lists doc lines still naming the *old package* of a
-moved citation — text the ready rewrites cannot touch. **Hints, not facts** (it never asserts, and
-`--fix` never applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
+closing pair of sections lists **Prose naming moved packages** (doc lines still naming the *old
+package* of a moved citation — text the ready rewrites cannot touch) and **Line references to anchor
+to a symbol** (a `File.java:NN` line `--fix` cannot migrate because NN is not a declaration — inside a
+method body, or past the file's end — each naming the enclosing declaration to cite instead). **Hints,
+not facts** (it never asserts, and `--fix` never applies them), and kept out of `findings.json` so the
+machine artifact stays reproducible.
 
 **`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in five
 sections: (1) code the docs don't mention (a method present on a documented interface but absent
@@ -264,11 +281,11 @@ entries tag a topic that was never written, the fix may be to write it rather th
 citation. Use it to find documentation worth adding or anchoring; tracked apart from the drift
 report on purpose.
 
-**`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
+**`worklist.md` / `worklist.json` — the semantic-pass input.** For each document, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
-`review` (source changed since last review), `fresh` (up to date), or `unknown` (freshness can't be
-determined — the entry's note names the reason: no anchored sources, git unavailable, or no commit
-dates). Anchored source includes the KB's abbreviated inline citations (`module/.../File.java`),
+`review` (a source was committed on or after `last_reviewed`), `fresh` (every source predates it), or
+`unknown` (freshness can't be determined — the entry's note names the reason: no anchored sources, git
+unavailable, or no commit dates). Anchored source includes the KB's abbreviated inline citations (`module/.../File.java`),
 resolved through the source index — so a topic anchored only in that style is tracked, not dropped to
 `unknown`. A **moved** anchor — a citation whose location is stale but whose basename resolves at
 exactly one other indexed path — is tracked at its *new* location: the topics whose code moved

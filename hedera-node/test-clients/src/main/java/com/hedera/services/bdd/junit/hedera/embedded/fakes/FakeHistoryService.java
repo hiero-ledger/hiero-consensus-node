@@ -26,7 +26,7 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.SortedMap;
 import java.util.function.Supplier;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 public class FakeHistoryService implements HistoryService {
     private final HistoryService delegate;

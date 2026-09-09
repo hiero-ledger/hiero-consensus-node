@@ -19,8 +19,8 @@ import java.util.Iterator;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -178,12 +178,11 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     }
 
     private boolean isEventBirthRoundValid(@NonNull final PlatformEvent event) {
-        final long eventBirthRound = event.getDescriptor().eventDescriptor().birthRound();
+        final long eventBirthRound = event.getDescriptor().birthRound();
 
         long maxParentBirthRound = ROUND_NEGATIVE_INFINITY;
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            maxParentBirthRound =
-                    Math.max(maxParentBirthRound, parent.eventDescriptor().birthRound());
+            maxParentBirthRound = Math.max(maxParentBirthRound, parent.birthRound());
         }
 
         if (eventBirthRound < maxParentBirthRound) {

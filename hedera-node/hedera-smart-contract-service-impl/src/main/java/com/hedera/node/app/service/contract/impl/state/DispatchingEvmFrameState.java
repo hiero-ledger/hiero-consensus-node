@@ -363,7 +363,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (number == MISSING_ENTITY_NUMBER) {
             return false;
         }
-        final AccountID accountID = AccountID.newBuilder().accountNum(number).build();
+        final AccountID accountID = entityIdFactory().newAccountId(number);
         final var account = nativeOperations.getAccount(accountID);
         if (account == null) {
             return false;
@@ -470,15 +470,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number != MISSING_ENTITY_NUMBER) {
-            final AccountID accountID =
-                    AccountID.newBuilder().accountNum(number).build();
+            final AccountID accountID = entityIdFactory().newAccountId(number);
             final var account = nativeOperations.getAccount(accountID);
             if (account != null) {
                 if (account.expiredAndPendingRemoval()) {
                     return Optional.of(FAILURE_DURING_LAZY_ACCOUNT_CREATION);
                 } else {
                     throw new IllegalArgumentException(
-                            "Unexpired account 0.0." + number + " already exists at address " + address);
+                            "Unexpired account " + accountID + " already exists at address " + address);
                 }
             }
         }

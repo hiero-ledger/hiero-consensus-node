@@ -31,7 +31,7 @@ import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
 import org.hiero.base.concurrent.test.fixtures.Gate;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.utility.test.fixtures.assertions.AssertionUtils;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.wiring.framework.TestWiringModelBuilder;
 import org.hiero.consensus.wiring.framework.counters.BackpressureObjectCounter;
 import org.hiero.consensus.wiring.framework.counters.ObjectCounter;

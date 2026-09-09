@@ -8,10 +8,11 @@ import java.util.List;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.util.Patterns;
+import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
- * Applies {@code --mark-reviewed}: mechanically bumps a topic's {@code last_reviewed:} frontmatter
- * date after its semantic review, so the next run's worklist does not re-flag a topic whose prose was
+ * Applies {@code --mark-reviewed}: mechanically bumps a document's {@code last_reviewed:} frontmatter
+ * date after its semantic review, so the next run's worklist does not re-flag a document whose prose was
  * just read against the code. Strictly guarded like every other write: only an <em>existing</em>
  * {@code last_reviewed:} frontmatter line is rewritten (a doc without the marker is reported, never
  * invented), the entry key must resolve unambiguously, and the date must be ISO {@code yyyy-MM-dd}.
@@ -39,10 +40,14 @@ public final class ReviewedMarker {
      *
      * @param result      the run result whose scanned documents resolve the entry keys.
      * @param repoRoot    the repository root the documents' paths are relative to.
-     * @param specs       the {@code <key>[=<yyyy-MM-dd>]} specs; a spec without a date uses
-     *                    {@code defaultDate}. A key may be the full entry key ({@code topic:gossip}) or
-     *                    its bare slug when unambiguous.
-     * @param defaultDate the date for specs that carry none (typically {@code --date}).
+     * @param specs       the {@code <key>[=<yyyy-MM-dd>]} specs; a bare spec (no {@code =<date>}) records
+     *                    the document's newest anchored-source commit date — the state this run reviewed —
+     *                    falling back to {@code defaultDate} only when the document anchors no dated source.
+     *                    A key may be the full entry key ({@code topic:gossip}) or its bare slug when
+     *                    unambiguous.
+     * @param defaultDate the fallback for a bare spec with no derivable anchored date: the reviewed
+     *                    checkout's {@code HEAD} commit date (the state reviewed), or {@code --date} when
+     *                    git is unavailable.
      * @return a summary of what was rewritten and which specs failed.
      * @throws IOException if reading or writing a KB file fails.
      */
@@ -54,13 +59,15 @@ public final class ReviewedMarker {
         for (final String spec : specs) {
             final int eq = spec.indexOf('=');
             final String key = (eq >= 0 ? spec.substring(0, eq) : spec).strip();
-            final String date = (eq >= 0 ? spec.substring(eq + 1) : defaultDate).strip();
-            if (!Patterns.ISO_DATE.matcher(date).matches()) {
-                problems.add("`" + spec + "`: no ISO yyyy-MM-dd date (append `=<date>` or pass --date)");
-                continue;
-            }
+            final String explicit = eq >= 0 ? spec.substring(eq + 1) : null;
             final KbDocument doc = resolveDoc(result, key, problems, spec);
             if (doc == null) {
+                continue;
+            }
+            final String date =
+                    resolveDate(explicit, worklistEntry(result, doc.entry().key()), defaultDate);
+            if (!Patterns.ISO_DATE.matcher(date).matches()) {
+                problems.add("`" + spec + "`: no ISO yyyy-MM-dd date (append `=<date>` or pass --date)");
                 continue;
             }
             if (markDoc(doc, repoRoot, date, problems, spec)) {
@@ -68,6 +75,44 @@ public final class ReviewedMarker {
             }
         }
         return new Result(updated, problems);
+    }
+
+    /**
+     * Chooses the date to record: an explicit {@code =<date>} spec wins; otherwise the document's newest
+     * anchored-source commit date (the state this run reviewed); otherwise {@code defaultDate}. Deriving
+     * from the anchored sources rather than the wall clock is what keeps a run against a stale checkout
+     * from marking commits it never reviewed as reviewed.
+     *
+     * @param explicit    the explicit {@code =<date>} value, or {@code null} for a bare spec.
+     * @param entry       the resolved topic's worklist entry, or {@code null} when not worklisted.
+     * @param defaultDate the fallback when nothing else applies.
+     * @return the ISO date string to record (still validated by the caller).
+     */
+    static String resolveDate(final String explicit, final WorklistEntry entry, final String defaultDate) {
+        if (explicit != null) {
+            return explicit.strip();
+        }
+        if (entry != null && entry.newestAnchoredCommit() != null) {
+            return entry.newestAnchoredCommit();
+        }
+        return defaultDate.strip();
+    }
+
+    /**
+     * The worklist entry for the given entry key, or {@code null} when the entry is not worklisted (only
+     * architecture topics and interfaces are).
+     *
+     * @param result   the run result.
+     * @param entryKey the resolved entry key.
+     * @return the matching worklist entry, or {@code null}.
+     */
+    private static WorklistEntry worklistEntry(final RunResult result, final String entryKey) {
+        for (final WorklistEntry e : result.worklist()) {
+            if (e.entryKey().equals(entryKey)) {
+                return e;
+            }
+        }
+        return null;
     }
 
     /**

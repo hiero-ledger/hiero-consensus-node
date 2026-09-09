@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.16.Final"))
+    api(platform("io.netty:netty-bom:4.2.17.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -9,11 +9,11 @@ dependencies {
 }
 
 val besu = "26.2.0"
-val bouncycastle = "1.84"
+val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.12.0"
+val hederaCryptography = "3.15.0"
 val helidon = "4.5.0"
 val jackson = "2.22.1"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
@@ -22,12 +22,14 @@ val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.34.0"
-val blockNodeProtobufSources = "0.36.0"
+val blockNodeProtobufSources = "0.39.0"
 val testContainers = "2.0.3"
 val tuweni = "2.7.2"
+val vertx = "4.5.30"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
+    api("io.netty:netty-codec-http:4.2.17.Final") { because("io.netty.codec.http") }
     api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
     api("io.helidon.webclient:helidon-webclient:$helidon") { because("io.helidon.webclient") }
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
@@ -76,6 +78,7 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
         because("simpleclient.tracer.common")
     }
+    api("io.vertx:vertx-core:$vertx") { because("io.vertx.core") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
@@ -132,6 +135,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
         because("com.hedera.cryptography.libsecp256k1")
+    }
+    api("com.hedera.cryptography:libxkcp:$hederaCryptography") {
+        because("com.hedera.cryptography.libxkcp")
     }
 
     // Versions of additional tools that are not part of the product or test module paths

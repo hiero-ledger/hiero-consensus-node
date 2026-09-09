@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -346,7 +346,7 @@ class GeneratorEventGraphSourceTest {
                     event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
                     "ngen should be at least FIRST_GENERATION");
             assertTrue(
-                    event.getSequenceNumber() >= UNASSIGNED_SEQUENCE_NUMBER,
+                    event.getSequenceNumber() >= SEQUENCE_NUMBER_UNDEFINED,
                     "sequence number should be at least UNASSIGNED_SEQUENCE_NUMBER");
         }
 
@@ -362,7 +362,7 @@ class GeneratorEventGraphSourceTest {
                 .max()
                 .orElse(0);
         assertTrue(
-                maxSeqNum > UNASSIGNED_SEQUENCE_NUMBER,
+                maxSeqNum > SEQUENCE_NUMBER_UNDEFINED,
                 "sequence number should advance beyond UNASSIGNED_SEQUENCE_NUMBER");
     }
 

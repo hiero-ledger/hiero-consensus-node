@@ -4,7 +4,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -49,7 +48,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final PbjStreamHasher hasher;
 
     /** Tracks the latest known event by each creator */
-    private EventDescriptor[] latestEventPerNode;
+    private EventDescriptorWrapper[] latestEventPerNode;
 
     /** The timestamp of the previously emitted event. */
     private Instant latestEventTime;
@@ -83,7 +82,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.populateNgen = populateNgen;
 
         // These fields get reset in reset()
-        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
+        this.latestEventPerNode =
+                new EventDescriptorWrapper[roster.rosterEntries().size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
     }
@@ -125,7 +125,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         Collections.shuffle(nodeIndices, random);
 
         final Integer eventCreator = nodeIndices.removeLast();
-        final List<EventDescriptor> parents = new ArrayList<>();
+        final List<EventDescriptorWrapper> parents = new ArrayList<>();
         if (latestEventPerNode[eventCreator] != null) {
             parents.add(latestEventPerNode[eventCreator]);
         }
@@ -141,7 +141,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         final int coin = random.nextInt(0, roster.rosterEntries().size() + 1);
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
                 NodeId.of(roster.rosterEntries().get(eventCreator).nodeId()),
-                parents.stream().map(EventDescriptorWrapper::new).toList(),
+                parents,
                 birthRound,
                 getNextTimestamp(),
                 transactions,
@@ -157,7 +157,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         final PlatformEvent copy = platformEvent.copyGossipedData();
         copy.signalPrehandleCompletion();
 
-        latestEventPerNode[eventCreator] = copy.getDescriptor().eventDescriptor();
+        latestEventPerNode[eventCreator] = copy.getDescriptor();
         if (populateNgen) {
             // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
             // wants ngen values to be populated on the returned events
@@ -174,7 +174,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
 
     @Override
     public void reset() {
-        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
+        this.latestEventPerNode =
+                new EventDescriptorWrapper[roster.rosterEntries().size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
         this.latestEventTime = null;

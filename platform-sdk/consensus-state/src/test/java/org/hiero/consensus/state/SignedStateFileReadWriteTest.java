@@ -5,15 +5,15 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Byt
 import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
+import static org.hiero.consensus.state.SignedStateFileConstants.CONSENSUS_SNAPSHOT_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.CURRENT_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.HASH_INFO_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.SIGNATURE_SET_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileReader.readState;
 import static org.hiero.consensus.state.SignedStateFileWriter.writeHashInfoFile;
 import static org.hiero.consensus.state.SignedStateFileWriter.writeSignatureSetFile;
 import static org.hiero.consensus.state.SignedStateFileWriter.writeSignedStateToDisk;
 import static org.hiero.consensus.state.StateFileManagerTests.hashState;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -47,12 +47,10 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig_;
-import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
@@ -113,7 +111,7 @@ class SignedStateFileReadWriteTest {
         final VirtualMapState state = signedState.getState();
         writeHashInfoFile(testDirectory, state);
 
-        final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
+        final Path hashInfoFile = testDirectory.resolve(SignedStateFileConstants.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
         final String mnemonicString = Mnemonics.generateMnemonic(state.getHash());
@@ -203,8 +201,9 @@ class SignedStateFileReadWriteTest {
         final Path consensusSnapshotFile = directory.resolve(CONSENSUS_SNAPSHOT_FILE_NAME);
 
         throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
-        final String configDir = testDirectory.resolve("data/saved").toString();
-        final Configuration configuration = changeConfigAndConfigHolder(configDir, saveStateAsync);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(StateConfig_.SAVE_STATE_ASYNC, saveStateAsync)
+                .getOrCreateConfig();
 
         // Async snapshot requires all references to the state being written to disk to be released
         stateLifecycleManager.getLatestImmutableState().release();
@@ -231,12 +230,5 @@ class SignedStateFileReadWriteTest {
         assertTrue(exists(consensusSnapshotFile), "consensus snapshot file should exist");
 
         stateLifecycleManager.getMutableState().release();
-    }
-
-    private Configuration changeConfigAndConfigHolder(String directory, final boolean saveStateAsync) {
-        return new TestConfigBuilder()
-                .withValue(PathsConfig_.SAVED_STATE_DIR, directory)
-                .withValue(StateConfig_.SAVE_STATE_ASYNC, saveStateAsync)
-                .getOrCreateConfig();
     }
 }

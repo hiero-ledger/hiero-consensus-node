@@ -27,6 +27,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -34,6 +35,7 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.service.contract.impl.utils.SystemContractUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -86,18 +88,8 @@ public class SignScheduleTest {
     public Stream<DynamicTest> hapiScheduleSignSignatureMapSizeLimitTest() {
         final var keysCount = TRANSACTION_MAX_BYTES / 100 + 1; // assuming each SignaturePair = ~100 bytes
         return hapiTest(withOpContext((spec, _) -> {
-            List<String> keyNames = new ArrayList<>();
             // create keys, we do not care if keys are from needed account or not, we interested just in keys count
-            allRunFor(
-                    spec,
-                    IntStream.range(0, keysCount)
-                            .boxed()
-                            .<SpecOperation>map(e -> {
-                                final var keyName = KEY + e;
-                                keyNames.add(keyName);
-                                return newKeyNamed(keyName);
-                            })
-                            .toList());
+            final var keyNames = newKeyNames(spec, KEY, keysCount);
             // prepare SignatureMap
             final var signatureMap = prepareSignatureMap(spec, keyNames);
             final var signatureMapBytes =
@@ -130,6 +122,74 @@ public class SignScheduleTest {
                             .hasKnownStatus(SUCCESS),
                     restoreDefault("contracts.maxGasPerTransaction"));
         }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hapiScheduleSignGasIncreasesWithSignatureCount() {
+        final var smallKeysCount = 1;
+        final var largeKeysCount = 15;
+        final var smallTxn = TX_NAME + "Small";
+        final var largeTxn = TX_NAME + "Large";
+        return hapiTest(withOpContext((spec, _) -> {
+            final var smallKeyNames = newKeyNames(spec, "gasScalingSmall", smallKeysCount);
+            final var largeKeyNames = newKeyNames(spec, "gasScalingLarge", largeKeysCount);
+            final var smallSigMapBytes = SignatureMap.PROTOBUF
+                    .toBytes(prepareSignatureMap(spec, smallKeyNames))
+                    .toByteArray();
+            final var largeSigMapBytes = SignatureMap.PROTOBUF
+                    .toBytes(prepareSignatureMap(spec, largeKeyNames))
+                    .toByteArray();
+            final var function = getABIFor(FUNCTION, "signSchedule", "IHederaScheduleService");
+
+            allRunFor(
+                    spec,
+                    ethereumCallWithFunctionAbi(
+                                    false, HSS_ADDRESS, function, mirrorAddrWith(scheduleId.get()), smallSigMapBytes)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(SENDER)
+                            .gasLimit(TRANSACTION_MAX_GAS)
+                            .via(smallTxn)
+                            .hasKnownStatus(SUCCESS),
+                    getTxnRecord(smallTxn).saveTxnRecordToRegistry(smallTxn),
+                    ethereumCallWithFunctionAbi(
+                                    false, HSS_ADDRESS, function, mirrorAddrWith(scheduleId.get()), largeSigMapBytes)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(SENDER)
+                            .gasLimit(TRANSACTION_MAX_GAS)
+                            .via(largeTxn)
+                            .hasKnownStatus(SUCCESS),
+                    getTxnRecord(largeTxn).saveTxnRecordToRegistry(largeTxn));
+
+            final var smallGasUsed = spec.registry()
+                    .getTransactionRecord(smallTxn)
+                    .getContractCallResult()
+                    .getGasUsed();
+            final var largeGasUsed = spec.registry()
+                    .getTransactionRecord(largeTxn)
+                    .getContractCallResult()
+                    .getGasUsed();
+            assertTrue(
+                    largeGasUsed > smallGasUsed,
+                    "expected gas to increase with signature count: "
+                            + smallKeysCount + " sig(s) used " + smallGasUsed + " gas, "
+                            + largeKeysCount + " sigs used " + largeGasUsed + " gas");
+        }));
+    }
+
+    private static List<String> newKeyNames(
+            @NonNull final HapiSpec spec, @NonNull final String prefix, final int count) {
+        final List<String> keyNames = new ArrayList<>();
+        allRunFor(
+                spec,
+                IntStream.range(0, count)
+                        .boxed()
+                        .<SpecOperation>map(e -> {
+                            final var keyName = prefix + e;
+                            keyNames.add(keyName);
+                            return newKeyNamed(keyName);
+                        })
+                        .toList());
+        return keyNames;
     }
 
     private static SignatureMap prepareSignatureMap(@NonNull final HapiSpec spec, @NonNull final List<String> keyNames)

@@ -156,14 +156,14 @@ when running against this network.
 To download the fee schedules from previewnet given the config above, we run,
 
 ```
-$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -p 2 -n previewnet sysfiles download fees
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -p 2 -n previewnet sysfiles download simpleFees
 Targeting previewnet, paying with 0.0.2
-Downloading the fees...OK
+Downloading the simpleFees...OK
 $ ls previewnet/sysfiles/
-feeSchedules.json
+simpleFeesSchedules.json
 ```
 
-The fee schedules were downloaded in JSON form to _previewnet/sysfiles/feeSchedules.json_.
+The fee schedules were downloaded in JSON form to _previewnet/sysfiles/simpleFeesSchedules.json_.
 To see more options for the `download` subcommand (including a custom download directory),
 we run,
 

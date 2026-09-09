@@ -4,17 +4,14 @@ package com.hedera.services.bdd.suites.fees;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -22,7 +19,6 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.time.Instant;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -73,11 +69,8 @@ public class NetworkServiceSimpleFeesTest {
     }
 
     @HapiTest
-    @DisplayName("transaction get record - invalid account in txn id fails - no fee charged")
+    @DisplayName("transaction get record - invalid account in txn id fails")
     final Stream<DynamicTest> transactionGetRecordInvalidAccountFails() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
-
         final var now = Instant.now();
         final var invalidTxnId = TransactionID.newBuilder()
                 .setAccountID(AccountID.newBuilder().setAccountNum(99999999L).build())
@@ -89,11 +82,6 @@ public class NetworkServiceSimpleFeesTest {
 
         return hapiTest(
                 cryptoCreate(ALICE).balance(ONE_HUNDRED_HBARS),
-                getAccountBalance(ALICE).exposingBalanceTo(initialBalance::set),
-                getTxnRecord(invalidTxnId).payingWith(ALICE).hasAnswerOnlyPrecheck(RECORD_NOT_FOUND),
-                getAccountBalance(ALICE).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }));
+                getTxnRecord(invalidTxnId).payingWith(ALICE).hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
     }
 }

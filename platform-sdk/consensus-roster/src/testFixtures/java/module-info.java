@@ -9,10 +9,10 @@ open module org.hiero.consensus.roster.test.fixtures {
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires com.hedera.pbj.runtime;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.utility;
     requires org.junit.jupiter.params;
     requires org.hiero.consensus.platformstate;
     requires org.mockito;
+    requires org.hiero.consensus.fakes;
     requires transitive com.swirlds.state.api;
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.CountDownLatch;
@@ -18,7 +18,7 @@ import org.apache.logging.log4j.Logger;
  * performed synchronously by {@link com.swirlds.virtualmap.sync.LearningSynchronizer}, so the
  * traversal order is already fully initialized when this task begins.
  *
- * <p>This tasks terminates either on exception or when no path is available to send (when {@link Path#INVALID_PATH} is returned by the exchanger).
+ * <p>This tasks terminates either on exception or when no path is available to send (when {@link MerklePathUtils#INVALID_PATH} is returned by the exchanger).
  */
 public class LearnerPullVirtualTreeSendTask implements Runnable {
 
@@ -48,14 +48,14 @@ public class LearnerPullVirtualTreeSendTask implements Runnable {
 
     /**
      * Main loop for the sender thread. Continuously queries the view for the next path to
-     * request. Task finishes when all paths are exhausted ({@link Path#INVALID_PATH} is returned).
+     * request. Task finishes when all paths are exhausted ({@link MerklePathUtils#INVALID_PATH} is returned).
      */
     @Override
     public void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 final long path = treeExchanger.getNextPathToSend();
-                if (path == Path.INVALID_PATH) {
+                if (path == MerklePathUtils.INVALID_PATH) {
                     break;
                 }
                 if (path < 0) {

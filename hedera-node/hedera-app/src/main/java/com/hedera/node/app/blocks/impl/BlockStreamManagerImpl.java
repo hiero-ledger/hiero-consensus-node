@@ -11,7 +11,6 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -28,7 +27,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSeman
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -435,17 +433,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
         final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
-        return combine(
-                        prevBlockHash,
-                        allPrevBlocksHash,
-                        blockStreamInfo.startOfBlockStateHash(),
-                        blockStreamInfo.consensusHeaderRootHash(),
-                        blockStreamInfo.inputTreeRootHash(),
-                        blockStreamInfo.outputItemRootHash(),
-                        lastBlockFinalStateChangesHash,
-                        blockStreamInfo.traceDataRootHash(),
-                        blockStreamInfo.blockTimeOrThrow())
-                .blockRootHash();
+        // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
+        // that only a pending proof needs
+        return BlockRootTree.computeBlockRootHash(
+                blockStreamInfo.blockTimeOrThrow(),
+                prevBlockHash,
+                allPrevBlocksHash,
+                blockStreamInfo.startOfBlockStateHash(),
+                blockStreamInfo.consensusHeaderRootHash(),
+                blockStreamInfo.inputTreeRootHash(),
+                blockStreamInfo.outputItemRootHash(),
+                lastBlockFinalStateChangesHash,
+                blockStreamInfo.traceDataRootHash());
     }
 
     @Override
@@ -1615,8 +1614,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Resets the subtree hashers for branches 4-8 to empty states. Since these subtrees only contain data specific to
-     * the current block, they need to be reset whenever a new block starts.
+     * Resets the hashers for the block root tree's per-block sub-trees (branches 4-8, see
+     * {@link BlockRootTree}).
+     * Since these subtrees only contain data specific to the current block, they need to be reset whenever a
+     * new block starts.
      */
     private void resetSubtrees() {
         // Branch 4
@@ -1631,25 +1632,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
     }
 
-    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
-
     /**
-     * Combines the given branch hashes into a block root hash and sibling hashes for a pending proof.
+     * Fills the {@link BlockRootTree} branches with this block's sub-tree roots and computes its root hash.
      * Since it's not known whether the pending proof will be directly signed at this point in the block's
      * lifecycle, the sibling hashes required for an indirect proof are also computed.
      * <p>
-     * Note that all of these initial hash values should have all been hashed prior to this point, whether
-     * as a leaf node (prefixed with {@link BlockImplUtils#LEAF_PREFIX}) or as an internal node (prefixed
-     * with {@link BlockImplUtils#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
-     * again until combined with another hash.
+     * All of these values have already been hashed, whether as a leaf node (prefixed with
+     * {@link BlockImplUtils#LEAF_PREFIX}) or as an internal node (prefixed with
+     * {@link BlockImplUtils#INTERNAL_NODE_PREFIX}), so they are not hashed again until combined with
+     * another hash.
      * <p>
-     * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
-     * in the case of the genesis block, this value should be {@link BlockStreamManager#HASH_OF_ZERO}. For
-     * all other blocks, it should be the actual previous block's root hash.
+     * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO}; for all other
+     * blocks it is the previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
-     * leaf level, depth six) to top (the root, depth one)
+     * branch level) to top (the root)
      */
-    private static RootAndSiblingHashes combine(
+    private static BlockRootTreeHasher.RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
             @NonNull final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
@@ -1660,43 +1658,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
-
-        // Compute depth five hashes
-        final var depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, prevBlockRootsHash);
-        final var depth5Node2 = BlockImplUtils.hashInternalNode(startingStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var depth5Node4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-
-        // Compute depth four hashes
-        final var depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-
-        // Compute depth three hash (there's no node 2 hash as the reserved subroots aren't encoded anywhere in the
-        // tree)
-        final var depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
-
-        // Compute depth two hashes (timestamp + last right sibling)
-        final var tsBytes = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
-        final var depth2Node1 = hashLeaf(tsBytes);
-        // (Depth 2, Node 2) represents the subroot of the tree where the actual data combine with the future reserved
-        // roots 9-16, so we treat its child as the only child (even though other future roots may exist later).
-        final var depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
-
-        // Compute the block's root hash (depth 1)
-        final var rootHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
-
-        return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
-            // Level 6 first sibling (right child)
-            new MerkleSiblingHash(false, prevBlockRootsHash),
-            // Level 5 first sibling (right child)
-            new MerkleSiblingHash(false, depth5Node2),
-            // Level 4 first sibling (right child)
-            new MerkleSiblingHash(false, depth4Node2)
-            // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
-            // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
-            // tree, this level's hash will need to be re-added as an internal node here.
-            // Level 2's _left_ sibling–the block's timestamp–is represented explicitly outside these sibling hashes
-        });
+        return BlockRootTree.computeRootAndSiblings(
+                BlockRootTree.hashTimestampLeaf(firstConsensusTimeOfCurrentBlock),
+                prevBlockHash,
+                prevBlockRootsHash,
+                startingStateHash,
+                consensusHeaderHash,
+                inputsHash,
+                outputsHash,
+                stateChangesHash,
+                traceDataHash);
     }
 
     private static Instant firstConsensusTimestampOf(final Round round) {

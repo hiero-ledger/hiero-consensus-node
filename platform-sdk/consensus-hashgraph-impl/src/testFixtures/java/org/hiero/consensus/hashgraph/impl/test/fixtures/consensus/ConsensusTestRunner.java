@@ -7,8 +7,8 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.assertj.core.api.ThrowingConsumer;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.TestInput;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class ConsensusTestRunner {
     private final Metrics metrics = new NoOpMetrics();

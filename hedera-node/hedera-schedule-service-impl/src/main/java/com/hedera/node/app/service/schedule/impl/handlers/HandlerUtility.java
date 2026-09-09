@@ -38,67 +38,76 @@ public final class HandlerUtility {
                     .memo(scheduledBody.memo())
                     .maxCustomFees(scheduledBody.maxCustomFees())
                     .transactionID(scheduledTransactionId);
-            switch (scheduledBody.data().kind()) {
-                case CONSENSUS_CREATE_TOPIC ->
-                    ordinary.consensusCreateTopic(scheduledBody.consensusCreateTopicOrThrow());
-                case CONSENSUS_UPDATE_TOPIC ->
-                    ordinary.consensusUpdateTopic(scheduledBody.consensusUpdateTopicOrThrow());
-                case CONSENSUS_DELETE_TOPIC ->
-                    ordinary.consensusDeleteTopic(scheduledBody.consensusDeleteTopicOrThrow());
-                case CONSENSUS_SUBMIT_MESSAGE ->
-                    ordinary.consensusSubmitMessage(scheduledBody.consensusSubmitMessageOrThrow());
-                case CRYPTO_CREATE_ACCOUNT -> ordinary.cryptoCreateAccount(scheduledBody.cryptoCreateAccountOrThrow());
-                case CRYPTO_UPDATE_ACCOUNT -> ordinary.cryptoUpdateAccount(scheduledBody.cryptoUpdateAccountOrThrow());
-                case CRYPTO_TRANSFER -> ordinary.cryptoTransfer(scheduledBody.cryptoTransferOrThrow());
-                case CRYPTO_DELETE -> ordinary.cryptoDelete(scheduledBody.cryptoDeleteOrThrow());
-                case FILE_CREATE -> ordinary.fileCreate(scheduledBody.fileCreateOrThrow());
-                case FILE_APPEND -> ordinary.fileAppend(scheduledBody.fileAppendOrThrow());
-                case FILE_UPDATE -> ordinary.fileUpdate(scheduledBody.fileUpdateOrThrow());
-                case FILE_DELETE -> ordinary.fileDelete(scheduledBody.fileDeleteOrThrow());
-                case CONTRACT_CREATE_INSTANCE ->
-                    ordinary.contractCreateInstance(scheduledBody.contractCreateInstanceOrThrow());
-                case CONTRACT_UPDATE_INSTANCE ->
-                    ordinary.contractUpdateInstance(scheduledBody.contractUpdateInstanceOrThrow());
-                case CONTRACT_CALL -> ordinary.contractCall(scheduledBody.contractCallOrThrow());
-                case CONTRACT_DELETE_INSTANCE ->
-                    ordinary.contractDeleteInstance(scheduledBody.contractDeleteInstanceOrThrow());
-                case SYSTEM_DELETE -> ordinary.systemDelete(scheduledBody.systemDeleteOrThrow());
-                case SYSTEM_UNDELETE -> ordinary.systemUndelete(scheduledBody.systemUndeleteOrThrow());
-                case FREEZE -> ordinary.freeze(scheduledBody.freezeOrThrow());
-                case TOKEN_CREATION -> ordinary.tokenCreation(scheduledBody.tokenCreationOrThrow());
-                case TOKEN_FREEZE -> ordinary.tokenFreeze(scheduledBody.tokenFreezeOrThrow());
-                case TOKEN_UNFREEZE -> ordinary.tokenUnfreeze(scheduledBody.tokenUnfreezeOrThrow());
-                case TOKEN_GRANT_KYC -> ordinary.tokenGrantKyc(scheduledBody.tokenGrantKycOrThrow());
-                case TOKEN_REVOKE_KYC -> ordinary.tokenRevokeKyc(scheduledBody.tokenRevokeKycOrThrow());
-                case TOKEN_DELETION -> ordinary.tokenDeletion(scheduledBody.tokenDeletionOrThrow());
-                case TOKEN_UPDATE -> ordinary.tokenUpdate(scheduledBody.tokenUpdateOrThrow());
-                case TOKEN_MINT -> ordinary.tokenMint(scheduledBody.tokenMintOrThrow());
-                case TOKEN_BURN -> ordinary.tokenBurn(scheduledBody.tokenBurnOrThrow());
-                case TOKEN_WIPE -> ordinary.tokenWipe(scheduledBody.tokenWipeOrThrow());
-                case TOKEN_ASSOCIATE -> ordinary.tokenAssociate(scheduledBody.tokenAssociateOrThrow());
-                case TOKEN_DISSOCIATE -> ordinary.tokenDissociate(scheduledBody.tokenDissociateOrThrow());
-                case SCHEDULE_DELETE -> ordinary.scheduleDelete(scheduledBody.scheduleDeleteOrThrow());
-                case TOKEN_PAUSE -> ordinary.tokenPause(scheduledBody.tokenPauseOrThrow());
-                case TOKEN_UNPAUSE -> ordinary.tokenUnpause(scheduledBody.tokenUnpauseOrThrow());
-                case CRYPTO_APPROVE_ALLOWANCE ->
-                    ordinary.cryptoApproveAllowance(scheduledBody.cryptoApproveAllowanceOrThrow());
-                case CRYPTO_DELETE_ALLOWANCE ->
-                    ordinary.cryptoDeleteAllowance(scheduledBody.cryptoDeleteAllowanceOrThrow());
-                case TOKEN_FEE_SCHEDULE_UPDATE ->
-                    ordinary.tokenFeeScheduleUpdate(scheduledBody.tokenFeeScheduleUpdateOrThrow());
-                case UTIL_PRNG -> ordinary.utilPrng(scheduledBody.utilPrngOrThrow());
-                case TOKEN_REJECT -> ordinary.tokenReject(scheduledBody.tokenRejectOrThrow());
-                case NODE_CREATE -> ordinary.nodeCreate(scheduledBody.nodeCreateOrThrow());
-                case NODE_UPDATE -> ordinary.nodeUpdate(scheduledBody.nodeUpdateOrThrow());
-                case NODE_DELETE -> ordinary.nodeDelete(scheduledBody.nodeDeleteOrThrow());
-                case REGISTERED_NODE_CREATE ->
-                    ordinary.registeredNodeCreate(scheduledBody.registeredNodeCreateOrThrow());
-                case REGISTERED_NODE_UPDATE ->
-                    ordinary.registeredNodeUpdate(scheduledBody.registeredNodeUpdateOrThrow());
-                case REGISTERED_NODE_DELETE ->
-                    ordinary.registeredNodeDelete(scheduledBody.registeredNodeDeleteOrThrow());
-                case UNSET -> throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
-            }
+            return (switch (scheduledBody.data().kind()) {
+                        case CONSENSUS_CREATE_TOPIC ->
+                            ordinary.consensusCreateTopic(scheduledBody.consensusCreateTopicOrThrow());
+                        case CONSENSUS_UPDATE_TOPIC ->
+                            ordinary.consensusUpdateTopic(scheduledBody.consensusUpdateTopicOrThrow());
+                        case CONSENSUS_DELETE_TOPIC ->
+                            ordinary.consensusDeleteTopic(scheduledBody.consensusDeleteTopicOrThrow());
+                        case CONSENSUS_SUBMIT_MESSAGE ->
+                            ordinary.consensusSubmitMessage(scheduledBody.consensusSubmitMessageOrThrow());
+                        case CRYPTO_CREATE_ACCOUNT ->
+                            ordinary.cryptoCreateAccount(scheduledBody.cryptoCreateAccountOrThrow());
+                        case CRYPTO_UPDATE_ACCOUNT ->
+                            ordinary.cryptoUpdateAccount(scheduledBody.cryptoUpdateAccountOrThrow());
+                        case CRYPTO_TRANSFER -> ordinary.cryptoTransfer(scheduledBody.cryptoTransferOrThrow());
+                        case CRYPTO_DELETE -> ordinary.cryptoDelete(scheduledBody.cryptoDeleteOrThrow());
+                        case FILE_CREATE -> ordinary.fileCreate(scheduledBody.fileCreateOrThrow());
+                        case FILE_APPEND -> ordinary.fileAppend(scheduledBody.fileAppendOrThrow());
+                        case FILE_UPDATE -> ordinary.fileUpdate(scheduledBody.fileUpdateOrThrow());
+                        case FILE_DELETE -> ordinary.fileDelete(scheduledBody.fileDeleteOrThrow());
+                        case CONTRACT_CREATE_INSTANCE ->
+                            ordinary.contractCreateInstance(scheduledBody.contractCreateInstanceOrThrow());
+                        case CONTRACT_UPDATE_INSTANCE ->
+                            ordinary.contractUpdateInstance(scheduledBody.contractUpdateInstanceOrThrow());
+                        case CONTRACT_CALL -> ordinary.contractCall(scheduledBody.contractCallOrThrow());
+                        case CONTRACT_DELETE_INSTANCE ->
+                            ordinary.contractDeleteInstance(scheduledBody.contractDeleteInstanceOrThrow());
+                        case SYSTEM_DELETE -> ordinary.systemDelete(scheduledBody.systemDeleteOrThrow());
+                        case SYSTEM_UNDELETE -> ordinary.systemUndelete(scheduledBody.systemUndeleteOrThrow());
+                        case FREEZE -> ordinary.freeze(scheduledBody.freezeOrThrow());
+                        case TOKEN_CREATION -> ordinary.tokenCreation(scheduledBody.tokenCreationOrThrow());
+                        case TOKEN_FREEZE -> ordinary.tokenFreeze(scheduledBody.tokenFreezeOrThrow());
+                        case TOKEN_UNFREEZE -> ordinary.tokenUnfreeze(scheduledBody.tokenUnfreezeOrThrow());
+                        case TOKEN_GRANT_KYC -> ordinary.tokenGrantKyc(scheduledBody.tokenGrantKycOrThrow());
+                        case TOKEN_REVOKE_KYC -> ordinary.tokenRevokeKyc(scheduledBody.tokenRevokeKycOrThrow());
+                        case TOKEN_DELETION -> ordinary.tokenDeletion(scheduledBody.tokenDeletionOrThrow());
+                        case TOKEN_UPDATE -> ordinary.tokenUpdate(scheduledBody.tokenUpdateOrThrow());
+                        case TOKEN_MINT -> ordinary.tokenMint(scheduledBody.tokenMintOrThrow());
+                        case TOKEN_BURN -> ordinary.tokenBurn(scheduledBody.tokenBurnOrThrow());
+                        case TOKEN_WIPE -> ordinary.tokenWipe(scheduledBody.tokenWipeOrThrow());
+                        case TOKEN_ASSOCIATE -> ordinary.tokenAssociate(scheduledBody.tokenAssociateOrThrow());
+                        case TOKEN_DISSOCIATE -> ordinary.tokenDissociate(scheduledBody.tokenDissociateOrThrow());
+                        case SCHEDULE_DELETE -> ordinary.scheduleDelete(scheduledBody.scheduleDeleteOrThrow());
+                        case TOKEN_PAUSE -> ordinary.tokenPause(scheduledBody.tokenPauseOrThrow());
+                        case TOKEN_UNPAUSE -> ordinary.tokenUnpause(scheduledBody.tokenUnpauseOrThrow());
+                        case CRYPTO_APPROVE_ALLOWANCE ->
+                            ordinary.cryptoApproveAllowance(scheduledBody.cryptoApproveAllowanceOrThrow());
+                        case CRYPTO_DELETE_ALLOWANCE ->
+                            ordinary.cryptoDeleteAllowance(scheduledBody.cryptoDeleteAllowanceOrThrow());
+                        case TOKEN_FEE_SCHEDULE_UPDATE ->
+                            ordinary.tokenFeeScheduleUpdate(scheduledBody.tokenFeeScheduleUpdateOrThrow());
+                        case UTIL_PRNG -> ordinary.utilPrng(scheduledBody.utilPrngOrThrow());
+                        case TOKEN_REJECT -> ordinary.tokenReject(scheduledBody.tokenRejectOrThrow());
+                        case NODE_CREATE -> ordinary.nodeCreate(scheduledBody.nodeCreateOrThrow());
+                        case NODE_UPDATE -> ordinary.nodeUpdate(scheduledBody.nodeUpdateOrThrow());
+                        case NODE_DELETE -> ordinary.nodeDelete(scheduledBody.nodeDeleteOrThrow());
+                        case REGISTERED_NODE_CREATE ->
+                            ordinary.registeredNodeCreate(scheduledBody.registeredNodeCreateOrThrow());
+                        case REGISTERED_NODE_UPDATE ->
+                            ordinary.registeredNodeUpdate(scheduledBody.registeredNodeUpdateOrThrow());
+                        case REGISTERED_NODE_DELETE ->
+                            ordinary.registeredNodeDelete(scheduledBody.registeredNodeDeleteOrThrow());
+                        case TOKEN_UPDATE_NFTS -> ordinary.tokenUpdateNfts(scheduledBody.tokenUpdateNftsOrThrow());
+                        case TOKEN_AIRDROP -> ordinary.tokenAirdrop(scheduledBody.tokenAirdropOrThrow());
+                        case TOKEN_CANCEL_AIRDROP ->
+                            ordinary.tokenCancelAirdrop(scheduledBody.tokenCancelAirdropOrThrow());
+                        case TOKEN_CLAIM_AIRDROP ->
+                            ordinary.tokenClaimAirdrop(scheduledBody.tokenClaimAirdropOrThrow());
+                        case UNSET -> throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    })
+                    .build();
         }
         return ordinary.build();
     }

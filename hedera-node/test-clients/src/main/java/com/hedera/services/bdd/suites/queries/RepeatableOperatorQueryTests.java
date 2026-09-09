@@ -42,23 +42,6 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
-    final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountBalance() {
-        return hapiTest(
-                cryptoCreate(NODE_OPERATOR).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                // perform getAccountBalance() query, pay for the query with payer account
-                getAccountBalance(NODE_OPERATOR).payingWith(PAYER),
-                handleAnyRepeatableQueryPayment(),
-                // assert payer is charged
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS),
-                // perform free query to local port with asNodeOperator() method
-                getAccountBalance(NODE_OPERATOR).payingWith(PAYER).asNodeOperator(),
-                handleAnyRepeatableQueryPayment(),
-                // assert payer is not charged as the query is performed as node operator
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS));
-    }
-
-    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountInfo() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),

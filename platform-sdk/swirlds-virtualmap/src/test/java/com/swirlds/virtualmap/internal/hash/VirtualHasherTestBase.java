@@ -5,10 +5,10 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_V
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -82,7 +82,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
 
     protected static Hash hashTree(final TestDataSource ds) throws NoSuchAlgorithmException {
         final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-        return hashSubTree(ds, md, Path.ROOT_PATH);
+        return hashSubTree(ds, md, MerklePathUtils.ROOT_PATH);
     }
 
     @SuppressWarnings("rawtypes")
@@ -91,7 +91,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
     }
 
     protected static Hash hashSubTree(final TestDataSource ds, final MessageDigest md, final long nodePath) {
-        final long leftChildPath = Path.getLeftChildPath(nodePath);
+        final long leftChildPath = MerklePathUtils.getLeftChildPath(nodePath);
         final Hash leftHash;
         if (leftChildPath < ds.firstLeafPath) {
             leftHash = hashSubTree(ds, md, leftChildPath);
@@ -102,7 +102,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
         }
         ds.setHash(leftChildPath, leftHash);
 
-        final long rightChildPath = Path.getRightChildPath(nodePath);
+        final long rightChildPath = MerklePathUtils.getRightChildPath(nodePath);
         Hash rightHash = null;
         if (rightChildPath < ds.firstLeafPath) {
             rightHash = hashSubTree(ds, md, rightChildPath);
@@ -145,7 +145,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
         }
 
         VirtualHashChunk loadHashChunk(final long chunkPath) {
-            if (chunkPath < Path.ROOT_PATH || chunkPath > lastLeafPath) {
+            if (chunkPath < MerklePathUtils.ROOT_PATH || chunkPath > lastLeafPath) {
                 return null;
             }
             return chunks.get(chunkPath);
@@ -169,7 +169,7 @@ class VirtualHasherTestBase extends VirtualTestBase {
             if (path == ROOT_PATH) {
                 return;
             }
-            final int pathRank = Path.getRank(path);
+            final int pathRank = MerklePathUtils.getRank(path);
             final boolean isLeaf = (path >= firstLeafPath) && (path <= lastLeafPath);
             if ((pathRank % hashChunkHeight != 0) && !isLeaf) {
                 return;

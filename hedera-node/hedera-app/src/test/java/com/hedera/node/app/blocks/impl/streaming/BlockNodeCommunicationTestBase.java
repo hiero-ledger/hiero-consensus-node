@@ -9,6 +9,7 @@ import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
+import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -176,6 +177,19 @@ public abstract class BlockNodeCommunicationTestBase {
                                                 BlockStreamInfo.newBuilder().build())
                                         .build())
                                 .build())
+                        .build())
+                .build();
+    }
+
+    protected static BlockItem newBlockFooter() {
+        final byte[] array = new byte[1024];
+        Arrays.fill(array, (byte) 10);
+
+        return BlockItem.newBuilder()
+                .blockFooter(BlockFooter.newBuilder()
+                        .rootHashOfAllBlockHashesTree(Bytes.wrap(array))
+                        .previousBlockRootHash(Bytes.wrap(array))
+                        .startOfBlockStateRootHash(Bytes.wrap(array))
                         .build())
                 .build();
     }

@@ -412,6 +412,28 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     }
 
     @Test
+    @DisplayName("Handle fails if aggregated hbar custom fees overflow a long")
+    void handleFailsWhenHbarCustomFeesOverflow() {
+        // Two topic fees whose sum exceeds Long.MAX_VALUE
+        final long halfMaxPlusOne = Long.MAX_VALUE / 2 + 1;
+        final var overflowingFee = FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(halfMaxPlusOne).build())
+                .feeCollectorAccountId(anotherPayer)
+                .build();
+        givenTopicWithCustomFees(List.of(overflowingFee, overflowingFee));
+
+        // payer authorizes at most 1 tinybar of custom fees
+        given(handleContext.body()).willReturn(newSubmitMessageTxnWithHbarMaxFee(1));
+        given(handleContext.payer()).willReturn(payerId);
+        given(handleContext.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(any(Key.class), any())).willReturn(signatureVerification);
+        given(signatureVerification.passed()).willReturn(false);
+
+        final var failure = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(failure.getStatus()).isEqualTo(ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED);
+    }
+
+    @Test
     void testSimpleKeyVerifierFromWithEd25519Key() {
         List<Key> signatories = List.of(ED25519KEY);
 

@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.crypto.DefaultEventHasher;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -37,6 +37,7 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -70,8 +71,7 @@ class SimulatedGossipTests {
                 .sorted()
                 .toList();
 
-        final SimulatedNetwork network = new SimulatedNetwork(randotron);
-        nodeIds.forEach(network::addNode);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
@@ -115,20 +115,21 @@ class SimulatedGossipTests {
                     eventInputShim.buildInputWire("eventInputWire");
             eventSubmitters.put(nodeId, eventInputWire::inject);
 
-            network.getGossipInstance(nodeId)
-                    .bind(
-                            model,
-                            eventInputWire,
-                            mock(BindableInputWire.class),
-                            eventOutputWire,
-                            mock(BindableInputWire.class),
-                            mock(BindableInputWire.class),
-                            mock(BindableInputWire.class),
-                            mock(BindableInputWire.class),
-                            mock(BindableInputWire.class),
-                            mock(BindableInputWire.class),
-                            mock(BindableInputWire.class),
-                            mock(StandardOutputWire.class));
+            final SimulatedGossip gossip = new SimulatedGossip(network, nodeId);
+            gossip.bind(
+                    model,
+                    eventInputWire,
+                    mock(BindableInputWire.class),
+                    eventOutputWire,
+                    mock(BindableInputWire.class),
+                    mock(BindableInputWire.class),
+                    mock(BindableInputWire.class),
+                    mock(BindableInputWire.class),
+                    mock(BindableInputWire.class),
+                    mock(BindableInputWire.class),
+                    mock(BindableInputWire.class),
+                    mock(StandardOutputWire.class));
+            network.addNode(nodeId, gossip);
             model.start();
         }
 

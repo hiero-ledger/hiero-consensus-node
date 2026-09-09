@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;

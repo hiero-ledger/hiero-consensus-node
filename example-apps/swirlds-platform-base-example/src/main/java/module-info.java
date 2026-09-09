@@ -5,18 +5,17 @@ import com.swirlds.platform.base.example.ext.BaseConfigurationExtension;
 module com.swirlds.platform.base.example {
     exports com.swirlds.platform.base.example.ext to
             com.swirlds.config.impl;
+    exports com.swirlds.platform.base.example.server to
+            com.swirlds.config.impl;
 
     opens com.swirlds.platform.base.example.store.domain to
             com.fasterxml.jackson.databind;
-
-    exports com.swirlds.platform.base.example.server to
-            com.swirlds.config.impl;
 
     requires com.swirlds.base;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
     requires com.swirlds.metrics.api;
-    requires org.hiero.consensus.concurrent;
+    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;

@@ -2,8 +2,11 @@
 name: "304: [FLOW] Publish Yahcli Image"
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*.*.*"
+      - "build-*"
   workflow_dispatch:
     inputs:
       ref:
@@ -84,6 +87,10 @@ jobs:
             VERSION="${{ github.ref_name }}"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
             echo "Resolved version from tag: ${VERSION}"
+          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
+            VERSION="build-main-$(echo '${{ github.sha }}' | cut -c1-8)"
+            echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
+            echo "Resolved version from commit SHA: ${VERSION}"
           else
             VERSION="$(./gradlew showVersion --quiet 2>/dev/null | tr -d '[:space:]')"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"

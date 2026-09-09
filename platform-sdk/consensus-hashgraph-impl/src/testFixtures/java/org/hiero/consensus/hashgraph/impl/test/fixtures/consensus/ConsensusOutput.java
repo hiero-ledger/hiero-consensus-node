@@ -4,7 +4,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,10 +19,10 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * Stores all output of consensus used in testing. This output can be used to validate consensus results.
  */
 public class ConsensusOutput implements Clearable {
-    private final LinkedList<ConsensusRound> consensusRounds;
-    private final LinkedList<PlatformEvent> preConsensusEvents;
-    private final LinkedList<PlatformEvent> addedEvents;
-    private final LinkedList<PlatformEvent> staleEvents;
+    private final List<ConsensusRound> consensusRounds;
+    private final List<PlatformEvent> preConsensusEvents;
+    private final List<PlatformEvent> addedEvents;
+    private final List<PlatformEvent> staleEvents;
 
     private EventWindow eventWindow;
 
@@ -31,10 +30,10 @@ public class ConsensusOutput implements Clearable {
      * Creates a new instance.
      */
     public ConsensusOutput() {
-        addedEvents = new LinkedList<>();
-        preConsensusEvents = new LinkedList<>();
-        consensusRounds = new LinkedList<>();
-        staleEvents = new LinkedList<>();
+        addedEvents = new ArrayList<>();
+        preConsensusEvents = new ArrayList<>();
+        consensusRounds = new ArrayList<>();
+        staleEvents = new ArrayList<>();
 
         eventWindow = EventWindow.getGenesisEventWindow();
     }
@@ -60,9 +59,9 @@ public class ConsensusOutput implements Clearable {
     }
 
     /**
-     * @return a queue of all events that have been marked as stale
+     * @return a list of all events that have been marked as stale
      */
-    public @NonNull LinkedList<PlatformEvent> getStaleEvents() {
+    public @NonNull List<PlatformEvent> getStaleEvents() {
         return staleEvents;
     }
 
@@ -76,9 +75,9 @@ public class ConsensusOutput implements Clearable {
     }
 
     /**
-     * @return a queue of all rounds that have reached consensus
+     * @return a list of all rounds that have reached consensus
      */
-    public @NonNull LinkedList<ConsensusRound> getConsensusRounds() {
+    public @NonNull List<ConsensusRound> getConsensusRounds() {
         return consensusRounds;
     }
 
@@ -92,7 +91,7 @@ public class ConsensusOutput implements Clearable {
         return consensusRounds.getLast();
     }
 
-    public @NonNull LinkedList<PlatformEvent> getAddedEvents() {
+    public @NonNull List<PlatformEvent> getAddedEvents() {
         return addedEvents;
     }
 

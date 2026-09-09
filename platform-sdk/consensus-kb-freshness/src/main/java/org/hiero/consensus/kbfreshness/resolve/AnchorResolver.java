@@ -91,6 +91,7 @@ public final class AnchorResolver {
             case PACKAGE_REF -> resolvePackageRef(a);
             case SOURCE_PATH -> resolveSourcePath(a);
             case SOURCE_BASENAME -> resolveSourceBasename(a);
+            case SOURCE_SYMBOL -> resolveSourceSymbol(a);
             case CLASS -> resolveClassFqn(a);
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
@@ -430,13 +431,9 @@ public final class AnchorResolver {
                             + actualModule + "`."));
         }
         if (a.citedLine() != Anchor.NO_LINE) {
-            final int declLine = primaryTypeDeclLine(target, simpleName);
-            if (declLine > 0 && declLine != a.citedLine()) {
-                return Optional.of(Resolution.autoFix(
-                        q,
-                        "Type `" + simpleName + "` is declared at line " + declLine + " but is cited at line "
-                                + a.citedLine() + ".",
-                        declLine));
+            final Optional<Resolution> migration = lineMigration(target, a.citedLine(), q);
+            if (migration.isPresent()) {
+                return migration;
             }
         }
         return Optional.of(Resolution.ok(Outcome.PRESENT, q));
@@ -504,7 +501,14 @@ public final class AnchorResolver {
                     q,
                     "`" + simpleName + "` is an allowlisted external/generated type.");
         }
-        if (!index.pathsForBasename(basename).isEmpty()) {
+        final List<String> paths = index.pathsForBasename(basename);
+        if (!paths.isEmpty()) {
+            if (a.citedLine() != Anchor.NO_LINE && paths.size() == 1) {
+                final Optional<Resolution> migration = lineMigration(paths.get(0), a.citedLine(), q);
+                if (migration.isPresent()) {
+                    return migration.get();
+                }
+            }
             return Resolution.ok(Outcome.PRESENT, q);
         }
         return Resolution.finding(
@@ -581,6 +585,39 @@ public final class AnchorResolver {
                 Lane.ASSERT,
                 q,
                 "Class `" + className + "` in `" + ct.path() + "` declares no method `" + method + "`.");
+    }
+
+    /**
+     * Resolves a {@code File.java#symbol} reference: the file's declared method, field, enum constant, or
+     * (nested) type of the cited name. Absent asserts — a renamed or removed symbol. Unverifiable when the
+     * file is not indexed (the file-existence anchor covers that case).
+     *
+     * @param a the anchor to resolve; its target is the symbol, {@code citedScope} the file's type name.
+     * @return present when the symbol is declared, unverifiable when the file is unresolved, else an absent
+     *     assertion.
+     */
+    private Resolution resolveSourceSymbol(final Anchor a) {
+        final String className = a.citedScope();
+        final String symbol = a.target();
+        final String q = "source `" + className + ".java` declares `" + symbol + "`";
+        final CitedType ct = locateCitedType(a, className);
+        if (!ct.pathResolved()) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Source `" + className + ".java` not indexed; symbol existence unverifiable (the file anchor "
+                            + "covers this).");
+        }
+        if (declaresSymbol(index.parse(ct.path()), symbol)) {
+            return Resolution.ok(Outcome.PRESENT, q);
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "`" + className + ".java` declares no method, field, enum constant, or type `" + symbol
+                        + "` (renamed or removed).");
     }
 
     /**
@@ -772,16 +809,47 @@ public final class AnchorResolver {
     // ---- Helpers ----
 
     /**
-     * The declaration line of the named type in the given source file.
+     * Whether the parsed file declares the named symbol as a method, a field/enum-constant/record
+     * component, or a (possibly nested) type — the existence test behind a {@code File.java#symbol}
+     * reference.
      *
-     * @param repoRelPath the repo-relative source path.
-     * @param simpleName  the simple type name to look up.
-     * @return the 1-based declaration line, or {@code -1} if the type is not declared in the file.
+     * @param parsed the parsed source file.
+     * @param symbol the symbol name.
+     * @return {@code true} when the file declares the symbol.
      */
-    private int primaryTypeDeclLine(final String repoRelPath, final String simpleName) {
-        final ParsedFile parsed = index.parse(repoRelPath);
-        final TypeInfo type = parsed.types().get(simpleName);
-        return type == null ? -1 : type.declLine();
+    private static boolean declaresSymbol(final ParsedFile parsed, final String symbol) {
+        if (parsed.types().containsKey(symbol)) {
+            return true;
+        }
+        for (final TypeInfo t : parsed.types().values()) {
+            if (t.hasMethod(symbol) || t.hasMember(symbol)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A {@code File.java:NN} reference whose line NN is exactly a declaration start line migrates to
+     * {@code File.java#symbol}: the volatile line is replaced by the durable symbol name. Empty when NN is
+     * not a declaration (a body line or past end-of-file) — those are left for the follow-up suggestion
+     * pass, not migrated here.
+     *
+     * @param repoRelPath the resolved source file.
+     * @param citedLine   the cited 1-based line.
+     * @param q           the resolver question.
+     * @return a symbol-migration auto-fix when NN is a declaration line, otherwise empty.
+     */
+    private Optional<Resolution> lineMigration(final String repoRelPath, final int citedLine, final String q) {
+        final String symbol = JavaParsing.symbolAtLine(index.parse(repoRelPath), citedLine);
+        if (symbol == null) {
+            return Optional.empty();
+        }
+        return Optional.of(Resolution.autoFixSymbol(
+                q,
+                "Line " + citedLine + " is the declaration of `" + symbol + "`; cite it as `#" + symbol
+                        + "` (line numbers drift and are not maintained).",
+                symbol));
     }
 
     /**

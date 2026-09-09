@@ -18,12 +18,12 @@ import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import java.math.BigInteger;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
-import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
@@ -139,7 +139,7 @@ class HederaEVMTest {
     private Address randomAddress() {
         final var bytes = new byte[20];
         random.nextBytes(bytes);
-        return Address.fromHexString(Hex.toHexString(bytes));
+        return Address.fromHexString(HexFormat.of().formatHex(bytes));
     }
 
     public static class TestOpcodesTracer implements ActionSidecarContentTracer {

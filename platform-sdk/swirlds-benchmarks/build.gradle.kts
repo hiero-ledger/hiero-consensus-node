@@ -21,7 +21,6 @@ jmhModuleInfo {
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
-    requires("org.hiero.consensus.concurrent")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.utility")

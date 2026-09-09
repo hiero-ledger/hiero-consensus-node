@@ -12,9 +12,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
+import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FILE_DELETED;
@@ -67,7 +67,7 @@ public class UpdateFailuresSpec {
                 fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
                 fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
                 fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
                 fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED));
     }
 

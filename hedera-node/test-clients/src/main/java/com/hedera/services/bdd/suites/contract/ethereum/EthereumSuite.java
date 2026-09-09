@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransferToExplicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicitEthereumTransaction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -46,6 +47,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -89,6 +91,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
@@ -105,7 +108,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
-import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -131,15 +133,16 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.math.BigInteger;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
@@ -195,7 +198,7 @@ public class EthereumSuite {
                         .exposingEvmAddress(cb -> tokenCreateContractAddress.set(asHeadlongAddress(cb)))
                         .exposingContractId(tokenCreateContractID::set)
                         .has(contractWith().defaultAdminKey()),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     var call = ethereumCall(
                                     TOKEN_CREATE_CONTRACT,
                                     "createNonFungibleTokenPublic",
@@ -250,7 +253,7 @@ public class EthereumSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 balanceSnapshot(aliasBalanceSnapshot, SECP_256K1_SOURCE_KEY).accountIsAlias(),
                 ethereumCryptoTransfer(RECEIVER, FIVE_HBARS)
@@ -263,7 +266,7 @@ public class EthereumSuite {
                         .gasLimit(2_000_000L)
                         .via(PAY_TXN)
                         .hasKnownStatus(SUCCESS),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         getTxnRecord(PAY_TXN)
                                 .logged()
@@ -393,7 +396,7 @@ public class EthereumSuite {
                 uploadInitCode(PAY_RECEIVABLE_CONTRACT),
                 contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "true"),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final String senderBalance = "senderBalance";
                     final String payerBalance = "payerBalance";
                     final AtomicLong gasUsed = new AtomicLong();
@@ -488,7 +491,7 @@ public class EthereumSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 cryptoCreate(PROXY),
                 cryptoUpdateAliased(SECP_256K1_SOURCE_KEY)
@@ -548,7 +551,7 @@ public class EthereumSuite {
                         .nonce(999L)
                         .via(PAY_TXN)
                         .hasKnownStatus(WRONG_NONCE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var payTxn = getTxnRecord(PAY_TXN)
                             .logged()
                             .hasPriority(recordWith()
@@ -592,7 +595,7 @@ public class EthereumSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 uploadInitCode(HELLO_WORLD_MINT_CONTRACT),
                 tokenCreate(TOKEN)
@@ -607,7 +610,7 @@ public class EthereumSuite {
                         .nonce(0)
                         .via(mintTxn)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         getTxnRecord(mintTxn)
                                 .logged()
@@ -646,7 +649,7 @@ public class EthereumSuite {
                         .exposingCreatedIdTo(tokenNum::set),
                 uploadInitCode(ERC20_CONTRACT),
                 contractCreate(ERC20_CONTRACT).adminKey(THRESHOLD),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         ethereumCallWithFunctionAbi(
                                         true,
@@ -681,7 +684,7 @@ public class EthereumSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 uploadInitCode(EMIT_SENDER_ORIGIN_CONTRACT),
                 contractCreate(EMIT_SENDER_ORIGIN_CONTRACT),
@@ -693,7 +696,7 @@ public class EthereumSuite {
                         .maxFeePerGas(50L)
                         .gasLimit(1_000_000L)
                         .via(PAY_TXN),
-                withOpContext((spec, ignore) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         getTxnRecord(PAY_TXN)
                                 .logged()
@@ -732,7 +735,7 @@ public class EthereumSuite {
                         .gasLimit(GAS_LIMIT)
                         .via(txn),
                 getContractInfo(contract).has(contractWith().defaultAdminKey()),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var op = getTxnRecord(txn);
                     allRunFor(spec, op);
                     final var record = op.getResponseRecord();
@@ -810,12 +813,12 @@ public class EthereumSuite {
                         .gasLimit(GAS_LIMIT)
                         .via(txn),
                 getContractInfo(contract).has(contractWith().defaultAdminKey()),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     final var getBytecode = getContractBytecode(contract).saveResultTo("contractByteCode");
                     allRunFor(spec, getBytecode);
 
-                    final var originalBytecode =
-                            Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
+                    final var originalBytecode = HexFormat.of()
+                            .parseHex(Files.readString(new File(getResourcePath(contract, ".bin")).toPath()));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
                     // The original bytecode is modified on deployment
                     final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);
@@ -845,7 +848,7 @@ public class EthereumSuite {
                 cryptoTransfer(moving(tokenTransferAmount, FUNGIBLE_TOKEN)
                                 .between(TOKEN_TREASURY, SECP_256K1_SOURCE_KEY))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, ignore) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         ethereumCallWithFunctionAbi(
                                         true,
@@ -863,7 +866,7 @@ public class EthereumSuite {
                                 .type(EthTransactionType.EIP1559)
                                 .maxGasAllowance(ONE_HBAR * 5)
                                 .payingWith(ACCOUNT))),
-                withOpContext((spec, ignore) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 transferTxn,
@@ -886,7 +889,7 @@ public class EthereumSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 balanceSnapshot(aliasBalanceSnapshot, SECP_256K1_SOURCE_KEY).accountIsAlias(),
                 ethereumCryptoTransfer(RECEIVER, FIVE_HBARS)
@@ -897,7 +900,7 @@ public class EthereumSuite {
                         .gasPrice(0L)
                         .gasLimit(2_000_000L)
                         .via(PAY_TXN),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         getTxnRecord(PAY_TXN)
                                 .logged()
@@ -939,7 +942,7 @@ public class EthereumSuite {
                         .exposingCreatedIdTo(tokenNum::set),
                 uploadInitCode(ERC20_CONTRACT),
                 contractCreate(ERC20_CONTRACT).adminKey(THRESHOLD),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         ethereumCallWithFunctionAbi(
                                         true,
@@ -987,7 +990,7 @@ public class EthereumSuite {
                 cryptoTransfer(moving(tokenTransferAmount, FUNGIBLE_TOKEN)
                                 .between(TOKEN_TREASURY, SECP_256K1_SOURCE_KEY))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, ignore) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         ethereumCallWithFunctionAbi(
                                         true,
@@ -1003,7 +1006,7 @@ public class EthereumSuite {
                                 .gasLimit(1_000_000)
                                 .type(EthTransactionType.EIP2930)
                                 .payingWith(RELAYER))),
-                withOpContext((spec, ignore) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 transferTxn,
@@ -1032,7 +1035,7 @@ public class EthereumSuite {
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 cryptoCreate(TOKEN_TREASURY),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -1048,7 +1051,7 @@ public class EthereumSuite {
                         .adminKey(SECP_256K1_SOURCE_KEY)
                         .supplyKey(SECP_256K1_SOURCE_KEY)
                         .exposingCreatedIdTo(tokenNum::set),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), 2 * ONE_HBAR))))
@@ -1093,7 +1096,7 @@ public class EthereumSuite {
                 // delete the account currently holding the alias
                 cryptoDelete(ercUser),
                 // try to create a new account with the same alias
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), 2 * ONE_HBAR))))
@@ -1139,7 +1142,7 @@ public class EthereumSuite {
                         .maxPriorityGas(2L)
                         .gasLimit(1_000_000L)
                         .sending(depositAmount),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         getTxnRecord("legacyBeforeEIP155")
                                 .logged()
@@ -1191,7 +1194,7 @@ public class EthereumSuite {
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(
                         firstTxn, SUCCESS, TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var op = getTxnRecord(firstTxn);
                     allRunFor(spec, op);
 
@@ -1252,7 +1255,7 @@ public class EthereumSuite {
                                 .exposingResultTo(result -> opLog.info("Explicit create result is {}", result[0])))),
                 childRecordsCheck(
                         firstTxn, SUCCESS, TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var op = getTxnRecord(firstTxn);
                     allRunFor(spec, op);
 
@@ -1291,7 +1294,7 @@ public class EthereumSuite {
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 tokenAssociate(RECEIVER, VANILLA_TOKEN),
                 cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var receiver1 =
                             asHeadlongAddress(asAddress(spec.registry().getAccountID(RECEIVER)));
                     final var sender =
@@ -1299,7 +1302,9 @@ public class EthereumSuite {
 
                     spec.registry()
                             .saveContractId(
-                                    HTS_SYSTEM_CONTRACT, spec, ByteString.copyFrom(unhex(HTS_SYSTEM_CONTRACT_ADDRESS)));
+                                    HTS_SYSTEM_CONTRACT,
+                                    spec,
+                                    ByteString.copyFrom(Objects.requireNonNull(unhex(HTS_SYSTEM_CONTRACT_ADDRESS))));
                     allRunFor(
                             spec,
                             ethereumCallWithFunctionAbi(
@@ -1328,7 +1333,7 @@ public class EthereumSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 balanceSnapshot(aliasBalanceSnapshot, SECP_256K1_SOURCE_KEY).accountIsAlias(),
                 ethereumCryptoTransfer(receiver, FIVE_HBARS)
@@ -1353,7 +1358,7 @@ public class EthereumSuite {
         return hapiTest(
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
                 explicitEthereumTransaction(
-                                "rawEthTransaction", (spec, b) -> b.setEthereumData(ByteString.copyFrom(rawBytes))
+                                "rawEthTransaction", (_, b) -> b.setEthereumData(ByteString.copyFrom(rawBytes))
                                         .setMaxGasAllowance(ONE_HUNDRED_HBARS))
                         .payingWith(RELAYER)
                         .markAsJumboTxn()
@@ -1489,13 +1494,13 @@ public class EthereumSuite {
         final byte[] nonce = Integers.toBytes(1);
         final byte[] gasPrice = new byte[] {0x2f};
         final byte[] gasLimit = Integers.toBytes(GAS_LIMIT);
-        final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
+        final byte[] to = HexFormat.of().parseHex("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
         final byte[] value = new byte[0];
         final byte[] callData = new byte[] {0x76, 0x53};
         // v = 1: not in {27, 28} and not >= 35
         final byte[] v = new byte[] {0x01};
-        final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
-        final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+        final byte[] r = HexFormat.of().parseHex("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
+        final byte[] s = HexFormat.of().parseHex("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
         final ByteString rawTx =
                 ByteString.copyFrom(RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s)));
 
@@ -1504,5 +1509,19 @@ public class EthereumSuite {
                 explicitEthereumTransaction("nonStandardV", (_, b) -> b.setEthereumData(rawTx))
                         .payingWith(RELAYER)
                         .hasKnownStatusFrom(INVALID_ETHEREUM_TRANSACTION, WRONG_CHAIN_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> htsInvalidInputCheck() {
+        final var HTS_SYSTEM_CONTRACT_ADDRESS = "0000000000000000000000000000000000000167";
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                ethereumCryptoTransferToExplicit(Objects.requireNonNull(unhex(HTS_SYSTEM_CONTRACT_ADDRESS)), 1)
+                        .withExplicitParams(() -> "1234")
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .hasKnownStatus(INVALID_CONTRACT_ID));
     }
 }

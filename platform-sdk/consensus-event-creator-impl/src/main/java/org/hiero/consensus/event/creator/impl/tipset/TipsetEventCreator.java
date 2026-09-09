@@ -2,8 +2,8 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
+import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
@@ -25,8 +25,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -37,9 +37,9 @@ import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for creating new events using the tipset algorithm.
@@ -64,7 +64,7 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * The address book for the current network.
      */
-    private final Roster roster;
+    private final RosterWrapper roster;
 
     /**
      * The size of the current address book.
@@ -124,16 +124,16 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Time time,
             @NonNull final SecureRandom random,
             @NonNull final BytesSigner signer,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        this.time = Objects.requireNonNull(time);
-        this.random = Objects.requireNonNull(random);
-        this.signer = Objects.requireNonNull(signer);
-        this.selfId = Objects.requireNonNull(selfId);
-        this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
-        this.roster = Objects.requireNonNull(roster);
+        this.time = requireNonNull(time);
+        this.random = requireNonNull(random);
+        this.signer = requireNonNull(signer);
+        this.selfId = requireNonNull(selfId);
+        this.transactionSupplier = requireNonNull(transactionSupplier);
+        this.roster = requireNonNull(roster);
 
         final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
@@ -143,7 +143,7 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
-        networkSize = roster.rosterEntries().size();
+        networkSize = roster.size();
 
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
@@ -156,6 +156,10 @@ public class TipsetEventCreator implements EventCreator {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>Advancing {@code lastSelfEvent} relies on self events arriving in topological order, so that the child of the
+     * held event is offered before any of its own descendants. Nothing here enforces that; it is a property of the
+     * intake pipeline, which the orphan buffer establishes and the stages below it preserve.
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
@@ -164,26 +168,25 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         final NodeId eventCreator = event.getCreatorId();
-        if (RosterUtils.getIndex(roster, eventCreator.id()) == -1) {
+        if (!roster.contains(eventCreator)) {
             return;
         }
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
-                // Normally we will ingest self events before we get to this point, but it's possible
-                // to learn of self events for the first time here if we are loading from a restart (via PCES)
-                // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen number value assigned by the orphan buffer. We use nGen and not sequence
-                // number because nGen tells us which is higher in the graph - sequence number does not.
-                lastSelfEvent = event;
-                childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
-                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
-            } else {
-                // We already ingested this self event (when it was created),
-                // or it is older than the event we are already tracking.
-                return;
+            if (lastSelfEvent == null) {
+                updateLastSelfEvent(event);
+            } else if (event.getBirthRound() > lastSelfEvent.getBirthRound()) {
+                // The incoming self event has a higher birth round than lastSelfEvent, therefore it is
+                // either higher in the hashgraph as a non-branched event, or it is a branched event.
+                // In the first case, it must be adopted. In the second case, it might not be as higher
+                // as lastSelfEvent structurally, but since it has a higher birth round it was created
+                // at a later point in consensus and there is no downside in adopting it.
+                updateLastSelfEvent(event);
+            } else if (event.getSelfParent() != null && event.getSelfParent().equals(lastSelfEvent.getDescriptor())) {
+                // If we ingest a self event that is a child of lastSelfEvent, it is by definition higher
+                // in the hashgraph and must be adopted.
+                updateLastSelfEvent(event);
             }
         } else {
             tipsetTracker.addPeerEvent(event);
@@ -191,12 +194,18 @@ public class TipsetEventCreator implements EventCreator {
         }
     }
 
+    private void updateLastSelfEvent(@NonNull final PlatformEvent selfEvent) {
+        lastSelfEvent = selfEvent;
+        childlessOtherEventTracker.registerSelfEventParents(selfEvent.getOtherParents());
+        tipsetTracker.addSelfEvent(selfEvent.getDescriptor(), selfEvent.getAllParents());
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
         this.lastReceivedEventWindow = time.now();
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
@@ -204,7 +213,7 @@ public class TipsetEventCreator implements EventCreator {
 
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+        this.quiescenceCommand = requireNonNull(quiescenceCommand);
     }
 
     /**
@@ -222,10 +231,7 @@ public class TipsetEventCreator implements EventCreator {
         } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
             breakQuiescenceEventCreated = true;
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Created quiescence breaking event ({})",
-                    event.getDescriptor()::shortString);
+            logger.info(LogMarker.STARTUP.getMarker(), "Created quiescence breaking event ({})", event.getDescriptor());
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);

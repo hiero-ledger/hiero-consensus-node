@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.file.impl;
 
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.upgradeDataStateKey;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
@@ -98,8 +98,7 @@ public class WritableUpgradeFileStore extends ReadableUpgradeFileStoreImpl {
 
     @NonNull
     private WritableQueueState<ProtoBytes> getUpgradeState(@NonNull FileID fileID) {
-        final String stateKey =
-                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(fileID.fileNum()).toUpperCase();
+        final String stateKey = upgradeDataStateKey(fileID.fileNum());
         final int stateId = StateKey.KeyOneOfType.fromString(stateKey).protoOrdinal();
         return Objects.requireNonNull(states.getQueue(stateId));
     }

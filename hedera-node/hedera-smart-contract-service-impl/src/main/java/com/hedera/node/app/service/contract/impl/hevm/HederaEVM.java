@@ -116,8 +116,6 @@ public class HederaEVM extends HEVM {
                 opsDurationCounter == null ? null : opsDurationCounter.schedule();
         final long opsDurationMultiplier =
                 opsDurationCounter == null ? 0 : opsDurationSchedule.opsGasBasedDurationMultiplier();
-        final long opsDurationDenominator =
-                opsDurationCounter == null ? 1 : opsDurationSchedule.multipliersDenominator();
 
         if (_trace != null) {
             if (frame.getDepth() == 0) _stdOut.println(BonnevilleEVM.TOP_SEP);
@@ -245,7 +243,7 @@ public class HederaEVM extends HEVM {
                 if (opsDurationCounter != null) {
                     final var opCodeCost = opsDurationSchedule.opCodeCost(opcode);
                     final var opsDurationUnitsCost = opCodeCost == 0
-                            ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
+                            ? opsDurationSchedule.gasBasedOpsDuration(result.getGasCost(), opsDurationMultiplier)
                             : opCodeCost;
                     opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
                 }

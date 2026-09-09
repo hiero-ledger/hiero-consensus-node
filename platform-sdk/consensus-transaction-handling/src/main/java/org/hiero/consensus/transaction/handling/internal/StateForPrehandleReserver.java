@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction.handling.internal;
 
-import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.transformers.AdvancedTransformation;
 
 /**
  * Manages the reservation on the state used for prehandle when a {@link TransactionHandlerResult} is transformed into

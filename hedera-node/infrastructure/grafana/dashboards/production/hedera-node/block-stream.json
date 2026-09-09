@@ -6417,6 +6417,19 @@
           "legendFormat": "node {{node}} (Unknown)",
           "range": true,
           "refId": "N"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_conn_connClose_timeout_total{node=~\"$NodeId\", environment=\"$environment\"}[1m]))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "node {{node}} (Timeout)",
+          "range": true,
+          "refId": "O"
         }
       ],
       "title": "Connection Close Reason (1m delta)",

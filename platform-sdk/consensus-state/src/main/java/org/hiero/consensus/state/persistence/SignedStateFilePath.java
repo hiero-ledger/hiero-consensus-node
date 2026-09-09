@@ -17,7 +17,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.saved.SavedStateMetadata;
@@ -38,7 +37,7 @@ public class SignedStateFilePath {
      *
      * @param fileSystemManager the file system manager to use for writing signed states and associated data. The root
      *                          location of the file system manager must be set to the location where signed states
-     *                          should be saved according to {@link PathsConfig#savedStateDir}.
+     *                          should be saved according to {@code PathsConfig#savedStateDir}.
      */
     public SignedStateFilePath(
             @NonNull final FileSystemManager fileSystemManager,

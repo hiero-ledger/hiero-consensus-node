@@ -64,6 +64,17 @@ final class OpsDurationDeterministicThrottleTest {
     }
 
     @Test
+    void negativeUnitsToConsumeAreClampedAndDoNotThrow() {
+        final var now = Instant.ofEpochSecond(1);
+        final var subject = new OpsDurationDeterministicThrottle("OpsDuration", 100, 10);
+        subject.useCapacity(now, 40);
+        // A negative amount (e.g. from a wrapped/overflowed cost) must be treated as a no-op rather
+        // than propagating an IllegalArgumentException out of the bucket during transaction handling.
+        assertDoesNotThrow(() -> subject.useCapacity(now, -1_000_000L));
+        assertEquals(40, subject.used());
+    }
+
+    @Test
     void bucketCanOverfillAndLeaksAppropriately() {
         final var capacity = 1_000_000;
         final var leakPerSecond = 500;

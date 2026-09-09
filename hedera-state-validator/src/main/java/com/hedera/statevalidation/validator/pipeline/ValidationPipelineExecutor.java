@@ -15,9 +15,9 @@ import com.hedera.statevalidation.validator.model.DiskDataItem;
 import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
 import com.hedera.statevalidation.validator.model.ReadSegment;
 import com.hedera.statevalidation.validator.util.ValidationException;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -147,7 +147,6 @@ public final class ValidationPipelineExecutor {
                 // Get data file collections
                 final DataFileCollection pathToKeyValueDfc =
                         vds.getKeyValueStore().getFileCollection();
-                //noinspection DataFlowIssue
                 final DataFileCollection idToHashChunksDfc =
                         vds.getHashChunkStore().getFileCollection();
                 final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();

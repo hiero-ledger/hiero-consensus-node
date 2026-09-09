@@ -10,10 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -95,7 +95,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Invalid leaf paths")
     void invalidLeafPaths() {
-        final TestDataSource ds = new TestDataSource(Path.INVALID_PATH, Path.INVALID_PATH, CHUNK_HEIGHT);
+        final TestDataSource ds =
+                new TestDataSource(MerklePathUtils.INVALID_PATH, MerklePathUtils.INVALID_PATH, CHUNK_HEIGHT);
         final List<VirtualLeafBytes> emptyLeaves = new ArrayList<>();
         // Empty dirty leaves stream -> null hash
         assertNull(
@@ -103,15 +104,17 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                         CHUNK_HEIGHT,
                         ds::loadHashChunk,
                         emptyLeaves.iterator(),
-                        Path.INVALID_PATH,
-                        Path.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
                         null),
                 "Call should have produced null");
         assertNull(
-                defaultHasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), Path.INVALID_PATH, 2, null),
+                defaultHasher.hash(
+                        CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), MerklePathUtils.INVALID_PATH, 2, null),
                 "Call should have produced null");
         assertNull(
-                defaultHasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 1, Path.INVALID_PATH, null),
+                defaultHasher.hash(
+                        CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 1, MerklePathUtils.INVALID_PATH, null),
                 "Call should have produced null");
         assertNull(
                 defaultHasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 0, 2, null),
@@ -128,8 +131,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                         CHUNK_HEIGHT,
                         ds::loadHashChunk,
                         nonEmptyLeaves.iterator(),
-                        Path.INVALID_PATH,
-                        Path.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
                         null),
                 "Non-null leaves iterator + invalid paths should throw an exception");
         assertThrows(
@@ -181,7 +184,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 if (chunk.path() == 0) {
                     break;
                 }
-                chunk = ds.loadHashChunk(Path.getGrandParentPath(chunk.path(), CHUNK_HEIGHT));
+                chunk = ds.loadHashChunk(MerklePathUtils.getGrandParentPath(chunk.path(), CHUNK_HEIGHT));
                 assertNotNull(chunk);
             }
         }
@@ -194,7 +197,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
         for (int i = 0; i < leaves.size(); i++) {
             final long leafPath = leaves.get(i).path();
-            final long siblingPath = Path.getSiblingPath(leafPath);
+            final long siblingPath = MerklePathUtils.getSiblingPath(leafPath);
             if ((siblingPath >= firstLeafPath) && (siblingPath <= lastLeafPath)) {
                 final VirtualLeafBytes sibling = ds.getLeaf(siblingPath);
                 leaves.set(i, sibling);

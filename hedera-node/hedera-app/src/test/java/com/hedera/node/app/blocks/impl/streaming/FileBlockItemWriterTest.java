@@ -445,7 +445,8 @@ class FileBlockItemWriterTest {
                 .siblingHashesFromPrevBlockRoot(List.of(
                         new MerkleSiblingHash(true, Bytes.fromHex("1111")),
                         new MerkleSiblingHash(true, Bytes.fromHex("2222")),
-                        new MerkleSiblingHash(true, Bytes.fromHex("3333"))))
+                        new MerkleSiblingHash(true, Bytes.fromHex("3333")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("4444"))))
                 .build();
         subject.flushPendingBlock(pendingProof);
 

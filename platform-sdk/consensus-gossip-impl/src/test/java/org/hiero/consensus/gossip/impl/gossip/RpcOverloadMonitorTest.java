@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip;
+package org.hiero.consensus.gossip.impl.gossip;
 
 // this class should be moved to a different package, but modules are WIP as of now and it is not possible to do that
 // without breaking build
