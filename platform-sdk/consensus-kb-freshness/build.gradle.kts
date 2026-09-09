@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
     id("org.hiero.gradle.module.application")
-    id("org.hiero.gradle.feature.shadow")
+    id("org.gradlex.java-module-packaging")
 }
 
 description = "Consensus-layer knowledge-base freshness checker"
