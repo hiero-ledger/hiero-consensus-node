@@ -10,6 +10,9 @@ open module com.swirlds.merkledb {
     exports com.swirlds.merkledb.files;
     exports com.swirlds.merkledb.files.hashmap;
     exports com.swirlds.merkledb.utilities;
+    // Diagnostic tooling reaches into the data source internals; not a supported public API
+    exports com.swirlds.merkledb.internal to
+            com.hedera.state.validator;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;

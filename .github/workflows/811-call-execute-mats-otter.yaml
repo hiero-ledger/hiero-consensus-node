@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "811: [CALL] Exec MATS Otter Suites"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+jobs:
+  fast-otter:
+    uses: ./.github/workflows/847-call-execute-otter-fast.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - fast-otter
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.fast-otter.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.fast-otter.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            fast-otter
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
