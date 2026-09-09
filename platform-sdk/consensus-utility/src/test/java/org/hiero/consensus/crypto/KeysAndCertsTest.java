@@ -4,12 +4,9 @@ package org.hiero.consensus.crypto;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyType;
@@ -17,9 +14,13 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.test.fixtures.PreGeneratedPublicKeys;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.junit.jupiter.api.Test;
 
 class KeysAndCertsTest {
     private static final byte[] DATA_ARRAY = {1, 2, 3};
@@ -40,31 +41,22 @@ class KeysAndCertsTest {
 
     /**
      * Tests signing and verifying with provided {@link KeysAndCerts}
-     *
-     * @param roster
-     * 		roster of the network
-     * @param keysAndCerts
-     * 		keys and certificates to use for testing
      */
-    @ParameterizedTest
-    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
-    void basicTest(@NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts) {
-        Objects.requireNonNull(roster, "roster must not be null");
-        Objects.requireNonNull(keysAndCerts, "keysAndCerts must not be null");
+    @Test
+    void basicTest() {
+        final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
+                Randotron.create(), 10, WeightGenerators.BALANCED_1000_PER_NODE);
+        final RosterWrapper roster = rosterWithKeys.roster();
+        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterWithKeys.privateKeys();
+
         // choose a random node to test
         final Random random = new Random();
         final int node = random.nextInt(roster.rosterEntries().size());
-        final NodeId nodeId = NodeId.of(roster.rosterEntries().get(node).nodeId());
+        final RosterEntryWrapper entry = roster.rosterEntries().get(node);
 
-        final PlatformSigner signer = new PlatformSigner(keysAndCerts.get(nodeId));
-        testSignVerify(
-                signer,
-                RosterUtils.fetchGossipCaCertificate(roster.rosterEntries().get(node))
-                        .getPublicKey());
+        final PlatformSigner signer = new PlatformSigner(keysAndCerts.get(entry.nodeId()));
+        testSignVerify(signer, entry.gossipCaCertificate().getPublicKey());
         // test it twice to verify that the signer is reusable
-        testSignVerify(
-                signer,
-                RosterUtils.fetchGossipCaCertificate(roster.rosterEntries().get(node))
-                        .getPublicKey());
+        testSignVerify(signer, entry.gossipCaCertificate().getPublicKey());
     }
 }
