@@ -65,13 +65,16 @@ attack:
    (the witness with the minimum hash). The result is that branching
    never inflates a creator's voice in the consensus order.
 
-**No explicit branch detector.** The code does not scan for branches
-and does not flag, punish, or evict branching creators. Tolerance is
-structural: the agreement requirement in `stronglySeeP`, the
-allowance for multiple witnesses per creator per round, and the
-deterministic judge merge are sufficient to keep the algorithm safe
-under any pattern of branching by up to `<n/3` of the creators (by
-weight).
+**Branch detection is observability, not defence.** The intake
+pipeline does scan for branches — every event leaving the orphan
+buffer is checked — but the detector's only consumer logs and meters
+(see *In current code*); nothing flags a branching creator to the
+algorithm, punishes it, or evicts it. Tolerance is therefore
+structural, and the algorithm would stay safe with the detector
+removed: the agreement requirement in `stronglySeeP`, the allowance
+for multiple witnesses per creator per round, and the deterministic
+judge merge are sufficient to keep the algorithm safe under any
+pattern of branching by up to `<n/3` of the creators (by weight).
 
 ## Why this gives Byzantine fault tolerance
 
@@ -149,10 +152,32 @@ witness with the minimum base hash. This is the deterministic tie-
 break that ensures every node picks the same judge for a branched
 creator.
 
-**No detector.** A grep for "fork" or "branch" across the consensus
-implementation turns up only the comments quoted above. There is no
-class that flags branching creators or excludes them; the algorithm
-is correct without any such mechanism.
+**Branch detector — reporting only.** A `branching/` package in
+`consensus-event-intake-impl` does detect branches, but it feeds
+logging and metrics rather than the algorithm.
+[
+`DefaultBranchDetector.checkForBranches`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/DefaultBranchDetector.java#checkForBranches)
+is soldered to the orphan buffer's split output in
+[
+`DefaultEventIntakeModule.initialize`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java#initialize),
+so every non-ancient event leaving the orphan buffer is checked: it
+counts as a branch when the creator's most recent non-ancient event
+is not this event's self-parent. The detector's output wire feeds
+[
+`DefaultBranchReporter.reportBranch`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/DefaultBranchReporter.java#reportBranch),
+which rate-limits an error log per creator, updates the
+`branchingEvents`, `branchingNodeCount` and `branchingWeightFraction`
+metrics
+([
+`BranchingMetrics`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/BranchingMetrics.java)),
+and logs a fatal "Excessive branching detected!" once branching
+creators hold a strong minority of the weight — the point at which
+the `<n/3` assumption is violated.
+
+No class excludes a branching creator or discounts its events, and
+nothing on this path reaches the hashgraph: the consensus algorithm
+is correct without any such mechanism, exactly as described under
+*Mechanics*.
 
 ## Cross-references
 
