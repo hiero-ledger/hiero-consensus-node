@@ -48,23 +48,6 @@ Benchmarks:
 
 - `MerkleDbSnapshotBenchmark.snapshot`: snapshots the prepared data source.
 
-The state contains `numFiles * numRecords` leaves (5 million with the inherited
-defaults), with record sizes controlled by `keySize` and `recordSize`. The JMH
-parameters `useDiskIndices` (`false`, `true`) and `threadsPerLongList` (`1`, `4`)
-compare index storage modes and writer counts. These override
-`merkleDb.useDiskIndices` and `merkleDb.longListWriteThreads` from `settings.txt`.
-
-Measurements use single-shot time in milliseconds, with one warmup and two
-measurement iterations. Only the snapshot call is timed: fixture generation,
-hash-cache warming, forcing snapshot files to storage, and cleanup are outside
-the measured operation. This is not an end-to-end durable-write measurement.
-
-To reuse fixtures across trials and runs, set `benchmark.saveDataDirectory=true`
-and use a stable `benchmark.benchmarkData` directory. Fixtures are separated by
-state size, key and record sizes, initial capacity, and hash chunk height. The
-`snapshot-output` directory inside the benchmark data directory is deleted after
-each invocation, even when fixtures are preserved.
-
 ### ReconnectBench
 
 Builds learner and teacher virtual map states with configurable differences,
@@ -109,10 +92,9 @@ The Gradle tasks are curated run configurations. For example,
 Use the JMH JAR include patterns, or adjust the Gradle task configuration, to
 run `CryptoBench.transferSerial` or `CryptoBench.transferParallel`.
 
-These tasks keep normal JMH forking enabled. The crypto, virtual map, and
-snapshot tasks pass `-Xmx16g` to the forked benchmark JVM; reconnect uses
-`-Xms24g -Xmx24g -XX:+AlwaysPreTouch`. Their JMH result files are written under
-this module's `build/results/jmh` directory.
+These tasks keep normal JMH forking enabled and pass `-Xmx16g` to the forked
+benchmark JVM. Their JMH result files are written under this module's
+`build/results/jmh` directory.
 
 ## Run from an IDE
 

@@ -38,7 +38,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 /// Fixture generation is outside the measured operation.
 @Fork(1)
 @Warmup(iterations = 1)
-@Measurement(iterations = 2)
+@Measurement(iterations = 3)
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(MILLISECONDS)
 public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
@@ -183,7 +183,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         }
     }
 
-    /// Loads cacheable hash chunks so each snapshot includes the hash-cache flush work.
+    /// Loads hash chunks into the cache so snapshots have cached hashes to write.
     ///
     /// @param merkleDbConfig database settings defining the cache limit
     /// @throws IOException if a hash chunk cannot be read
@@ -214,6 +214,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     }
 
     static void main() throws Exception {
+        // This entry point is intended for local IDE profiling.
+        // Run in-process so the IntelliJ profiler attaches to the benchmark workload instead of a JMH fork.
         // If a larger heap is needed, set it in the IDE run configuration VM options.
         new Runner(new OptionsBuilder()
                         .include(MerkleDbSnapshotBenchmark.class.getSimpleName())
