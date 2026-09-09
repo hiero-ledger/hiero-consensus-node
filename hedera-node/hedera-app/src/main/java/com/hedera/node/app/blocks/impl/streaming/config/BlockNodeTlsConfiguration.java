@@ -20,7 +20,8 @@ import org.hiero.base.crypto.DigestType;
  * Each API the consensus node calls on a block node (the streaming/publish API and the service API) is configured
  * independently, so TLS may be required for one and not the other when the two APIs use distinct ports. When they
  * share a port they are served by one listener, which negotiates TLS before it knows which API is being called, so
- * they necessarily share one TLS state; {@link BlockNodeConfiguration} resolves that case.
+ * they necessarily share one TLS state; {@link BlockNodeConfiguration} reconciles the two declarations, with the
+ * more secure one winning and two different TLS configurations for one endpoint rejected.
  * <p>
  * When a certificate fingerprint is supplied, the endpoint's certificate is accepted if and only if its SHA-384 hash
  * matches; neither the platform trust store nor hostname verification is consulted. This is what allows operators to

@@ -53,9 +53,14 @@ public class BlockNodeConfiguration {
      */
     private final BlockNodeTlsConfiguration serviceTls;
     /**
-     * Whether the service endpoint uses TLS solely because it shares the streaming endpoint and inherited its settings.
+     * Which API, if any, took its TLS settings from the other because both share one endpoint.
      */
-    private final boolean serviceTlsInherited;
+    private final TlsInheritance tlsInheritance;
+    /**
+     * Whether that inheritance overrode a TLS block the operator explicitly declared with {@code enabled: false},
+     * rather than filling in a block that was absent.
+     */
+    private final boolean tlsInheritanceOverrodeExplicitSetting;
 
     private BlockNodeConfiguration(final Builder builder) {
         requireNonNull(builder.address, "Address must be specified");
@@ -65,11 +70,24 @@ public class BlockNodeConfiguration {
         final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
         streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
         serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
-        streamingTls = builder.streamingTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.streamingTls;
-        serviceTls = resolveServiceTls(builder, streamingTls, streamingEndpoint, serviceEndpoint);
-        // Only flag inheritance that changes behavior: inheriting plaintext onto a plaintext endpoint is a no-op.
-        serviceTlsInherited =
-                streamingEndpoint.equals(serviceEndpoint) && builder.serviceTls == null && streamingTls.enabled();
+        final BlockNodeTlsConfiguration declaredStreamingTls =
+                builder.streamingTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.streamingTls;
+        final BlockNodeTlsConfiguration declaredServiceTls =
+                builder.serviceTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.serviceTls;
+        if (streamingEndpoint.equals(serviceEndpoint)) {
+            final SharedEndpointTls shared =
+                    resolveSharedEndpointTls(builder, declaredStreamingTls, declaredServiceTls, streamingEndpoint);
+            streamingTls = shared.tls();
+            serviceTls = shared.tls();
+            tlsInheritance = shared.inheritance();
+            tlsInheritanceOverrodeExplicitSetting = shared.overrodeExplicitSetting();
+        } else {
+            // Separate listeners are secured independently.
+            streamingTls = declaredStreamingTls;
+            serviceTls = declaredServiceTls;
+            tlsInheritance = TlsInheritance.NONE;
+            tlsInheritanceOverrodeExplicitSetting = false;
+        }
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
@@ -96,40 +114,70 @@ public class BlockNodeConfiguration {
     }
 
     /**
-     * Determines the TLS settings for the service endpoint.
+     * Reconciles the TLS settings of the two APIs when they share one endpoint.
      * <p>
-     * When the service port is not given its own value it defaults to the streaming port, which means a single
-     * listener serves both APIs. That listener either speaks TLS or it does not, so an unspecified service TLS block
-     * inherits the streaming one rather than silently defaulting to plaintext - which would have the consensus node
-     * dial a TLS listener over plaintext and fail every server-status call. For the same reason, service TLS settings
-     * that are explicitly given and contradict the streaming ones are rejected outright.
+     * A single listener negotiates TLS before it knows which API is being called, so it has exactly one TLS state and
+     * the two APIs cannot differ. The rule is "most secure wins": if exactly one API requires TLS, that configuration
+     * applies to both; if neither does, both are plaintext; if both require TLS they must agree exactly, because one
+     * listener presents one certificate, so two different TLS configurations for it is a contradiction and the node is
+     * rejected. Whether the non-TLS side was left unset or explicitly disabled does not change the result, but it is
+     * reported so that an explicit setting being overridden can be logged more loudly than an absent one being filled.
      *
      * @param builder the builder being validated
-     * @param streamingTls the already-resolved TLS settings for the streaming endpoint
-     * @param streamingEndpoint the endpoint of the streaming API
-     * @param serviceEndpoint the endpoint of the service API
-     * @return the TLS settings for the service endpoint
+     * @param streamingTls the TLS settings declared for the streaming API, or {@code DISABLED} if none
+     * @param serviceTls the TLS settings declared for the service API, or {@code DISABLED} if none
+     * @param endpoint the endpoint both APIs share
+     * @return the single TLS configuration for the endpoint, and how it was arrived at
      */
-    private static @NonNull BlockNodeTlsConfiguration resolveServiceTls(
+    private static @NonNull SharedEndpointTls resolveSharedEndpointTls(
             @NonNull final Builder builder,
             @NonNull final BlockNodeTlsConfiguration streamingTls,
-            @NonNull final BlockNodeEndpoint streamingEndpoint,
-            @NonNull final BlockNodeEndpoint serviceEndpoint) {
-        if (!streamingEndpoint.equals(serviceEndpoint)) {
-            // Separate listeners are secured independently.
-            return builder.serviceTls == null ? BlockNodeTlsConfiguration.DISABLED : builder.serviceTls;
+            @NonNull final BlockNodeTlsConfiguration serviceTls,
+            @NonNull final BlockNodeEndpoint endpoint) {
+        if (streamingTls.enabled() && serviceTls.enabled()) {
+            if (!streamingTls.equals(serviceTls)) {
+                throw new IllegalArgumentException("The streaming and service APIs share endpoint " + endpoint.host()
+                        + ":" + endpoint.port()
+                        + " and both require TLS, but with different settings: the streaming API"
+                        + " declares " + streamingTls + " and the service API declares " + serviceTls
+                        + "; a single listener presents one certificate, so make the two settings match or give the"
+                        + " service API its own port");
+            }
+            return new SharedEndpointTls(streamingTls, TlsInheritance.NONE, false);
         }
-        if (builder.serviceTls == null) {
-            return streamingTls;
+        if (streamingTls.enabled()) {
+            return new SharedEndpointTls(
+                    streamingTls, TlsInheritance.SERVICE_FROM_STREAMING, builder.serviceTls != null);
         }
-        if (!builder.serviceTls.equals(streamingTls)) {
-            throw new IllegalArgumentException("The streaming and service APIs share endpoint "
-                    + streamingEndpoint.host() + ":" + streamingEndpoint.port()
-                    + ", so they must have identical TLS settings, but the streaming endpoint declares "
-                    + streamingTls + " and the service endpoint declares " + builder.serviceTls
-                    + "; give the service API its own port or make the two settings match");
+        if (serviceTls.enabled()) {
+            return new SharedEndpointTls(
+                    serviceTls, TlsInheritance.STREAMING_FROM_SERVICE, builder.streamingTls != null);
         }
-        return builder.serviceTls;
+        return new SharedEndpointTls(BlockNodeTlsConfiguration.DISABLED, TlsInheritance.NONE, false);
+    }
+
+    /**
+     * The outcome of reconciling TLS settings on a shared endpoint.
+     *
+     * @param tls the TLS configuration both APIs use
+     * @param inheritance which API, if any, took its settings from the other
+     * @param overrodeExplicitSetting whether the API that took the other's settings had explicitly disabled TLS
+     */
+    private record SharedEndpointTls(
+            @NonNull BlockNodeTlsConfiguration tls,
+            @NonNull TlsInheritance inheritance,
+            boolean overrodeExplicitSetting) {}
+
+    /**
+     * Which API, if any, took its TLS settings from the other because the two share one endpoint.
+     */
+    public enum TlsInheritance {
+        /** The endpoints differ, or both APIs already agreed; nothing was changed. */
+        NONE,
+        /** The service API uses the streaming API's TLS settings. */
+        SERVICE_FROM_STREAMING,
+        /** The streaming API uses the service API's TLS settings. */
+        STREAMING_FROM_SERVICE
     }
 
     public @NonNull BlockNodeEndpoint streamingEndpoint() {
@@ -177,9 +225,9 @@ public class BlockNodeConfiguration {
     }
 
     /**
-     * The TLS settings applied to the service endpoint. When the service API shares the streaming endpoint and
-     * declared no settings of its own, this is the streaming endpoint's configuration; see
-     * {@link #serviceTlsInherited()}.
+     * The TLS settings applied to the service endpoint. When the two APIs share one endpoint this is the single
+     * configuration resolved for that endpoint, which may have come from the streaming API; see
+     * {@link #tlsInheritance()}.
      *
      * @return the TLS settings for the service endpoint
      */
@@ -188,11 +236,18 @@ public class BlockNodeConfiguration {
     }
 
     /**
-     * @return true if the service endpoint uses TLS only because it shares the streaming endpoint and inherited its
-     * TLS settings; false if it declared its own settings, uses plaintext, or has a port of its own
+     * @return which API, if any, took its TLS settings from the other because both share one endpoint
      */
-    public boolean serviceTlsInherited() {
-        return serviceTlsInherited;
+    public @NonNull TlsInheritance tlsInheritance() {
+        return tlsInheritance;
+    }
+
+    /**
+     * @return true if {@link #tlsInheritance()} overrode a TLS block the operator explicitly declared with
+     * {@code enabled: false}, as opposed to filling in a block that was absent
+     */
+    public boolean tlsInheritanceOverrodeExplicitSetting() {
+        return tlsInheritanceOverrodeExplicitSetting;
     }
 
     @Override

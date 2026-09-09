@@ -948,7 +948,36 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testLoadConfiguration_sharedPortWithContradictoryTlsSkipsOnlyThatNode() throws Throwable {
+    void testLoadConfiguration_sharedPortWithTwoDifferentTlsConfigsSkipsOnlyThatNode() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "streamingTls": { "enabled": true, "certificateSha384": "%s" },
+                            "serviceTls": { "enabled": true, "certificateSha384": "%s" }
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """.formatted("a".repeat(96), "b".repeat(96)));
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
+    }
+
+    @Test
+    void testLoadConfiguration_explicitlyDisabledServiceTlsOnSharedPortIsOverriddenWithWarning() throws Throwable {
         writeConfig("""
                 {
                     "nodes": [
@@ -958,11 +987,6 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                             "priority": 1,
                             "streamingTls": { "enabled": true },
                             "serviceTls": { "enabled": false }
-                        },
-                        {
-                            "address": "localhost",
-                            "streamingPort": 9998,
-                            "priority": 2
                         }
                     ]
                 }
@@ -973,7 +997,39 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
         assertThat(config).isNotNull();
         assertThat(config.configs()).hasSize(1);
-        assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9998);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.streamingTls().enabled()).isTrue();
+        assertThat(nodeConfig.serviceTls().enabled()).isTrue();
+        assertThat(logCaptor.warnLogs())
+                .anyMatch(line -> line.contains("[localhost:8443]")
+                        && line.contains("service API explicitly disables TLS")
+                        && line.contains("TLS applies to both"));
+    }
+
+    @Test
+    void testLoadConfiguration_streamingTakesServiceTlsOnSharedPort() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 8443,
+                            "priority": 1,
+                            "serviceTls": { "enabled": true }
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final BlockNodeConfiguration nodeConfig =
+                configService.latestConfiguration().configs().getFirst();
+        assertThat(nodeConfig.streamingTls().enabled()).isTrue();
+        assertThat(nodeConfig.serviceTls().enabled()).isTrue();
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(line -> line.contains("[localhost:8443]")
+                        && line.contains("applying the service API's TLS settings to both"));
     }
 
     @Test
@@ -994,8 +1050,9 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         invoke_loadConfiguration();
 
         assertThat(logCaptor.infoLogs())
-                .anyMatch(line ->
-                        line.contains("[localhost:8443]") && line.contains("serviceTls inherited from streamingTls"));
+                .anyMatch(line -> line.contains("[localhost:8443]")
+                        && line.contains("applying the streaming API's TLS settings to both"));
+        assertThat(logCaptor.warnLogs()).noneMatch(line -> line.contains("explicitly disables TLS"));
     }
 
     @Test
@@ -1022,7 +1079,8 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         invoke_loadConfiguration();
 
         assertThat(configService.latestConfiguration().configs()).hasSize(2);
-        assertThat(logCaptor.infoLogs()).noneMatch(line -> line.contains("serviceTls inherited from streamingTls"));
+        assertThat(logCaptor.infoLogs()).noneMatch(line -> line.contains("TLS settings to both"));
+        assertThat(logCaptor.warnLogs()).noneMatch(line -> line.contains("explicitly disables TLS"));
     }
 
     // Utilities =========

@@ -63,29 +63,30 @@ A TLS block has two fields:
 |           `streamingTls` / `serviceTls`            |                                                                                                                 Behavior                                                                                                                 |
 |----------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | absent                                             | Plaintext.                                                                                                                                                                                                                               |
-| `{ "enabled": false }`                             | Plaintext.                                                                                                                                                                                                                               |
+| `{ "enabled": false }`                             | Plaintext on an endpoint of its own. On a shared endpoint the other API's TLS block may still apply; see below.                                                                                                                          |
 | `{ "enabled": true }`                              | TLS. The certificate is verified against the platform default trust store, with hostname verification. Use this for certificates signed by a public or system-trusted CA.                                                                |
 | `{ "enabled": true, "certificateSha384": "..." }`  | TLS. The certificate is accepted if and only if its SHA-384 hash matches. Neither the trust store nor hostname verification is consulted, which is what allows a self-signed certificate to be used without distributing trust material. |
 | `{ "enabled": false, "certificateSha384": "..." }` | Rejected as contradictory; the node is skipped with a warning.                                                                                                                                                                           |
 
 #### When both APIs share a port
 
-A TCP listener negotiates TLS before it knows which gRPC method the client will call, so two APIs served from
-the same host and port necessarily share one TLS state; no server can require TLS for `publishBlockStream` and
-refuse it for `serverStatus` on the same port. The configuration follows that fact:
+The Block Node serves its APIs on separate ports by design, and with distinct ports the two blocks are fully
+independent: an omitted block means plaintext on that port, whatever the other block says. But `servicePort`
+defaults to `streamingPort`, so the two APIs can end up on one endpoint (one host and port). A TCP listener
+negotiates TLS before it knows which gRPC method the client will call, so a single endpoint has exactly one TLS
+state, and the two declarations are reconciled with the more secure one winning:
 
-- **When `servicePort` is omitted or equal to `streamingPort`**, both APIs use one listener, and an omitted
-  `serviceTls` inherits `streamingTls`. Declaring only `streamingTls` therefore secures both APIs rather than
-  leaving the service API dialling a TLS listener in plaintext, which would make every server-status probe fail
-  and leave the block node unused. When this inheritance actually turns TLS on for the service API, the
-  Consensus Node logs it at INFO when the file is loaded.
-- **When `servicePort` is omitted or equal to `streamingPort` and both blocks are present but differ**, the node
-  is rejected as contradictory and skipped with a warning; the other nodes in the file still load.
-- **When the two ports differ**, the two blocks are fully independent and nothing is inherited. An omitted
-  `serviceTls` means plaintext on `servicePort`, whatever `streamingTls` says.
+|                                  On a shared endpoint                                  |                                                         Result                                                         |
+|----------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| neither block requires TLS (absent or `enabled: false`)                                | plaintext for both APIs                                                                                                |
+| exactly one block requires TLS, the other absent                                       | that TLS configuration applies to both APIs; logged at INFO                                                            |
+| exactly one block requires TLS, the other explicitly `enabled: false`                  | that TLS configuration applies to both APIs; logged at WARN, because the file says one thing and the node does another |
+| both blocks require TLS and are identical                                              | that configuration                                                                                                     |
+| both blocks require TLS but differ (different fingerprints, or one pinned and one not) | rejected as contradictory; the node is skipped with a warning and the other nodes still load                           |
 
-Securing only one API (for example `streamingTls` on and `serviceTls` off) is therefore only expressible with
-distinct ports, which is also the only way a block node can actually serve it.
+The rule is symmetric: `streamingTls` can be filled in from `serviceTls` just as `serviceTls` can from
+`streamingTls`. Securing only one API is therefore only expressible with distinct ports, which is also the only
+way a Block Node can actually serve it.
 
 The Consensus Node only verifies the Block Node's identity; it does not present a client certificate, so
 mutual TLS is not supported. TLS on the Block Node side is expected to be terminated in front of the Block
