@@ -47,7 +47,7 @@ has no effect.
 
 ## `platform.wiring.*` — WiringConfig
 
-Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
+Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/org/hiero/consensus/wiring/framework/WiringConfig.java).
 
 |   ID    |                       Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
 |---------|--------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -189,7 +189,7 @@ Module: `swirlds-platform-core`. Source: [FallenBehindConfig.java](../../swirlds
 
 ## `paths.*` — PathsConfig
 
-Module: `consensus-utility`. Source: [PathsConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PathsConfig.java).
+Module: `swirlds-platform-core`. Source: [PathsConfig.java](../../swirlds-platform-core/src/main/java/org/hiero/consensus/PathsConfig.java).
 
 |   ID    |           Key           | Type |    Default    |                                             Effect                                              | Range | Fragility |
 |---------|-------------------------|------|---------------|-------------------------------------------------------------------------------------------------|-------|-----------|
