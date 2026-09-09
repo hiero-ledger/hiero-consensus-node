@@ -48,12 +48,10 @@ so on, until fame decides on either side.
 ## In current code
 
 `ConsensusImpl.isCoinRound(diff)` is `diff % config.coinFreq() == 0`
-(line 613 of
-[`ConsensusImpl.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java)).
-Coin vote application: `ConsensusImpl.coinVote` (line 630), which
+([`ConsensusImpl.java#isCoinRound`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java#isCoinRound)).
+Coin vote application: `ConsensusImpl.coinVote`, which
 delegates to `ConsensusUtils.coin(event)`
-([`ConsensusUtils.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusUtils.java)
-line 28) — the bit is the parity of the voting event's `coin` field:
+([`ConsensusUtils.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusUtils.java#coin)) — the bit is the parity of the voting event's `coin` field:
 `event.getEventCore().coin() % 2 == 0`. The field itself is
 `EventCore.coin` (PBJ field 5 in
 [`EventCore`](../../../../hapi/hedera-protobuf-java-api/src/main/proto/platform/event/event_core.proto)),
