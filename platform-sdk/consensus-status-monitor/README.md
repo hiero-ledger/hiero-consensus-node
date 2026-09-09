@@ -22,7 +22,7 @@ quiescing node holds `ACTIVE`, see
 ## Dependency Rules
 
 May depend on:
-- Supporting modules: `consensus-model`, `consensus-metrics`, `consensus-roster`
+- Supporting modules: `consensus-model`, `consensus-metrics`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
 `consensus-wiring-framework`
 
@@ -32,4 +32,7 @@ Must not depend on:
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`, `swirlds-state-api`,
 `swirlds-state-impl`, `swirlds-virtualmap`
 
-No known violations.
+Known violation — `requires org.hiero.consensus.roster`: `consensus-roster` is a
+structural-transitional module that nothing outside that category should depend on (rules 3 and
+7). This does not resolve on its own — the dependency has to be removed before `consensus-roster`
+can move to the execution layer.

@@ -5,15 +5,15 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Byt
 import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
+import static org.hiero.consensus.state.SignedStateFileConstants.CONSENSUS_SNAPSHOT_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.CURRENT_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.HASH_INFO_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.SIGNATURE_SET_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileReader.readState;
 import static org.hiero.consensus.state.SignedStateFileWriter.writeHashInfoFile;
 import static org.hiero.consensus.state.SignedStateFileWriter.writeSignatureSetFile;
 import static org.hiero.consensus.state.SignedStateFileWriter.writeSignedStateToDisk;
 import static org.hiero.consensus.state.StateFileManagerTests.hashState;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,7 +45,6 @@ import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
@@ -104,7 +103,7 @@ class SignedStateFileReadWriteTest {
         final VirtualMapState state = signedState.getState();
         writeHashInfoFile(testDirectory, state);
 
-        final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
+        final Path hashInfoFile = testDirectory.resolve(SignedStateFileConstants.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
         final String mnemonicString = Mnemonics.generateMnemonic(state.getHash());

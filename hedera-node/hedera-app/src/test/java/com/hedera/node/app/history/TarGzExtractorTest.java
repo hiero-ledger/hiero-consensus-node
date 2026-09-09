@@ -262,6 +262,65 @@ class TarGzExtractorTest {
     }
 
     @Test
+    void rejectsOversizedGnuLongNameBeforeAllocating() throws IOException {
+        // Type 'L' header declaring a 1 GiB name; must be rejected on the size field, not by allocating
+        final byte[] lHeader = buildRawHeader("././@LongLink", 1024L * 1024L * 1024L, (byte) 'L');
+        final var archive = writeTarGz(gzipRaw(lHeader));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("invalid size"), e.getMessage());
+    }
+
+    @Test
+    void rejectsGnuLongNameSizeThatOverflowsInt() throws IOException {
+        // 2^31 casts to a negative int, which readNBytes would reject with IllegalArgumentException
+        final byte[] lHeader = buildRawHeader("././@LongLink", 2147483648L, (byte) 'L');
+        final var archive = writeTarGz(gzipRaw(lHeader));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("invalid size"), e.getMessage());
+    }
+
+    @Test
+    void rejectsZeroSizedGnuLongName() throws IOException {
+        final byte[] lHeader = buildRawHeader("././@LongLink", 0, (byte) 'L');
+        final var archive = writeTarGz(gzipRaw(lHeader));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("invalid size"), e.getMessage());
+    }
+
+    @Test
+    void rejectsTooManyGnuLongNameHeaders() throws IOException {
+        final byte[] name = "a\0".getBytes(StandardCharsets.US_ASCII);
+        final byte[][] entries = new byte[10_001][];
+        for (int i = 0; i < entries.length; i++) {
+            entries[i] = longNameHeader(name.length, name);
+        }
+        final var archive = writeTarGz(createTarGz(entries));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("metadata headers"), e.getMessage());
+    }
+
+    @Test
+    void rejectsTooManyPaxHeaders() throws IOException {
+        final byte[][] entries = new byte[10_001][];
+        for (int i = 0; i < entries.length; i++) {
+            entries[i] = paxEntry((byte) 'x', new byte[0]);
+        }
+        final var archive = writeTarGz(createTarGz(entries));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("metadata headers"), e.getMessage());
+    }
+
+    @Test
+    void acceptsGnuLongNameSizeAtMaxLength() throws IOException {
+        // A 4096-char name occupies 4097 payload bytes with its trailing NUL, so that size must pass
+        // the pre-allocation check - here the archive is truncated, which is a different failure
+        final byte[] lHeader = buildRawHeader("././@LongLink", 4097, (byte) 'L');
+        final var archive = writeTarGz(gzipRaw(lHeader));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertFalse(e.getMessage().contains("invalid size"), e.getMessage());
+    }
+
+    @Test
     void skipsPaxHeaders() throws IOException {
         final byte[] content = "real".getBytes(StandardCharsets.UTF_8);
         final byte[] paxData = "20 path=extended.txt\n".getBytes(StandardCharsets.US_ASCII);
@@ -479,6 +538,16 @@ class TarGzExtractorTest {
         final byte[] result = new byte[lEntry.length + fileEntry.length];
         System.arraycopy(lEntry, 0, result, 0, lEntry.length);
         System.arraycopy(fileEntry, 0, result, lEntry.length, fileEntry.length);
+        return result;
+    }
+
+    /** Creates a type 'L' header declaring {@code declaredSize}, followed by {@code data} in whole blocks. */
+    private static byte[] longNameHeader(final long declaredSize, final byte[] data) {
+        final byte[] header = buildRawHeader("././@LongLink", declaredSize, (byte) 'L');
+        final int dataBlocks = (data.length + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        final byte[] result = new byte[BLOCK_SIZE + dataBlocks * BLOCK_SIZE];
+        System.arraycopy(header, 0, result, 0, BLOCK_SIZE);
+        System.arraycopy(data, 0, result, BLOCK_SIZE, data.length);
         return result;
     }
 

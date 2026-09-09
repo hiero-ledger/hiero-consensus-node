@@ -11,10 +11,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedOptions;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ElementKind;
@@ -28,8 +30,16 @@ import javax.tools.StandardLocation;
  * An annotation processor that creates documentation and constants for config data records.
  */
 @SupportedAnnotationTypes(ConfigProcessorConstants.CONFIG_DATA_ANNOTATION)
+@SupportedOptions(ConfigDataAnnotationProcessor.DOCUMENTATION_FILE_OPTION)
 @SupportedSourceVersion(SourceVersion.RELEASE_25)
 public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
+
+    /**
+     * Option that defines where the documentation is written, as an absolute path. The documentation goes to
+     * {@code build/docs/config.md} below the working directory of the compiler when the option is not given, which is
+     * the right place for a Gradle build but not for a compilation that is driven by something else.
+     */
+    static final String DOCUMENTATION_FILE_OPTION = "com.swirlds.config.processor.documentationFile";
 
     @Override
     public boolean process(
@@ -40,8 +50,7 @@ public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
         if (annotations.isEmpty()) {
             return false;
         }
-        final String executionPath = System.getProperty("user.dir");
-        final Path configDocumentationFile = Paths.get(executionPath, "build/docs/config.md");
+        final Path configDocumentationFile = getDocumentationFile();
         try {
             Files.deleteIfExists(configDocumentationFile);
         } catch (final IOException e) {
@@ -60,10 +69,48 @@ public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
                     .forEach(typeElement -> handleTypeElement(typeElement, configDocumentationFile));
             return true;
         } catch (final Exception e) {
-            log(Kind.ERROR, "Error while processing annotations: " + e.getMessage());
+            log(Kind.ERROR, "Error while processing annotations: " + describe(e));
             e.printStackTrace();
             return false;
         }
+    }
+
+    /**
+     * Describes the given failure by its whole cause chain. The failure that a rejection really reports is wrapped by
+     * the handling of the type it was found on, so the message of the outermost exception alone names the record but
+     * never says what is wrong with it.
+     *
+     * @param failure the failure
+     * @return the description of the failure
+     */
+    @NonNull
+    private static String describe(@NonNull final Throwable failure) {
+        final StringBuilder builder = new StringBuilder();
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (!builder.isEmpty()) {
+                builder.append(": ");
+            }
+            builder.append(
+                    current.getMessage() != null
+                            ? current.getMessage()
+                            : current.getClass().getName());
+        }
+        return builder.toString();
+    }
+
+    /**
+     * Returns the file the documentation is written to, which is {@code build/docs/config.md} below the working
+     * directory unless {@link #DOCUMENTATION_FILE_OPTION} defines another one.
+     *
+     * @return the documentation file
+     */
+    @NonNull
+    private Path getDocumentationFile() {
+        final String configured = processingEnv.getOptions().get(DOCUMENTATION_FILE_OPTION);
+        if (configured != null) {
+            return Paths.get(configured);
+        }
+        return Paths.get(System.getProperty("user.dir"), "build/docs/config.md");
     }
 
     private void handleTypeElement(
@@ -82,13 +129,25 @@ public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
             final List<ConfigDataRecordDefinition> recordDefinitions = AntlrConfigRecordParser.parse(
                     recordSource.getCharContent(true).toString());
 
-            if (!recordDefinitions.isEmpty()) {
+            // one source file can declare several config data records, so the definition of the record that is being
+            // handled has to be picked by name rather than by position
+            final Optional<ConfigDataRecordDefinition> parsedDefinition = recordDefinitions.stream()
+                    .filter(candidate -> Objects.equals(simpleClassName, candidate.simpleClassName()))
+                    .findFirst();
+
+            if (parsedDefinition.isPresent()) {
+                // the source of the record is parsed on its own, so a component that holds a nested config data object
+                // declared elsewhere has to be resolved through the element model of the compiler
+                final ConfigDataRecordDefinition recordDefinition = new NestedRecordExpander(
+                                processingEnv.getElementUtils(), processingEnv.getTypeUtils())
+                        .expand(parsedDefinition.get(), typeElement);
+
                 final JavaFileObject constantsSourceFile =
                         getConstantSourceFile(packageName, simpleClassName, typeElement);
                 log("generating config constants file: " + constantsSourceFile.getName());
-                ConstantClassFactory.doWork(recordDefinitions.getFirst(), constantsSourceFile);
+                ConstantClassFactory.doWork(recordDefinition, constantsSourceFile);
                 log("generating config doc file: " + configDocumentationFile.getFileName());
-                DocumentationFactory.doWork(recordDefinitions.getFirst(), configDocumentationFile);
+                DocumentationFactory.doWork(recordDefinition, configDocumentationFile);
             }
         } catch (final Exception e) {
             throw new RuntimeException("Error handling " + typeElement, e);

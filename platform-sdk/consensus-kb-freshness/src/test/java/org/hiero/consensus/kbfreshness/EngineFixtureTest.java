@@ -720,6 +720,22 @@ class EngineFixtureTest {
         assertThat(report).contains("A target cited by N entries counts as N checks");
     }
 
+    @Test
+    void citedTestSourceResolvesInsteadOfReadingAsGone() {
+        // The KB cites regression tests as an invariant's verification; a main-only file index made
+        // every such citation a false GONE, which no correct citation could avoid.
+        assertThat(byKind(AnchorKind.SOURCE_PATH, t -> t.contains("RegressionFixtureTest.java")))
+                .isEmpty();
+    }
+
+    @Test
+    void configRecordOutsideMainSourcesStaysOutOfTheCatalogScan() {
+        // The file index spans every source set, so `isMainSource` is the only thing keeping a
+        // test-tree record out of the tunables lane.
+        final String coverage = CoverageRenderer.render(result);
+        assertThat(coverage).doesNotContain("TestOnlyConfig");
+    }
+
     // ---- helpers ----
 
     private static List<Finding> byKind(final AnchorKind kind, final Predicate<String> target) {

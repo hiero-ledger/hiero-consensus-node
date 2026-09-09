@@ -14,18 +14,18 @@ it without inheriting that module's test fixtures (modularization rule 4 in
 ## Dependency Rules
 
 May depend on:
-- Any consensus-layer module whose API it fakes — supporting, functional-api, and
-structural-transitional modules alike
+- Any supporting, functional-api, functional-impl, or self-contained functional module whose API it fakes
 - `consensus-wiring-framework` — a fake of a wired module has to expose the same components as
 the real one
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
-- `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap` — otherwise permitted only in
-the state-adjacent modules, but a fake of one of those exposes their types in its signatures
 
 Must not depend on:
-- Any `consensus-*-impl` module — a fake stands in for an API and never builds on the real
-implementation
+- Any structural-transitional module — those are on their way out of the consensus layer, and a
+fake must not pin them in place
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender` — depend on the API instead
+- `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-No known violations.
+Known violation — `requires transitive org.hiero.consensus.roster`: `FakeRosterFactory` returns a
+`RosterHistory`, which lives in a structural-transitional module. This does not resolve on its own —
+that class has to move out of this module before `consensus-roster` can move to the execution layer.
