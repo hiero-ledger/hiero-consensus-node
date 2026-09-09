@@ -1,0 +1,44 @@
+{
+  "buckets": [
+    {
+      "name": "ReclaimAssociateLimit",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": ["TokenAssociateToAccount"]
+        }
+      ]
+    },
+    {
+      "name": "ReclaimCreateLimit",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": ["CryptoCreate"]
+        }
+      ]
+    },
+    {
+      "name": "ReclaimPassthroughLimit",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 10000,
+          "operations": ["CryptoTransfer"]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100000,
+          "operations": ["TransactionGetReceipt", "FileGetContents"]
+        }
+      ]
+    }
+  ]
+}

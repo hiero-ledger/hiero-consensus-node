@@ -58,7 +58,6 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     public static final ContractID PRNG_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS)))
             .build();
-    private long gasRequirement;
 
     @Inject
     public PrngSystemContract(@NonNull final GasCalculator gasCalculator) {
@@ -72,7 +71,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
         requireNonNull(frame);
 
         // compute the gas requirement
-        gasRequirement = calculateGas(frame);
+        final long gasRequirement = calculateGas(frame);
 
         try {
             validateTrue(input.size() >= 4, INVALID_TRANSACTION_BODY);
@@ -82,12 +81,12 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
             final var result = PrecompiledContract.PrecompileContractResult.success(randomNum);
 
             // create a child record
-            createSuccessfulRecord(frame, randomNum, contractID);
+            createSuccessfulRecord(frame, randomNum, contractID, gasRequirement);
 
             return new FullResult(result, gasRequirement, null);
         } catch (InvalidTransactionException e) {
             // This error is caused by the user sending in the wrong selector
-            createFailedRecord(frame, e.getResponseCode(), contractID);
+            createFailedRecord(frame, e.getResponseCode(), contractID, gasRequirement);
             return new FullResult(
                     PrecompiledContract.PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INVALID_OPERATION)),
                     gasRequirement,
@@ -95,7 +94,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
         } catch (Exception e) {
             // Log a warning as this error will be caused by insufficient entropy
             log.warn("Internal precompile failure", e);
-            createFailedRecord(frame, FAIL_INVALID, contractID);
+            createFailedRecord(frame, FAIL_INVALID, contractID, gasRequirement);
             return new FullResult(
                     PrecompiledContract.PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INVALID_OPERATION)),
                     gasRequirement,
@@ -104,7 +103,10 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     }
 
     void createSuccessfulRecord(
-            @NonNull MessageFrame frame, @NonNull final Bytes randomNum, @NonNull final ContractID contractID) {
+            @NonNull MessageFrame frame,
+            @NonNull final Bytes randomNum,
+            @NonNull final ContractID contractID,
+            final long gasRequirement) {
         if (!frame.isStatic()) {
             requireNonNull(frame);
             requireNonNull(randomNum);
@@ -138,7 +140,8 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     void createFailedRecord(
             @NonNull MessageFrame frame,
             @NonNull final ResponseCodeEnum responseCode,
-            @NonNull final ContractID contractID) {
+            @NonNull final ContractID contractID,
+            final long gasRequirement) {
         if (frame.isStatic()) {
             return;
         }

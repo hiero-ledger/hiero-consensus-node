@@ -1,0 +1,62 @@
+# Test-only services and volume, merged onto the base stack for `make
+# selftest`:
+#
+#   docker compose -f docker-compose.yml -f test/docker-compose.test.yml ...
+#
+# Only ever brought up under the separate `observability-stack-selftest`
+# Compose project (see test/test.mk) - never merged into a real running stack.
+
+volumes:
+  # LOGS_DIR points at this during a selftest, so the fixture never writes
+  # into anyone's working tree.
+  selftest-logs:
+
+services:
+  selftest-metrics:
+    image: busybox:1.38.0
+    command: ["httpd", "-f", "-v", "-p", "8080", "-h", "/www"]
+    volumes:
+      - ./test/metrics.txt:/www/metrics.txt:ro
+    networks:
+      - observability
+
+  selftest-log-writer:
+    image: busybox:1.38.0
+    volumes:
+      # Read-write here only; alloy keeps :ro.
+      - ${LOGS_DIR}:/logs
+    # Every `$` is doubled so Compose does not interpolate it. The trailing
+    # timestamped line closes the stack-trace block with a firstline match
+    # instead of leaving it to stage.multiline's max_wait_time.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        T=$$(date '+%Y-%m-%d %H:%M:%S')
+        printf '%s INFO  selftest line one\n' "$$T" > /logs/selftest.log
+        printf '%s INFO  selftest line two\n' "$$T" >> /logs/selftest.log
+        printf '%s INFO  selftest line three\n' "$$T" >> /logs/selftest.log
+        printf '%s DEBUG selftest line four\n' "$$T" >> /logs/selftest.log
+        printf '%s WARN  selftest line five\n' "$$T" >> /logs/selftest.log
+        printf '%s ERROR selftest request failed\njava.lang.RuntimeException: selftest failure\n\tat com.example.Alpha.one(Alpha.java:11)\n\tat com.example.Beta.two(Beta.java:22)\n\tat com.example.Gamma.three(Gamma.java:33)\n' "$$T" >> /logs/selftest.log
+        printf '%s INFO  selftest trailer\n' "$$T" >> /logs/selftest.log
+        exec sleep infinity
+    networks:
+      - observability
+
+  selftest-assert:
+    image: curlimages/curl:8.21.0
+    entrypoint: ["/bin/sh"]
+    command: ["/assert.sh"]
+    environment:
+      METRICS_DATASOURCE_NAME: ${METRICS_DATASOURCE_NAME}
+    volumes:
+      - ./test/assert.sh:/assert.sh:ro
+    depends_on:
+      - victoriametrics
+      - loki
+      - alloy
+      - grafana
+    networks:
+      - observability
