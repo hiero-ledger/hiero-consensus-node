@@ -63,12 +63,12 @@ public class UpdateFailuresSpec {
         // this test is to verify that the system files cannot be updated without privileged account
         return hapiTest(
                 cryptoCreate(CIVILIAN),
-                fileUpdate(ADDRESS_BOOK).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED));
+                fileUpdate(ADDRESS_BOOK).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
+                fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
+                fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
+                fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
+                fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
+                fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED));
     }
 
     @HapiTest
