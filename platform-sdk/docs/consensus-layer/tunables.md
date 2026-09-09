@@ -34,8 +34,8 @@ Column conventions:
 
 A key that exists and resolves but that no production code reads is flagged in
 an **Unread.** note under its section table, naming what governs the behaviour
-instead. Such a key is left in the catalog — it is settable, so an operator can
-still be misled by it — but tuning it has no effect.
+instead. Such a key stays in the catalog — it is still settable — but setting it
+has no effect.
 
 ## StateCommonConfig — removed
 
@@ -221,7 +221,7 @@ Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-re
 | TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
 | TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
 
-**Unread.** `reconnect.maxAckDelay` (TUN-072) is documented but no production code reads it; the only reference is the record's own declaration. Reconnect stream flushing is governed instead by `reconnect.teacher.asyncOutputStreamFlush` and `reconnect.learner.asyncOutputStreamFlush`, declared in `swirlds-virtualmap` and read by [TeachingSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/TeachingSynchronizer.java) and [LearningSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/LearningSynchronizer.java) — outside this catalog's consensus-layer scope, so they carry no TUN ID.
+**Unread.** No production code reads `reconnect.maxAckDelay` (TUN-072); the only reference is the record's own declaration. Reconnect stream flushing is governed by `reconnect.teacher.asyncOutputStreamFlush` and `reconnect.learner.asyncOutputStreamFlush`, declared in `swirlds-virtualmap` and read by [TeachingSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/TeachingSynchronizer.java) and [LearningSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/LearningSynchronizer.java) — outside this catalog's consensus-layer scope, so they carry no TUN ID.
 
 ## `state.*` — StateConfig
 
@@ -469,7 +469,7 @@ Module: `consensus-gossip`. Source: [ProtocolConfig.java](../../consensus-gossip
 | TUN-157 | `protocol.tolerateMismatchedVersion`   | boolean | `false` | If true, tolerate peers with a different software version; if false, sever those connections. |       | —         |
 | TUN-158 | `protocol.tolerateMismatchedEpochHash` | boolean | `false` | If true, tolerate peers with a different epoch hash; if false, sever those connections.       |       | —         |
 
-**Unread.** `protocol.tolerateMismatchedEpochHash` (TUN-158) is documented but nothing reads it, and no epoch-hash handshake exists anywhere in `platform-sdk`. The only handshake gossip installs is the version check — [VersionCompareHandshake](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/handshake/VersionCompareHandshake.java), constructed in [SyncGossipModular](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/SyncGossipModular.java) from `protocol.tolerateMismatchedVersion` (TUN-157).
+**Unread.** Nothing reads `protocol.tolerateMismatchedEpochHash` (TUN-158), and no epoch-hash handshake exists anywhere in `platform-sdk`. The only handshake gossip installs is the version check — [VersionCompareHandshake](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/handshake/VersionCompareHandshake.java), constructed in [SyncGossipModular](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/SyncGossipModular.java) from `protocol.tolerateMismatchedVersion` (TUN-157).
 
 ## `socket.*` — SocketConfig
 
@@ -488,7 +488,7 @@ Module: `consensus-gossip`. Source: [SocketConfig.java](../../consensus-gossip/s
 | TUN-167 | `socket.waitBetweenConnectionRetries` | int     | `10`    | Milliseconds to wait before retrying a broken connection; `≤0` means no sleep.                           |         | —         |
 | TUN-168 | `socket.maxSocketAcceptThreads`       | int     | `30`    | Max threads spawned to handle incoming SSL socket accepts (capped to limit DoS-style thread exhaustion). |         | —         |
 
-**Unread.** `socket.useLoopbackIp` (TUN-164) is documented but nothing reads it. Whether an address belongs to the local machine is decided from the address itself by [Network.isOwn](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/Network.java#isOwn), which needs no configuration.
+**Unread.** Nothing reads `socket.useLoopbackIp` (TUN-164). Whether an address belongs to the local machine is decided from the address itself by [Network.isOwn](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/Network.java#isOwn).
 
 ## `sync.*` — SyncConfig
 
@@ -520,4 +520,4 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-190 | `sync.keepSendingEventsWhenUnhealthy`     | boolean  | `true`  | When unhealthy, stop receiving remote events but keep sending our own (instead of fully throttling syncs).                                       |       | —         |
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
 
-**Unread.** `sync.syncKeepalivePeriod` (TUN-178) is documented but nothing reads it. The only keepalive left is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer.
+**Unread.** Nothing reads `sync.syncKeepalivePeriod` (TUN-178). The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer.

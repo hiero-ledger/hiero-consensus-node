@@ -65,16 +65,15 @@ attack:
    (the witness with the minimum hash). The result is that branching
    never inflates a creator's voice in the consensus order.
 
-**Branch detection is observability, not defence.** The intake
-pipeline does scan for branches — every event leaving the orphan
-buffer is checked — but the detector's only consumer logs and meters
+**Branch detection is observability, not defense.** The intake
+pipeline scans for branches, but its only consumer logs and meters
 (see *In current code*); nothing flags a branching creator to the
-algorithm, punishes it, or evicts it. Tolerance is therefore
-structural, and the algorithm would stay safe with the detector
-removed: the agreement requirement in `stronglySeeP`, the allowance
-for multiple witnesses per creator per round, and the deterministic
-judge merge are sufficient to keep the algorithm safe under any
-pattern of branching by up to `<n/3` of the creators (by weight).
+algorithm, punishes it, or evicts it. Tolerance is structural: the
+agreement requirement in `stronglySeeP`, the allowance for multiple
+witnesses per creator per round, and the deterministic judge merge
+are sufficient to keep the algorithm safe under any pattern of
+branching by up to `<n/3` of the creators (by weight) in any given
+voting round.
 
 ## Why this gives Byzantine fault tolerance
 
@@ -152,9 +151,9 @@ witness with the minimum base hash. This is the deterministic tie-
 break that ensures every node picks the same judge for a branched
 creator.
 
-**Branch detector — reporting only.** A `branching/` package in
-`consensus-event-intake-impl` does detect branches, but it feeds
-logging and metrics rather than the algorithm.
+**Branch detector — reporting only.** Branch detection lives in the
+`branching/` package of `consensus-event-intake-impl` and feeds
+logging and metrics.
 [
 `DefaultBranchDetector.checkForBranches`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/DefaultBranchDetector.java#checkForBranches)
 is soldered to the orphan buffer's split output in
@@ -174,10 +173,9 @@ and logs a fatal "Excessive branching detected!" once branching
 creators hold a strong minority of the weight — the point at which
 the `<n/3` assumption is violated.
 
-No class excludes a branching creator or discounts its events, and
-nothing on this path reaches the hashgraph: the consensus algorithm
-is correct without any such mechanism, exactly as described under
-*Mechanics*.
+No class excludes a branching creator or discounts its events. The
+detector's output ends at the reporter, whose own output wire is never
+soldered, so no result of branch detection reaches the hashgraph.
 
 ## Cross-references
 

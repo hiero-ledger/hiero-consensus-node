@@ -146,19 +146,15 @@ validator's final status:
 - `ignorePreconsensusSignatures`: when true, peer signature
   transactions are ignored until `signalEndOfPreconsensusReplay()` has
   been called, discarding any state signature transactions in events
-  that are replayed from PCES. **Not a testing-only flag.** Tests can
-  force it on with the `event.preconsensus.forceIgnorePcesSignatures`
-  config flag, but production nodes enable it too: with that flag
-  unset,
+  that are replayed from PCES.
   [`IssDetectionModule`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/IssDetectionModule.java#IssDetectionModule)
-  computes it as `issRound != null && issRound.getValue() >=
-  initialStateRound` from the ISS scratchpad — true when the last
-  recorded ISS round is at or after the round of the state the node
-  started from, i.e. the node is restarting from a state that predates
-  its own ISS, so the replayed stream may still carry the signature
-  transactions that induced it. The value is derived once per start and
-  stops having any effect when `signalEndOfPreconsensusReplay()` fires;
-  there is nothing here for an operator to set or avoid.
+  derives it once per start from the ISS scratchpad as
+  `issRound != null && issRound.getValue() >= initialStateRound`: the
+  node is restarting from a state at or before its own last recorded
+  ISS, so the replayed stream may still carry the signature
+  transactions that induced it. The
+  `event.preconsensus.forceIgnorePcesSignatures` config flag forces it
+  on for tests and the PCES replay tool.
 - `latestFreezeRound`: signature transactions whose `eventBirthRound`
   is at or below this round are dropped. In the current baseline,
   Execution modifies the state during migration when it is loaded from
