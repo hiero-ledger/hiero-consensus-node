@@ -159,16 +159,12 @@ public interface VirtualDataSource {
     void enableBackgroundCompaction();
 
     /**
-     * Disables background compaction and interrupts all compactions that are currently running. This method does not
-     * wait for the interrupted compactions to complete.
+     * Disables background compaction and interrupts all compactions that are currently running.
+     *
+     * @param waitForTasksToComplete whether to wait, up to the implementation's shutdown timeout, for all current
+     *                               background compaction tasks, including scanner tasks, to complete
      */
-    void disableAndInterruptBackgroundCompaction();
-
-    /**
-     * Disables background compaction, interrupts all compactions that are currently running, and waits for all current
-     * background compaction tasks to complete, including scanner tasks.
-     */
-    void stopAndDisableBackgroundCompaction();
+    void stopAndDisableBackgroundCompaction(boolean waitForTasksToComplete);
 
     /**
      * Returns the first leaf path stored in this data source.

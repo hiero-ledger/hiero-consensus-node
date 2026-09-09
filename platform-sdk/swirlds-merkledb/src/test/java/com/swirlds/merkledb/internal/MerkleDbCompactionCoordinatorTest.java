@@ -9,6 +9,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -39,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
@@ -84,7 +86,7 @@ class MerkleDbCompactionCoordinatorTest {
 
     @AfterEach
     void tearDown() {
-        coordinator.stopAndDisableBackgroundCompaction();
+        coordinator.stopAndDisableBackgroundCompaction(true);
         assertEventuallyEquals(
                 0,
                 () -> ((ThreadPoolExecutor)
@@ -283,7 +285,7 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     @Test
-    void testStopAndDisableInterruptsRunningCompaction() throws InterruptedException, IOException {
+    void testStopAndDisableWaitsForRunningCompaction() throws Exception {
         final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
@@ -291,6 +293,7 @@ class MerkleDbCompactionCoordinatorTest {
         publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch compactorInterrupted = new CountDownLatch(1);
         final CountDownLatch releaseTask = new CountDownLatch(1);
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
@@ -299,9 +302,8 @@ class MerkleDbCompactionCoordinatorTest {
             return true;
         });
 
-        // Make interruptCompaction() release the latch
         doAnswer(_ -> {
-                    releaseTask.countDown();
+                    compactorInterrupted.countDown();
                     return null;
                 })
                 .when(compactor)
@@ -310,14 +312,27 @@ class MerkleDbCompactionCoordinatorTest {
         coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config, fileCollection);
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
 
-        coordinator.stopAndDisableBackgroundCompaction();
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<?> stopFuture = executor.submit(() -> coordinator.stopAndDisableBackgroundCompaction(true));
+            assertTrue(compactorInterrupted.await(1, TimeUnit.SECONDS), "Compactor wasn't interrupted");
+            assertThrows(
+                    TimeoutException.class,
+                    () -> stopFuture.get(100, TimeUnit.MILLISECONDS),
+                    "Stop should wait for the running compaction");
 
-        verify(compactor).interruptCompaction();
-        assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
+            releaseTask.countDown();
+            stopFuture.get(1, TimeUnit.SECONDS);
+            verify(compactor).interruptCompaction();
+            assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
+        } finally {
+            releaseTask.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
-    void testDisableAndInterruptDoesNotWaitForRunningCompaction() throws Exception {
+    void testStopAndDisableDoesNotWaitForRunningCompaction() throws Exception {
         final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
@@ -338,8 +353,8 @@ class MerkleDbCompactionCoordinatorTest {
 
         final ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            final Future<?> disableFuture = executor.submit(coordinator::disableAndInterruptBackgroundCompaction);
-            disableFuture.get(1, TimeUnit.SECONDS);
+            final Future<?> stopFuture = executor.submit(() -> coordinator.stopAndDisableBackgroundCompaction(false));
+            stopFuture.get(1, TimeUnit.SECONDS);
             verify(compactor).interruptCompaction();
             assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
         } finally {

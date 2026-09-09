@@ -132,7 +132,7 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
      */
     @Override
     public void prepareForFreeze() {
-        getMutableState().getRoot().getDataSource().disableAndInterruptBackgroundCompaction();
+        getMutableState().getRoot().getDataSource().stopAndDisableBackgroundCompaction(false);
     }
 
     /**

@@ -494,21 +494,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /**
-     * Disable background compaction and interrupt all compactions that are currently running without waiting for them
-     * to complete.
-     */
-    @Override
-    public void disableAndInterruptBackgroundCompaction() {
-        compactionCoordinator.disableAndInterruptBackgroundCompaction();
-    }
-
-    /**
      * Stop background compaction, interrupting the current compaction if one is happening. This will not corrupt the
      * database but will leave files around.
      */
     @Override
-    public void stopAndDisableBackgroundCompaction() {
-        compactionCoordinator.stopAndDisableBackgroundCompaction();
+    public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
+        compactionCoordinator.stopAndDisableBackgroundCompaction(waitForTasksToComplete);
     }
 
     /**
@@ -827,7 +818,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (!closed.getAndSet(true)) {
             try {
                 // Stop merging and shutdown the datasource compactor
-                compactionCoordinator.stopAndDisableBackgroundCompaction();
+                compactionCoordinator.stopAndDisableBackgroundCompaction(true);
                 // Shut down all executors. If a flush is currently in progress, it will be interrupted.
                 // It's critical to make sure there are no disk read/write operations before all indiced
                 // and file collections are closed below

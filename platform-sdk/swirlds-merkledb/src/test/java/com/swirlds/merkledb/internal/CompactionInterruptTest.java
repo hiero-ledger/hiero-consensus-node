@@ -30,7 +30,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Integration tests to verify that compaction tasks can be interrupted and stop correctly when
- * {@link MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction()} is called. This
+ * {@link MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction(boolean)} is called. This
  * includes cases where compaction is interrupted mid-flight and cases where compaction is
  * interrupted while paused for a snapshot.
  *
@@ -54,7 +54,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
     }
 
     /**
-     * Trigger compaction for all three stores, then call stopAndDisableBackgroundCompaction().
+     * Trigger compaction for all three stores, then call stopAndDisableBackgroundCompaction(true).
      * The expected result is that all tasks are cleaned up and the coordinator reaches a
      * quiescent state quickly.
      */
@@ -92,7 +92,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
 
     /**
      * Trigger compaction while in the middle of snapshotting, and then call
-     * stopAndDisableBackgroundCompaction() and close the database. The expected result is all
+     * stopAndDisableBackgroundCompaction(true) and close the database. The expected result is all
      * tasks are interrupted and the database closes promptly without being blocked by the
      * snapshot or compaction.
      */
@@ -178,7 +178,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
             final long initialCompletedTaskCount) {
 
         // stopping the compaction
-        coordinator.stopAndDisableBackgroundCompaction();
+        coordinator.stopAndDisableBackgroundCompaction(true);
 
         assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 

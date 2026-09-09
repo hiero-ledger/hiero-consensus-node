@@ -289,12 +289,7 @@ public class InMemoryDataSource implements VirtualDataSource {
     }
 
     @Override
-    public void disableAndInterruptBackgroundCompaction() {
-        // no op
-    }
-
-    @Override
-    public void stopAndDisableBackgroundCompaction() {
+    public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
         // no op
     }
 }

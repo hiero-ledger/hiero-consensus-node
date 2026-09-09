@@ -171,7 +171,7 @@ class StateLifecycleManagerTests {
 
         manager.prepareForFreeze();
 
-        verify(dataSource).disableAndInterruptBackgroundCompaction();
+        verify(dataSource).stopAndDisableBackgroundCompaction(false);
     }
 
     private static SignedState newSignedState() {
