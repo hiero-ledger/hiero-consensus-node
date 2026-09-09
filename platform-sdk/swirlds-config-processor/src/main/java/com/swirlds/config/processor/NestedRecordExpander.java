@@ -2,6 +2,7 @@
 package com.swirlds.config.processor;
 
 import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.NestedConfig;
 import com.swirlds.config.processor.antlr.AntlrUtils;
@@ -10,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,12 +97,18 @@ public final class NestedRecordExpander {
             // the value of a ConfigProperty is the one the compiler evaluated and the generated constants and
             // documentation describe the properties the runtime really reads
             final String propertyName = propertyName(definition, component);
+            validateConfigDefaults(propertyName, component, nestedRecord);
             if (nestedRecord == null) {
                 validateIsNotACollectionOfNestedRecords(component);
                 expanded.add(property.withName(propertyName));
             } else {
                 validateNestedComponent(component);
-                expanded.addAll(expandNested(nestedRecord, propertyName, property.fieldName(), new HashSet<>()));
+                expanded.addAll(expandNested(
+                        nestedRecord,
+                        propertyName,
+                        property.fieldName(),
+                        DefaultOverrides.empty().nestedFor(component),
+                        new HashSet<>()));
             }
         }
         // the parsed definition holds the properties in an unordered set, so the generated constants and documentation
@@ -127,6 +135,7 @@ public final class NestedRecordExpander {
             @NonNull final TypeElement recordElement,
             @NonNull final String namePrefix,
             @NonNull final String fieldName,
+            @NonNull final DefaultOverrides defaultOverrides,
             @NonNull final Set<String> visitedTypes) {
         final String qualifiedName = recordElement.getQualifiedName().toString();
         if (!visitedTypes.add(qualifiedName)) {
@@ -144,16 +153,22 @@ public final class NestedRecordExpander {
                     ElementFilter.recordComponentsIn(recordElement.getEnclosedElements())) {
                 final String propertyName = createPropertyName(namePrefix, getPropertyNameSegment(component));
                 final TypeElement nestedRecord = asNestedConfig(component);
+                validateConfigDefaults(propertyName, component, nestedRecord);
                 if (nestedRecord != null) {
                     validateNestedComponent(component);
-                    properties.addAll(expandNested(nestedRecord, propertyName, fieldName, visitedTypes));
+                    properties.addAll(expandNested(
+                            nestedRecord,
+                            propertyName,
+                            fieldName,
+                            defaultOverrides.nestedFor(component),
+                            visitedTypes));
                 } else {
                     validateIsNotACollectionOfNestedRecords(component);
                     properties.add(new ConfigDataPropertyDefinition(
                             fieldName,
                             propertyName,
                             component.asType().toString(),
-                            getDefaultValue(component),
+                            defaultOverrides.effectiveDefaultValue(component),
                             descriptions.getOrDefault(component.getSimpleName().toString(), ""),
                             // the property is declared by the nested record, not by the config data record that uses
                             // it, so that is what the generated constant refers to
@@ -165,6 +180,33 @@ public final class NestedRecordExpander {
             return properties;
         } finally {
             visitedTypes.remove(qualifiedName);
+        }
+    }
+
+    /**
+     * Checks that the {@link ConfigDefault} annotations of the given component are legal.
+     *
+     * @param propertyName the full property name of the component
+     * @param component    the component to check
+     * @param nestedRecord the nested config data object held by the component, or null when the component does not hold
+     *                     one
+     */
+    private void validateConfigDefaults(
+            @NonNull final String propertyName,
+            @NonNull final RecordComponentElement component,
+            @Nullable final TypeElement nestedRecord) {
+        final ConfigDefault[] overrides = component.getAnnotationsByType(ConfigDefault.class);
+        if (overrides.length == 0) {
+            return;
+        }
+        if (nestedRecord == null) {
+            throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                    + " on the property '" + propertyName + "' since it does not hold a nested config data object");
+        }
+
+        final PropertyPaths propertyPaths = PropertyPaths.of(this, nestedRecord);
+        for (final ConfigDefault override : overrides) {
+            propertyPaths.validate(propertyName, override);
         }
     }
 
@@ -344,5 +386,106 @@ public final class NestedRecordExpander {
             return name;
         }
         return prefix + "." + name;
+    }
+
+    private static final class DefaultOverrides {
+
+        private final Map<String, String> values;
+
+        private DefaultOverrides(@NonNull final Map<String, String> values) {
+            this.values = Map.copyOf(Objects.requireNonNull(values, "values must not be null"));
+        }
+
+        @NonNull
+        private static DefaultOverrides empty() {
+            return new DefaultOverrides(Map.of());
+        }
+
+        @NonNull
+        private DefaultOverrides nestedFor(@NonNull final RecordComponentElement component) {
+            final String componentName = getPropertyNameSegment(component);
+            final String nestedPrefix = componentName + ".";
+            final Map<String, String> overrides = new LinkedHashMap<>();
+            for (final ConfigDefault configDefault : component.getAnnotationsByType(ConfigDefault.class)) {
+                overrides.put(configDefault.property(), configDefault.defaultValue());
+            }
+            values.forEach((property, defaultValue) -> {
+                if (property.startsWith(nestedPrefix)) {
+                    overrides.put(property.substring(nestedPrefix.length()), defaultValue);
+                }
+            });
+            return new DefaultOverrides(overrides);
+        }
+
+        @NonNull
+        private String effectiveDefaultValue(@NonNull final RecordComponentElement component) {
+            return Optional.ofNullable(values.get(getPropertyNameSegment(component)))
+                    .orElseGet(() -> getDefaultValue(component));
+        }
+    }
+
+    private static final class PropertyPaths {
+
+        private final Set<String> leafPaths;
+
+        private final Set<String> groupPaths;
+
+        private PropertyPaths(@NonNull final Set<String> leafPaths, @NonNull final Set<String> groupPaths) {
+            this.leafPaths = Set.copyOf(Objects.requireNonNull(leafPaths, "leafPaths must not be null"));
+            this.groupPaths = Set.copyOf(Objects.requireNonNull(groupPaths, "groupPaths must not be null"));
+        }
+
+        @NonNull
+        private static PropertyPaths of(
+                @NonNull final NestedRecordExpander expander, @NonNull final TypeElement recordElement) {
+            final Set<String> leafPaths = new LinkedHashSet<>();
+            final Set<String> groupPaths = new LinkedHashSet<>();
+            collect(expander, recordElement, "", leafPaths, groupPaths, new HashSet<>());
+            return new PropertyPaths(leafPaths, groupPaths);
+        }
+
+        private static void collect(
+                @NonNull final NestedRecordExpander expander,
+                @NonNull final TypeElement recordElement,
+                @NonNull final String namePrefix,
+                @NonNull final Set<String> leafPaths,
+                @NonNull final Set<String> groupPaths,
+                @NonNull final Set<String> visitedTypes) {
+            final String qualifiedName = recordElement.getQualifiedName().toString();
+            if (!visitedTypes.add(qualifiedName)) {
+                throw new IllegalArgumentException(
+                        "Circular reference detected for record type '" + qualifiedName + "' at '" + namePrefix + "'");
+            }
+
+            try {
+                for (final RecordComponentElement component :
+                        ElementFilter.recordComponentsIn(recordElement.getEnclosedElements())) {
+                    final String propertyName = createPropertyName(namePrefix, getPropertyNameSegment(component));
+                    final TypeElement nestedRecord = expander.asNestedConfig(component);
+                    if (nestedRecord != null) {
+                        groupPaths.add(propertyName);
+                        collect(expander, nestedRecord, propertyName, leafPaths, groupPaths, visitedTypes);
+                    } else {
+                        leafPaths.add(propertyName);
+                    }
+                }
+            } finally {
+                visitedTypes.remove(qualifiedName);
+            }
+        }
+
+        private void validate(@NonNull final String holderName, @NonNull final ConfigDefault override) {
+            final String property = override.property();
+            if (groupPaths.contains(property)) {
+                throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                        + "(property = '" + property + "') on the property '" + holderName + "' since '" + property
+                        + "' names a nested config data object rather than one of its leaf properties");
+            }
+            if (!leafPaths.contains(property)) {
+                throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                        + "(property = '" + property + "') on the property '" + holderName + "' since '" + property
+                        + "' is not a leaf property of the nested config data object");
+            }
+        }
     }
 }

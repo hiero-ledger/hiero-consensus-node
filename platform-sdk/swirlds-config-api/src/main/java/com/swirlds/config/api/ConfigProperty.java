@@ -53,8 +53,8 @@ public @interface ConfigProperty {
      * for this value.
      * <p>
      * A component that holds a nested config data object (see {@link NestedConfig}) groups properties instead of
-     * holding a value, so it accepts no default value at all. Define the default values of the properties of the
-     * nested config data object instead.
+     * holding a value, so it accepts no default value of its own at all. Define the default values of the properties of
+     * the nested config data object itself, or override them on the holding component with {@link ConfigDefault}.
      *
      * @return the default value or {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE}
      */

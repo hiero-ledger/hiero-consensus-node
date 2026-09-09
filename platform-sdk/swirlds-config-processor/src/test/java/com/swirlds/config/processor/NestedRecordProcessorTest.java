@@ -383,6 +383,137 @@ class NestedRecordProcessorTest {
                 "the @param description of the nested record has to be documented: " + documentation);
     }
 
+    @Test
+    void nestedDefaultOverrideIsDocumentedOnTheAffectedOccurrenceOnly() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "type", defaultValue = "CONCURRENT") LeafConfig prehandler,
+                        LeafConfig handler) {}
+                """;
+
+        compileAndReadConstants(root, LEAF);
+
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertTrue(
+                documentation.split("## root\\.prehandler\\.type")[1].contains("**default value:** `CONCURRENT`"),
+                documentation);
+        assertTrue(
+                documentation.split("## root\\.handler\\.type")[1].contains("**default value:** `SEQUENTIAL`"),
+                documentation);
+    }
+
+    @Test
+    void rootNestedDefaultOverrideWinsInDocumentation() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "leaf.value", defaultValue = "fromRoot") BranchConfig branch) {}
+                """;
+        final String branch = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigDefault;
+                import com.swirlds.config.api.NestedConfig;
+
+                @NestedConfig
+                public record BranchConfig(
+                        @ConfigDefault(property = "value", defaultValue = "fromBranch") LeafConfig leaf) {}
+                """;
+        final String leaf = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigProperty;
+                import com.swirlds.config.api.NestedConfig;
+
+                @NestedConfig
+                public record LeafConfig(@ConfigProperty(defaultValue = "fromRecord") String value) {}
+                """;
+
+        compileAndReadConstants(root, branch, leaf);
+
+        final String documentation = Files.readString(documentationFile(), StandardCharsets.UTF_8);
+        assertTrue(
+                documentation.split("## root\\.branch\\.leaf\\.value")[1].contains("**default value:** `fromRoot`"),
+                documentation);
+    }
+
+    @Test
+    void unknownConfigDefaultPathIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "missing", defaultValue = "unused") LeafConfig leaf) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, LEAF);
+
+        assertTrue(messages.contains("ConfigDefault"), messages);
+        assertTrue(messages.contains("missing"), messages);
+        assertTrue(messages.contains("leaf property"), messages);
+    }
+
+    @Test
+    void groupTargetedByConfigDefaultIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "nested", defaultValue = "unused") GroupConfig group) {}
+                """;
+        final String group = """
+                package test.cfg;
+
+                import com.swirlds.config.api.NestedConfig;
+
+                @NestedConfig
+                public record GroupConfig(LeafConfig nested) {}
+                """;
+
+        final String messages = compileExpectingFailure(root, group, LEAF);
+
+        assertTrue(messages.contains("ConfigDefault"), messages);
+        assertTrue(messages.contains("nested config data object"), messages);
+    }
+
+    @Test
+    void configDefaultOnPlainPropertyIsReported() throws IOException {
+        final String root = """
+                package test.cfg;
+
+                import com.swirlds.config.api.ConfigData;
+                import com.swirlds.config.api.ConfigDefault;
+
+                @ConfigData("root")
+                public record RootConfig(
+                        @ConfigDefault(property = "anything", defaultValue = "unused") String value) {}
+                """;
+
+        final String messages = compileExpectingFailure(root);
+
+        assertTrue(messages.contains("ConfigDefault"), messages);
+        assertTrue(messages.contains("does not hold a nested config data object"), messages);
+    }
+
     /**
      * The properties of a group follow from its type, and this processor reads the declared type while the runtime
      * reads the erasure. Requiring the record type to be named is what keeps the two from disagreeing, so a component

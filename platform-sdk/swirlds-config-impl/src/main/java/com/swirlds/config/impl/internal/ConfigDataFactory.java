@@ -2,6 +2,7 @@
 package com.swirlds.config.impl.internal;
 
 import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.NestedConfig;
@@ -14,8 +15,10 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -27,9 +30,9 @@ import java.util.stream.Collectors;
  * <p>
  * A record component whose type is annotated with {@link NestedConfig} is a group of properties rather than a value.
  * Such a group behaves exactly as if its properties had been declared on the enclosing record with dotted names, so
- * creating a config data object is done in two phases that mirror that: {@link #validateSchema(String, Class, Set)}
- * checks everything that follows from the declaration of a record alone, and {@link #instantiateRecord(String, Class)}
- * then only resolves values.
+ * creating a config data object is done in two phases that mirror that:
+ * {@link #validateSchema(String, Class, Set)} checks everything that follows from the declaration of a record alone,
+ * and {@link #instantiateRecord(String, Class, DefaultOverrides)} then only resolves values.
  */
 class ConfigDataFactory {
 
@@ -65,7 +68,7 @@ class ConfigDataFactory {
 
         final String namePrefix = getNamePrefix(type);
         validateSchema(namePrefix, type, new HashSet<>());
-        return instantiateRecord(namePrefix, type);
+        return instantiateRecord(namePrefix, type, DefaultOverrides.empty());
     }
 
     private void validateIsRecord(@NonNull final Class<?> type) {
@@ -123,8 +126,10 @@ class ConfigDataFactory {
     private boolean validateComponentSchema(@NonNull final String name, @NonNull final RecordComponent component) {
         final Class<?> valueType = component.getType();
         final boolean isNestedRecord = isNestedConfig(valueType);
+        final Class<? extends Record> nestedRecordType = isNestedRecord ? valueType.asSubclass(Record.class) : null;
 
         validateIsNotACollectionOfNestedRecords(name, component);
+        validateConfigDefaults(name, component, nestedRecordType);
 
         if (valueType.isRecord() && !isNestedRecord && converterService.getConverterForType(valueType) == null) {
             throw new IllegalArgumentException("Can not handle the record property '" + name + "' since '" + valueType
@@ -147,6 +152,33 @@ class ConfigDataFactory {
         validateHasNoDefaultValue(name, component);
         validateIsRecord(valueType);
         return true;
+    }
+
+    /**
+     * Checks that the {@link ConfigDefault} annotations of the given component are legal.
+     *
+     * @param name             the full name of the property
+     * @param component        the component to check
+     * @param nestedRecordType the nested config data object held by the component, or null when the component does not
+     *                         hold one
+     */
+    private static void validateConfigDefaults(
+            @NonNull final String name,
+            @NonNull final RecordComponent component,
+            @Nullable final Class<? extends Record> nestedRecordType) {
+        final ConfigDefault[] overrides = component.getAnnotationsByType(ConfigDefault.class);
+        if (overrides.length == 0) {
+            return;
+        }
+        if (nestedRecordType == null) {
+            throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                    + " on the property '" + name + "' since it does not hold a nested config data object");
+        }
+
+        final PropertyPaths propertyPaths = PropertyPaths.of(nestedRecordType);
+        for (final ConfigDefault override : overrides) {
+            propertyPaths.validate(name, override);
+        }
     }
 
     /**
@@ -253,13 +285,16 @@ class ConfigDataFactory {
      */
     @SuppressWarnings("unchecked")
     @NonNull
-    private <T extends Record> T instantiateRecord(@NonNull final String namePrefix, @NonNull final Class<T> type)
+    private <T extends Record> T instantiateRecord(
+            @NonNull final String namePrefix,
+            @NonNull final Class<T> type,
+            @NonNull final DefaultOverrides defaultOverrides)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
         final RecordComponent[] recordComponents = type.getRecordComponents();
         final Object[] paramValues = new Object[recordComponents.length];
 
         for (int i = 0; i < recordComponents.length; i++) {
-            paramValues[i] = getValueForRecordComponent(namePrefix, recordComponents[i]);
+            paramValues[i] = getValueForRecordComponent(namePrefix, recordComponents[i], defaultOverrides);
         }
 
         final Constructor<T> constructor = (Constructor<T>) type.getConstructors()[0];
@@ -268,16 +303,29 @@ class ConfigDataFactory {
 
     @Nullable
     private Object getValueForRecordComponent(
-            @NonNull final String namePrefix, @NonNull final RecordComponent component) {
+            @NonNull final String namePrefix,
+            @NonNull final RecordComponent component,
+            @NonNull final DefaultOverrides defaultOverrides) {
         Objects.requireNonNull(component, "component must not be null");
         final String name = createPropertyName(namePrefix, component);
         final Class<?> valueType = component.getType();
 
         if (isNestedConfig(valueType)) {
-            return instantiateNestedRecord(name, valueType.asSubclass(Record.class));
+            return instantiateNestedRecord(
+                    name, valueType.asSubclass(Record.class), defaultOverrides.nestedFor(component));
         }
 
-        final String rawDefaultValue = getRawDefaultValue(component).orElse(null);
+        final String rawDefaultValue =
+                defaultOverrides.effectiveRawDefault(component).orElse(null);
+        return resolveLeafValue(name, component, rawDefaultValue);
+    }
+
+    @Nullable
+    private Object resolveLeafValue(
+            @NonNull final String name,
+            @NonNull final RecordComponent component,
+            @Nullable final String rawDefaultValue) {
+        final Class<?> valueType = component.getType();
         if (rawDefaultValue != null) {
             if (Objects.equals(List.class, valueType)) {
                 final Class<?> genericType = getGenericListType(component);
@@ -307,11 +355,13 @@ class ConfigDataFactory {
 
     @NonNull
     private Record instantiateNestedRecord(
-            @NonNull final String name, @NonNull final Class<? extends Record> recordType) {
+            @NonNull final String name,
+            @NonNull final Class<? extends Record> recordType,
+            @NonNull final DefaultOverrides defaultOverrides) {
         // the prefix of a nested config data object is always the name of the property that holds it, so a prefix that
         // the record defines for its own use as a registered config data type is not used here
         try {
-            return instantiateRecord(name, recordType);
+            return instantiateRecord(name, recordType, defaultOverrides);
         } catch (final InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new IllegalStateException("Unable to instantiate record for '" + name + "'", e);
         }
@@ -321,31 +371,25 @@ class ConfigDataFactory {
         return ConfigReflectionUtils.isNestedConfig(type);
     }
 
-    private static boolean isGenericType(@NonNull final RecordComponent component, @NonNull final Class<?> type) {
-        Objects.requireNonNull(component, "component must not be null");
-        Objects.requireNonNull(type, "type must not be null");
-        final ParameterizedType stringSetType = (ParameterizedType) component.getGenericType();
-        return Objects.equals(type, stringSetType.getRawType());
-    }
-
     @SuppressWarnings("unchecked")
     private static <T> Class<T> getGenericSetType(@NonNull final RecordComponent component) {
-        if (!isGenericType(component, Set.class)) {
+        Objects.requireNonNull(component, "component must not be null");
+        if (!(component.getGenericType() instanceof final ParameterizedType genericType)
+                || !Objects.equals(Set.class, genericType.getRawType())) {
             throw new IllegalArgumentException("Only Set interface is supported");
         }
-        return (Class<T>)
-                ConfigReflectionUtils.getSingleGenericTypeArgument((ParameterizedType) component.getGenericType());
+        return (Class<T>) ConfigReflectionUtils.getSingleGenericTypeArgument(genericType);
     }
 
     @SuppressWarnings("unchecked")
     @NonNull
     private static <T> Class<T> getGenericListType(@NonNull final RecordComponent component) {
         Objects.requireNonNull(component, "component must not be null");
-        if (!isGenericType(component, List.class)) {
+        if (!(component.getGenericType() instanceof final ParameterizedType genericType)
+                || !Objects.equals(List.class, genericType.getRawType())) {
             throw new IllegalArgumentException("Only List interface is supported");
         }
-        final Class<T> cls = (Class<T>)
-                ConfigReflectionUtils.getSingleGenericTypeArgument((ParameterizedType) component.getGenericType());
+        final Class<T> cls = (Class<T>) ConfigReflectionUtils.getSingleGenericTypeArgument(genericType);
         if (cls == null) {
             throw new IllegalArgumentException("No generic class found!");
         }
@@ -361,7 +405,8 @@ class ConfigDataFactory {
         if (Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
             return null;
         }
-        return (Set<T>) ConfigListUtils.createList(rawDefaultValue).stream()
+        final List<String> rawValues = Objects.requireNonNull(ConfigListUtils.createList(rawDefaultValue));
+        return (Set<T>) rawValues.stream()
                 .map(value -> converterService.convert(value, type))
                 // We want to retain the iteration order of items from the original list, so we use a LinkedHashSet:
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -376,9 +421,109 @@ class ConfigDataFactory {
         if (Objects.equals(ConfigProperty.NULL_DEFAULT_VALUE, rawDefaultValue)) {
             return null;
         }
-        return (List<T>) ConfigListUtils.createList(rawDefaultValue).stream()
+        final List<String> rawValues = Objects.requireNonNull(ConfigListUtils.createList(rawDefaultValue));
+        return (List<T>) rawValues.stream()
                 .map(value -> converterService.convert(value, type))
                 .toList();
+    }
+
+    private static final class DefaultOverrides {
+
+        private final Map<String, String> values;
+
+        private DefaultOverrides(@NonNull final Map<String, String> values) {
+            this.values = Map.copyOf(Objects.requireNonNull(values, "values must not be null"));
+        }
+
+        @NonNull
+        private static DefaultOverrides empty() {
+            return new DefaultOverrides(Map.of());
+        }
+
+        @NonNull
+        private DefaultOverrides nestedFor(@NonNull final RecordComponent component) {
+            final String componentName = getPropertyNameSegment(component);
+            final String nestedPrefix = componentName + ".";
+            final Map<String, String> overrides = new LinkedHashMap<>();
+            for (final ConfigDefault configDefault : component.getAnnotationsByType(ConfigDefault.class)) {
+                overrides.put(configDefault.property(), configDefault.defaultValue());
+            }
+            values.forEach((property, defaultValue) -> {
+                if (property.startsWith(nestedPrefix)) {
+                    overrides.put(property.substring(nestedPrefix.length()), defaultValue);
+                }
+            });
+            return new DefaultOverrides(overrides);
+        }
+
+        @NonNull
+        private Optional<String> effectiveRawDefault(@NonNull final RecordComponent component) {
+            return Optional.ofNullable(values.get(getPropertyNameSegment(component)))
+                    .or(() -> getRawDefaultValue(component));
+        }
+    }
+
+    private static final class PropertyPaths {
+
+        private final Set<String> leafPaths;
+
+        private final Set<String> groupPaths;
+
+        private PropertyPaths(@NonNull final Set<String> leafPaths, @NonNull final Set<String> groupPaths) {
+            this.leafPaths = Set.copyOf(Objects.requireNonNull(leafPaths, "leafPaths must not be null"));
+            this.groupPaths = Set.copyOf(Objects.requireNonNull(groupPaths, "groupPaths must not be null"));
+        }
+
+        @NonNull
+        private static PropertyPaths of(@NonNull final Class<? extends Record> recordType) {
+            final Set<String> leafPaths = new LinkedHashSet<>();
+            final Set<String> groupPaths = new LinkedHashSet<>();
+            collect(recordType, "", leafPaths, groupPaths, new HashSet<>());
+            return new PropertyPaths(leafPaths, groupPaths);
+        }
+
+        private static void collect(
+                @NonNull final Class<? extends Record> recordType,
+                @NonNull final String namePrefix,
+                @NonNull final Set<String> leafPaths,
+                @NonNull final Set<String> groupPaths,
+                @NonNull final Set<Class<?>> inProgress) {
+            if (!inProgress.add(recordType)) {
+                throw new IllegalStateException("Circular reference detected for record type '" + recordType + "'");
+            }
+            try {
+                for (final RecordComponent component : recordType.getRecordComponents()) {
+                    final String propertyName = createPropertyName(namePrefix, component);
+                    if (isNestedConfig(component.getType())) {
+                        groupPaths.add(propertyName);
+                        collect(
+                                component.getType().asSubclass(Record.class),
+                                propertyName,
+                                leafPaths,
+                                groupPaths,
+                                inProgress);
+                    } else {
+                        leafPaths.add(propertyName);
+                    }
+                }
+            } finally {
+                inProgress.remove(recordType);
+            }
+        }
+
+        private void validate(@NonNull final String holderName, @NonNull final ConfigDefault override) {
+            final String property = override.property();
+            if (groupPaths.contains(property)) {
+                throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                        + "(property = '" + property + "') on the property '" + holderName + "' since '" + property
+                        + "' names a nested config data object rather than one of its leaf properties");
+            }
+            if (!leafPaths.contains(property)) {
+                throw new IllegalArgumentException("Can not use " + ConfigDefault.class.getSimpleName()
+                        + "(property = '" + property + "') on the property '" + holderName + "' since '" + property
+                        + "' is not a leaf property of the nested config data object");
+            }
+        }
     }
 
     @NonNull
