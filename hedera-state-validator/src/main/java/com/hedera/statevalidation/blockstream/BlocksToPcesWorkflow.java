@@ -431,6 +431,7 @@ public final class BlocksToPcesWorkflow {
         // of voters).
         final long selectionCeiling = targetRound + DECISION_MARGIN_ROUNDS;
         final List<Path> selected = new ArrayList<>();
+        long maxSelectedRound = -1;
         for (int i = 0; i < n; i++) {
             final long minRound = spans[i][0];
             final long maxRound = spans[i][1];
@@ -439,6 +440,9 @@ public final class BlocksToPcesWorkflow {
             }
             if (maxRound >= leftRound && minRound <= selectionCeiling) {
                 selected.add(orderedFiles.get(i));
+                if (maxRound > maxSelectedRound) {
+                    maxSelectedRound = maxRound;
+                }
             }
         }
 
@@ -461,6 +465,22 @@ public final class BlocksToPcesWorkflow {
                             + "parent tail are not present in the stream. Choose an origin round whose covered range "
                             + "(including the roundsNonAncient rounds before it) is fully within the available stream.",
                     firstSelectedMinRound, leftRound));
+        }
+
+        // Coverage guard (right boundary): the selected blocks must actually reach the target round. If the
+        // local directory stops short of the block containing targetRound, the left-boundary guards above
+        // still pass (the origin tail is present) and selection returns a short set — blocks-to-pces would
+        // then "succeed" with a PCES stream that never reaches the target, and the only symptom is an
+        // unclosed target block at replay time. Fail here instead. (This mirrors the GCS path's
+        // BlockRangeResolver.findBlockForTargetRound "target round exceeds last available round" guard.)
+        if (maxSelectedRound < targetRound) {
+            throw new IllegalArgumentException(String.format(
+                    "Block stream does not reach the target round: the highest round present in the selected "
+                            + "blocks is %d, but --target-round is %d. The block containing the target round is not "
+                            + "in the input. Provide block files through at least the block containing round %d "
+                            + "(plus the following block, which supplies the events that close the target block), "
+                            + "or lower --target-round.",
+                    maxSelectedRound, targetRound, targetRound));
         }
 
         return selected;
