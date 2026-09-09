@@ -154,14 +154,18 @@ public final class FeeConstants {
         return amount * hbarEquiv / centEquiv;
     }
 
+    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {
-        final var aMultiplier = BigInteger.valueOf(aEquiv);
-        final var bDivisor = BigInteger.valueOf(bEquiv);
-        return BigInteger.valueOf(bAmount)
-                .multiply(aMultiplier)
-                .divide(bDivisor)
-                .min(BigInteger.valueOf(Long.MAX_VALUE))
-                .longValueExact();
+                // A degenerate exchange rate would either divide by zero (non-positive divisor) or make the result
+                        // free/negative (non-positive multiplier); saturate to Long.MAX_VALUE instead so a malformed rate
+                                // yields an unpayable fee and cannot halt fee conversion network-wide.
+                                        if (aEquiv <= 0 || bEquiv <= 0) {
+                        return Long.MAX_VALUE;
+                    }
+                final var result =
+                                BigInteger.valueOf(bAmount).multiply(BigInteger.valueOf(aEquiv)).divide(BigInteger.valueOf(bEquiv));
+                // longValueExact() throws when the result exceeds the long range; saturate to the maximum instead.
+                        return result.compareTo(LONG_MAX) >= 0 ? Long.MAX_VALUE : result.longValue();
     }
 
     /**
