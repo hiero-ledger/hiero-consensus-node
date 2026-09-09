@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -20,8 +19,8 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -124,9 +123,9 @@ class GeneratorEventGraphSourceTest {
             creators.add(event.getCreatorId());
         }
 
-        final Roster roster = generator.getRoster();
+        final RosterWrapper roster = generator.getRoster();
         for (int i = 0; i < numNodes; i++) {
-            final NodeId nodeId = RosterUtils.getNodeId(roster, i);
+            final NodeId nodeId = roster.rosterEntries().get(i).nodeId();
             assertTrue(creators.contains(nodeId), "node " + nodeId + " should have created at least one event");
         }
     }
@@ -147,7 +146,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Custom roster is used")
     void customRosterIsUsed() {
-        final Roster roster = RosterFactory.randomRoster(Randotron.create(0L), 3);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().roster(roster).build();
@@ -277,7 +276,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Cannot set roster when numNodes is already set")
     void cannotSetRosterWhenNumNodesSet() {
-        final Roster roster = RosterFactory.randomRoster(Randotron.create(0L), 3);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSourceBuilder builder =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4);
@@ -289,7 +288,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Cannot set numNodes when roster is already set")
     void cannotSetNumNodesWhenRosterSet() {
-        final Roster roster = RosterFactory.randomRoster(Randotron.create(0L), 3);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSourceBuilder builder =
                 GeneratorEventGraphSourceBuilder.builder().roster(roster);
@@ -301,7 +300,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Cannot use realSignatures with a supplied roster")
     void cannotUseRealSignaturesWithSuppliedRoster() {
-        final Roster roster = RosterFactory.randomRoster(Randotron.create(0L), 3);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSourceBuilder builder =
                 GeneratorEventGraphSourceBuilder.builder().roster(roster);
@@ -319,7 +318,8 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.nextEvents(50);
 
         assertEquals(50, events.size());
-        final NodeId expectedCreator = RosterUtils.getNodeId(generator.getRoster(), 0);
+        final NodeId expectedCreator =
+                generator.getRoster().rosterEntries().get(0).nodeId();
 
         for (final PlatformEvent event : events) {
             assertEquals(expectedCreator, event.getCreatorId(), "all events should be from the single node");
