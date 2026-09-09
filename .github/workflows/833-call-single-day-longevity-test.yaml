@@ -607,6 +607,7 @@ jobs:
           task solo:mirror-node
 
       - name: Add Explorer
+        if: false
         run: |
           set +x
           set +e
