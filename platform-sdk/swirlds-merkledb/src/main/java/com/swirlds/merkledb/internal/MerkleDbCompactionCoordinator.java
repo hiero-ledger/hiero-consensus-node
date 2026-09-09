@@ -176,13 +176,13 @@ class MerkleDbCompactionCoordinator {
 
     ///
     /// Disables background compaction and interrupts all compactions in progress. All subsequent
-    /// calls to compacting methods will be ignored until {@link #enableBackgroundCompaction()} is
+    /// calls to compacting methods will be ignored until [#enableBackgroundCompaction()] is
     /// called. Scanner tasks are not interrupted (they are read-only and will finish harmlessly).
     ///
     /// Queued compaction tasks that have not yet started will check `compactionEnabled` when they
     /// begin execution and exit immediately.
     ///
-    /// @param waitForTasksToComplete whether to wait, up to {@link #SHUTDOWN_TIMEOUT_MILLIS}, for
+    /// @param waitForTasksToComplete whether to wait, up to [#SHUTDOWN_TIMEOUT_MILLIS], for
     ///     all current background compaction tasks, including scanner tasks, to complete
     ///
     synchronized void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {

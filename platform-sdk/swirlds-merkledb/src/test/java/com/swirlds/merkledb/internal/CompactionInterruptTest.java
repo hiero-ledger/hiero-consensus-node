@@ -13,7 +13,6 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,11 +29,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 ///
 /// Integration tests to verify that compaction tasks can be interrupted and stop correctly when
-/// {@link MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction(boolean)} is called.
+/// [MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction(boolean)] is called.
 /// This includes cases where compaction is interrupted mid-flight and cases where compaction is
 /// interrupted while paused for a snapshot.
 ///
-/// With the V3 compaction API, individual {@link DataFileCompactor} instances are created internally
+/// With the V3 compaction API, individual
+/// [DataFileCompactor][com.swirlds.merkledb.files.DataFileCompactor] instances are created internally
 /// by the coordinator and are not accessible from the test. Assertions are therefore limited to
 /// coordinator-level state: `compactionEnabled`, `compactorsByName`, executor queue, and per-store
 /// `isCompactionRunning()` checks.
