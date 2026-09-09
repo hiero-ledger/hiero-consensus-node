@@ -15,7 +15,6 @@ import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
 import org.hiero.consensus.wiring.framework.WiringConfig;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -97,7 +96,7 @@ public class HashgraphModuleBenchmark {
                 metrics,
                 time,
                 generator.getRoster(),
-                NodeId.of(generator.getRoster().rosterEntries().getFirst().nodeId()),
+                generator.getRoster().rosterEntries().getFirst().nodeId(),
                 i -> false,
                 null,
                 0L);

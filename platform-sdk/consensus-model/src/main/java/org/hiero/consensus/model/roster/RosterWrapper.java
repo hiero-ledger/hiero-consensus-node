@@ -4,7 +4,9 @@ package org.hiero.consensus.model.roster;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -12,21 +14,27 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class RosterWrapper {
 
+    /** The underlying {@link Roster} instance. */
     @NonNull
     private final Roster roster;
 
+    /** The list of {@link RosterEntryWrapper} instances in this roster. */
     @NonNull
     private final List<RosterEntryWrapper> rosterEntries;
 
-    /*
-      This array is used to find the index of an entry based on its NodeId (stored as a long).
-      We use a lookup table, because searching in a small array of primitives
-      is usually faster than HashMap-lookups.
-    */
+    /**
+     * This array is used to find the index of an entry based on its NodeId (stored as a long).
+     * We use a lookup table, because searching in a small array of primitives
+     * is usually faster than HashMap-lookups.
+     */
     @NonNull
     private final long[] idLookupTable;
 
+    /** the total weight of all entries in this roster. */
     private final long totalWeight;
+
+    /** true if at least one node has a supermajority of the weight. */
+    private final boolean nodeHasSupermajorityWeight;
 
     /**
      * Constructs a new {@link RosterWrapper} instance.
@@ -41,6 +49,8 @@ public class RosterWrapper {
                 roster.rosterEntries().stream().mapToLong(RosterEntry::nodeId).toArray();
         totalWeight =
                 rosterEntries.stream().mapToLong(RosterEntryWrapper::weight).sum();
+        nodeHasSupermajorityWeight = rosterEntries.stream()
+                .anyMatch(entry -> Threshold.SUPER_MAJORITY.isSatisfiedBy(entry.weight(), totalWeight));
     }
 
     /**
@@ -99,6 +109,15 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns {@code true} if a node in this roster has a supermajority of the weight.
+     *
+     * @return {@code true} if a node has a supermajority of the weight, {@code false} otherwise
+     */
+    public boolean nodeHasSupermajorityWeight() {
+        return nodeHasSupermajorityWeight;
+    }
+
+    /**
      * Returns the {@link RosterEntryWrapper} for the given {@link NodeId}.
      *
      * @param nodeId the {@link NodeId} to look up
@@ -132,5 +151,26 @@ public class RosterWrapper {
     @NonNull
     public Roster toPbj() {
         return roster;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(@Nullable final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final RosterWrapper that = (RosterWrapper) o;
+        return roster.equals(that.roster);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return roster.hashCode();
     }
 }
