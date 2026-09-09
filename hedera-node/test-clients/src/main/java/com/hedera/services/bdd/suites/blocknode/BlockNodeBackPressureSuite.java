@@ -284,7 +284,7 @@ public class BlockNodeBackPressureSuite {
 
     /**
      * Smoke test: a healthy block node combined with a low
-     * {@code blockStream.buffer.minAckedBlocksToBuffer} value should never engage backpressure and
+     * {@code blockStream.buffer.ackedBlocksToRetain} value should never engage backpressure and
      * the node should remain ACTIVE throughout. Verifies the new property wires through end-to-end
      * without regressing the happy path. The unit tests in {@code BlockBufferServiceTest} verify the
      * pruning algorithm itself.
