@@ -1,0 +1,215 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "810: [CALL] Exec MATS HAPI Suites"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        type: string
+        required: false
+        default: "false"
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+jobs:
+  hapi-tests-misc:
+    uses: ./.github/workflows/836-call-execute-hapi-misc.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-misc-records-crypto-and-serial:
+    uses: ./.github/workflows/837-call-execute-hapi-misc-records-crypto.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-token-and-time-consuming:
+    uses: ./.github/workflows/838-call-execute-hapi-token-time-consuming.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-simple-fees-and-nd-reconnect:
+    uses: ./.github/workflows/839-call-execute-hapi-simple-fees-nd-reconnect.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-smart-contracts-and-iss:
+    uses: ./.github/workflows/840-call-execute-hapi-smart-contract-iss.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-restart:
+    uses: ./.github/workflows/841-call-execute-hapi-restart.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-atomic-batch:
+    uses: ./.github/workflows/842-call-execute-hapi-atomic-batch.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hapi-tests-state-throttling:
+    uses: ./.github/workflows/843-call-execute-hapi-state-throttling.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - hapi-tests-misc
+      - hapi-tests-misc-records-crypto-and-serial
+      - hapi-tests-token-and-time-consuming
+      - hapi-tests-simple-fees-and-nd-reconnect
+      - hapi-tests-smart-contracts-and-iss
+      - hapi-tests-restart
+      - hapi-tests-atomic-batch
+      - hapi-tests-state-throttling
+    if: ${{ always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.hapi-tests-misc.result }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.result }}
+            ${{ needs.hapi-tests-token-and-time-consuming.result }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.result }}
+            ${{ needs.hapi-tests-restart.result }}
+            ${{ needs.hapi-tests-atomic-batch.result }}
+            ${{ needs.hapi-tests-state-throttling.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            hapi-tests-misc
+            hapi-tests-misc-records-crypto-and-serial
+            hapi-tests-token-and-time-consuming
+            hapi-tests-simple-fees-and-nd-reconnect
+            hapi-tests-smart-contracts-and-iss
+            hapi-tests-restart
+            hapi-tests-atomic-batch
+            hapi-tests-state-throttling
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

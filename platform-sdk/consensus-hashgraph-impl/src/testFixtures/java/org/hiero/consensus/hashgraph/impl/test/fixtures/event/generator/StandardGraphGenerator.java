@@ -7,7 +7,6 @@ import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.stream.Collectors;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -40,10 +40,11 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -76,7 +77,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * The roster representing the event sources.
      */
-    private Roster roster;
+    private RosterWrapper roster;
 
     /**
      * The average difference in the timestamp between two adjacent events (in seconds).
@@ -138,7 +139,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     private Random random;
 
     /**
-     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, Roster)} with:
+     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, RosterWrapper)} with:
      * <ul>
      *     <li>maxOtherParents set to {@value #DEFAULT_MAX_OTHER_PARENTS}</li>
      *     <li>roster generated from event sources</li>
@@ -154,7 +155,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     /**
-     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, Roster)} with:
+     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, RosterWrapper)} with:
      * <ul>
      *     <li>maxOtherParents set to {@value #DEFAULT_MAX_OTHER_PARENTS}</li>
      *     <li>roster generated from event sources</li>
@@ -170,7 +171,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     /**
-     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, Roster)} with:
+     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, RosterWrapper)} with:
      * <ul>
      *     <li>roster generated from event sources</li>
      * </ul>
@@ -189,11 +190,11 @@ public class StandardGraphGenerator implements GraphGenerator {
                 seed,
                 maxOtherParents,
                 eventSources,
-                RosterFactory.randomRoster(new Random(seed), eventSources.size()));
+                RosterWrapperFactory.randomRoster(new Random(seed), eventSources.size()));
     }
 
     /**
-     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, Roster)} with:
+     * Same as {@link #StandardGraphGenerator(Configuration, Metrics, Time, long, int, List, RosterWrapper)} with:
      * <ul>
      *     <li>maxOtherParents set to {@value #DEFAULT_MAX_OTHER_PARENTS}</li>
      * </ul>
@@ -204,7 +205,7 @@ public class StandardGraphGenerator implements GraphGenerator {
             @NonNull final Time time,
             final long seed,
             @NonNull final List<EventSource> eventSources,
-            @NonNull final Roster roster) {
+            @NonNull final RosterWrapper roster) {
         this(configuration, metrics, time, seed, DEFAULT_MAX_OTHER_PARENTS, eventSources, roster);
     }
 
@@ -228,7 +229,7 @@ public class StandardGraphGenerator implements GraphGenerator {
             final long seed,
             final int maxOtherParents,
             @NonNull final List<EventSource> eventSources,
-            @NonNull final Roster roster) {
+            @NonNull final RosterWrapper roster) {
         this.initialSeed = seed;
         this.maxOtherParents = maxOtherParents;
         this.random = new Random(seed);
@@ -287,12 +288,12 @@ public class StandardGraphGenerator implements GraphGenerator {
      * @param roster the roster to use.
      */
     private void setAddressBookInitializeEventSources(
-            @NonNull final List<EventSource> eventSources, @NonNull final Roster roster) {
+            @NonNull final List<EventSource> eventSources, @NonNull final RosterWrapper roster) {
         final int eventSourceCount = eventSources.size();
 
         for (int index = 0; index < eventSourceCount; index++) {
             final EventSource source = eventSources.get(index);
-            final NodeId nodeId = NodeId.of(roster.rosterEntries().get(index).nodeId());
+            final NodeId nodeId = roster.rosterEntries().get(index).nodeId();
             source.setNodeId(nodeId);
         }
     }
@@ -332,10 +333,10 @@ public class StandardGraphGenerator implements GraphGenerator {
         final List<List<Double>> matrix = new ArrayList<>(sources.size());
 
         for (int nodeIndex = 0; nodeIndex < sources.size(); nodeIndex++) {
-            final long nodeId = roster.rosterEntries().get(nodeIndex).nodeId();
+            final NodeId nodeId = roster.rosterEntries().get(nodeIndex).nodeId();
             final List<Double> affinityVector = new ArrayList<>(sources.size());
             for (int otherNodeIndex = 0; otherNodeIndex < sources.size(); otherNodeIndex++) {
-                final long otherNodeId =
+                final NodeId otherNodeId =
                         roster.rosterEntries().get(otherNodeIndex).nodeId();
                 if (Objects.equals(nodeId, otherNodeId)) {
                     affinityVector.add(0.0);
@@ -386,7 +387,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      */
     @Override
     public EventSource getSource(@NonNull final NodeId nodeID) {
-        final int nodeIndex = RosterUtils.getIndex(roster, nodeID.id());
+        final int nodeIndex = roster.getIndex(nodeID);
         return sources.get(nodeIndex);
     }
 
@@ -397,7 +398,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     @Override
-    public @NonNull Roster getRoster() {
+    public @NonNull RosterWrapper getRoster() {
         return roster;
     }
 
@@ -447,8 +448,8 @@ public class StandardGraphGenerator implements GraphGenerator {
         if (roster.rosterEntries().size() == 1) {
             return null;
         }
-        final List<Double> affinityVector = getOtherParentAffinityVector(
-                eventIndex, RosterUtils.getIndex(roster, source.getNodeId().id()));
+        final List<Double> affinityVector =
+                getOtherParentAffinityVector(eventIndex, roster.getIndex(source.getNodeId()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
         return sources.get(nodeIndex);
     }
@@ -547,12 +548,14 @@ public class StandardGraphGenerator implements GraphGenerator {
         // currently, we only support removing a node at restart, so this process mimics what happens at restart
 
         // remove the node from the address book and the sources
-        final int nodeIndex = RosterUtils.getIndex(roster, nodeId.id());
+        final int nodeIndex = roster.getIndex(nodeId);
         sources.remove(nodeIndex);
 
-        final List<RosterEntry> newRosterEntries = new ArrayList<>(roster.rosterEntries());
+        final List<RosterEntry> newRosterEntries = roster.rosterEntries().stream()
+                .map(RosterEntryWrapper::toPbj)
+                .collect(Collectors.toCollection(ArrayList::new));
         newRosterEntries.remove(nodeIndex);
-        this.roster = new Roster(newRosterEntries);
+        this.roster = RosterWrapperFactory.createRosterWrapper(newRosterEntries);
 
         buildDefaultOtherParentAffinityMatrix();
         // save all non-ancient events

@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "847: [CALL] Exec Fast Otter Tests"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+      java-distribution:
+        description: "Java JDK Distribution:"
+        required: false
+        type: string
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        required: false
+        type: string
+      node-version:
+        description: "NodeJS Version:"
+        required: false
+        type: string
+        default: "20"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.fast-otter.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  CG_EXEC: ionice -c 2 -n 2 nice -n 19
+
+jobs:
+  fast-otter:
+    name: "Fast Otter Tests"
+    runs-on: hl-cn-otter-fast-lin
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: ${{ inputs.ref || '' }}
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Fast Otter Testing
+        id: gradle-fast-otter-tests
+        if: ${{ !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
+
+      - name: Publish Fast Otter Testing Report
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        if: ${{ !cancelled() }}
+        with:
+          check_name: "Node: Fast Otter Tests Results"
+          json_thousands_separator: ","
+          junit_files: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Fast Otter Tests Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: Fast Otter Tests Report
+          path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload Fast Otter Tests Turtle Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Fast Otter Tests Turtle Logs
+          path: platform-sdk/consensus-otter-tests/build/turtle
+          retention-days: 7
+
+      - name: Upload Fast Otter Tests Container Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Fast Otter Tests Container Logs
+          path: platform-sdk/consensus-otter-tests/build/container
+          retention-days: 7
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi

@@ -29,6 +29,9 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -85,6 +88,9 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     private static final TokenID TOKEN_321 = asToken(321);
     private final Token TOKEN_321_FUNGIBLE =
             givenValidFungibleToken().copyBuilder().tokenId(TOKEN_321).build();
+    private static final Bytes OWNER_ALIAS = Bytes.wrap("01234567890123456789012345678901");
+    private static final AccountID ALIASED_OWNER_ID =
+            AccountID.newBuilder().alias(OWNER_ALIAS).build();
 
     @Mock(strictness = LENIENT)
     private FinalizeContext context;
@@ -125,7 +131,11 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void handleNullArg() {
         assertThatThrownBy(() -> subject.finalizeStakingRecord(
-                        context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap()))
+                        context,
+                        HederaFunctionality.CRYPTO_DELETE,
+                        TransactionBody.DEFAULT,
+                        Collections.emptySet(),
+                        emptyMap()))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -141,7 +151,11 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         given(context.userTransactionRecordBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
 
         assertThatThrownBy(() -> subject.finalizeStakingRecord(
-                        context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap()))
+                        context,
+                        HederaFunctionality.CRYPTO_DELETE,
+                        TransactionBody.DEFAULT,
+                        Collections.emptySet(),
+                        emptyMap()))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(FAIL_INVALID));
     }
@@ -164,7 +178,11 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         given(context.userTransactionRecordBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
 
         assertThatThrownBy(() -> subject.finalizeStakingRecord(
-                        context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap()))
+                        context,
+                        HederaFunctionality.CRYPTO_DELETE,
+                        TransactionBody.DEFAULT,
+                        Collections.emptySet(),
+                        emptyMap()))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(FAIL_INVALID));
     }
@@ -179,7 +197,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
 
         given(context.configuration()).willReturn(configuration);
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verifyNoInteractions(recordBuilder);
     }
@@ -200,7 +223,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .transferList(TransferList.newBuilder()
@@ -259,7 +287,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .when(context)
                 .forEachChildRecord(any(), any());
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         final var transferAmount1212 = -amountToTransfer + childRecordTransfer;
         final var transferAmount3434 = amountToTransfer - childRecordTransfer;
@@ -329,7 +362,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                         .build())
                         .build()));
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(TokenTransferList.newBuilder()
@@ -412,7 +450,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .when(context)
                 .forEachChildRecord(any(), any());
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
         BDDMockito.verify(recordBuilder)
                 .transferList(TransferList.newBuilder()
                         .accountAmounts(
@@ -502,7 +545,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .when(context)
                 .forEachChildRecord(any(), any());
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
         BDDMockito.verify(recordBuilder)
                 .transferList(TransferList.newBuilder()
                         .accountAmounts(
@@ -555,7 +603,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(TokenTransferList.newBuilder()
@@ -587,7 +640,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(TokenTransferList.newBuilder()
@@ -619,7 +677,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .transferList(TransferList.newBuilder()
@@ -646,7 +709,11 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         given(context.configuration()).willReturn(configuration);
 
         assertThatThrownBy(() -> subject.finalizeStakingRecord(
-                        context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap()))
+                        context,
+                        HederaFunctionality.CRYPTO_DELETE,
+                        TransactionBody.DEFAULT,
+                        Collections.emptySet(),
+                        emptyMap()))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(FAIL_INVALID));
     }
@@ -661,7 +728,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verifyNoInteractions(recordBuilder);
     }
@@ -693,7 +765,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(TokenTransferList.newBuilder()
@@ -776,7 +853,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(
@@ -835,7 +917,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(TokenTransferList.newBuilder()
@@ -867,7 +954,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
 
         given(context.configuration()).willReturn(configuration);
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .tokenTransferLists(List.of(TokenTransferList.newBuilder()
@@ -934,7 +1026,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         // The transfer list should be sorted by token ID, then by serial number
         BDDMockito.verify(recordBuilder)
@@ -970,7 +1067,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                                 .build())
                                 .build()));
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
         verify(stakingRewardsHandler, times(2))
                 .applyStakingRewards(context, Collections.emptySet(), Collections.emptyMap());
     }
@@ -1028,7 +1130,12 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
-        subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_DELETE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
 
         BDDMockito.verify(recordBuilder)
                 .transferList(TransferList.newBuilder()
@@ -1064,6 +1171,204 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                         .receiverAccountID(ACCOUNT_1212_ID)
                                         .build())
                                 .build()));
+    }
+
+    @Test
+    void approvedFungibleDebitIsExternalizedWithIsApproval() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        final var body =
+                cryptoTransferBody(adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false))));
+    }
+
+    @Test
+    void ordinaryFungibleDebitIsExternalizedWithoutIsApproval() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        final var body =
+                cryptoTransferBody(adjust(ACCOUNT_1212_ID, -amount, false), adjust(ACCOUNT_3434_ID, amount, false));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -amount, false), adjust(ACCOUNT_3434_ID, amount, false))));
+    }
+
+    @Test
+    void approvedCreditNeverMarksAnEntry() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        final var body =
+                cryptoTransferBody(adjust(ACCOUNT_1212_ID, -amount, false), adjust(ACCOUNT_3434_ID, amount, true));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -amount, false), adjust(ACCOUNT_3434_ID, amount, false))));
+    }
+
+    @Test
+    void aliasedApprovedOwnerIsExternalizedAsNumericIdWithIsApproval() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        writableAccountStore.putAlias(OWNER_ALIAS, ACCOUNT_1212_ID);
+        final var body =
+                cryptoTransferBody(adjust(ALIASED_OWNER_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false))));
+    }
+
+    @Test
+    void unresolvableAliasedOwnerIsIgnored() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        final var body =
+                cryptoTransferBody(adjust(ALIASED_OWNER_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -amount, false), adjust(ACCOUNT_3434_ID, amount, false))));
+    }
+
+    @Test
+    void approvedDebitInflatedByCustomFeeStaysApproved() {
+        // A fixed fee in the transferred token is charged to the owner on top of the approved debit, so the record's
+        // rebuilt entry for the owner is larger than the body's debit and the collector appears out of nowhere
+        final var ownerRel = givenFungibleTokenRelation()
+                .copyBuilder()
+                .tokenId(TOKEN_321)
+                .accountId(ACCOUNT_1212_ID)
+                .build();
+        final var receiverRel =
+                ownerRel.copyBuilder().accountId(ACCOUNT_3434_ID).balance(0).build();
+        final var collectorRel =
+                ownerRel.copyBuilder().accountId(ACCOUNT_5656_ID).balance(0).build();
+        setupTestStores(
+                List.of(ACCOUNT_1212, ACCOUNT_3434, ACCOUNT_5656),
+                List.of(ownerRel, receiverRel, collectorRel),
+                List.of(TOKEN_321_FUNGIBLE),
+                List.of());
+        final var fee = 5L;
+        final var amount = ownerRel.balance() - fee - 1;
+        writableTokenRelStore.put(ownerRel.copyBuilder().balance(1).build());
+        writableTokenRelStore.put(receiverRel.copyBuilder().balance(amount).build());
+        writableTokenRelStore.put(collectorRel.copyBuilder().balance(fee).build());
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        final var body =
+                cryptoTransferBody(adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -(amount + fee), true),
+                        adjust(ACCOUNT_3434_ID, amount, false),
+                        adjust(ACCOUNT_5656_ID, fee, false))));
+    }
+
+    @Test
+    void tokenAirdropApprovedDebitIsExternalizedWithIsApproval() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        final var body = TransactionBody.newBuilder()
+                .tokenAirdrop(TokenAirdropTransactionBody.newBuilder()
+                        .tokenTransfers(token321Transfers(
+                                adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false))))
+                .build();
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.TOKEN_AIRDROP, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false))));
+    }
+
+    @Test
+    void approvedDebitLeftAfterChildRecordDeductionStaysApproved() {
+        final var amount = givenToken321MovedFrom1212To3434();
+        final var childAmount = amount / 2;
+        final var childRecord = mock(RecordStreamBuilder.class);
+        given(childRecord.tokenTransferLists())
+                .willReturn(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -childAmount, false), adjust(ACCOUNT_3434_ID, childAmount, false))));
+        given(context.hasChildOrPrecedingRecords()).willReturn(true);
+        doAnswer(invocation -> {
+                    final var consumer = invocation.getArgument(1, Consumer.class);
+                    consumer.accept(childRecord);
+                    return null;
+                })
+                .when(context)
+                .forEachChildRecord(any(), any());
+        final var body =
+                cryptoTransferBody(adjust(ACCOUNT_1212_ID, -amount, true), adjust(ACCOUNT_3434_ID, amount, false));
+
+        subject.finalizeStakingRecord(
+                context, HederaFunctionality.CRYPTO_TRANSFER, body, Collections.emptySet(), emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .tokenTransferLists(List.of(token321Transfers(
+                        adjust(ACCOUNT_1212_ID, -(amount - childAmount), true),
+                        adjust(ACCOUNT_3434_ID, amount - childAmount, false))));
+    }
+
+    /** Puts a balance change in state that moves all but one unit of token 321 from 1212 to 3434. */
+    private long givenToken321MovedFrom1212To3434() {
+        final var senderRel = givenFungibleTokenRelation()
+                .copyBuilder()
+                .tokenId(TOKEN_321)
+                .accountId(ACCOUNT_1212_ID)
+                .build();
+        final var receiverRel =
+                senderRel.copyBuilder().accountId(ACCOUNT_3434_ID).balance(0).build();
+        setupTestStores(
+                List.of(ACCOUNT_1212, ACCOUNT_3434),
+                List.of(senderRel, receiverRel),
+                List.of(TOKEN_321_FUNGIBLE),
+                List.of());
+        final var amount = senderRel.balance() - 1;
+        writableTokenRelStore.put(senderRel.copyBuilder().balance(1).build());
+        writableTokenRelStore.put(receiverRel.copyBuilder().balance(amount).build());
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        return amount;
+    }
+
+    private static TransactionBody cryptoTransferBody(final AccountAmount... token321Adjusts) {
+        return TransactionBody.newBuilder()
+                .cryptoTransfer(
+                        CryptoTransferTransactionBody.newBuilder().tokenTransfers(token321Transfers(token321Adjusts)))
+                .build();
+    }
+
+    private static TokenTransferList token321Transfers(final AccountAmount... adjusts) {
+        return TokenTransferList.newBuilder()
+                .token(TOKEN_321)
+                .transfers(adjusts)
+                .build();
+    }
+
+    private static AccountAmount adjust(final AccountID accountId, final long amount, final boolean isApproval) {
+        return AccountAmount.newBuilder()
+                .accountID(accountId)
+                .amount(amount)
+                .isApproval(isApproval)
+                .build();
     }
 
     private FinalizeContext mockContext() {

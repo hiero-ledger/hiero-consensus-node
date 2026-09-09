@@ -24,11 +24,11 @@ At the pinned commit: 132 `.yaml` files under `.github/workflows/`, 78 numbered.
 
 **The duplicate-number trap still exists, but it has shrunk.** A deprecated workflow keeps its number and gets a `Deprecated:` prefix on `name:`, so a number is not unique on disk until you check which file is actually live. Only three collisions remain:
 
-| Number | Live file | Deprecated file |
-|---|---|---|
-| 802 | `802-call-compile-and-spotless-check.yaml` | `802-extract-jdk-version.yaml` (superseded by `854-call-extract-jdk-version.yaml`) |
-| 855 | `855-call-extract-citr-vars.yaml` | `855-extract-citr-vars.yaml` |
-| 857 | `857-call-workflow-unit-tests.yaml` | `857-call-solo-ge044.yaml` (superseded by `856-call-solo-ge044.yaml`) |
+| Number | Live file                                  | Deprecated file                                                                    |
+|--------|--------------------------------------------|------------------------------------------------------------------------------------|
+| 802    | `802-call-compile-and-spotless-check.yaml` | `802-extract-jdk-version.yaml` (superseded by `854-call-extract-jdk-version.yaml`) |
+| 855    | `855-call-extract-citr-vars.yaml`          | `855-extract-citr-vars.yaml`                                                       |
+| 857    | `857-call-workflow-unit-tests.yaml`        | `857-call-solo-ge044.yaml` (superseded by `856-call-solo-ge044.yaml`)              |
 
 `200` and `801` — collisions in an earlier audit — no longer collide: `200-user-adhoc-solo-tests.yaml` is now a lone tombstone with no live counterpart at 200 (the live workflow moved to `103-user-solo-tests-adhoc.yaml`), and `801-call-snyk-scan.yaml` is a lone live file. **Still select workflows by filename, not by number**, and check `name:` for `Deprecated:` before trusting a match — the pattern recurs even as individual collisions get cleaned up.
 
@@ -81,10 +81,10 @@ Group names were hardcoded `"cn-nodes"`/`"aux-nodes"` in an earlier pass; they'r
 
 Per-test-type resource shapes live in `support/chewie/<type>-config.json`, read by `861`:
 
-| Type | CN qty/CPU/mem (MB) | Aux qty/CPU/mem (MB) |
-|---|---|---|
-| `sdpt` | 9 / 39 / 256000 | 1 / 39 / 256000 |
-| `sdlt` | 8 / 39 / 256000 | 1 / 39 / 256000 |
+| Type   | CN qty/CPU/mem (MB) | Aux qty/CPU/mem (MB) |
+|--------|---------------------|----------------------|
+| `sdpt` | 9 / 39 / 256000     | 1 / 39 / 256000      |
+| `sdlt` | 8 / 39 / 256000     | 1 / 39 / 256000      |
 
 ## 3. The polling contract and response parsing — confirmed unchanged in shape
 
@@ -121,11 +121,11 @@ Cluster access is via Teleport, not a kubeconfig: `teleport-actions/auth-k8s` ag
 
 ## 6. MATS, XTS, and promotion — confirmed unchanged
 
-| Concern | Path |
-|---|---|
-| MATS | `600-flow-pull-request-checks` → `800-call-mats-tests`; dry run `000-user-dry-run-mats-suite` |
-| XTS | `900-cron-extended-test-suite` (`0 */3 * * *`) → `815-call-xts-tests`; preparation `302-disp-prepare-extended-test-suite`; dry run `001-user-dry-run-extended-test-suite` |
-| Promotion | `901-cron-promote-build-candidate` (`0 1 * * 2-6`) |
+| Concern      | Path                                                                                                                                                                                        |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| MATS         | `600-flow-pull-request-checks` → `800-call-mats-tests`; dry run `000-user-dry-run-mats-suite`                                                                                               |
+| XTS          | `900-cron-extended-test-suite` (`0 */3 * * *`) → `815-call-xts-tests`; preparation `302-disp-prepare-extended-test-suite`; dry run `001-user-dry-run-extended-test-suite`                   |
+| Promotion    | `901-cron-promote-build-candidate` (`0 1 * * 2-6`)                                                                                                                                          |
 | Constituents | `803`–`809`, `815`–`826` (unit, integration, HAPI, timing-sensitive, hammer, Otter, dependency check, JRS, JSON-RPC relay, TCK, mirror-node, block-node regression, determinism, migration) |
 
 Result tags are the integration surface, not workflow outputs: `221` tags `sdpt-pass-<build>`/`sdpt-fail-<build>` (build tag regex `build-(.{5})`), GPG-signed via `step-security/ghaction-import-gpg`. `223-disp-sdct-controller.yaml` has zero Chewie references — SDCT's allocation still runs out-of-band (Jenkins-orchestrated), only its verdict participates in promotion.
