@@ -194,7 +194,7 @@ jobs:
         with:
           repository: hashgraph/network-load-generator
           ref: "00426-add-block-nodes"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
           path: network-load-generator
 
       - name: Checkout target BN Code
