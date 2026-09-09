@@ -106,6 +106,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         })
@@ -166,6 +170,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -186,6 +194,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -206,6 +218,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -226,6 +242,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         })
