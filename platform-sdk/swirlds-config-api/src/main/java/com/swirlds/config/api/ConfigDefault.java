@@ -17,7 +17,7 @@ import java.lang.annotation.Target;
 /// The [#property()] names the property relative to the nested config data object held by the annotated component,
 /// using the same dotted notation that the same declaration written flat would use:
 ///
-/// ``````
+/// ```
 /// @ConfigData("wiring")
 /// public record WiringConfig(
 ///         @ConfigDefault(property = "type", defaultValue = "CONCURRENT")
