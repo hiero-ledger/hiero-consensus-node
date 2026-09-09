@@ -1246,7 +1246,7 @@ public class HandleWorkflow {
                                     activeRosters,
                                     vk,
                                     historyStore,
-                                    blockStreamManager.lastUsedConsensusTime(),
+                                    workTime,
                                     tssConfig,
                                     isActive,
                                     hintsService.activeConstruction()));
