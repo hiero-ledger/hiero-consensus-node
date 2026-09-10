@@ -7,9 +7,7 @@ import static org.mockito.Mockito.mock;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -60,7 +58,7 @@ class InFlightEventsTest {
     void deliveringWithNothingInFlight() {
         inFlightEvents.deliverArrivedEvents(START, node0);
 
-        assertThat(node0.received).isEmpty();
+        assertThat(node0.receivedEvents).isEmpty();
     }
 
     @Test
@@ -71,7 +69,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(30), node0);
 
-        assertThat(node0.received).containsExactly(first, second);
+        assertThat(node0.receivedEvents).containsExactly(first, second);
     }
 
     @Test
@@ -85,7 +83,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(50), node0);
 
-        assertThat(node0.received).containsExactly(fromOneEarly, fromTwoEarly, fromOneLate, fromTwoLate);
+        assertThat(node0.receivedEvents).containsExactly(fromOneEarly, fromTwoEarly, fromOneLate, fromTwoLate);
     }
 
     @Test
@@ -95,10 +93,10 @@ class InFlightEventsTest {
         final PlatformEvent late = addEvent(NODE_1, 30);
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
-        assertThat(node0.received).containsExactly(early);
+        assertThat(node0.receivedEvents).containsExactly(early);
 
         inFlightEvents.deliverArrivedEvents(at(40), node0);
-        assertThat(node0.received).containsExactly(early, late);
+        assertThat(node0.receivedEvents).containsExactly(early, late);
     }
 
     @Test
@@ -108,7 +106,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(10), node0);
 
-        assertThat(node0.received).containsExactly(event);
+        assertThat(node0.receivedEvents).containsExactly(event);
     }
 
     @Test
@@ -121,7 +119,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(30), node0);
 
-        assertThat(node0.received).containsExactly(fromOpenConnection);
+        assertThat(node0.receivedEvents).containsExactly(fromOpenConnection);
     }
 
     @Test
@@ -131,11 +129,11 @@ class InFlightEventsTest {
         downConnections.add(Map.entry(NODE_1, NODE_0));
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
-        assertThat(node0.received).isEmpty();
+        assertThat(node0.receivedEvents).isEmpty();
 
         downConnections.clear();
         inFlightEvents.deliverArrivedEvents(at(20), node0);
-        assertThat(node0.received).containsExactly(held);
+        assertThat(node0.receivedEvents).containsExactly(held);
     }
 
     @Test
@@ -146,7 +144,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
 
-        assertThat(node0.received).containsExactly(event);
+        assertThat(node0.receivedEvents).containsExactly(event);
     }
 
     @Test
@@ -157,11 +155,11 @@ class InFlightEventsTest {
         node0.accepting = false;
 
         inFlightEvents.deliverArrivedEvents(at(30), node0);
-        assertThat(node0.received).isEmpty();
+        assertThat(node0.receivedEvents).isEmpty();
 
         node0.accepting = true;
         inFlightEvents.deliverArrivedEvents(at(30), node0);
-        assertThat(node0.received).containsExactly(first, second);
+        assertThat(node0.receivedEvents).containsExactly(first, second);
     }
 
     @Test
@@ -173,7 +171,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
 
-        assertThat(node0.received).containsExactly(fromOne, fromTwo);
+        assertThat(node0.receivedEvents).containsExactly(fromOne, fromTwo);
     }
 
     @Test
@@ -185,11 +183,11 @@ class InFlightEventsTest {
         inFlightEvents.clearIncoming(NODE_0);
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
-        assertThat(node0.received).isEmpty();
+        assertThat(node0.receivedEvents).isEmpty();
 
         final RecordingReceiver node1 = new RecordingReceiver(NODE_1);
         inFlightEvents.deliverArrivedEvents(at(20), node1);
-        assertThat(node1.received).containsExactly(towardsNodeOne);
+        assertThat(node1.receivedEvents).containsExactly(towardsNodeOne);
     }
 
     @Test
@@ -202,11 +200,11 @@ class InFlightEventsTest {
         final PlatformEvent towardsNodeThree = addEvent(nodeThree, NODE_0, 10);
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
-        assertThat(node0.received).containsExactly(towardsNodeZero);
+        assertThat(node0.receivedEvents).containsExactly(towardsNodeZero);
 
         final RecordingReceiver nodeThreeReceiver = new RecordingReceiver(nodeThree);
         inFlightEvents.deliverArrivedEvents(at(20), nodeThreeReceiver);
-        assertThat(nodeThreeReceiver.received).containsExactly(towardsNodeThree);
+        assertThat(nodeThreeReceiver.receivedEvents).containsExactly(towardsNodeThree);
     }
 
     @Test
@@ -225,7 +223,7 @@ class InFlightEventsTest {
 
         inFlightEvents.deliverArrivedEvents(at(20), node0);
 
-        assertThat(node0.received).containsExactly(first, second);
+        assertThat(node0.receivedEvents).containsExactly(first, second);
     }
 
     /**
@@ -260,33 +258,5 @@ class InFlightEventsTest {
      */
     private static Instant at(final long millis) {
         return START.plusMillis(millis);
-    }
-
-    /**
-     * An {@link EventReceiver} that records what it is given and can be told to stop accepting events.
-     */
-    private static final class RecordingReceiver implements EventReceiver {
-
-        private final NodeId nodeId;
-        private final List<PlatformEvent> received = new ArrayList<>();
-        private boolean accepting = true;
-
-        private RecordingReceiver(@NonNull final NodeId nodeId) {
-            this.nodeId = nodeId;
-        }
-
-        @Override
-        public NodeId getNodeId() {
-            return nodeId;
-        }
-
-        @Override
-        public boolean receiveEvent(@NonNull final PlatformEvent event) {
-            if (!accepting) {
-                return false;
-            }
-            received.add(event);
-            return true;
-        }
     }
 }
