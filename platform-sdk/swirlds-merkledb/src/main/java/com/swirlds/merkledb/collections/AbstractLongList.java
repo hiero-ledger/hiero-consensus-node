@@ -517,6 +517,12 @@ public abstract class AbstractLongList<C> implements LongList {
         }
     }
 
+    /// Writes contiguous chunk ranges in parallel and waits for all submitted tasks to finish.
+    ///
+    /// @param fc target file channel
+    /// @param executor executor for the writer tasks
+    /// @param threadCount maximum number of writer tasks
+    /// @throws IOException if a range cannot be written
     private void writeLongsDataInParallel(final FileChannel fc, final Executor executor, final int threadCount)
             throws IOException {
         // First chunk containing list data, used as the partition's inclusive lower bound.
@@ -530,9 +536,9 @@ public abstract class AbstractLongList<C> implements LongList {
         }
         // Number of writer tasks, capped so every task owns at least one chunk.
         final int taskCount = min(threadCount, activeChunkCount);
-        // Minimum chunks per range, used as the base size of the balanced partition.
+        // Minimum chunks per range (or task), used as the base size of the balanced partition.
         final int chunksPerRange = activeChunkCount / taskCount;
-        // Leading ranges with one extra chunk, used to distribute the partition remainder.
+        // Leading ranges (or tasks) with one extra chunk, used to distribute the partition remainder.
         final int rangesWithOneMoreChunk = activeChunkCount % taskCount;
 
         // Submitted writer tasks, retained so all workers can be joined before closing the file.
@@ -540,6 +546,7 @@ public abstract class AbstractLongList<C> implements LongList {
 
         // Start of the next range, advanced as writer ranges are assigned.
         int rangeFirstChunkInclusive = firstChunkWithDataIndex;
+        Throwable failure = null;
         try {
             // Chunks are equal-sized except at the edges, so balanced contiguous ranges keep writes moving forward.
             for (int rangeIndex = 0; rangeIndex < taskCount; rangeIndex++) {
@@ -564,17 +571,29 @@ public abstract class AbstractLongList<C> implements LongList {
                         executor));
                 rangeFirstChunkInclusive = rangeLastChunkExclusive;
             }
-        } finally {
-            try {
-                // Finish every accepted writer, even after a failure, before the channel closes.
-                CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
-            } catch (final CompletionException e) {
-                // Restore the checked IOException contract after crossing the CompletableFuture boundary.
-                if (e.getCause() instanceof UncheckedIOException ioException) {
-                    throw ioException.getCause();
-                }
-                throw e;
+        } catch (final RuntimeException | Error e) {
+            failure = e;
+        }
+        try {
+            // Finish every accepted writer, even after a failure, before the channel closes.
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        } catch (final CompletionException e) {
+            // Restore the checked IOException contract after crossing the CompletableFuture boundary.
+            final Throwable writeFailure =
+                    e.getCause() instanceof UncheckedIOException ioException ? ioException.getCause() : e;
+            if (failure == null) {
+                failure = writeFailure;
+            } else {
+                // Keep the submission failure as the main error if a writer also failed.
+                failure.addSuppressed(writeFailure);
             }
+        }
+        if (failure instanceof IOException ioException) {
+            throw ioException;
+        } else if (failure instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        } else if (failure instanceof Error error) {
+            throw error;
         }
     }
 

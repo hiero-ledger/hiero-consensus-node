@@ -930,7 +930,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
                     boolean hashCacheFlushSucceeded = true;
                     try {
-                        // Flush cached hash chunks to the hash chunk store.
+                        // Flush cached hashes on the calling thread while the four independent tasks run.
+                        // The two hash-dependent tasks below start only after this flush succeeds.
                         if (getLastLeafPath() > 0) {
                             final long maxValidChunkId =
                                     VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
