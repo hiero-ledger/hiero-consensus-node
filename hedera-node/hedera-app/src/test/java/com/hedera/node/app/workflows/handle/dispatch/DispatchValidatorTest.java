@@ -110,10 +110,14 @@ class DispatchValidatorTest {
     @BeforeEach
     void setUp() {
         // A live consensus node that booted from a restart/reconnect: system-entities flag is null (only a genesis
-        // boot has it), liveConsensusNode is true (false only in the standalone executor). This is the boot state
+        // boot has it), and the live guard is bound (a no-op only in the standalone executor). This is the boot state
         // where the NODE-payer guard must apply.
         subject = new DispatchValidator(
-                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null, true);
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                null,
+                new LiveNodeControlledPayerGuard());
     }
 
     @Test
@@ -209,10 +213,14 @@ class DispatchValidatorTest {
     @Test
     void nodeCategoryForeignPayerAllowedInStandaloneExecutor() throws PreCheckException {
         // The in-process standalone transaction executor legitimately dispatches NODE-category transactions
-        // (empty signature map) with a caller-chosen, non-node payer. It is not a live consensus node
-        // (liveConsensusNode=false), so the guard stays exempt and the dispatch proceeds to a normal success.
+        // (empty signature map) with a caller-chosen, non-node payer. It binds a no-op guard (never rejects), so the
+        // dispatch proceeds to a normal success.
         final var standaloneSubject = new DispatchValidator(
-                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null, false);
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                null,
+                new NoOpNodeControlledPayerGuard());
         givenCreatorInfo();
         givenNodeDispatch();
         givenNonDuplicate();
@@ -228,11 +236,10 @@ class DispatchValidatorTest {
 
     @Test
     void nodeCategoryForeignPayerRejectedOnRestartedNode() {
-        // Regression guard: a restarted/reconnected live node has a null system-entities flag but is still a live node
-        // (liveConsensusNode=true). The NODE-payer guard must still fire (it is gated on being a live node, not on the
-        // genesis flag), so a foreign payer is a node due-diligence failure. Under the old flag-based gate this
-        // dispatch
-        // was wrongly allowed. The default subject is exactly this boot state (flag=null, liveConsensusNode=true).
+        // Regression guard: a restarted/reconnected live node has a null system-entities flag but still binds the live
+        // guard. The NODE-payer guard must still fire (it is bound per component, not gated on the genesis flag), so a
+        // foreign payer is a node due-diligence failure. Under the old flag-based gate this dispatch was wrongly
+        // allowed. The default subject is exactly this boot state (flag=null, live guard bound).
         givenCreatorInfo();
         givenNodeDispatch();
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
@@ -247,10 +254,14 @@ class DispatchValidatorTest {
     void nodeCategoryForeignPayerRejectedOnGenesisBootedNode() {
         // Companion to nodeCategoryForeignPayerRejectedOnRestartedNode. A node that booted at genesis and finished
         // creating system entities holds a present, set flag (new AtomicBoolean(true)) — a real production state. The
-        // guard keys off being a live node (liveConsensusNode=true), not the flag, so a foreign NODE payer is rejected
-        // just as on a restarted node. Together the two tests show the guard fires identically regardless of boot type.
+        // live guard fires independently of the flag, so a foreign NODE payer is rejected just as on a restarted node.
+        // Together the two tests show the guard fires identically regardless of boot type.
         final var genesisBootedNode = new DispatchValidator(
-                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), new AtomicBoolean(true), true);
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                new AtomicBoolean(true),
+                new LiveNodeControlledPayerGuard());
         givenCreatorInfo();
         givenNodeDispatch();
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
@@ -264,8 +275,8 @@ class DispatchValidatorTest {
     @Test
     void nodeCategoryCreatorPayerAllowedOnLiveNode() throws PreCheckException {
         // The creator node's own account is a legitimate NODE-category payer (gossiped node-submitted votes), so the
-        // guard permits it on a live node. Uses the default subject (a live node: liveConsensusNode=true), which is all
-        // the guard depends on; the genesis flag is irrelevant to this decision.
+        // guard permits it on a live node. Uses the default subject (a live node with the live guard bound), which is
+        // all the guard depends on; the genesis flag is irrelevant to this decision.
         givenCreatorInfo();
         givenNodeDispatch();
         givenNonDuplicate();

@@ -127,9 +127,8 @@ events on top of the chosen branch (or, again, to branch further).
 
 **The 2020 strong-seeing redefinition.** All of the seeing predicates
 in `ConsensusImpl` are annotated as functions from `SWIRLDS-TR-2020-
-01`. There is no separate `see` predicate; `lastSee` (line 965),
-`firstSee` (line 1307), `seeThru` (line 1028), and `stronglySeeP`
-(line 1054) jointly encode the 2020 definition, in which strong-
+01`. There is no separate `see` predicate; `lastSee`,
+`firstSee`, `seeThru`, and `stronglySeeP` jointly encode the 2020 definition, in which strong-
 seeing requires a super-majority weight of paths (one per creator
 `m₂`) to agree on the canonical witness by each creator. See
 [`strongly-seeing.md`](strongly-seeing.md) for the full walkthrough.
@@ -138,14 +137,14 @@ seeing requires a super-majority weight of paths (one per creator
 one event per creator if the creator branched. The class comment for
 [
 `RoundElections`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java)
-(line 36) notes explicitly: "if a member branches, it could have
+notes explicitly: "if a member branches, it could have
 multiple [witnesses in a round]". Each branched witness has its own
 candidate-witness entry and its own fame election.
 
 **Judge merge.** When fame is decided,
-`RoundElections.findAllJudges` (line 136) builds a map keyed by
+`RoundElections.findAllJudges` builds a map keyed by
 creator id and merges multiple famous witnesses for the same creator
-via `RoundElections.uniqueFamous` (line 174), which keeps the
+via `RoundElections.uniqueFamous`, which keeps the
 witness with the minimum base hash. This is the deterministic tie-
 break that ensures every node picks the same judge for a branched
 creator.
