@@ -36,9 +36,16 @@ public class FeeUtils {
 
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
+        final var centEquiv = rate.getCentEquiv();
+        // A non-positive centEquiv would divide by zero, and a non-positive hbarEquiv would make the fee
+        // free or negative; saturate to Long.MAX_VALUE instead of throwing, so a degenerate rate yields an
+        // unpayable fee rather than halting fee conversion identically on every node.
+        if (centEquiv <= 0 || hbarEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
         if (productWouldOverflow(amount, hbarEquiv)) {
             return FeeConstants.getTinybarsFromTinyCents(rate, amount);
         }
-        return amount * hbarEquiv / rate.getCentEquiv();
+        return amount * hbarEquiv / centEquiv;
     }
 }
