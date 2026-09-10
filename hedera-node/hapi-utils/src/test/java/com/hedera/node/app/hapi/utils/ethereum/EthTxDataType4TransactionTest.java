@@ -356,13 +356,16 @@ class EthTxDataType4TransactionTest {
     /// for the legacy, type-1 and type-2 equivalents.
     @Test
     void populateEip7702EthTxDataReturnsNullWhenTrailingBytesFollowEnvelope() {
-        final byte[] authorizationList = rlpList(
-                rlpBytes(new byte[] {0x01}),
-                rlpBytes(repeat((byte) 0x11, 20)),
-                rlpUInt(5),
-                rlpUInt(1),
-                rlpBytes(repeat((byte) 0x22, 32)),
-                rlpBytes(repeat((byte) 0x33, 32)));
+        final Object[] authorizationList = {
+            new Object[] {
+                new byte[] {0x01},
+                repeat((byte) 0x11, 20),
+                Integers.toBytes(5),
+                Integers.toBytes(1),
+                repeat((byte) 0x22, 32),
+                repeat((byte) 0x33, 32)
+            }
+        };
         final byte[] canonical = buildType4Raw(
                 fillBytes(2, 0x01),
                 1,
@@ -385,81 +388,6 @@ class EthTxDataType4TransactionTest {
             System.arraycopy(suffix, 0, suffixed, canonical.length, suffix.length);
             assertNull(EthTxData.populateEthTxData(suffixed), "trailing byte must be rejected");
         }
-    }
-
-    private static byte[] rlpBytes(byte[] bytes) {
-        if (bytes.length == 1 && (bytes[0] & 0xFF) < 0x80) {
-            return new byte[] {bytes[0]};
-        }
-        if (bytes.length <= 55) {
-            byte[] out = new byte[1 + bytes.length];
-            out[0] = (byte) (0x80 + bytes.length);
-            System.arraycopy(bytes, 0, out, 1, bytes.length);
-            return out;
-        }
-        // length > 55
-        byte[] lenEnc = encodeLen(bytes.length);
-        byte[] out = new byte[1 + lenEnc.length + bytes.length];
-        out[0] = (byte) (0xB7 + lenEnc.length);
-        System.arraycopy(lenEnc, 0, out, 1, lenEnc.length);
-        System.arraycopy(bytes, 0, out, 1 + lenEnc.length, bytes.length);
-        return out;
-    }
-
-    private static byte[] rlpUInt(int value) {
-        if (value == 0) {
-            return new byte[] {(byte) 0x80}; // empty (zero)
-        }
-        // minimal big-endian
-        int v = value;
-        int size = 0;
-        byte[] tmp = new byte[8];
-        while (v != 0) {
-            tmp[7 - size] = (byte) (v & 0xFF);
-            v >>>= 8;
-            size++;
-        }
-        byte[] be = new byte[size];
-        System.arraycopy(tmp, 8 - size, be, 0, size);
-        return rlpBytes(be);
-    }
-
-    private static byte[] rlpList(byte[]... items) {
-        int payloadLen = 0;
-        for (byte[] it : items) payloadLen += it.length;
-        byte[] payload = new byte[payloadLen];
-        int off = 0;
-        for (byte[] it : items) {
-            System.arraycopy(it, 0, payload, off, it.length);
-            off += it.length;
-        }
-        if (payloadLen <= 55) {
-            byte[] out = new byte[1 + payloadLen];
-            out[0] = (byte) (0xC0 + payloadLen);
-            System.arraycopy(payload, 0, out, 1, payloadLen);
-            return out;
-        }
-        byte[] lenEnc = encodeLen(payloadLen);
-        byte[] out = new byte[1 + lenEnc.length + payloadLen];
-        out[0] = (byte) (0xF7 + lenEnc.length);
-        System.arraycopy(lenEnc, 0, out, 1, lenEnc.length);
-        System.arraycopy(payload, 0, out, 1 + lenEnc.length, payloadLen);
-        return out;
-    }
-
-    private static byte[] encodeLen(int len) {
-        // big-endian, minimal
-        int n = len;
-        int size = 0;
-        byte[] tmp = new byte[8];
-        while (n != 0) {
-            tmp[7 - size] = (byte) (n & 0xFF);
-            n >>>= 8;
-            size++;
-        }
-        byte[] out = new byte[size];
-        System.arraycopy(tmp, 8 - size, out, 0, size);
-        return out;
     }
 
     private static byte[] repeat(byte b, int n) {
