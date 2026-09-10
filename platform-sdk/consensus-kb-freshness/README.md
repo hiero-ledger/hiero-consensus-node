@@ -59,12 +59,12 @@ checks run first and assert freely; the deeper a check reaches, the more careful
 anything too fuzzy to settle mechanically is pushed up to the semantic pass rather than risk a false
 assert.
 
-|    Tier    |                                                                                                                            What it verifies                                                                                                                             |                                                                                                                  How                                                                                                                   |                                             Asserts drift?                                             |
-|------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| **Tier 0** | Existence of cited files (including allowlisted external ones), module directories, cross-doc links, `#headings`, catalog IDs (INV/RUL/ADR/SCN/HEU/SYM/TUN), and prose-cited Java *packages* (backtick reverse-domain names, checked against the indexed package tree). | Filesystem + text. Near-zero false-positive risk. A *missing* external file stays quiet (it may be generated), but its absence is flagged in the quiet log. A package outside every indexed namespace is external and stays quiet too. | Yes — a cited file, link target, catalog ID, or in-namespace package that is simply absent.            |
-| **Tier 1** | A cited *type* still exists in the *module the doc names* (and a prose fully-qualified type in its cited *package*); a `verification:` method still exists on its class; a tunables-catalog *key* is still a declared `@ConfigProperty` of its `@ConfigData` record.    | Parse the cited source; look for the declared type/method/record component.                                                                                                                                                            | Yes — but a type found in a *different* module (or package) is reported as a **move**, not as gone.    |
-| **Tier 2** | A cited *method signature* still matches (parameters/return), a documented *interface's method set* still matches the source, and a tunables-catalog *default* still matches the `@ConfigProperty(defaultValue = …)` literal.                                           | Parse and compare *as-written* signatures and annotation literals. Opt-in for interfaces via `interface:`/`methods:` frontmatter; automatic for the tunables catalog (its column conventions are the contract).                        | Yes — a signature that no longer matches, a documented method that is gone, or a default that changed. |
-| **Tier 3** | *Behavioral* prose claims — what the code actually does.                                                                                                                                                                                                                | The **semantic pass** (the skill). Not deterministic.                                                                                                                                                                                  | No — advisory only, and only a `contradicted`-with-citation claim.                                     |
+|    Tier    |                                                                                                                            What it verifies                                                                                                                             |                                                                                                                  How                                                                                                                   |                                           Asserts drift?                                            |
+|------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| **Tier 0** | Existence of cited files (including allowlisted external ones), module directories, cross-doc links, `#headings`, catalog IDs (INV/RUL/ADR/SCN/HEU/SYM/TUN), and prose-cited Java *packages* (backtick reverse-domain names, checked against the indexed package tree). | Filesystem + text. Near-zero false-positive risk. A *missing* external file stays quiet (it may be generated), but its absence is flagged in the quiet log. A package outside every indexed namespace is external and stays quiet too. | Yes — a cited file, link target, catalog ID, or in-namespace package that is simply absent.         |
+| **Tier 1** | A cited *type* still exists in the *module the doc names* (and a prose fully-qualified type in its cited *package*); a `verification:` method still exists on its class; a tunables-catalog *key* is still a declared `@ConfigProperty` of its `@ConfigData` record.    | Parse the cited source; look for the declared type/method/record component.                                                                                                                                                            | Yes — but a type found in a *different* module (or package) is reported as a **move**, not as gone. |
+| **Tier 2** | A cited *method signature* still matches (parameters/return), and a tunables-catalog *default* still matches the `@ConfigProperty(defaultValue = …)` literal.                                                                                                           | Parse and compare *as-written* signatures and annotation literals. Automatic for the tunables catalog (its column conventions are the contract).                                                                                       | Yes — a signature that no longer matches, or a default that changed.                                |
+| **Tier 3** | *Behavioral* prose claims — what the code actually does.                                                                                                                                                                                                                | The **semantic pass** (the skill). Not deterministic.                                                                                                                                                                                  | No — advisory only, and only a `contradicted`-with-citation claim.                                  |
 
 Two principles drive the split:
 
@@ -136,8 +136,8 @@ own output file so the drift report itself stays pure signal:
   location *is* drift (it asserts), but additionally gets a ready path-rewrite proposal here (which
   `--fix` also applies, along with any stale on-line `Module:` label).
 - **coverage-gap** → `coverage.md`. A documentation gap — the inverse of drift — tracked separately:
-  code the docs do not mention (e.g. an interface method with no documentation), an architecture topic
-  that anchors no source, or an interface doc that does not opt into the Tier-2 method-set diff.
+  code the docs do not mention (e.g. a config key with no documentation), or an architecture topic
+  that anchors no source.
 
 ### Expected-gone citations (`historical:`)
 
@@ -268,15 +268,13 @@ method body, or past the file's end — each naming the enclosing declaration to
 not facts** (it never asserts, and `--fix` never applies them), and kept out of `findings.json` so the
 machine artifact stays reproducible.
 
-**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in five
-sections: (1) code the docs don't mention (a method present on a documented interface but absent
-from its `methods:` frontmatter, or a `@ConfigProperty` its tunables section doesn't document);
-(2) config *records* the tunables catalog has no section for at all — scoped to `consensus-*`
-modules and modules the catalog already documents, so a key that migrates into a brand-new config
-record cannot silently fall out of coverage; (3) architecture *topics* that anchor no source, so no
-claim can be checked against code; (4) interface docs that carry no `interface:`/`methods:`
-frontmatter, so the Tier-2 method-set diff never runs for them (making its dormancy visible rather
-than reading as "all clear"); (5) cited topic *slugs* whose document does not exist — when several
+**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in four
+sections: (1) code the docs don't mention (a `@ConfigProperty` its tunables section doesn't
+document); (2) config *records* the tunables catalog has no section for at all — scoped to
+`consensus-*` modules and modules the catalog already documents, so a key that migrates into a
+brand-new config record cannot silently fall out of coverage; (3) architecture *topics* that anchor
+no source, so no claim can be checked against code; (4) cited topic *slugs* whose document does not
+exist — when several
 entries tag a topic that was never written, the fix may be to write it rather than retarget every
 citation. Use it to find documentation worth adding or anchoring; tracked apart from the drift
 report on purpose.
@@ -341,9 +339,8 @@ To adopt the current findings wholesale as the baseline, run with `--write-basel
   guard; a unique move gets a ready FQN rewrite), `verification:` method-on-class, and
   tunables-catalog key existence (each documented key must be a declared `@ConfigProperty` of its
   section's `@ConfigData` record).
-- **Tier 2** — method-signature equality (`Class.method(params)` citations), interface method-set
-  diffs (opt-in via `interface:`/`methods:` frontmatter; undocumented methods → coverage lane), and
-  tunables-catalog default equality (documented default vs the `defaultValue` string literal).
+- **Tier 2** — method-signature equality (`Class.method(params)` citations) and tunables-catalog
+  default equality (documented default vs the `defaultValue` string literal).
   Non-literal defaults and type differences → quiet log (except the closed well-known-constant
   whitelist, e.g. `Configuration.EMPTY_LIST` = `[]`); undocumented keys and whole undocumented config
   records → coverage lane. A section whose cited config class is gone is additionally resolved by its
