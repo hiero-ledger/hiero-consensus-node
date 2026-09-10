@@ -29,11 +29,26 @@ public class WritableBlockRecordStore extends ReadableBlockRecordStore {
         return writableBlockInfo.get();
     }
 
-    public boolean putVoteIfAbsent(final long nodeId, @NonNull final MigrationRootHashVoteTransactionBody vote) {
+    /**
+     * Records the given node's vote if it has not already voted and the stored vote list is below the supplied
+     * bound, returning whether the vote was stored.
+     *
+     * @param nodeId the submitting node's id
+     * @param vote the vote body
+     * @param maxVotes the maximum number of votes to retain, sized to the active roster by the caller; once the
+     *     stored list reaches this bound no further votes are accepted, so a caller that fails to validate the
+     *     submitting node against the roster cannot grow this consensus-critical singleton without limit
+     * @return true if the vote was stored, false if the node already voted or the bound was reached
+     */
+    public boolean putVoteIfAbsent(
+            final long nodeId, @NonNull final MigrationRootHashVoteTransactionBody vote, final int maxVotes) {
         requireNonNull(vote);
         final var blockInfo = getLastBlockInfo();
         if (blockInfo.migrationRootHashVotes().stream()
                 .anyMatch(existing -> existing.nodeIdOrElse(NodeId.DEFAULT).id() == nodeId)) {
+            return false;
+        }
+        if (blockInfo.migrationRootHashVotes().size() >= maxVotes) {
             return false;
         }
         final var votes = new ArrayList<>(blockInfo.migrationRootHashVotes());

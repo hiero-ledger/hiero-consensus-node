@@ -2,7 +2,7 @@
   "buckets": [
     {
       "name": "ReclaimAssociateLimit",
-      "burstPeriod": 1,
+      "burstPeriod": 4,
       "throttleGroups": [
         {
           "opsPerSec": 1,
@@ -12,7 +12,7 @@
     },
     {
       "name": "ReclaimCreateLimit",
-      "burstPeriod": 1,
+      "burstPeriod": 4,
       "throttleGroups": [
         {
           "opsPerSec": 1,
