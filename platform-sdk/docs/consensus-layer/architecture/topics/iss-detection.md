@@ -154,7 +154,7 @@ validator's final status:
   ISS, so the replayed stream may still carry the signature
   transactions that induced it. The
   `event.preconsensus.forceIgnorePcesSignatures` config flag forces it
-  on for tests and the PCES replay tool.
+  on for tests and the state-validator tool.
 - `latestFreezeRound`: signature transactions whose `eventBirthRound`
   is at or below this round are dropped. In the current baseline,
   Execution modifies the state during migration when it is loaded from
