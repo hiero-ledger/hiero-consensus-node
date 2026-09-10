@@ -24,8 +24,8 @@ import org.hiero.consensus.model.node.NodeId;
  * it holds up only its own events instead of blocking every other sender's events behind its head.
  *
  * <p>Nothing here sorts. A connection's queue is in arrival order because events are appended to it in arrival order,
- * which is a precondition of {@link #add(NodeId, EventInTransit)} rather than something this class arranges. Delivery
- * then merges the heads of the queues to recover the arrival order across all of the senders.
+ * which {@link #add(NodeId, EventInTransit)} enforces rather than arranges. Delivery then merges the heads of the
+ * queues to recover the arrival order across all of the senders.
  *
  * <p>This class is not safe to use from more than one thread.
  */
@@ -76,20 +76,29 @@ public class InFlightEvents {
     }
 
     /**
-     * Adds an event that has been transmitted towards a receiver.
+     * Adds an event that should be delivered to a receiver in the future.
      *
-     * <p>The event must not arrive before the event added most recently for the same connection. Delivery relies on
-     * each connection's queue being in arrival order, and appending is the only thing that puts it in that order.
+     * <p>The event must not have an arrival time before the event added most recently for the same connection.
+     * Delivery relies on each connection's queue being in arrival order, and appending is the only thing that puts
+     * it in that order.
      *
-     * @param receiver the node the event is travelling to
+     * @param receiver the node the event is traveling to
      * @param event    the event, carrying the node that sent it and the time it arrives
+     * @throws IllegalArgumentException if the event arrives before the event added most recently for the same
+     *                                  connection
      */
     public void add(@NonNull final NodeId receiver, @NonNull final EventInTransit event) {
         final ArrayDeque<EventInTransit> connection =
                 connectionsByReceiver.get(receiver).get(event.sender());
-        assert connection.isEmpty()
-                        || !event.arrivalTime().isBefore(connection.peekLast().arrivalTime())
-                : "events must be added to a connection in the order they arrive";
+
+        final EventInTransit previousEvent = connection.peekLast();
+        if (previousEvent != null && event.arrivalTime().isBefore(previousEvent.arrivalTime())) {
+            throw new IllegalArgumentException(
+                    ("The event sent from %s to %s arrives at %s, which is before the event ahead of it on that "
+                                    + "connection arrives at %s. They would be delivered out of order.")
+                            .formatted(event.sender(), receiver, event.arrivalTime(), previousEvent.arrivalTime()));
+        }
+
         connection.addLast(event);
     }
 
