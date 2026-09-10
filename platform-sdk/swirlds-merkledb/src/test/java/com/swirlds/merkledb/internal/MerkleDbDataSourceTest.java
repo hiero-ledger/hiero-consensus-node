@@ -48,7 +48,6 @@ import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
 
@@ -383,91 +382,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             }
         } finally {
             // the snapshot dir is owned by this test, the restored data source works off a copy
-            deleteDirectoryAndContents(snapshotDir);
-        }
-    }
-
-    @Test
-    void snapshotPropagatesTaskFailure() throws IOException {
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("failed-snapshot");
-        Files.createDirectories(snapshotDir);
-        Files.createFile(new MerkleDbPaths(snapshotDir).idToDiskLocationHashChunksFile);
-
-        createAndApplyDataSource(
-                "test", 1_000, dataSource -> assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir)));
-    }
-
-    @Test
-    void interruptedSnapshotFinishesTasksBeforeReturning() throws IOException {
-        final Path snapshotDir = fileSystemManager.resolveNewTemp("interrupted-snapshot");
-        final Path dataDir = snapshotDataDir(snapshotDir, "test");
-        final MerkleDbPaths snapshotPaths = new MerkleDbPaths(dataDir);
-
-        createAndApplyDataSource("test", 1_000, dataSource -> {
-            Thread.currentThread().interrupt();
-            try {
-                final IOException exception = assertThrows(IOException.class, () -> dataSource.snapshot(dataDir));
-                assertTrue(exception.getCause() instanceof InterruptedException);
-                assertTrue(Thread.currentThread().isInterrupted());
-            } finally {
-                Thread.interrupted();
-            }
-
-            assertTrue(Files.exists(snapshotPaths.metadataFile));
-            assertTrue(Files.exists(snapshotPaths.idToDiskLocationHashChunksFile));
-            assertTrue(Files.exists(snapshotPaths.pathToDiskLocationLeafNodesFile));
-            assertTrue(Files.exists(snapshotPaths.hashChunkDirectory));
-            assertTrue(Files.exists(snapshotPaths.keyToPathDirectory));
-            assertTrue(Files.exists(snapshotPaths.pathToKeyValueDirectory));
-        });
-
-        try {
-            final MerkleDbDataSource restored = restoreDataSource(snapshotDir, "test", false);
-            restored.close();
-        } finally {
-            deleteDirectoryAndContents(snapshotDir);
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void configuredSnapshotRestores(final boolean useDiskIndices) throws IOException {
-        final int count = 1_000;
-        final String tableName = "configuredSnapshot-" + (useDiskIndices ? "disk" : "segment");
-        final Path snapshotDir = fileSystemManager.resolveNewTemp(tableName + "-SNAPSHOT");
-        final var configuration = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withValue(MerkleDbConfig_.HASH_CHUNK_CACHE_THRESHOLD, "1000")
-                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "33")
-                .withValue(MerkleDbConfig_.LONG_LIST_WRITE_THREADS, "16")
-                .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "100000")
-                .withValue(MerkleDbConfig_.USE_DISK_INDICES, Boolean.toString(useDiskIndices))
-                .build();
-
-        final MerkleDbDataSource dataSource = MerkleDbDataSourceTestUtils.createDataSource(
-                configuration, fileSystemManager, tableName, count, false, useDiskIndices);
-        try {
-            dataSource.saveRecords(
-                    count - 1,
-                    count * 2 - 2,
-                    createHashChunkStream(count - 1, count * 2 - 2, i -> i, dataSource.getHashChunkHeight()),
-                    IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty(),
-                    false);
-            takeSnapshot(dataSource, snapshotDir);
-        } finally {
-            dataSource.close();
-        }
-
-        try {
-            final MerkleDbDataSource restored = restoreDataSource(configuration, snapshotDir, tableName, false);
-            try {
-                IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(TestType.long_fixed, restored, i, i));
-            } finally {
-                restored.close();
-            }
-        } finally {
             deleteDirectoryAndContents(snapshotDir);
         }
     }

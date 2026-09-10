@@ -3,6 +3,7 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
@@ -30,6 +31,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Spliterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -564,15 +567,13 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
         try (final LongList longList = createLongList(100, MAX_LONGS, 0)) {
             longList.updateValidRange(0, 50);
             longList.put(2, 1002);
-            final Path snapshot1 = testDir.resolve("snapshot1");
-            longList.writeToFile(snapshot1);
+            final Path snapshot1 = writeLongListToFileAndVerify(longList, "snapshot1", testDir);
             try (final LongList restored = createLongList(snapshot1, 100, MAX_LONGS, 0)) {
                 restored.updateValidRange(0, 50);
                 assertEquals(3, restored.size());
                 assertEquals(1002, restored.get(2));
                 restored.put(3, 1003);
-                final Path snapshot2 = testDir.resolve("snapshot2");
-                restored.writeToFile(snapshot2);
+                final Path snapshot2 = writeLongListToFileAndVerify(restored, "snapshot2", testDir);
                 try (final LongList restored2 = createLongList(snapshot2, 100, MAX_LONGS, 0)) {
                     restored2.updateValidRange(0, 50);
                     assertEquals(4, restored2.size());
@@ -592,8 +593,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             longList.put(1050, 2050); // chunk 5
             longList.put(900, 1900); // chunk 4
             longList.put(700, 1700); // chunk 3
-            final Path snapshot = testDir.resolve("snapshot");
-            longList.writeToFile(snapshot);
+            final Path snapshot = writeLongListToFileAndVerify(longList, "snapshot", testDir);
             try (final LongList restored = createLongList(snapshot, 200, 10000, 0)) {
                 assertEquals(1700, restored.get(700));
                 assertEquals(2050, restored.get(1050));
@@ -674,6 +674,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
     static final LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
+    static final LongListWriterFactory diskSegmentWriterFactory = new LongListWriterFactory(
+            LongListDiskSegment.class.getSimpleName(),
+            () -> new LongListDiskSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
 
     /**
      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
@@ -1036,8 +1039,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                 checkData(longListFromFile);
 
                 // Rewrite the data from the first reconstructed list back to the file
-                Files.delete(longListFile);
-                longListFromFile.writeToFile(longListFile);
+                writeLongListToFileAndVerify(longListFromFile, TEMP_FILE_NAME, tempDir);
 
                 // Reconstruct the list again using the second reader implementation
                 try (final AbstractLongList<?> longListFromFile2 = secondReaderFactory
@@ -1388,21 +1390,22 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
         }
     }
 
-    /**
-     * Writes all longs in LongList instance to a temporary file and verifies its existence.
-     *
-     * @param longList   the LongList instance to be written to the file
-     * @param fileName   the name of the file to write
-     * @param tempDir    the directory where the temporary file will be created
-     * @return the path to the created file
-     * @throws IOException if an I/O error occurs
-     */
+    /// Writes the list using the default writer count and verifies that the file exists.
+    ///
+    /// @param longList the LongList instance to write
+    /// @param fileName the name of the file to write
+    /// @param tempDir the directory where the file will be created
+    /// @return the path to the created file
+    /// @throws IOException if an I/O error occurs
     static Path writeLongListToFileAndVerify(final LongList longList, final String fileName, final Path tempDir)
             throws IOException {
         final Path file = tempDir.resolve(fileName);
 
         Files.deleteIfExists(file);
-        longList.writeToFile(file);
+        final int threadCount = DEFAULT_MERKLE_DB_CONFIG.longListWriteThreads();
+        try (final ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
+            longList.writeToFile(file, executor, threadCount);
+        }
 
         assertTrue(
                 Files.exists(file),

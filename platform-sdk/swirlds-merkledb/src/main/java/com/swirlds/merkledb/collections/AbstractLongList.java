@@ -174,12 +174,10 @@ public abstract class AbstractLongList<C> implements LongList {
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
 
-    /**
-     * Loads index data from a file, which was previously saved using {@link #writeToFile(Path)}.
-     *
-     * @param file The file to load from
-     * @throws IOException IO exception if any
-     */
+    /// Loads index data from a file previously saved using [#writeToFile(Path, Executor, int)].
+    ///
+    /// @param file the file to load from
+    /// @throws IOException if the file cannot be read
     protected void loadFromFile(@NonNull final Path file) throws IOException {
         requireNonNull(file);
         if (!Files.exists(file)) {
@@ -484,22 +482,6 @@ public abstract class AbstractLongList<C> implements LongList {
     @Override
     public LongStream stream() {
         return StreamSupport.longStream(new LongListSpliterator(this), false);
-    }
-
-    /**
-     * Write all longs in this LongList into a file
-     * <p>
-     * <b> It is not guaranteed what version of data will be written if the LongList is changed
-     * via put methods while this LongList is being written to a file. If you need consistency while
-     * calling put concurrently then use a BufferedLongListWrapper. </b>
-     *
-     * @param file The file to write into, it should not exist but its parent directory should exist
-     *             and be writable.
-     * @throws IOException If there was a problem creating or writing to the file.
-     */
-    @Override
-    public void writeToFile(final Path file) throws IOException {
-        writeToFile(file, null, 1);
     }
 
     /// {@inheritDoc}
