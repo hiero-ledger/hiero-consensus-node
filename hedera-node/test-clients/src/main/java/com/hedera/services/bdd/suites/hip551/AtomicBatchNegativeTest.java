@@ -89,6 +89,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -106,6 +107,7 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -733,6 +735,108 @@ public class AtomicBatchNegativeTest {
                     getAccountBalance("collector").hasTokenBalance("ftB", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftA", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftC", 0));
+        }
+
+        @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
+        @DisplayName("Processed inners are still charged when a later inner overflows the record limit")
+        // BATCH_65
+        public Stream<DynamicTest> processedInnersChargedWhenLaterInnerOverflowsRecordLimit() {
+            final var batchKey = "batchKey";
+            final var workPayer = "workPayer";
+            final var outerPayer = "outerPayer";
+            final var workPayerBefore = new AtomicLong();
+            final var workPayerAfter = new AtomicLong();
+            // With maxFollowingRecords=3 the batch's following-record sink holds 4 builders (the batch
+            // base plus 3 inners). The first three cryptoCreate inners fill the sink; the fourth inner's
+            // base record slot cannot be allocated, so MAX_CHILD_RECORDS_EXCEEDED is thrown eagerly while
+            // dispatching it - after the first three inners were processed and charged. Those charges must
+            // survive the batch rollback (HIP-551), so the inner payer's balance must strictly decrease.
+            return hapiTest(
+                    overriding("consensus.handle.maxFollowingRecords", "3"),
+                    newKeyNamed(batchKey),
+                    cryptoCreate(workPayer).key(batchKey).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(outerPayer).balance(ONE_HUNDRED_HBARS),
+                    getAccountBalance(workPayer).exposingBalanceTo(workPayerBefore::set),
+                    atomicBatch(
+                                    cryptoCreate("a0")
+                                            .payingWith(workPayer)
+                                            .signedBy(batchKey)
+                                            .batchKey(batchKey),
+                                    cryptoCreate("a1")
+                                            .payingWith(workPayer)
+                                            .signedBy(batchKey)
+                                            .batchKey(batchKey),
+                                    cryptoCreate("a2")
+                                            .payingWith(workPayer)
+                                            .signedBy(batchKey)
+                                            .batchKey(batchKey),
+                                    cryptoCreate("a3")
+                                            .payingWith(workPayer)
+                                            .signedBy(batchKey)
+                                            .batchKey(batchKey))
+                            .payingWith(outerPayer)
+                            .signedBy(outerPayer, batchKey)
+                            .hasKnownStatus(MAX_CHILD_RECORDS_EXCEEDED),
+                    getAccountBalance(workPayer).exposingBalanceTo(workPayerAfter::set),
+                    withOpContext(
+                            (spec, opLog) -> assertTrue(
+                                    workPayerBefore.get() > workPayerAfter.get(),
+                                    "processed inner payers must be charged despite the capacity-triggered rollback (HIP-551)")));
+        }
+
+        @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
+        @DisplayName("Processed ContractCall inner is still charged when a later inner overflows the record limit")
+        // BATCH_66
+        public Stream<DynamicTest> processedContractCallInnerChargedWhenLaterInnerOverflowsRecordLimit() {
+            final var manyChildren = "ManyChildren";
+            final var batchKey = "batchKey";
+            final var workPayer = "workPayer";
+            final var outerPayer = "outerPayer";
+            final var innerTxn = "heavyContractCallInner";
+            // maxFollowingRecords=5 -> following-record sink capacity 6 = batch base + inner base + 4 children.
+            final var childCreates = 4;
+            final var workPayerBefore = new AtomicLong();
+            final var workPayerAfter = new AtomicLong();
+            // A single ContractCall inner creates enough internal contracts (each a removable child record)
+            // to fill the following-record sink exactly, so the second inner's base record slot cannot be
+            // allocated and MAX_CHILD_RECORDS_EXCEEDED is thrown while dispatching it. The processed
+            // ContractCall's gas+service fee must still be charged after the batch rollback.
+            return hapiTest(
+                    overriding("consensus.handle.maxFollowingRecords", "5"),
+                    newKeyNamed(batchKey),
+                    uploadInitCode(manyChildren),
+                    contractCreate(manyChildren).gas(2_000_000),
+                    cryptoCreate(workPayer).key(batchKey).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(outerPayer).balance(ONE_HUNDRED_HBARS),
+                    getAccountBalance(workPayer).exposingBalanceTo(workPayerBefore::set),
+                    atomicBatch(
+                                    contractCall(
+                                                    manyChildren,
+                                                    "createThingsRepeatedly",
+                                                    BigInteger.valueOf(childCreates))
+                                            .payingWith(workPayer)
+                                            .signedBy(batchKey)
+                                            .gas(4_000_000)
+                                            .batchKey(batchKey)
+                                            .via(innerTxn),
+                                    cryptoCreate("tail")
+                                            .payingWith(workPayer)
+                                            .signedBy(batchKey)
+                                            .batchKey(batchKey))
+                            .payingWith(outerPayer)
+                            .signedBy(outerPayer, batchKey)
+                            .hasKnownStatus(MAX_CHILD_RECORDS_EXCEEDED),
+                    getAccountBalance(workPayer).exposingBalanceTo(workPayerAfter::set),
+                    // The processed inner's own record survives as REVERTED_SUCCESS with its removable child
+                    // records dropped by the rollback.
+                    getTxnRecord(innerTxn)
+                            .andAllChildRecords()
+                            .hasNonStakingChildRecordCount(0)
+                            .hasPriority(recordWith().status(REVERTED_SUCCESS)),
+                    withOpContext(
+                            (spec, opLog) -> assertTrue(
+                                    workPayerBefore.get() > workPayerAfter.get(),
+                                    "processed ContractCall inner payer must be charged (incl. gas) despite the capacity-triggered rollback (HIP-551)")));
         }
 
         @HapiTest
