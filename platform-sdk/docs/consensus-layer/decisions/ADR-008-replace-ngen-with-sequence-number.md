@@ -121,7 +121,9 @@ retired it as a consumer of any local ordering key rather than converting it (se
 Context above).
 
 **Assignment (current code).** `PlatformEvent` carries a `sequenceNumber`,
-defaulting to `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
+defaulting to
+[`EventConstants.SEQUENCE_NUMBER_UNDEFINED`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/EventConstants.java#SEQUENCE_NUMBER_UNDEFINED)
+`= -1` and first assigned as `1`.
 `DefaultOrphanBuffer` holds a single `AtomicLong` and, in `eventIsNotAnOrphan(...)`,
 calls `getAndIncrement()` for each event it emits.
 
@@ -247,8 +249,9 @@ See **Decision** above.
 - `consensus-model/.../NonDeterministicGeneration.java` — `assignNGen`, the
   `max(parents) + 1` with `FIRST_GENERATION` fallback that produces the reset; to
   be deleted once every consumer is converted.
-- `consensus-model/.../PlatformEvent.java` — the `sequenceNumber` field,
-  `UNASSIGNED_SEQUENCE_NUMBER`, and accessors.
+- `consensus-model/.../PlatformEvent.java` — the `sequenceNumber` field and its
+  accessors; the sentinel it defaults to lives in
+  `consensus-model/.../EventConstants.java` as `SEQUENCE_NUMBER_UNDEFINED`.
 - `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
   `ChildlessEventTracker.java` — advancement scoring, on the sequence number
   (#24991).
