@@ -459,7 +459,8 @@ public class ParentTxnFactory {
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
                 blockStreamConfig.streamMode(),
-                contractsConfig.maxSerializedTraceDataBytes());
+                contractsConfig.maxSerializedTraceDataBytes(),
+                blockStreamManager::isSavepointOutputSuppressed);
     }
 
     /**
