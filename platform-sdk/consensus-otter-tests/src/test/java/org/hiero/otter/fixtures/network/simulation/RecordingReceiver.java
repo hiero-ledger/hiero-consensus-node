@@ -13,9 +13,8 @@ import org.hiero.consensus.model.node.NodeId;
  */
 final class RecordingReceiver implements EventReceiver {
 
-    /** A window that arrived, paired with the node that sent it. */
-    record ReceivedEventWindow(
-            @NonNull NodeId sender, @NonNull EventWindow eventWindow) {}
+    /** A peer's event window, paired with the peer it belongs to. */
+    record PeerEventWindow(@NonNull NodeId sender, @NonNull EventWindow eventWindow) {}
 
     private final NodeId nodeId;
 
@@ -23,7 +22,7 @@ final class RecordingReceiver implements EventReceiver {
     final List<PlatformEvent> receivedEvents = new ArrayList<>();
 
     /** The event windows received, in the order they were delivered. */
-    final List<ReceivedEventWindow> receivedEventWindows = new ArrayList<>();
+    final List<PeerEventWindow> receivedEventWindows = new ArrayList<>();
 
     /** Whether to accept what is delivered. A node that is not running refuses everything. */
     boolean accepting = true;
@@ -51,7 +50,7 @@ final class RecordingReceiver implements EventReceiver {
         if (!accepting) {
             return false;
         }
-        receivedEventWindows.add(new ReceivedEventWindow(sender, eventWindow));
+        receivedEventWindows.add(new PeerEventWindow(sender, eventWindow));
         return true;
     }
 }
