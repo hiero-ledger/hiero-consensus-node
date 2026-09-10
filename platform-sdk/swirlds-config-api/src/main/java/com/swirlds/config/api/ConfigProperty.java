@@ -51,6 +51,10 @@ public @interface ConfigProperty {
      * Returns a default value for the property that will be used if the value of the property is not defined in the
      * config. Since an empty string is a valid value {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE} is used as default
      * for this value.
+     * <p>
+     * A component that holds a nested config data object (see {@link NestedConfig}) groups properties instead of
+     * holding a value, so it accepts no default value at all. Define the default values of the properties of the
+     * nested config data object instead.
      *
      * @return the default value or {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE}
      */

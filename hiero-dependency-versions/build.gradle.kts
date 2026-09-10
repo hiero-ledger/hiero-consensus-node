@@ -47,6 +47,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
+    api("com.github.luben:zstd-jni:1.5.7-16") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
