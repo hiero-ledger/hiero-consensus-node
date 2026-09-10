@@ -4,8 +4,6 @@ package org.hiero.consensus.gui.internal.hashgraph.util;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants.HASHGRAPH_PICTURE_FONT;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import java.awt.AWTException;
 import java.awt.BasicStroke;
@@ -37,7 +35,8 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * This panel has the hashgraph picture, and appears in the window to the right of all the settings.
@@ -88,7 +87,7 @@ public class HashgraphPicture extends JPanel {
             createMetadata();
             g.setFont(HASHGRAPH_PICTURE_FONT);
             final FontMetrics fm = g.getFontMetrics();
-            final Roster roster = hashgraphSource.getRoster();
+            final RosterWrapper roster = hashgraphSource.getRoster();
             final int numMem = roster.rosterEntries().size();
 
             List<EventImpl> events;
@@ -106,8 +105,8 @@ public class HashgraphPicture extends JPanel {
                 return;
             }
             events = events.stream()
-                    .filter(e -> RosterUtils.getIndex(roster, e.getCreatorId().id()) != -1)
-                    .filter(e -> RosterUtils.getIndex(roster, e.getCreatorId().id()) < numMem)
+                    .filter(e -> roster.getIndex(e.getCreatorId()) != -1)
+                    .filter(e -> roster.getIndex(e.getCreatorId()) < numMem)
                     .toList();
 
             pictureMetadata = new PictureMetadata(
@@ -136,8 +135,7 @@ public class HashgraphPicture extends JPanel {
 
             if (nodeIdToBranchIndexToCoordinates.isEmpty()) {
                 final Set<NodeId> nodeIdSet = roster.rosterEntries().stream()
-                        .map(RosterEntry::nodeId)
-                        .map(NodeId::of)
+                        .map(RosterEntryWrapper::nodeId)
                         .collect(Collectors.toSet());
                 for (final NodeId nodeId : nodeIdSet) {
                     nodeIdToBranchIndexToCoordinates.put(nodeId.id(), new HashMap<>());
@@ -197,12 +195,11 @@ public class HashgraphPicture extends JPanel {
             g2d.setStroke(new BasicStroke(3));
         }
 
-        final Roster roster = hashgraphSource.getRoster();
+        final RosterWrapper roster = hashgraphSource.getRoster();
         for (final EventImpl parent : event.getAllParents()) {
-            final long id = parent.getCreatorId().id();
-            if ((RosterUtils.getIndex(roster, id) == -1
-                    || RosterUtils.getIndex(roster, id)
-                            >= roster.rosterEntries().size())) {
+            final NodeId id = parent.getCreatorId();
+            if ((roster.getIndex(id) == -1
+                    || roster.getIndex(id) >= roster.rosterEntries().size())) {
                 // if the creator of the other parent has been removed,
                 // treat it as if there is no other parent
                 continue;

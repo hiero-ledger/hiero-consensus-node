@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -12,6 +11,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -43,7 +43,7 @@ public interface HashgraphModule {
             @NonNull Configuration configuration,
             @NonNull Metrics metrics,
             @NonNull Time time,
-            @NonNull Roster roster,
+            @NonNull RosterWrapper roster,
             @NonNull NodeId selfId,
             @NonNull FreezePeriodChecker freezeChecker,
             @Nullable EventPipelineTracker eventPipelineTracker,

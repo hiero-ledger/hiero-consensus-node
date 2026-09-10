@@ -79,8 +79,8 @@ Behavioral claims tie to the specific code that makes them true. Match that bar
   sentence keeps its anchor mid-paragraph and in "explanatory" prose — anchor
   each claim, not just the one that first names the component. And the
   counter-intuitive assertion is the one a reader cannot take on faith, so it
-  gets the line-level cite, not a hand-wave: under-anchoring there is the worst
-  place to skimp.
+  gets the symbol-level cite, not a hand-wave: under-anchoring there is the
+  worst place to skimp.
 - **By document type — apply the right kind of anchor, don't over- or
   under-anchor:**
   - *Rules* — `components:` frontmatter is required and lists full paths; the
@@ -105,13 +105,15 @@ Behavioral claims tie to the specific code that makes them true. Match that bar
   `module/.../File.java` (e.g.
   `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java`); full,
   unabbreviated paths belong in `components:` frontmatter. Follow the
-  surrounding file. To point at a specific declaration, cite the **symbol**,
-  not a line: `File.java#methodOrFieldOrEnumOrType` — never `File.java:NN`
-  (line numbers drift; the checker auto-migrates a cited declaration line to
-  `#symbol`, and a `#symbol` that no longer exists asserts).
+  surrounding file. Point at a **symbol**, never a line:
+  `File.java#methodOrFieldOrEnumOrType`, not `File.java:NN` — in a code span, a
+  link, or prose ("(lines 63–80)", "around line 415") alike. Line numbers drift,
+  and the prose ones rot unseen: the checker cannot read a number in a sentence.
+  For a spot inside a method body, cite the enclosing declaration (a constructor:
+  its type). Cite a symbol once per passage; repeating it is noise.
 - **Verify before you write; refresh on touch.** Confirm every class, method,
-  path, and commit exists before citing it — never invent line numbers or
-  commit hashes. When you change a claim, re-check that its anchors still
+  path, and commit exists before citing it — never invent a symbol or a commit
+  hash. When you change a claim, re-check that its anchors still
   resolve, then have the freshness checker advance its currency marker —
   never by hand (see
   [When to bump the freshness marker](#when-to-bump-the-freshness-marker)).
