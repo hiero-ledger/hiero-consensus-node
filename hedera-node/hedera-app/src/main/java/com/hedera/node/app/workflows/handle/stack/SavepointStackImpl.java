@@ -87,6 +87,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
 
     private final StreamMode streamMode;
 
+    // Per-dispatch trace-data cap; inherited by child stacks so batched/scheduled calls enforce the same limit
+    private final int maxSerializedTraceDataBytes;
+
     private int numPresetIds;
     private int noncesPerPresetId;
     private boolean presetIdsAllowed;
@@ -163,12 +166,13 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.streamMode = requireNonNull(streamMode);
+        this.maxSerializedTraceDataBytes = maxSerializedTraceDataBytes;
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
         // The +1 puts preset nonces strictly past the largest offset buildHandleOutput() can assign
         noncesPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser + 1;
         setupFirstSavepoint(USER);
-        baseBuilder = createRootBaseBuilder(maxSerializedTraceDataBytes);
+        baseBuilder = createBaseBuilder(REVERSIBLE, USER, NOOP_SIGNED_TX_CUSTOMIZER);
     }
 
     /**
@@ -192,11 +196,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         requireNonNull(category);
         this.streamMode = requireNonNull(streamMode);
         this.state = requireNonNull(parent);
+        this.maxSerializedTraceDataBytes = parent.maxSerializedTraceDataBytes;
         this.builderSink = null;
         this.immediateStateChangeListener = null;
         this.boundaryStateChangeListener = null;
         setupFirstSavepoint(category);
-        baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
+        baseBuilder = createBaseBuilder(reversingBehavior, category, customizer);
         presetIdsAllowed = false;
     }
 
@@ -467,7 +472,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createRemovableChildBuilder() {
-        return peek().createBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
+        return peek().createNonBaseBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
     }
 
     /**
@@ -476,7 +481,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createReversibleChildBuilder() {
-        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
+        return peek().createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
     }
 
     /**
@@ -485,7 +490,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
-        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
+        return peek().createNonBaseBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
     }
 
     /**
@@ -645,20 +650,26 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
     }
 
-    private StreamBuilder createRootBaseBuilder(final int maxSerializedTraceDataBytes) {
+    private StreamBuilder createBaseBuilder(
+            @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
+            @NonNull final TransactionCategory category,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer) {
         final var builder =
                 switch (streamMode) {
                     case RECORDS ->
-                        new RecordStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                        new RecordStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
                     case BLOCKS ->
-                        new BlockStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                        new BlockStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
                     case BOTH ->
-                        new PairedStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                        new PairedStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
                 };
-        peek().addFollowingOrThrow(builder);
+        if (!customizer.isSuppressed()) {
+            // Other code is a bit simpler when we always put the base builder for a stack in its
+            // "following" list, even if the stack is child stack for a preceding child dispatch;
+            // the base builder will still end up in the correct relative position in the parent
+            // sink because of how FirstChildSavepoint implements #commitBuilders()
+            peek().addFollowingOrThrow(builder);
+        }
         return builder;
     }
 
