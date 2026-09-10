@@ -81,6 +81,26 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
     }
 
     /**
+     * Probes the block node's server status endpoint to confirm its gRPC port is serving requests.
+     *
+     * <p>Deliberately ignores the response contents. {@link #getNextExpectedBlock()} returns
+     * {@code -1} both when the block node is legitimately empty and when the call failed, so no
+     * value-based check can distinguish "reachable" from "unreachable"; only whether the RPC
+     * completed carries that information.
+     *
+     * @return true if the server status RPC completed, false if the block node could not be reached
+     */
+    public boolean isServerStatusReachable() {
+        try (final var serviceClient = createServiceClient()) {
+            serviceClient.serverStatus(ServerStatusRequest.DEFAULT);
+            return true;
+        } catch (final Exception e) {
+            log.debug("Block node {}:{} server status not reachable yet: {}", host, port, e.toString());
+            return false;
+        }
+    }
+
+    /**
      * Subscribes to the block stream and retrieves all blocks in the given range.
      * Blocks until the stream completes or the timeout expires.
      *
