@@ -46,6 +46,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
+    api("com.github.luben:zstd-jni:1.5.7-16") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -77,6 +78,7 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
         because("simpleclient.tracer.common")
     }
+    api("io.vertx:vertx-core:4.5.30") { because("io.vertx.core") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
