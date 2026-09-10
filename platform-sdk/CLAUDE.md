@@ -99,7 +99,7 @@ modules, other modules are expected to depend on them; the implementation stays 
 
 **Fake modules** — implementations for tools and tests only, never for production code: no-op
 implementations, deliberately insecure cryptographic entities, and the like. May depend on any
-consensus-layer module whose API they fake, plus `consensus-wiring-framework`. Must not depend
-on an impl module.
+supporting, functional-api, functional-impl, or self-contained functional module whose API they fake, plus
+`consensus-wiring-framework`. Must not depend on a structural-transitional module.
 - `consensus-fakes` — Transitional: also reached from production paths in
 `swirlds-platform-core` (`PlatformContext.create`, `DefaultSwirldMain`, `ConsensusNoOpModules`).

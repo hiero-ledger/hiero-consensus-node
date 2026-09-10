@@ -42,7 +42,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEve
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
 
 public final class ConsensusTestDefinitions {
 
@@ -347,7 +347,7 @@ public final class ConsensusTestDefinitions {
         orchestrator.configGenerators(g -> {
             // Setup: pick one node to use stale other-parents
             final NodeId staleNodeProvider =
-                    NodeId.of(g.getRoster().rosterEntries().get(0).nodeId());
+                    g.getRoster().rosterEntries().getFirst().nodeId();
             g.getSource(staleNodeProvider)
                     .setRecentEventRetentionSize(5000)
                     .setRequestedOtherParentAgeDistribution(integerPowerDistribution(0.002, 300));
@@ -368,13 +368,13 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
         // Setup: pick one node to provide stale other-parents
         // The node's weight should be less than a strong minority so that we can reach consensus
-        final long totalWeight = RosterUtils.computeTotalWeight(orchestrator.getRoster());
+        final long totalWeight = orchestrator.getRoster().totalWeight();
         final NodeId staleParentProvider = StreamSupport.stream(
                         Spliterators.spliteratorUnknownSize(
                                 orchestrator.getRoster().rosterEntries().iterator(), 0),
                         false)
                 .filter(a -> !Threshold.STRONG_MINORITY.isSatisfiedBy(a.weight(), totalWeight))
-                .map(re -> NodeId.of(re.nodeId()))
+                .map(RosterEntryWrapper::nodeId)
                 .findFirst()
                 .orElseThrow();
         Objects.requireNonNull(staleParentProvider, "Could not find a node with less than a strong minority of weight");
@@ -563,7 +563,8 @@ public final class ConsensusTestDefinitions {
         orchestrator.generateEvents(0.5);
         orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
 
-        orchestrator.removeNode(RosterUtils.getNodeId(orchestrator.getRoster(), 0));
+        orchestrator.removeNode(
+                orchestrator.getRoster().rosterEntries().getFirst().nodeId());
 
         orchestrator.generateEvents(0.5);
         final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(

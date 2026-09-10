@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
@@ -18,6 +19,7 @@ public class LearnerPullVirtualTreeReceiveTask implements Runnable {
 
     private final AsyncInputStream in;
     private final LearnerTreeExchanger treeExchanger;
+    private final CountDownLatch receiveTasksDone;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
@@ -26,10 +28,17 @@ public class LearnerPullVirtualTreeReceiveTask implements Runnable {
      * 		the input stream, this object is responsible for closing this when finished
      * @param treeExchanger
      * 		the exchanger used to callback on tree node received
+     * @param receiveTasksDone
+     * 		latch counted down when this receiver finishes; lets the ordered leaf-apply thread know
+     * 		when no further responses will arrive
      */
-    public LearnerPullVirtualTreeReceiveTask(final AsyncInputStream in, final LearnerTreeExchanger treeExchanger) {
+    public LearnerPullVirtualTreeReceiveTask(
+            final AsyncInputStream in,
+            final LearnerTreeExchanger treeExchanger,
+            final CountDownLatch receiveTasksDone) {
         this.in = in;
         this.treeExchanger = treeExchanger;
+        this.receiveTasksDone = receiveTasksDone;
     }
 
     /**
@@ -39,18 +48,23 @@ public class LearnerPullVirtualTreeReceiveTask implements Runnable {
      */
     @Override
     public void run() {
-        while (!Thread.currentThread().isInterrupted()) {
-            final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
-            if (responseBytes == null) {
-                break;
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
+                if (responseBytes == null) {
+                    break;
+                }
+                final PullVirtualTreeResponse response =
+                        PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
+                if (response.path() < 0) {
+                    throw new IllegalStateException("Invalid path received from learner: " + response.path());
+                }
+                treeExchanger.responseReceived(response);
             }
-            final PullVirtualTreeResponse response =
-                    PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
-
-            if (response.path() < 0) {
-                throw new IllegalStateException("Invalid path received from learner: " + response.path());
-            }
-            treeExchanger.responseReceived(response);
+        } finally {
+            // Always signal completion, even on exception/interrupt, so the ordered leaf-apply thread
+            // cannot hang waiting for a receiver that has already died.
+            receiveTasksDone.countDown();
         }
     }
 }

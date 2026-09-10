@@ -12,7 +12,7 @@ related:
   decisions: [ADR-008]
   scenarios: [SCN-001]
   tests:
-    - swirlds-cli/src/test/java/org/hiero/consensus/pcli/MinConsensusRelevantThresholdTest.java
+    - consensus-hashgraph-impl/src/test/java/org/hiero/consensus/hashgraph/impl/consensus/MinConsensusRelevantThresholdTest.java
 status: verified
 provenance: hiero-consensus-node#26319 (interim revert); re-diagnosed to #26529; reproduced by MinConsensusRelevantThresholdTest
 curated_by: Kelly Greco (@poulok)
