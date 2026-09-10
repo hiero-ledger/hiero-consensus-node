@@ -398,7 +398,8 @@ public class SimulatedNetworkConnectivity {
      */
     private void scheduleEventWindowsForDelivery(@NonNull final Instant now) {
         if (connections.isEmpty()) {
-            return; // No connections have been set, so there is nowhere to send event windows.
+            // No connections have been set, so there is nowhere to send event windows.
+            return;
         }
 
         for (final NodeId sender : sortedNodeIds) {
