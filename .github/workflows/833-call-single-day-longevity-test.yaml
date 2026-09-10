@@ -470,6 +470,11 @@ jobs:
 
           task
 
+      - name: kubectl wrapper for Solo
+        run: |
+          kubectl=$(which kubectl)
+          cp ${kubectl} ${HOME}/.solo/bin/kubectl
+
       - name: Add BlockNodes
         run: |
           set +x
@@ -697,6 +702,8 @@ jobs:
           do
             echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
           done
+
+          # echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
           echo "FIXME DEBUG:"
           cat new.yml 
           echo "===="

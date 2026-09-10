@@ -447,6 +447,11 @@ jobs:
 
           task
 
+      - name: kubectl wrapper for Solo
+        run: |
+          kubectl=$(which kubectl)
+          cp ${kubectl} ${HOME}/.solo/bin/kubectl
+
       - name: Add BlockNodes
         run: |
           set +x
