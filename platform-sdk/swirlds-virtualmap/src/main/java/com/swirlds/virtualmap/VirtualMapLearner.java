@@ -131,7 +131,7 @@ public final class VirtualMapLearner {
 
         // Shut down background compaction on the original data source; it is no longer
         // needed because all data in that source only serves as a starting point for reconnect.
-        originalMap.getDataSource().stopAndDisableBackgroundCompaction();
+        originalMap.getDataSource().stopAndDisableBackgroundCompaction(true);
 
         // Create an independent copy of the data source that will be updated during reconnect.
         this.dataSource = originalMap.detachAsDataSourceCopy();

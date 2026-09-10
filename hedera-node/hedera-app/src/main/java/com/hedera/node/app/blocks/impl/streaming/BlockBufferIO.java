@@ -258,6 +258,7 @@ public class BlockBufferIO {
                     .build();
             final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                     .blockNumber(block.blockNumber())
+                    .blockPeriodMillis(block.blockPeriodMillis())
                     .openedTimestamp(openedTimestamp)
                     .closedTimestamp(closedTimestamp)
                     .isAcknowledged(block.blockNumber() <= latestAcknowledgedBlockNumber)
