@@ -271,8 +271,9 @@ See **Decision** above.
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, phrased in
   terms of sequence numbers.
 - Regression guards for the two reverted stages:
-  `swirlds-cli/.../pcli/MinConsensusRelevantThresholdTest.java` (threshold, #26319,
-  SCN-002), kept until #26529 lands; and, for `lastSelfEvent` (#26376, SCN-003),
+  `consensus-hashgraph-impl/.../consensus/MinConsensusRelevantThresholdTest.java`
+  (threshold, #26319, SCN-002), kept until #26529 lands; and, for `lastSelfEvent`
+  (#26376, SCN-003),
   `consensus-otter-tests/.../otter/test/ReconnectTest.java`
   (`testSyntheticBottleneckReconnect`) plus, in `consensus-event-creator-impl`,
   `TipsetEventCreatorTests.selfAncestorDoesNotDisplaceLastSelfEvent`, which guards
