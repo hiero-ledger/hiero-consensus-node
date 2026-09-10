@@ -34,8 +34,6 @@ public final class ConstructableRegistration {
     public static void registerCoreConstructables() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
-        registry.registerConstructable(
-                new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
         registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
     }
 
