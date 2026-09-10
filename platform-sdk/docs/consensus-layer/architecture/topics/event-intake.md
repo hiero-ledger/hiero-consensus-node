@@ -49,9 +49,14 @@ Component soldering happens in
   ([ConsensusLayerWiring.java#wireEventCreatorOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireEventCreatorOutputs));
   the creator pre-hashes its outputs, so a second hash would be
   wasteful.
-- `eventWindowInputWire()` → broadcast to the deduplicator, signature
-  validator, orphan buffer, branch detector, and branch reporter,
-  driving the ancient threshold.
+- `consensusRoundInputWire()` → the event window is extracted from each
+  round and broadcast internally to the deduplicator, signature validator,
+  orphan buffer, branch detector, and branch reporter, driving the ancient
+  threshold
+  ([DefaultEventIntakeModule.java#initialize](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java#initialize)).
+- `initialEventWindowInputWire()` → the same broadcast, for the window a
+  restart or reconnect starts from
+  ([ConsensusLayerWiring.java#wireInitialEventWindowDispatcher](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireInitialEventWindowDispatcher)).
 - `rosterHistoryInputWire()` → routes only to the signature validator.
 - `clearComponentsInputWire()` → broadcast `clear()` to the deduplicator,
   orphan buffer, branch detector, and branch reporter.
@@ -322,9 +327,9 @@ invariant downstream consumers depend on?]
 ## Birth-round filtering
 
 The intake-side ancient filter is `EventWindow.isAncient`, fed in
-through the broadcast `eventWindowInputWire()` and stored on each
-component that uses it. Three intake stages apply it; they share the
-same predicate but differ in role:
+through `consensusRoundInputWire()` / `initialEventWindowInputWire()`
+and stored on each component that uses it. Three intake stages apply
+it; they share the same predicate but differ in role:
 
 |            Stage             |              Role              |                                                                                                                                                                                                    Anchor                                                                                                                                                                                                    |
 |------------------------------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

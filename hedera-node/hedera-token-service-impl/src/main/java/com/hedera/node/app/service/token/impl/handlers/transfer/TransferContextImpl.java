@@ -23,8 +23,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The context of a token transfer. This is used to pass information between the steps of the transfer.
@@ -36,6 +38,7 @@ public class TransferContextImpl implements TransferContext {
     private int numAutoCreations;
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
+    private final Set<AccountID> autoCreatedAccountIds = new LinkedHashSet<>();
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
     private final List<ItemizedAssessedFee> itemizedAssessedFees = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
@@ -121,6 +124,7 @@ public class TransferContextImpl implements TransferContext {
         // Keep the created account in the resolutions map
         final var createdAccount = autoAccountCreator.create(alias, reqMaxAutoAssociations, highVolume);
         resolutions.put(alias, createdAccount);
+        autoCreatedAccountIds.add(createdAccount);
     }
 
     @Override
@@ -140,6 +144,11 @@ public class TransferContextImpl implements TransferContext {
 
     public Map<Bytes, AccountID> resolutions() {
         return resolutions;
+    }
+
+    @Override
+    public boolean isAutoCreated(final AccountID accountId) {
+        return autoCreatedAccountIds.contains(accountId);
     }
 
     @Override
