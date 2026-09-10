@@ -236,7 +236,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.blockStreamOutputSuppressed = parent.blockStreamOutputSuppressed;
         this.maxSerializedTraceDataBytes = parent.maxSerializedTraceDataBytes;
         this.state = requireNonNull(parent);
-        this.maxSerializedTraceDataBytes = parent.maxSerializedTraceDataBytes;
         this.builderSink = null;
         this.immediateStateChangeListener = null;
         this.boundaryStateChangeListener = null;
