@@ -8,17 +8,22 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A "block state" is the collection of items contained with a single block and can be streamed to a block node.
  */
 public class BlockState {
+
+    private static final Logger logger = LogManager.getLogger(BlockState.class);
 
     /** Number of low-order bits in a protobuf tag occupied by the wire type (the remaining bits are the field number). */
     private static final int PROTOBUF_TAG_TYPE_BITS = 3;
@@ -27,6 +32,10 @@ public class BlockState {
      * The block number associated with this instance.
      */
     private final long blockNumber;
+    /**
+     * The block period, as milliseconds.
+     */
+    private final long blockPeriodMillis;
     /**
      * Counter used to assign an index to a block item. Items are assigned a monotonically increasing integer value
      * that is used to look up the item and to get the items ordered.
@@ -66,14 +75,67 @@ public class BlockState {
      * Monotonic nanoTime when the block end was sent. Used for latency computation.
      */
     private volatile long blockEndSentNanos = -1;
+    /**
+     * Timestamp (milliseconds) of when the most recent block item was added, or -1 if no items have been added yet.
+     */
+    private volatile long latestItemAddTimestamp = -1;
+    /**
+     * Flag indicating whether a delay was detected in closing the block.
+     */
+    private volatile boolean isWarnedForCloseDelay = false;
+    /**
+     * Flag indicating whether a delay was detected between items being added to the block.
+     */
+    private volatile boolean isWarnedForAppendDelay = false;
 
     /**
      * Create a new block state object.
      *
      * @param blockNumber the block number associated with this block
      */
-    public BlockState(final long blockNumber) {
+    public BlockState(final long blockNumber, final long blockPeriodMillis) {
         this.blockNumber = blockNumber;
+        this.blockPeriodMillis = blockPeriodMillis;
+    }
+
+    /**
+     * Check for whether there is a delay in closing this block or if there is a delay in appending items to this block.
+     * If there are any delays, a WARN log is written with details about the delay. If this block is closed, not opened
+     * (i.e. the header hasn't been added yet), or this block does not have a block period, then this check will not be
+     * performed.
+     */
+    void checkForDelays() {
+        if (isClosed() || openedTimestamp == null || blockPeriodMillis == -1) {
+            return;
+        }
+
+        final long currentTimeMillis = System.currentTimeMillis();
+
+        if (!isWarnedForAppendDelay) {
+            final long appendDelayDurationMillis = currentTimeMillis - latestItemAddTimestamp;
+            if (appendDelayDurationMillis > blockPeriodMillis) {
+                logger.warn(
+                        "Block is slow appending items (block: {}, timeSinceLastAppend: {}ms, lastItemIndex: {})",
+                        blockNumber,
+                        appendDelayDurationMillis,
+                        itemIndex.get());
+                isWarnedForAppendDelay = true;
+            }
+        }
+
+        if (!isWarnedForCloseDelay) {
+            final long openDurationMillis = currentTimeMillis - openedTimestamp.toEpochMilli();
+            final long openThresholdMillis = blockPeriodMillis * 2;
+            if (openDurationMillis > openThresholdMillis) {
+                logger.warn(
+                        "Block has been opened for an extended period of time (block: {}, openDuration: {}ms, blockPeriod: {}ms, lastItemIndex: {})",
+                        blockNumber,
+                        openDurationMillis,
+                        blockPeriodMillis,
+                        itemIndex.get());
+                isWarnedForCloseDelay = true;
+            }
+        }
     }
 
     /**
@@ -97,9 +159,24 @@ public class BlockState {
 
         final int index = itemIndex.incrementAndGet();
         bufferedItems.put(index, new BufferedItem(serializedItem, itemType, index));
+        final long timestampMillis = System.currentTimeMillis();
+
+        if (isWarnedForAppendDelay) {
+            final long diffMillis = timestampMillis - latestItemAddTimestamp;
+            logger.info(
+                    "Block ({}) took {}ms to append the next item (itemIndex: {}->{})",
+                    blockNumber,
+                    diffMillis,
+                    index - 1,
+                    index);
+            isWarnedForAppendDelay = false;
+        }
+
+        latestItemAddTimestamp = timestampMillis;
+
         if (itemType == BlockItem.ItemOneOfType.BLOCK_HEADER) {
             openedNanos = System.nanoTime();
-            openedTimestamp = Instant.now();
+            openedTimestamp = Instant.ofEpochMilli(timestampMillis);
         }
         sizeBytes.add(serializedItem.length());
 
@@ -166,6 +243,13 @@ public class BlockState {
     }
 
     /**
+     * @return the block period (in milliseconds) for this block
+     */
+    public long blockPeriodMillis() {
+        return blockPeriodMillis;
+    }
+
+    /**
      * @return true if the block is closed, else false
      */
     public boolean isClosed() {
@@ -198,6 +282,12 @@ public class BlockState {
             closedNanos = System.nanoTime();
         }
         closedTimestamp = requireNonNull(timestamp, "timestamp must not be null");
+
+        if (isWarnedForCloseDelay) {
+            final long durationMillis =
+                    Duration.between(openedTimestamp, timestamp).toMillis();
+            logger.info("Block ({}) was open for {}ms before being closed", blockNumber, durationMillis);
+        }
     }
 
     /**
@@ -258,19 +348,21 @@ public class BlockState {
         }
         final BlockState that = (BlockState) o;
         return blockNumber == that.blockNumber
+                && blockPeriodMillis == that.blockPeriodMillis
                 && Objects.equals(bufferedItems, that.bufferedItems)
                 && Objects.equals(closedTimestamp, that.closedTimestamp);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(blockNumber, bufferedItems, closedTimestamp);
+        return Objects.hash(blockNumber, blockPeriodMillis, bufferedItems, closedTimestamp);
     }
 
     @Override
     public String toString() {
         return "BlockState{" + "blockNumber="
-                + blockNumber + ", closedTimestamp="
+                + blockNumber + ", blockPeriodMillis="
+                + blockPeriodMillis + ", closedTimestamp="
                 + closedTimestamp + ", blockItemCount="
                 + bufferedItems.size() + '}';
     }
