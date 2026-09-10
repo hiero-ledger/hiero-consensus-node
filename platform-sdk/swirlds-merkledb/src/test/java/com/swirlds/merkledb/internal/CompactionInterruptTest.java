@@ -13,7 +13,6 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -28,17 +27,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/**
- * Integration tests to verify that compaction tasks can be interrupted and stop correctly when
- * {@link MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction()} is called. This
- * includes cases where compaction is interrupted mid-flight and cases where compaction is
- * interrupted while paused for a snapshot.
- *
- * <p>With the V3 compaction API, individual {@link DataFileCompactor} instances are created
- * internally by the coordinator and are not accessible from the test. Assertions are therefore
- * limited to coordinator-level state: {@code compactionEnabled}, {@code compactorsByName},
- * executor queue, and per-store {@code isCompactionRunning()} checks.
- */
+///
+/// Integration tests to verify that compaction tasks can be interrupted and stop correctly when
+/// [MerkleDbCompactionCoordinator#stopAndDisableBackgroundCompaction(boolean)] is called.
+/// This includes cases where compaction is interrupted mid-flight and cases where compaction is
+/// interrupted while paused for a snapshot.
+///
+/// With the V3 compaction API, individual
+/// [DataFileCompactor][com.swirlds.merkledb.files.DataFileCompactor] instances are created internally
+/// by the coordinator and are not accessible from the test. Assertions are therefore limited to
+/// coordinator-level state: `compactionEnabled`, `compactorsByName`, executor queue, and per-store
+/// `isCompactionRunning()` checks.
+///
 class CompactionInterruptTest extends AbstractMerkelDbTest {
 
     /** This needs to be big enough so that the snapshot is slow enough that we can do a merge at the same time */
@@ -53,11 +53,11 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
         runTaskAndCleanThreadLocals(this::startMergeThenInterruptImpl);
     }
 
-    /**
-     * Trigger compaction for all three stores, then call stopAndDisableBackgroundCompaction().
-     * The expected result is that all tasks are cleaned up and the coordinator reaches a
-     * quiescent state quickly.
-     */
+    ///
+    /// Trigger compaction for all three stores, then call
+    /// `stopAndDisableBackgroundCompaction(true)`. The expected result is that all tasks are cleaned
+    /// up and the coordinator reaches a quiescent state quickly.
+    ///
     boolean startMergeThenInterruptImpl() throws IOException {
         createAndApplyDataSource(COUNT, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
@@ -90,12 +90,12 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
         runTaskAndCleanThreadLocals(() -> startMergeWhileSnapshottingThenInterruptImpl(delayMs));
     }
 
-    /**
-     * Trigger compaction while in the middle of snapshotting, and then call
-     * stopAndDisableBackgroundCompaction() and close the database. The expected result is all
-     * tasks are interrupted and the database closes promptly without being blocked by the
-     * snapshot or compaction.
-     */
+    ///
+    /// Trigger compaction while in the middle of snapshotting, and then call
+    /// `stopAndDisableBackgroundCompaction(true)` and close the database. The expected result is all
+    /// tasks are interrupted and the database closes promptly without being blocked by the snapshot
+    /// or compaction.
+    ///
     boolean startMergeWhileSnapshottingThenInterruptImpl(int delayMs) throws IOException {
         createAndApplyDataSource(COUNT, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
@@ -178,7 +178,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
             final long initialCompletedTaskCount) {
 
         // stopping the compaction
-        coordinator.stopAndDisableBackgroundCompaction();
+        coordinator.stopAndDisableBackgroundCompaction(true);
 
         assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 
