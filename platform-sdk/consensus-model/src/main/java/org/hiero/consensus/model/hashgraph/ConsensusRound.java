@@ -18,6 +18,7 @@ import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /** A consensus round with events and all other relevant data. */
@@ -52,7 +53,7 @@ public class ConsensusRound implements Round {
     /**
      * The consensus roster for this round.
      */
-    private final Roster consensusRoster;
+    private final RosterWrapper consensusRoster;
 
     /**
      * True if this round reached consensus during the replaying of the preconsensus event stream.
@@ -73,7 +74,7 @@ public class ConsensusRound implements Round {
      * @param reachedConsTimestamp the local time (not consensus time) at which this round reached consensus
      */
     public ConsensusRound(
-            @NonNull final Roster consensusRoster,
+            @NonNull final RosterWrapper consensusRoster,
             @NonNull final List<PlatformEvent> consensusEvents,
             @NonNull final EventWindow eventWindow,
             @NonNull final ConsensusSnapshot snapshot,
@@ -183,6 +184,13 @@ public class ConsensusRound implements Round {
     @Override
     @NonNull
     public Roster getConsensusRoster() {
+        return consensusRoster.toPbj();
+    }
+
+    /**
+     * @return the consensus roster for this round
+     */
+    public RosterWrapper getRosterWrapper() {
         return consensusRoster;
     }
 

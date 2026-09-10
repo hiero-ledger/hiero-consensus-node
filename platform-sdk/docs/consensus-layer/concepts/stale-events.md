@@ -95,8 +95,7 @@ Application consumers implement
 `StaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java)
 and register it through
 [
-`PlatformBuilder.withStaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
-(line 247).
+`PlatformBuilder.withStaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java).
 
 No `StaleEventDetector` class exists in current code. The legacy
 [
