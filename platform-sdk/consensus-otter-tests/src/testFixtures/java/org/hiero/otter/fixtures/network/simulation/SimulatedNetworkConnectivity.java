@@ -89,10 +89,14 @@ public class SimulatedNetworkConnectivity {
     private final Map<NodeId, EventWindow> nodeEventWindows = new ConcurrentHashMap<>();
 
     /**
-     * Set when a node reports a new event window. Pruning is deferred to the next tick so that the windows reported by
-     * all the nodes for a given round are accounted for by a single pass over {@link #nodeEventWindows}.
+     * Event windows reported by each node since the previous tick, held until they can be put on the network. Nodes
+     * report while they are running concurrently, and only the last window a node reports within a tick is kept, since
+     * the ones before it are superseded and would be discarded on arrival anyway.
+     *
+     * <p>Drained by {@link #scheduleEventWindowsForDelivery(Instant)}. Until then it also serves as the record of
+     * whether anything has changed since the last tick, which is what {@link #applyOldestEventWindow()} needs to know.
      */
-    private volatile boolean eventWindowsChanged = false;
+    private final Map<NodeId, EventWindow> newlyReportedEventWindows = new ConcurrentHashMap<>();
 
     /**
      * Recognizes events that have already been submitted, so that each one is added to {@link #eventLog} exactly once.
@@ -118,17 +122,6 @@ public class SimulatedNetworkConnectivity {
      * per-connection ordering as {@link #inFlightEvents}.
      */
     private final InFlightEventWindows inFlightEventWindows = new InFlightEventWindows(this::isConnected);
-
-    /**
-     * The event window last sent over each connection, used to recognize when a sender's window has changed and is
-     * worth sending again.
-     *
-     * <p>Keyed by connection rather than by sender so that a node which restarts can be sent every peer's window
-     * again. Its entries are dropped in {@link #resetCursor(NodeId)}, which leaves the peers' windows looking new to
-     * that node alone; keying by sender would instead have left a restarted node waiting for peers to change their
-     * windows before it heard anything.
-     */
-    private final Map<ConnectionKey, EventWindow> lastScheduledEventWindows = new HashMap<>();
 
     /**
      * The gossip "component" for each node in the network.
@@ -247,18 +240,21 @@ public class SimulatedNetworkConnectivity {
      */
     public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
         nodeEventWindows.put(nodeId, eventWindow);
-        eventWindowsChanged = true;
+        newlyReportedEventWindows.put(nodeId, eventWindow);
     }
 
     /**
      * Finds the event window of the node that is furthest behind and applies it to the deduplicator and the event log.
      * Everything expired for that node is expired for the whole network, and so is of no further use to anyone.
+     *
+     * <p>Does nothing when no node has reported a window since the last tick, since the oldest one cannot have moved.
+     * Reads {@link #newlyReportedEventWindows} rather than draining it; the draining is done later in the tick by
+     * {@link #scheduleEventWindowsForDelivery(Instant)}.
      */
     private void applyOldestEventWindow() {
-        if (!eventWindowsChanged) {
+        if (newlyReportedEventWindows.isEmpty()) {
             return;
         }
-        eventWindowsChanged = false;
 
         EventWindow oldestEventWindow = null;
         for (final EventWindow eventWindow : nodeEventWindows.values()) {
@@ -391,13 +387,12 @@ public class SimulatedNetworkConnectivity {
     }
 
     /**
-     * For each node whose event window has changed since it was last sent, schedule that window for delivery to every
-     * other node it has a connection to.
+     * Take the event windows reported since the previous tick and schedule each one for delivery to every other node
+     * its reporter has a connection to.
      *
-     * <p>A window is only worth sending when it differs from the one the sender last put on the network, since a
-     * receiver that already holds it would learn nothing. Windows travel the same connections as events and draw their
-     * arrival times from the same sequence, so a window and an event sent from one node to another arrive in the order
-     * they were scheduled.
+     * <p>A node that has not reported since the last tick sends nothing, because its peers already hold the window it
+     * would send. Windows travel the same connections as events and draw their arrival times from the same sequence,
+     * so a window and an event sent from one node to another arrive in the order they were scheduled.
      *
      * @param now the current time
      */
@@ -407,7 +402,11 @@ public class SimulatedNetworkConnectivity {
         }
 
         for (final NodeId sender : sortedNodeIds) {
-            final EventWindow eventWindow = nodeEventWindows.get(sender);
+            final EventWindow eventWindow = newlyReportedEventWindows.remove(sender);
+            if (eventWindow == null) {
+                // this node has not reported a new window, so its peers are already holding its latest
+                continue;
+            }
 
             for (final NodeId receiver : sortedNodeIds) {
                 if (receiver.equals(sender)) {
@@ -415,11 +414,6 @@ public class SimulatedNetworkConnectivity {
                 }
 
                 final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
-                if (eventWindow.equals(lastScheduledEventWindows.get(connectionKey))) {
-                    // the receiver has already been sent this window, so sending it again would tell it nothing
-                    continue;
-                }
-
                 final ConnectionState connectionState = connections.get(connectionKey);
                 if (connectionState != null) {
                     // As with events, whether the connection is up is decided at delivery time. A window held through a
@@ -427,7 +421,6 @@ public class SimulatedNetworkConnectivity {
                     // receiver is given the sender's current window rather than a stale one.
                     final Instant arrivalTime = nextArrivalTime(connectionKey, connectionState, now);
                     inFlightEventWindows.add(receiver, new EventWindowInTransit(eventWindow, sender, arrivalTime));
-                    lastScheduledEventWindows.put(connectionKey, eventWindow);
                 }
             }
         }
@@ -477,11 +470,5 @@ public class SimulatedNetworkConnectivity {
         nodeCursors.get(nodeId).seekToFirst();
         inFlightEvents.clearIncoming(nodeId);
         inFlightEventWindows.clearIncoming(nodeId);
-
-        // Forget which windows this node has been sent, so that every peer sends its current one again rather than
-        // waiting until it happens to change.
-        lastScheduledEventWindows
-                .keySet()
-                .removeIf(connectionKey -> connectionKey.receiver().equals(nodeId));
     }
 }
