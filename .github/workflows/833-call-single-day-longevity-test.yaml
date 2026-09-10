@@ -695,9 +695,11 @@ jobs:
 
           for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
-            echo "    - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
+            echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
           done
-
+          echo "FIXME DEBUG:"
+          cat new.yml 
+          echo "===="
           mv new.yml nlg-values.yaml
 
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
