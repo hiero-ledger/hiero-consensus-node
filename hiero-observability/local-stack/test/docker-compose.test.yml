@@ -33,7 +33,16 @@ services:
       - -c
       - |
         set -e
-        T=$$(date '+%Y-%m-%d %H:%M:%S')
+        # One `date` call for both fields, so they describe the same instant
+        # (no race across a second boundary). TZ=UTC is pinned explicitly so
+        # the embedded timestamp matches LOG_TIMESTAMP_LOCATION=UTC
+        # regardless of what timezone this container would otherwise default
+        # to. The fixed ".000" millisecond suffix matches the shipped
+        # LOG_TIMESTAMP_FORMAT's precision without depending on busybox
+        # `date` supporting sub-second output (%N is a GNU extension).
+        set -- $$(TZ=UTC date '+%Y-%m-%d %H:%M:%S %s')
+        T="$$1 $$2.000"
+        EPOCH=$$3
         printf '%s INFO  selftest line one\n' "$$T" > /logs/selftest.log
         printf '%s INFO  selftest line two\n' "$$T" >> /logs/selftest.log
         printf '%s INFO  selftest line three\n' "$$T" >> /logs/selftest.log
@@ -41,6 +50,7 @@ services:
         printf '%s WARN  selftest line five\n' "$$T" >> /logs/selftest.log
         printf '%s ERROR selftest request failed\njava.lang.RuntimeException: selftest failure\n\tat com.example.Alpha.one(Alpha.java:11)\n\tat com.example.Beta.two(Beta.java:22)\n\tat com.example.Gamma.three(Gamma.java:33)\n' "$$T" >> /logs/selftest.log
         printf '%s INFO  selftest trailer\n' "$$T" >> /logs/selftest.log
+        printf '%s INFO  selftest timestamp-check epoch=%s\n' "$$T" "$$EPOCH" >> /logs/selftest.log
         exec sleep infinity
     networks:
       - observability

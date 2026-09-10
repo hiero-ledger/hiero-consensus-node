@@ -16,6 +16,12 @@ DEADLINE=120
 FAILURES=0
 CURL="curl -sS --connect-timeout 3 -m 10"
 
+# 10s of slack for the log-timestamp-fidelity check below - clock skew
+# between containers, not test flakiness. A regression back to Loki's
+# default ingestion-time stamping would be off by however long the poll
+# loop took (seconds to minutes), far outside this.
+TIMESTAMP_TOLERANCE_NS=10000000000
+
 # ---------------------------------------------------------------------------
 
 wait_for() {
@@ -91,6 +97,52 @@ assert() {
 	FAILURES=$((FAILURES + 1))
 }
 
+# Proves Loki's reported entry timestamp came from the log line's own
+# content, not from when Alloy ingested it. The fixture line embeds the
+# exact epoch second it was written at (selftest-log-writer's
+# "timestamp-check" line), so nothing needs to be shared between
+# containers: both numbers compared below come out of the *same* Loki
+# response. No jq available, so the two JSON fields are pulled out with sed.
+assert_log_timestamp() {
+	_desc='the entry timestamp comes from the log line, not ingestion time'
+	_query='{environment="selftest"} |= "selftest timestamp-check"'
+	_end=$(($(date +%s) + DEADLINE))
+	_body=""
+	_got_ns=""
+	_want_ns=""
+	while :; do
+		_body=$(q_loki "$_query" 2>/dev/null)
+		if non_empty "$_body"; then
+			# Loki's query_range values are ["<epoch_ns>","<line>"] tuples;
+			# pull the first one out as "<epoch_ns>|<line>".
+			_pair=$(printf '%s' "$_body" \
+				| sed -n 's/.*"values":\[\["\([0-9][0-9]*\)","\([^"]*\)".*/\1|\2/p')
+			_got_ns=${_pair%%|*}
+			_line=${_pair#*|}
+			_epoch=$(printf '%s' "$_line" | sed -n 's/.*epoch=\([0-9][0-9]*\).*/\1/p')
+			if [ -n "$_got_ns" ] && [ -n "$_epoch" ]; then
+				_want_ns="${_epoch}000000000"
+				_diff=$((_got_ns - _want_ns))
+				[ "$_diff" -lt 0 ] && _diff=$((0 - _diff))
+				if [ "$_diff" -le "$TIMESTAMP_TOLERANCE_NS" ]; then
+					printf 'PASS  %s\n' "$_desc"
+					return 0
+				fi
+			fi
+		fi
+		if [ "$(date +%s)" -ge "$_end" ]; then
+			break
+		fi
+		sleep 3
+	done
+	printf 'FAIL  %s\n' "$_desc"
+	printf '      query: %s\n' "$_query"
+	printf '      got entry timestamp (ns):     %s\n' "$_got_ns"
+	printf '      expected from log line epoch:  %s\n' "$_want_ns"
+	printf '      body: %s\n' "$(printf '%s' "$_body" | head -c 600)"
+	FAILURES=$((FAILURES + 1))
+}
+
 # ---------------------------------------------------------------------------
 
 printf '\n=== observability-stack selftest ===\n\n'
@@ -144,6 +196,11 @@ assert 'log_name is derived from the file basename' \
 assert 'a stack trace is grouped into a single multi-line entry' \
 	loki '{environment="selftest"} |= "java.lang.RuntimeException" |= "com.example.Gamma"' \
 	'\\tat com\.example\.Gamma'
+
+# The timestamp comparison below is the actual, end-to-end proof that
+# config.alloy's stage.regex/stage.timestamp addition works: it fails loudly
+# if the pipeline ever regresses to stamping entries with ingestion time.
+assert_log_timestamp
 
 # --- dashboards (issue 3) ----------------------------------------------
 

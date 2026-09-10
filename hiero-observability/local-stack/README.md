@@ -73,7 +73,7 @@ METRIC_LABELS={"environment":"localhost","node_id":"0"}
 ```
 
 <details>
-  <summary>Click for details</summary>
+  <summary><ins>Click to expand</ins></summary>
 
 `SCRAPE_TARGETS` is a JSON list and `METRIC_LABELS` a JSON map; both are
 injected into `promscrape.yml` structurally, so they must stay valid JSON.
@@ -101,7 +101,7 @@ LOG_LABELS={"environment":"localhost","node_id":"0"}
 ```
 
 <details>
-  <summary>Click for details</summary>
+  <summary><ins>Click to expand</ins></summary>
 
 `LOGS_DIR` is a *host* path, mounted read-only at `/logs` inside the container.
 `LOG_INCLUDE` is therefore a **container-side** path and always starts with
@@ -117,11 +117,49 @@ Logs from a run that finished hours or days ago are ingested normally; nothing
 is rejected for being old. Remember to widen Grafana's time range, which
 defaults to the last hour.
 
-Multi-line entries are grouped by `LOG_MULTILINE_START`: a line matching that
+Multi-line entries are grouped by `LOG_TIMESTAMP_REGEX`: a line matching that
 regex starts a new entry and everything after it is appended, so a Java stack
 trace arrives as **one** entry rather than dozens. The default matches a leading
 `2026-09-01 12:34:56` or `2026-09-01T12:34:56`. If your logs start lines
 differently, override the regex.
+
+Timestamps come from the log line itself, not from when Alloy ingested it.
+`LOG_TIMESTAMP_REGEX` does double duty: the same value that finds where an
+entry starts is re-parsed with a `(?P<timestamp>...)` named group to extract
+the entry's real timestamp, which is then parsed with `LOG_TIMESTAMP_FORMAT`
+and stamped onto the entry before it reaches Loki. `LOG_TIMESTAMP_FORMAT` is a
+[Go reference layout](https://pkg.go.dev/time#pkg-constants), not a strftime
+string — it describes the exact reference instant
+`Mon Jan 2 15:04:05 MST 2006`, so the shipped `2006-01-02 15:04:05.000` means
+"year-month-day, space, hour:minute:second, dot, three-digit milliseconds",
+matching `swirlds-vmap*.log`. `LOG_TIMESTAMP_LOCATION` is the IANA zone
+assumed when the format carries no zone offset of its own (the shipped
+default doesn't).
+
+A line that doesn't match the regex, or whose extracted text doesn't parse
+against `LOG_TIMESTAMP_FORMAT`, is not dropped: Loki's "fudge" behavior (the
+default `action_on_failure`) stamps it using a synthesized timestamp that
+preserves stream order instead. If you override `LOG_TIMESTAMP_REGEX` for a
+different leading-timestamp shape, keep the `(?P<timestamp>...)` group and
+update `LOG_TIMESTAMP_FORMAT`/`LOG_TIMESTAMP_LOCATION` to match, or every line
+silently falls back to fudge.
+
+If Explore's Time column looks offset from the timestamp printed inside the
+line itself, that's not a bug in extraction — Grafana renders the Time column
+in `GRAFANA_DEFAULT_TIMEZONE` (default `UTC`, matching `LOG_TIMESTAMP_LOCATION`'s
+default), while the raw line always shows whatever the log producer itself
+wrote. The two only visually agree when both are UTC; set
+`GRAFANA_DEFAULT_TIMEZONE=browser` if you'd rather see your own local time in
+the Time column (and accept the offset against the raw line), or match it to
+whatever zone your logs are actually written in.
+
+**First query after `make up` (or `make reset`) comes back empty for
+~30-40 seconds, however small the import.** This is Loki's own single-binary
+startup (ring/ingester warm-up), measured to be the same regardless of
+whether `LOGS_DIR` holds one 4 MB file or several 100 MB files — it is not
+your log volume being slow to ingest. Give it under a minute before assuming
+nothing matched; there is no config knob in this stack that shortens it
+further.
 
 </details>
 
@@ -134,7 +172,7 @@ GRAFANA_DASHBOARDS_DIR=/path/to/hedera-node/infrastructure/grafana/dashboards
 ```
 
 <details>
-  <summary>Click to expand</summary>
+  <summary><ins>Click to expand</ins></summary>
 
 Dashboards under `GRAFANA_DASHBOARDS_DIR` appear in Grafana under folders
 mirroring that directory's structure (`foldersFromFilesStructure` in
@@ -193,12 +231,14 @@ underlying file, at which point the file wins again.
 
 See `defaults.env` — it is the authoritative, commented list. In outline:
 
-- **Logs** — `LOGS_DIR`, `LOG_INCLUDE`, `LOG_MULTILINE_START`, `LOG_LABELS`,
+- **Logs** — `LOGS_DIR`, `LOG_INCLUDE`, `LOG_TIMESTAMP_REGEX`,
+  `LOG_TIMESTAMP_FORMAT`, `LOG_TIMESTAMP_LOCATION`, `LOG_LABELS`,
   `ALLOY_CONFIG`, `LOKI_CONFIG`
 - **Metrics** — `SCRAPE_TARGETS`, `SCRAPE_INTERVAL`, `METRIC_LABELS`,
   `PROMSCRAPE_CONFIG`
 - **Grafana** — `METRICS_DATASOURCE_NAME`, `METRICS_DATASOURCE_URL`,
-  `LOKI_DATASOURCE_NAME`, `GRAFANA_PROVISIONING_DIR`, `GRAFANA_DASHBOARDS_DIR`
+  `LOKI_DATASOURCE_NAME`, `GRAFANA_DEFAULT_TIMEZONE`, `GRAFANA_PROVISIONING_DIR`,
+  `GRAFANA_DASHBOARDS_DIR`
 - **Host ports** — `GRAFANA_PORT`, `VICTORIAMETRICS_PORT`, `LOKI_PORT`,
   `ALLOY_PORT`
 - **Retention** — `METRICS_RETENTION`, `LOGS_RETENTION`
@@ -236,7 +276,7 @@ PROMSCRAPE_CONFIG=/somewhere/else/promscrape.yml
 ```
 
 <details>
-  <summary>Click to expand</summary>
+  <summary><ins>Click to expand</ins></summary>
 
 **Invariants** — violating these produces silent wrong behaviour:
 
@@ -420,7 +460,7 @@ containers are not.
 ## Troubleshooting
 
 <details>
-  <summary>Click to expand</summary>
+  <summary><ins>Click to expand</ins></summary>
 
 **A target is red on <http://localhost:8428/targets>.** The page shows the
 error. `connection refused` on `host.docker.internal` means nothing is listening
@@ -436,6 +476,15 @@ container-side path under `/logs` and that it actually matches something:
 Alloy's own UI at <http://localhost:12345> lists the discovered files under
 `local.file_match.logs`. Alloy re-scans the glob every 10 seconds, so a brand
 new file takes a moment to appear.
+
+**`docker compose ... logs loki` shows "ingestion rate limit exceeded".**
+Expected only for a very large backfill — `services/loki-config.yml` already
+raises Loki's per-tenant defaults well above what a normal completed run
+needs. If a single import still exceeds `ingestion_rate_mb` /
+`ingestion_burst_size_mb` / `per_stream_rate_limit`, copy that file, raise
+those further, and point `LOKI_CONFIG` at your copy (see "Overriding a config
+file" below); Alloy retries rejected pushes, so once the limit is raised and
+Loki restarts, nothing already tailed needs to be re-sent by hand.
 
 **Something in a config file was ignored.** Config files are read at container
 start: `make restart`.
@@ -454,7 +503,7 @@ clean.
 ## Design notes
 
 <details>
-  <summary>Click to expand</summary>
+  <summary><ins>Click to expand</ins></summary>ary>
 
 - **VictoriaMetrics scrapes *and* stores metrics.** No Prometheus, no OTel
   Collector in front of it. Routing metrics through a collector is a round

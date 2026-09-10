@@ -44,6 +44,19 @@ limits_config:
   retention_period: ${LOGS_RETENTION}
   volume_enabled: true
 
+  # Loki's defaults here (4 MB/s, 6 MB burst, 3 MB/s per stream) exist to
+  # protect a shared, multi-tenant cluster from a noisy neighbor - there is
+  # no neighbor here, only auth_enabled: false and a single fake tenant.
+  # Backfilling a run's logs at once easily bursts well past those and gets
+  # rejected with "ingestion rate limit exceeded", which is exactly the
+  # historical-import use case this stack exists for. Raised, not disabled,
+  # so a runaway tail (e.g. a misconfigured LOG_INCLUDE matching a
+  # rapidly-growing file) still hits a ceiling instead of being unbounded.
+  ingestion_rate_mb: 1024
+  ingestion_burst_size_mb: 2048
+  per_stream_rate_limit: 1024MB
+  per_stream_rate_limit_burst: 2048MB
+
 compactor:
   working_directory: /loki/compactor
   retention_enabled: true
