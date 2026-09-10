@@ -58,17 +58,17 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
             // Transitive deps of the block-verification plugin
             Map.entry(
-                    "hedera-cryptography-wraps-3.8.1.jar",
+                    "hedera-cryptography-wraps-3.13.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.8.1/hedera-cryptography-wraps-3.8.1.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.13.0/hedera-cryptography-wraps-3.13.0.jar"),
             Map.entry(
-                    "hedera-cryptography-hints-3.8.1.jar",
+                    "hedera-cryptography-hints-3.13.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.8.1/hedera-cryptography-hints-3.8.1.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.13.0/hedera-cryptography-hints-3.13.0.jar"),
             Map.entry(
-                    "hedera-common-nativesupport-3.8.1.jar",
+                    "hedera-common-nativesupport-3.13.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/common/hedera-common-nativesupport/3.8.1/hedera-common-nativesupport-3.8.1.jar"),
+                            + "/com/hedera/common/hedera-common-nativesupport/3.13.0/hedera-common-nativesupport-3.13.0.jar"),
             Map.entry(
                     "antlr4-runtime-4.13.2.jar",
                     MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
