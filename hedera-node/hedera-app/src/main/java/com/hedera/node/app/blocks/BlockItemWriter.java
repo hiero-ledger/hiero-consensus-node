@@ -6,6 +6,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 
 /**
@@ -41,8 +42,11 @@ public interface BlockItemWriter {
     /**
      * Flushes to disk a block that is still waiting for a complete proof.
      * @param pendingProof the proof pending a signature
+     * @return the path of the flushed pending-block contents file ({@code .pnd.gz}), or {@code null} if nothing was
+     * written (e.g. not in an OPEN state, no buffered items, or an I/O error)
      */
-    void flushPendingBlock(@NonNull PendingProof pendingProof);
+    @Nullable
+    Path flushPendingBlock(@NonNull PendingProof pendingProof);
 
     /**
      * Flushes the current OPEN, unproven block to local disk for triage after a catastrophic failure (e.g. an ISS),
@@ -58,8 +62,11 @@ public interface BlockItemWriter {
      * arrived mid-round, trailing items (and the round's state-changes/footer) can be missing. Consumers must tolerate
      * an incomplete final round — e.g. read each round by its leading {@code RoundHeader} rather than assuming a clean
      * round boundary at end-of-file.
+     *
+     * @return the path of the flushed {@code .iss.gz} triage artifact, or {@code null} if nothing was written
      */
-    void flushIncompleteBlock();
+    @Nullable
+    Path flushIncompleteBlock();
 
     default Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);

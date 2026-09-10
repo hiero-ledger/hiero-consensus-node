@@ -48,6 +48,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -246,6 +247,35 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).autoResetTimestamp();
         verify(activeConnection).closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
         verifyNoMoreInteractions(activeConnection);
+    }
+
+    @Test
+    void activeConnectionSnapshotReflectsActiveConnection() {
+        final BlockNodeConfiguration activeConfig = newBlockNodeConfig("bn-host", 8080, 0);
+        final StreamingConnectionStatistics stats = mock(StreamingConnectionStatistics.class);
+        when(stats.lastBlockSent()).thenReturn(538L);
+        when(stats.lastBlockAcked()).thenReturn(535L);
+        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        when(activeConnection.configuration()).thenReturn(activeConfig);
+        when(activeConnection.connectionStatistics()).thenReturn(stats);
+        activeConnectionRef().set(activeConnection);
+
+        final Optional<BlockNodeConnectionManager.ActiveBlockNodeSnapshot> snapshot =
+                connectionManager.activeConnectionSnapshot();
+
+        assertThat(snapshot).hasValueSatisfying(s -> {
+            assertThat(s.host()).isEqualTo("bn-host");
+            assertThat(s.port()).isEqualTo(8080);
+            assertThat(s.priority()).isZero();
+            assertThat(s.lastBlockSent()).isEqualTo(538L);
+            assertThat(s.lastBlockAcked()).isEqualTo(535L);
+        });
+    }
+
+    @Test
+    void activeConnectionSnapshotEmptyWhenNoActiveConnection() {
+        activeConnectionRef().set(null);
+        assertThat(connectionManager.activeConnectionSnapshot()).isEmpty();
     }
 
     @Test
