@@ -125,13 +125,14 @@ Module: `swirlds-platform-core`. Source: [OSHealthCheckConfig.java](../../swirld
 
 Startup-time OS health probes; values exceeded at startup produce warning logs but do not block startup.
 
-|   ID    |                     Key                     | Type |  Default  |                                    Effect                                    | Range | Fragility |
-|---------|---------------------------------------------|------|-----------|------------------------------------------------------------------------------|-------|-----------|
-| TUN-045 | `os.health.minClockCallsPerSec`             | long | `5000000` | Minimum required calls per second to the OS clock source.                    |       | —         |
-| TUN-046 | `os.health.entropyTimeoutMillis`            | long | `10`      | Maximum milliseconds to wait for the OS entropy check to complete.           |       | —         |
-| TUN-047 | `os.health.maxRandomNumberGenerationMillis` | long | `10`      | Maximum milliseconds allowed for a single random number to be generated.     |       | —         |
-| TUN-048 | `os.health.fileReadTimeoutMillis`           | long | `50`      | Maximum milliseconds to wait for a file to be opened and a single byte read. |       | —         |
-| TUN-049 | `os.health.maxFileReadMillis`               | long | `10`      | Maximum milliseconds allowed to open a file and read the first byte.         |       | —         |
+|   ID    |                     Key                     |  Type   |  Default  |                                    Effect                                    | Range | Fragility |
+|---------|---------------------------------------------|---------|-----------|------------------------------------------------------------------------------|-------|-----------|
+| TUN-045 | `os.health.minClockCallsPerSec`             | long    | `5000000` | Minimum required calls per second to the OS clock source.                    |       | —         |
+| TUN-046 | `os.health.entropyTimeoutMillis`            | long    | `10`      | Maximum milliseconds to wait for the OS entropy check to complete.           |       | —         |
+| TUN-047 | `os.health.maxRandomNumberGenerationMillis` | long    | `10`      | Maximum milliseconds allowed for a single random number to be generated.     |       | —         |
+| TUN-048 | `os.health.fileReadTimeoutMillis`           | long    | `50`      | Maximum milliseconds to wait for a file to be opened and a single byte read. |       | —         |
+| TUN-049 | `os.health.maxFileReadMillis`               | long    | `10`      | Maximum milliseconds allowed to open a file and read the first byte.         |       | —         |
+| TUN-213 | `os.health.performOSHealthChecks`           | boolean | `true`    | Whether the OS health probes run at platform startup (adds about 1 s).       |       | —         |
 
 ## `crypto.*` — CryptoConfig
 
