@@ -1,0 +1,192 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+import "services/state/clpr/clpr_endpoint_manifest.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Status of a CLPR Channel.
+ */
+enum ClprChannelStatus {
+    /**
+     * Commitment registered but not yet revealed. No messaging, no syncing.
+     * The Channel exists solely as a claimed reservation.
+     */
+    PENDING = 0;
+
+    /**
+     * Normal operation. Messages accepted and processed.
+     */
+    ACTIVE = 1;
+
+    /**
+     * Auto-triggered by response ordering violation. No new outbound messages.
+     * Syncs continue. Auto-resumes when peer fixes ordering.
+     */
+    PAUSED = 2;
+
+    /**
+     * Graceful shutdown initiated. No new sendMessage calls accepted from the
+     * local application. All inbound Data Messages from the peer continue to be
+     * dispatched normally. Queues drain.
+     */
+    CLOSING = 3;
+
+    /**
+     * Local outbound queue fully acknowledged by peer. Still accepting
+     * inbound bundles while peer drains.
+     */
+    DRAINED = 4;
+
+    /**
+     * Terminal state. All processing stops.
+     */
+    CLOSED = 5;
+}
+
+/**
+ * On-ledger state for a single CLPR Channel to a peer ledger.
+ * Keyed by channel_id (32 bytes).
+ */
+message ClprChannel {
+    /**
+     * 32-byte primary key; an arbitrary value chosen by the registrant, the same
+     * on both ledgers. The code treats this as opaque input — it is NOT derived
+     * from a public key. See spec §6.2 and clpr-hiero-spec.md (E-1/S-7).
+     */
+    bytes channel_id = 1;
+
+    /**
+     * CAIP-2 identifier of the peer chain (e.g., "hedera:mainnet", "eip155:1").
+     */
+    string chain_id = 2;
+
+    /**
+     * On-ledger address of the peer ledger's CLPR Service.
+     * Superseded by channel_context (field 18).
+     */
+    bytes service_address = 3 [deprecated = true];
+
+    /**
+     * Timestamp of the last known peer configuration.
+     */
+    proto.Timestamp peer_config_timestamp = 4;
+
+    /**
+     * ContractID of the verifier system contract. Immutable after registration.
+     */
+    proto.ContractID verifier_contract = 5;
+
+    /**
+     * Code hash (keccak256 of bytecode) of verifier_contract at registration time.
+     * Informational only.
+     */
+    bytes verifier_fingerprint = 6;
+
+    /**
+     * Current status of this Channel.
+     */
+    ClprChannelStatus status = 7;
+
+    /**
+     * Next sequence number for outgoing messages. Initialized to 1.
+     */
+    uint64 next_message_id = 8;
+
+    /**
+     * Highest message ID confirmed received by peer. Initialized to 0.
+     */
+    uint64 acked_message_id = 9;
+
+    /**
+     * Cumulative SHA-256 hash of all enqueued outgoing messages.
+     * Initialized to 32 bytes of zeros.
+     */
+    bytes sent_running_hash = 10;
+
+    /**
+     * Highest message ID received from peer. Initialized to 0.
+     */
+    uint64 received_message_id = 11;
+
+    /**
+     * Cumulative SHA-256 hash of all received messages.
+     * Initialized to 32 bytes of zeros.
+     */
+    bytes received_running_hash = 12;
+
+    /**
+     * Consensus timestamp of the last config propagated on this Channel.
+     * When less than the current config timestamp, a ConfigUpdate will be
+     * lazily enqueued on the next interaction.
+     */
+    proto.Timestamp last_config_timestamp = 13;
+
+    /**
+     * The ownership commitment hash used during registration (keccak256 of
+     * channel_id || public_key). Stored so that CloseChannel can remove
+     * it from the pending-commitments store, freeing the commitment for reuse
+     * after the channel is closed.
+     */
+    bytes ownership_commitment = 14;
+
+    /**
+     * Throttle limits advertised by the peer in its last ClprLedgerConfiguration.
+     * Used to validate outbound message payload sizes against the peer's capacity
+     * rather than the local ledger's own limits. Absent until the first ConfigUpdate
+     * is received from the peer; falls back to local throttles when null.
+     */
+    ClprThrottles peer_throttles = 15;
+
+    /**
+     * Opaque signing-authority material for this Channel. Initialized from
+     * verifyConfig's initial_trust_anchor return at completeChannel and updated
+     * in-band when verifyBundle returns a non-empty new_trust_anchor. For Hiero TSS
+     * this is the peer ledger_id, allowing a single generic verifier contract to
+     * serve all Hiero networks. Verifiers with no rotating-authority concept store
+     * empty bytes. Only verifyBundle may cause an update; no admin or governance
+     * path modifies this field.
+     */
+    bytes trust_anchor = 16;
+
+    /**
+     * Opaque identifier for trust_anchor, returned by the verifier alongside
+     * new_trust_anchor (or initial_trust_anchor at completeChannel). Updated
+     * atomically with each trust_anchor write. Propagated in ClprQueueMetadata so
+     * endpoints can identify which signing authority is installed on the remote
+     * ledger without exchanging the full trust anchor bytes. Empty bytes when
+     * trust_anchor is empty.
+     */
+    bytes trust_anchor_id = 17;
+
+    /**
+     * Opaque channel identity: {@code abi.encodePacked(bytes32 channelId, bytes serviceAddress)}.
+     * Assembled once at {@code completeChannel} from the Java-known channelId and the
+     * proven serviceAddress. Passed unchanged to every {@code verifyBundle} call.
+     */
+    bytes channel_context = 18;
+
+    // --- Peer Endpoint Manifest ---
+
+    /**
+     * Cached peer endpoint manifest. Initialized at completeChannel from the
+     * ClprEndpointManifest returned by verifyConfig; refreshed automatically
+     * through manifest-update bundle payloads (spec §4.2 Step 1b). Empty until
+     * completeChannel succeeds.
+     */
+    ClprEndpointManifest endpoint_manifest = 19;
+
+    /**
+     * Version of the cached peer manifest.
+     * 0 = uninitialized (PENDING); >= 1 after completeChannel.
+     */
+    uint64 endpoint_manifest_version = 20;
+}

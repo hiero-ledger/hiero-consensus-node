@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
@@ -546,7 +547,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
                 isBatch = builder.functionality() == ATOMIC_BATCH;
-                grouped = isBatch;
+                grouped = isBatch || builder.functionality() == CLPR_SUBMIT_BUNDLE;
                 break;
             }
         }

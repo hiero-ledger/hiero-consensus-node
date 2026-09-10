@@ -43,7 +43,17 @@
             "CryptoApproveAllowance",
             "CryptoDeleteAllowance",
             "UtilPrng",
-            "AtomicBatch"
+            "AtomicBatch",
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprRegisterConnector",
+            "ClprDeregisterConnector",
+            "ClprSubmitBundle",
+            "ClprRedactMessage",
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
           ]
         },
         {

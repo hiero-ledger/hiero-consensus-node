@@ -53,6 +53,9 @@ import "services/schedule_get_info.proto";
 
 import "services/get_account_details.proto";
 
+import "services/clpr_get_ledger_configuration.proto";
+import "services/clpr_get_endpoint_manifest.proto";
+
 /**
  * A single query response.
  *
@@ -233,5 +236,15 @@ message Response {
          * is REQUIRED for this query.
          */
         GetAccountDetailsResponse accountDetails = 158;
+
+        /**
+         * Response containing the current CLPR ledger configuration.
+         */
+        com.hedera.hapi.node.clpr.ClprGetLedgerConfigurationResponse clprGetLedgerConfiguration = 159;
+
+        /**
+         * Response containing the current CLPR endpoint manifest (spec §6.5).
+         */
+        com.hedera.hapi.node.clpr.ClprGetEndpointManifestResponse clprGetEndpointManifest = 160;
     }
 }

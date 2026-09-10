@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ca
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hederaConfigOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isClprDispatch;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
@@ -48,6 +49,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.nio.ByteBuffer;
@@ -104,6 +106,12 @@ class HtsSystemContractTest {
     private HederaConfig hederaConfig;
 
     @Mock
+    private JumboTransactionsConfig jumboTransactionsConfig;
+
+    @Mock
+    private Configuration configuration;
+
+    @Mock
     private ContractMetrics contractMetrics;
 
     @Mock
@@ -134,6 +142,24 @@ class HtsSystemContractTest {
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
         frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
         when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
+        final var pricedResult = gasOnly(successResult(ByteBuffer.allocate(1), 123L), SUCCESS, true);
+        given(call.execute(frame)).willReturn(pricedResult);
+        given(attempt.senderId()).willReturn(SENDER_ID);
+
+        assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+    }
+
+    @Test
+    void acceptsJumboSystemContractInputForClprDispatch() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> isClprDispatch(frame)).thenReturn(true);
+        frameUtils.when(() -> configOf(frame)).thenReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.maxTxnSize()).willReturn(validInput.size());
         final var pricedResult = gasOnly(successResult(ByteBuffer.allocate(1), 123L), SUCCESS, true);
         given(call.execute(frame)).willReturn(pricedResult);
         given(attempt.senderId()).willReturn(SENDER_ID);

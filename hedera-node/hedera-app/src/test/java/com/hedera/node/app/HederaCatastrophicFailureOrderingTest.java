@@ -15,6 +15,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.workflows.clpr.ClprRuntime;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -52,6 +53,9 @@ class HederaCatastrophicFailureOrderingTest {
     private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
+    private ClprRuntime clprRuntime;
+
+    @Mock
     private QuiescenceController quiescenceController;
 
     @Mock
@@ -72,6 +76,7 @@ class HederaCatastrophicFailureOrderingTest {
 
         given(daggerApp.blockStreamManager()).willReturn(blockStreamManager);
         given(daggerApp.blockNodeConnectionManager()).willReturn(blockNodeConnectionManager);
+        given(daggerApp.clprRuntime()).willReturn(clprRuntime);
         given(daggerApp.quiescenceController()).willReturn(quiescenceController);
 
         // streamToBlockNodes() is true whenever writerMode != FILE, so the connection shutdown is reached.

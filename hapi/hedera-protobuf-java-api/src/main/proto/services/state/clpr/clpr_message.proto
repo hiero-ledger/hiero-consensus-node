@@ -1,0 +1,382 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_channel.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Status of a response to a Data Message.
+ */
+enum ClprMessageReplyStatus {
+    /**
+     * Message processed successfully by the destination application.
+     */
+    SUCCESS = 0;
+
+    /**
+     * The destination application reverted during execution.
+     */
+    APPLICATION_ERROR = 1;
+
+    /**
+     * The Connector specified in the message was not found on the destination ledger.
+     * The source Connector is slashed.
+     */
+    CONNECTOR_NOT_FOUND = 2;
+
+    /**
+     * The Connector was found but had insufficient funds to pay for execution.
+     * The source Connector is slashed.
+     */
+    CONNECTOR_UNDERFUNDED = 3;
+
+    /**
+     * The message was redacted before delivery.
+     */
+    REDACTED = 4;
+
+    /**
+     * Reserved. Never generated — Data Messages arriving on CLOSING or DRAINED
+     * channels are always dispatched normally. Retained for wire-format
+     * compatibility only. Implementations MUST NOT generate this status.
+     */
+    CHANNEL_CLOSED = 5;
+}
+
+/**
+ * Data Message: application-level content sent from one ledger to another.
+ */
+message ClprMessage {
+    /**
+     * Cross-ledger identifier of the Connector that authorized this message.
+     * Both the source and destination ledgers register their local Connector
+     * contract under this same identifier, so the destination can look it up
+     * directly without any cross-chain mapping.
+     */
+    bytes connector_id = 1;
+
+    /**
+     * Destination application address on the target ledger.
+     */
+    bytes target_application = 2;
+
+    /**
+     * Source-chain caller address, stamped by the CLPR Service at enqueue time.
+     */
+    bytes sender = 3;
+
+    /**
+     * Opaque application payload.
+     */
+    bytes message_data = 4;
+}
+
+/**
+ * Response Message: the outcome of a previously received Data Message.
+ * Every Data Message produces exactly one Response Message, in order.
+ */
+message ClprMessageReply {
+    /**
+     * ID of the originating Data Message this responds to, from the
+     * source ledger's outbound queue (the queue that sent the Data Message).
+     */
+    uint64 message_id = 1;
+
+    /**
+     * Structured outcome — determines slash decision on the source ledger.
+     */
+    ClprMessageReplyStatus status = 2;
+
+    /**
+     * Opaque application response (empty on protocol errors).
+     */
+    bytes message_reply_data = 3;
+}
+
+/**
+ * Control Message: protocol-level management message.
+ * Control messages are enqueued in the same queue as data and response messages,
+ * participate in the running hash chain, but are not dispatched to
+ * applications, and do not generate responses.
+ *
+ * Forward compatibility: if a receiver encounters a ClprControlMessage with
+ * no oneof variant set (indicating an unknown control message type from a
+ * newer protocol version), it MUST reject the entire bundle.
+ */
+message ClprControlMessage {
+    oneof payload {
+        /**
+         * Configuration propagation to peer ledger.
+         */
+        ClprConfigUpdate config_update = 1;
+    }
+}
+
+/**
+ * Carries an updated ledger configuration to the peer via the message queue.
+ * Lazily enqueued when the local config timestamp is newer than the
+ * Channel's last_config_timestamp.
+ */
+message ClprConfigUpdate {
+    /**
+     * The updated ledger configuration including its timestamp.
+     */
+    ClprLedgerConfiguration configuration = 1;
+}
+
+/**
+ * Marker payload for a slot whose original contents were administratively
+ * redacted before delivery. Carries the SHA-256 of the original serialized
+ * ClprMessagePayload bytes so the receiver can extend the running-hash chain
+ * deterministically and the sender address so source-side response dispatch
+ * can still deliver the REDACTED reply to the originating application.
+ */
+message ClprRedactedMessage {
+    /**
+     * SHA-256 of the serialized ClprMessagePayload that occupied this slot
+     * before redaction.
+     */
+    bytes message_hash = 1;
+
+    /**
+     * The sender address from the original ClprMessage so the source ledger
+     * can still deliver the REDACTED response callback to the originating
+     * application after the reply round-trips.
+     */
+    bytes sender = 2;
+}
+
+/**
+ * All-inclusive payload for a queued message. Distinguishes Data, Response,
+ * Control, and Redacted variants. All share the queue, running hash chain,
+ * and bundle transport.
+ */
+message ClprMessagePayload {
+    oneof payload {
+        /**
+         * Data Message — application content.
+         */
+        ClprMessage message = 1;
+
+        /**
+         * Response Message — outcome of a Data Message.
+         */
+        ClprMessageReply message_reply = 2;
+
+        /**
+         * Control Message — protocol management.
+         */
+        ClprControlMessage control = 3;
+
+        /**
+         * Redacted Message — carries the running-hash contribution of the original
+         * payload plus the sender address so source-side response dispatch can still
+         * deliver the REDACTED reply to the originating application.
+         */
+        ClprRedactedMessage redacted_message = 4;
+    }
+}
+
+/**
+ * Composite key for a queued message.
+ */
+message ClprMessageKey {
+    /**
+     * Channel ID identifying the Channel this message belongs to.
+     * MUST be exactly 32 bytes.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * Monotonically increasing sequence number within the Channel.
+     * Assigned at enqueue time.
+     */
+    uint64 message_id = 2;
+}
+
+/**
+ * Stored value for a queued message.
+ */
+message ClprMessageValue {
+    /**
+     * The message payload (Data, Response, or Control).
+     */
+    ClprMessagePayload payload = 1;
+
+    /**
+     * Cumulative SHA-256 hash after processing this message.
+     * Formula: SHA-256(previous_running_hash || serialized_payload).
+     * Initial value: 32 bytes of zeros.
+     */
+    bytes running_hash_after_processing = 2;
+}
+
+/**
+ * Queue metadata returned by the verifier after proof verification.
+ * Contains the peer's view of its outbound queue state.
+ */
+message ClprQueueMetadata {
+    /**
+     * One past the ID of the last message included in the bundle.
+     * The last message in the bundle has ID (next_message_id - 1).
+     */
+    uint64 next_message_id = 1;
+
+    /**
+     * Cumulative hash through the last message in the bundle.
+     */
+    bytes sent_running_hash = 2;
+
+    /**
+     * Highest message ID received from peer (our outbound messages
+     * that the peer has processed).
+     */
+    uint64 received_message_id = 3;
+
+    /**
+     * Peer's cumulative hash of received messages, for optional
+     * cross-validation against our own sent_running_hash.
+     */
+    bytes received_running_hash = 4;
+
+    /**
+     * Sender's current Channel status.
+     */
+    ClprChannelStatus status = 5;
+
+    /**
+     * Opaque identifier for the sender's current Channel.trust_anchor,
+     * as returned by the verifier contract alongside new_trust_anchor (or
+     * initial_trust_anchor). Empty bytes if no trust anchor has been
+     * established. Updated atomically with each trust_anchor write.
+     * Endpoints receiving this value look it up in their local trust anchor
+     * record to identify which signing authority is installed on the remote
+     * ledger and determine whether transition bundles are needed before the
+     * next application bundle.
+     */
+    bytes trust_anchor_id = 6;
+
+    /**
+     * The sender's current Channel.endpoint_manifest_version.
+     * Allows the receiver to detect whether the remote endpoint manifest has
+     * advanced since the last sync. Zero indicates the Channel is PENDING.
+     */
+    uint64 endpoint_manifest_version = 7;
+}
+
+/**
+ * Wire format for endpoint-to-endpoint sync. Each sync exchanges one
+ * ClprSyncPayload in each direction. The bundle_payload is opaque to the
+ * protocol and interpreted by the Channel's verifier contract.
+ */
+message ClprSyncPayload {
+    /**
+     * Channel ID identifying the Channel this sync belongs to.
+     * MUST be exactly 32 bytes.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * Opaque payload from the source ledger's proof system. Contains the
+     * state proof, the message data it attests to, and any Merkle paths
+     * or signatures required by the verifier.
+     */
+    bytes bundle_payload = 2;
+}
+
+/**
+ * Unproven, self-reported Connection state sent ahead of a bundle so the peer
+ * can shape its response to exactly what is still unacked. The value it
+ * replaces is the responder's own (possibly stale) acked_message_id, which
+ * only reflects this endpoint's state as of the last completed cycle. Never
+ * causes a state change on its own.
+ */
+message ClprBundleRequest {
+    /**
+     * This endpoint's current Connection.received_message_id. The responder
+     * starts its message range at (current_received_message_id + 1). If that
+     * names a message that does not exist yet (>= the responder's
+     * next_message_id), the responder MUST fall back to acked_message_id + 1.
+     */
+    uint64 current_received_message_id = 1;
+
+    /**
+     * This endpoint's current Connection status.
+     */
+    ClprChannelStatus current_status = 2;
+
+    /**
+     * This endpoint's current Connection.trust_anchor_id.
+     */
+    bytes current_trust_anchor_id = 3;
+
+    /**
+     * This endpoint's current Connection.endpoint_manifest_version. Lets the
+     * responder decide whether embedding a manifest-update proof would be
+     * progress-bearing under Progress Criterion 5 (the responder's manifest has
+     * advanced past the version reported here). Zero indicates the Connection
+     * is PENDING.
+     */
+    uint64 current_endpoint_manifest_version = 4;
+}
+
+/**
+ * The shaped bundle sent in response to a peer's ClprBundleRequest. The
+ * bundle_payload is opaque to the protocol and interpreted by the
+ * Connection's verifier contract.
+ */
+message ClprBundleResponse {
+    /**
+     * Opaque payload from the source ledger's proof system. Contains the
+     * state proof, the message data it attests to, and any Merkle paths
+     * or signatures required by the verifier.
+     */
+    bytes bundle_payload = 1;
+}
+
+/**
+ * Wire format for the streaming variant of endpoint-to-endpoint sync. Each
+ * side of the stream sends a ClprBundleRequest describing its own live state,
+ * then a ClprBundleResponse shaped by the peer's most recently received request.
+ *
+ * Termination: a message with BOTH bundle_request and bundle_response absent is
+ * this side's terminal message — it declares that this side has nothing
+ * progress-bearing left to send this cycle. The exchange as a whole is complete
+ * once BOTH sides' most recently sent message carried an absent bundle_response,
+ * not as soon as either side alone declares it is done.
+ */
+message ClprStreamingSyncPayload {
+    /**
+     * Connection ID identifying the Connection this sync belongs to.
+     * MUST be exactly 32 bytes, and MUST be set on every message of the
+     * stream, including the terminal both-fields-absent message.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * This endpoint's current, unproven Connection state.
+     * Sent just as the first message of the stream of each side.
+     * After it, the queue metadata is provided as part of the bundle
+     * response.
+     *
+     * This field is one-shot per side per exchange: it is structurally absent
+     * from every message after the first, regardless of how many bundles that
+     * side still has queued. Receivers MUST NOT read anything into this field
+     * going absent — bundle_response is what carries turn-by-turn progress.
+     */
+    ClprBundleRequest bundle_request = 2;
+
+    /**
+     * The bundle shaped for the peer, if one is ready to send in this
+     * message. Absent on the first message of the stream, when only a
+     * ClprBundleRequest has been sent so far, and absent on every message
+     * after this side has run out of progress-bearing bundles to send.
+     */
+    ClprBundleResponse bundle_response = 3;
+}

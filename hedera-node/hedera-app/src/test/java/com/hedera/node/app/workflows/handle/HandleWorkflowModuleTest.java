@@ -22,6 +22,7 @@ import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
@@ -123,6 +124,9 @@ class HandleWorkflowModuleTest {
 
     @Mock
     private MigrationRootHashVoteHandler migrationRootHashVoteHandler;
+
+    @Mock
+    private ClprHandlers clprHandlers;
 
     @Mock
     private HistoryProofSignatureHandler proofSignatureHandler;
@@ -360,7 +364,8 @@ class HandleWorkflowModuleTest {
                 addressBookHandlers,
                 hintsHandlers,
                 historyHandlers,
-                migrationRootHashVoteHandler);
+                migrationRootHashVoteHandler,
+                clprHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

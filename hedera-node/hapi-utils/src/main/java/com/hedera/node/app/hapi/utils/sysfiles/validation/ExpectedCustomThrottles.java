@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.sysfiles.validation;
 
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRedactMessage;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusDeleteTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusGetTopicInfo;
@@ -120,7 +129,16 @@ public final class ExpectedCustomThrottles {
             TokenFeeScheduleUpdate,
             TokenPause,
             TokenUnpause,
-            UtilPrng));
+            UtilPrng,
+            ClprUpdateLedgerConfiguration,
+            ClprRegisterChannel,
+            ClprCompleteChannel,
+            ClprCloseChannel,
+            ClprGetLedgerConfiguration,
+            ClprSubmitBundle,
+            ClprRedactMessage,
+            ClprRegisterConnector,
+            ClprDeregisterConnector));
 
     private ExpectedCustomThrottles() {
         throw new UnsupportedOperationException("Utility Class");

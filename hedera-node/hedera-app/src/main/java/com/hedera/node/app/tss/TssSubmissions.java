@@ -1,79 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss;
 
-import static java.time.temporal.ChronoUnit.SECONDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
 
 /**
- * Base class for submitting node transactions to the network within an application context using a given executor.
+ * Submits TSS node transactions to the network. Reuses the generic submission machinery of
+ * {@link ConsensusSubmissions} and supplies the {@link NetworkAdminConfig} retry envelope.
  */
-public class TssSubmissions {
+public class TssSubmissions extends ConsensusSubmissions {
     private static final Logger log = LogManager.getLogger(TssSubmissions.class);
 
-    private final Executor executor;
-    private final AppContext appContext;
     private final BiConsumer<TransactionBody, String> onFailure =
             (body, reason) -> log.warn("Failed to submit {} ({})", body, reason);
 
     public TssSubmissions(@NonNull final Executor executor, @NonNull final AppContext appContext) {
-        this.executor = requireNonNull(executor);
-        this.appContext = requireNonNull(appContext);
+        super(executor, appContext);
     }
 
-    /**
-     * Attempts to submit a transaction to the network if node gossip is available, retrying based on the given
-     * configuration.
-     * <p>
-     * Returns a future that completes when the transaction has been submitted; or completes exceptionally
-     * if the transaction could not be submitted after the configured number of retries.
-     *
-     * @param spec the spec to build the transaction to submit
-     * @param onFailure a consumer to call if the transaction fails to submit
-     * @return a future that completes when the transaction has been submitted, exceptionally if it was not
-     */
-    protected CompletableFuture<Void> submitIfActive(
-            @NonNull final Consumer<TransactionBody.Builder> spec,
-            @NonNull final BiConsumer<TransactionBody, String> onFailure) {
-        // All submissions are best-effort in the TSS protocol, but in particular we never want to try to
-        // submit anything if node gossip is unavailable (e.g. because we are REPLAYING_EVENTS).
-        if (!appContext.gossip().isAvailable()) {
-            log.info("Skipping TSS submission because gossip is unavailable");
-            return CompletableFuture.completedFuture(null);
-        }
-        final var selfId = appContext.selfNodeInfoSupplier().get().accountId();
-        final var consensusNow = appContext.instantSource().instant();
-        final var config = appContext.configSupplier().get();
+    @Override
+    protected RetryEnvelope retryEnvelope(@NonNull final Configuration config) {
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
-        return appContext
-                .gossip()
-                .submitFuture(
-                        selfId,
-                        consensusNow,
-                        Duration.of(hederaConfig.transactionMaxValidDuration(), SECONDS),
-                        spec,
-                        executor,
-                        adminConfig.timesToTrySubmission(),
-                        adminConfig.distinctTxnIdsToTry(),
-                        adminConfig.retryDelay(),
-                        onFailure);
+        return new RetryEnvelope(
+                adminConfig.timesToTrySubmission(), adminConfig.distinctTxnIdsToTry(), adminConfig.retryDelay());
     }
 
     /**

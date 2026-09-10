@@ -1,0 +1,448 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * A CometBFT BlockID: the simple-Merkle hash of a block header plus the
+ * part-set header. Precommit votes sign over both, so the verifier needs
+ * the part-set fields to reconstruct the canonical sign-bytes even though
+ * it only authenticates the header hash.
+ */
+message SeiBlockRef {
+    /**
+     * 32-byte simple-Merkle hash of the block header.
+     */
+    bytes hash = 1;
+
+    /**
+     * Number of parts the block was split into for gossip.
+     */
+    uint32 part_set_total = 2;
+
+    /**
+     * 32-byte Merkle hash of the block parts.
+     */
+    bytes part_set_hash = 3;
+}
+
+/**
+ * The 14 fields of a CometBFT block header, carried individually. Unlike the
+ * QBFT payload (which carries opaque header RLP), field-wise transport is
+ * canonical here because the verifier re-encodes the fields with the exact
+ * CometBFT cdc rules and recomputes the header hash; any encoding drift makes
+ * verification fail rather than succeed on different bytes.
+ */
+message SeiHeader {
+    /**
+     * Block protocol version (version.block).
+     */
+    uint64 version_block = 1;
+
+    /**
+     * App protocol version (version.app).
+     */
+    uint64 version_app = 2;
+
+    /**
+     * Chain identifier, e.g. "atlantic-2" (Sei testnet) or "pacific-1".
+     */
+    string chain_id = 3;
+
+    /**
+     * Block height.
+     */
+    int64 height = 4;
+
+    /**
+     * Block time.
+     */
+    proto.Timestamp time = 5;
+
+    /**
+     * ID of the previous block.
+     */
+    SeiBlockRef last_block_id = 6;
+
+    /**
+     * Merkle hash of the previous block's commit signatures.
+     */
+    bytes last_commit_hash = 7;
+
+    /**
+     * Merkle hash of the block's transactions.
+     */
+    bytes data_hash = 8;
+
+    /**
+     * Merkle hash of the validator set that signs this block.
+     */
+    bytes validators_hash = 9;
+
+    /**
+     * Merkle hash of the validator set for the next block. Trust-anchor
+     * rotation evidence is checked against this field.
+     */
+    bytes next_validators_hash = 10;
+
+    /**
+     * Hash of the consensus parameters.
+     */
+    bytes consensus_hash = 11;
+
+    /**
+     * Application state root AFTER executing height (height - 1). State
+     * proofs for height H must therefore be paired with the header at H+1.
+     */
+    bytes app_hash = 12;
+
+    /**
+     * Merkle hash of the previous block's transaction results.
+     */
+    bytes last_results_hash = 13;
+
+    /**
+     * Merkle hash of byzantine evidence included in the block.
+     */
+    bytes evidence_hash = 14;
+
+    /**
+     * 20-byte address of the block proposer.
+     */
+    bytes proposer_address = 15;
+}
+
+/**
+ * One included validator signature in a compact commit. Every signature
+ * covers a different canonical-vote message because each carries the
+ * validator's own timestamp. The validator that produced this signature is
+ * identified by SeiCommit.signers_bits, not by an address in this message.
+ */
+message SeiCommitSig {
+    /**
+     * The timestamp this validator signed over.
+     */
+    proto.Timestamp timestamp = 1;
+
+    /**
+     * 64-byte Ed25519 signature over the canonical precommit vote.
+     */
+    bytes signature = 2;
+}
+
+/**
+ * A compact CometBFT commit: >2/3 of the validator set's precommits for one
+ * block. The signed vote height is reconstructed from signed_header.header.height,
+ * and the signed BlockID hash is reconstructed from the header hash. The commit
+ * must still carry the round and current block part-set header because they are
+ * included in each validator's canonical precommit sign bytes and are not
+ * reconstructable from the block header.
+ */
+message SeiCommit {
+    /**
+     * Consensus round the block was committed in.
+     */
+    int32 round = 1;
+
+    /**
+     * Number of parts the committed block was split into for gossip.
+     */
+    uint32 part_set_total = 2;
+
+    /**
+     * 32-byte Merkle hash of the committed block parts.
+     */
+    bytes part_set_hash = 3;
+
+    /**
+     * Bitset identifying which validators signed, in validator-set order.
+     * Bits are read most-significant-bit first within each byte: bit 0 is
+     * validator[0], bit 1 is validator[1], etc. The signatures list is ordered
+     * by the set bits. For example, 0010_0011 means signatures[0] is from
+     * validator[2], signatures[1] is from validator[6], and signatures[2] is
+     * from validator[7].
+     */
+    bytes signers_bits = 4;
+
+    /**
+     * Signatures for the validators selected by signers_bits, in increasing
+     * validator index order. Absent/nil votes are omitted.
+     */
+    repeated SeiCommitSig signatures = 5;
+}
+
+/**
+ * A header together with the commit that finalizes it.
+ */
+message SeiSignedHeader {
+    SeiHeader header = 1;
+    SeiCommit commit = 2;
+}
+
+/**
+ * One CometBFT validator: Ed25519 public key and voting power.
+ */
+message SeiValidatorEntry {
+    /**
+     * 32-byte Ed25519 public key.
+     */
+    bytes ed25519_pub_key = 1;
+
+    /**
+     * Voting power; must be positive.
+     */
+    int64 voting_power = 2;
+}
+
+/**
+ * A validator set in CometBFT canonical order (descending voting power,
+ * ties broken by address). The verifier recomputes the set's simple-Merkle
+ * hash and matches it against the header's validators_hash, so the order
+ * must be exactly the chain's order.
+ */
+message SeiValidatorSet {
+    repeated SeiValidatorEntry validators = 1;
+}
+
+/**
+ * An ICS-23 existence proof for one key/value in the Sei `evm` module store.
+ * For EVM contract storage the key layout is
+ * 0x03 || 20-byte contract address || 32-byte slot (sei-chain x/evm StateKey).
+ */
+message SeiStorageProofEntry {
+    /**
+     * The full store key (53 bytes for EVM storage slots).
+     */
+    bytes key = 1;
+
+    /**
+     * The proven 32-byte slot value.
+     */
+    bytes value = 2;
+
+    /**
+     * Protobuf-serialized ics23.CommitmentProof (existence variant) from
+     * the key/value up to the `evm` store root.
+     */
+    bytes iavl_proof = 3;
+}
+
+/**
+ * A complete Sei state proof: one signed header at height H+1 plus the
+ * ICS-23 proof chain that ties storage values at height H to that header's
+ * app_hash. This is not a confirmation-depth chain. The signed header is
+ * sufficient only when its validators_hash matches the verifier's current
+ * SeiTrustAnchor.validator_set hash and the commit contains >2/3 voting power
+ * from that trusted set. Additional signed headers are needed only to advance
+ * the trust anchor across validator-set changes.
+ */
+message SeiStateProof {
+    /**
+     * The signed header whose app_hash commits the proven state. Per the
+     * app-hash lag, this is the header at (state height + 1).
+     */
+    SeiSignedHeader signed_header = 1;
+
+    /**
+     * Name of the module store the storage proofs verify against,
+     * e.g. "evm". Bytes because store keys are not required to be UTF-8.
+     */
+    bytes store_key = 2;
+
+    /**
+     * Protobuf-serialized ics23.CommitmentProof (existence variant) proving
+     * (store_key -> store root) up to the header's app_hash — the
+     * "ics23:simple" multistore layer.
+     */
+    bytes multistore_proof = 3;
+
+    /**
+     * The storage-slot proofs, each verifying against the store root proven
+     * by multistore_proof.
+     */
+    repeated SeiStorageProofEntry storage_proofs = 4;
+}
+
+/**
+ * The self-describing trust anchor for a Sei channel: everything needed to
+ * authenticate the next signed header without external state. Carried in
+ * ClprLedgerConfiguration.initial_trust_anchor (set by the verifier after
+ * proving the configuration) and in Channel.trust_anchor thereafter.
+ * Rotated via ClprSeiBundlePayload.prior_validator_set_updates and
+ * ClprSeiBundlePayload.next_validator_set when the chain's validator set
+ * changes. The verifier must not accept a header signed by an arbitrary
+ * payload-provided validator set; the header's validators_hash must match this
+ * anchor before its commit signatures are trusted.
+ *
+ * <p>The opaque trust-anchor id stored alongside this anchor
+ * (ClprLedgerConfiguration.initial_trust_anchor_id / Channel.trust_anchor_id)
+ * is the 40-byte concatenation {@code validator_set_hash (32) || height (8, big-endian)},
+ * where validator_set_hash is the simple-Merkle hash of validator_set and height is
+ * the field below.
+ */
+message SeiTrustAnchor {
+    /**
+     * The chain this anchor authenticates, e.g. "atlantic-2".
+     */
+    string chain_id = 1;
+
+    /**
+     * The latest known height this validator set can verify: the initial
+     * validator-set height for a bootstrap anchor, or one past the height of
+     * the signed header that rotated to this set (rotating-header height + 1).
+     * Later proofs must not be older than this height, and it is the height
+     * component of the trust-anchor id.
+     */
+    int64 height = 2;
+
+    /**
+     * The trusted validator set. A signed header verifies against this
+     * anchor when its validators_hash equals this set's hash and >2/3 of
+     * this set's power signed the commit.
+     */
+    SeiValidatorSet validator_set = 3;
+
+    /**
+     * 20-byte EVM address of the CLPR service contract on the Sei ledger.
+     * Storage-proof keys must target this contract.
+     */
+    bytes service_address = 4;
+}
+
+/**
+ * Sei-specific wire payload returned by getLedgerConfiguration on Sei
+ * endpoints — the CometBFT analog of ClprQbftLedgerConfigurationPayload.
+ * Wraps the platform-neutral ClprLedgerConfiguration with the validator set
+ * a peer's Sei verifier uses to derive the initial trust anchor.
+ *
+ * verifyConfig does not prove this configuration. It parses the payload,
+ * validates the carried structure, and derives an initial SeiTrustAnchor from
+ * the supplied validator set plus the service address from the configuration.
+ */
+message ClprSeiLedgerConfigurationPayload {
+    /**
+     * The CometBFT validator set the peer's Sei verifier uses to seed the
+     * initial trust anchor for this channel
+     * (SeiTrustAnchor.validator_set).
+     */
+    SeiValidatorSet initial_validator_set = 1;
+
+    /**
+     * The positive latest known height that initial_validator_set can verify. Becomes
+     * SeiTrustAnchor.height and the height component of the initial
+     * trust-anchor id: hash(initial_validator_set) || initial_validator_set_height.
+     */
+    int64 initial_validator_set_height = 2;
+
+    /**
+     * The platform-neutral CLPR configuration advertised by the source ledger.
+     */
+    ClprLedgerConfiguration ledger_configuration = 3;
+}
+
+/**
+ * One validator-set rotation in a chain of rotations that advances the trust
+ * anchor. The signed header proves, against the currently trusted validator
+ * set, that the chain's validator set for the next height is next_validator_set
+ * (whose hash must equal signed_header.header.next_validators_hash). Applying it
+ * advances the trust anchor to next_validator_set at height
+ * signed_header.header.height + 1.
+ */
+message SeiValidatorSetUpdate {
+    /**
+     * The signed header proving this rotation. Its validators_hash must match
+     * the currently trusted set and its commit must carry >2/3 of that set's
+     * voting power. No storage/state proofs are attached — a rotation only
+     * advances the trust anchor.
+     */
+    SeiSignedHeader signed_header = 1;
+
+    /**
+     * The validator set this rotation moves to. Its simple-Merkle hash must
+     * equal signed_header.header.next_validators_hash.
+     */
+    SeiValidatorSet next_validator_set = 2;
+}
+
+/**
+ * Sei-specific bundle payload: the CometBFT analog of the QBFT RLP bundle
+ * payload. Proves the peer's queue-metadata slots and carries the bundle
+ * content verbatim.
+ *
+ * <p>Processing order:
+ * <ol>
+ *   <li>apply every prior_validator_set_updates entry in order, advancing the
+ *       trust anchor to the latest set the payload can prove;</li>
+ *   <li>verify state_proof (bundle content) against that latest set — if present;</li>
+ *   <li>apply the current rotation from state_proof's signed header when it
+ *       announces a validator-set change and next_validator_set is set.</li>
+ * </ol>
+ *
+ * <p>A trust-update-only bundle carries only prior_validator_set_updates, with
+ * state_proof, bundle_content and next_validator_set all absent — used when the
+ * verifier is so far behind that no single bundle can both catch up the trust
+ * anchor and prove the current content.
+ */
+message ClprSeiBundlePayload {
+    /**
+     * Signed header + ICS-23 proofs for the queue-metadata storage slots.
+     * Message-bearing bundles carry the last-message running hash plus the
+     * four Channel-struct slots; empty-message bundles carry only the four
+     * Channel-struct slots.
+     * Absent in a trust-update-only bundle.
+     */
+    SeiStateProof state_proof = 1;
+
+    /**
+     * Verbatim protobuf-serialized ClprBundleContent bytes. Absent in a
+     * trust-update-only bundle.
+     */
+    bytes bundle_content = 2;
+
+    /**
+     * Current-rotation evidence: the validator set whose hash equals the
+     * state_proof signed header's next_validators_hash. When present, the
+     * verifier emits a new trust anchor built from this set. This field must be
+     * present whenever the state_proof signed header's next_validators_hash
+     * differs from the (post prior_validator_set_updates) trust anchor's
+     * validator set hash. It is absent when the set is unchanged or in a
+     * trust-update-only bundle.
+     */
+    SeiValidatorSet next_validator_set = 3;
+
+    /**
+     * A chain of validator-set updates, starting at the current trust anchor,
+     * applied before verifying the bundle content. Each entry's signed header
+     * is verified against the running trust anchor and then advances it. Empty
+     * when the current trust anchor already covers state_proof's height. A
+     * bundle may carry at most 10 updates.
+     */
+    repeated SeiValidatorSetUpdate prior_validator_set_updates = 4;
+
+    /**
+     * Optional endpoint-manifest proof (spec §4.2 Step 1b), the CometBFT analog
+     * of the QBFT bundle's slot-18 manifest proof. An ICS-23 existence proof of
+     * the _endpointManifest.commitment slot (top-level slot 18) in the same `evm`
+     * store, at the same height, and verifying against the same
+     * state_proof.multistore_proof / signed header as the queue-metadata slots.
+     * Present only when the local manifest version is strictly ahead of the
+     * version the peer reports holding (otherwise the peer would silently skip a
+     * re-sent manifest). Kept out of state_proof.storage_proofs so the fixed,
+     * positional queue-metadata slot list is unaffected.
+     */
+    SeiStorageProofEntry manifest_storage_proof = 5;
+
+    /**
+     * The protobuf-serialized ClprEndpointManifest preimage bound by the manifest
+     * proof: the verifier checks keccak256(endpoint_manifest) equals the proven
+     * slot-18 commitment value. Present iff manifest_storage_proof is present.
+     */
+    bytes endpoint_manifest = 6;
+}

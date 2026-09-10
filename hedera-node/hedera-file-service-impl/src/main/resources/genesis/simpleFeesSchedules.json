@@ -788,6 +788,62 @@
           "extras": []
         }
       ]
+    },
+    {
+      "name": "Clpr",
+      "schedule": [
+        {
+          "name": "ClprUpdateLedgerConfiguration",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCloseChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprSubmitBundle",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRedactMessage",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprDeregisterConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprEndpointPublication",
+          "baseFee": 0,
+          "extras": [],
+          "nodeNetworkFeeExempt": true
+        }
+      ]
     }
   ]
 }

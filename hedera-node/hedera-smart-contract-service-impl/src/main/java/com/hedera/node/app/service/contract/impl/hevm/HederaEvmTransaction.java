@@ -34,8 +34,45 @@ public record HederaEvmTransaction(
         @Nullable List<AccessListItem> accessLists,
         @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
-        @Nullable HookDispatchTransactionBody hookDispatch) {
+        @Nullable HookDispatchTransactionBody hookDispatch,
+        @Nullable Address senderAddress,
+        boolean clprDispatch) {
     public static final long NOT_APPLICABLE = -1L;
+
+    public HederaEvmTransaction(
+            @NonNull final AccountID senderId,
+            @Nullable final AccountID relayerId,
+            @Nullable final ContractID contractId,
+            final long nonce,
+            @NonNull final Bytes payload,
+            @Nullable final Bytes chainId,
+            final long value,
+            final long gasLimit,
+            final long offeredGasPrice,
+            final long maxGasAllowance,
+            @Nullable final ContractCreateTransactionBody hapiCreation,
+            @Nullable final HandleException exception,
+            @Nullable final HookDispatchTransactionBody hookDispatch,
+            final boolean clprDispatch) {
+        this(
+                senderId,
+                relayerId,
+                contractId,
+                nonce,
+                payload,
+                chainId,
+                value,
+                gasLimit,
+                offeredGasPrice,
+                maxGasAllowance,
+                hapiCreation,
+                null,
+                null,
+                exception,
+                hookDispatch,
+                null,
+                clprDispatch);
+    }
 
     public boolean hasExpectedNonce() {
         return nonce != NOT_APPLICABLE;
@@ -63,6 +100,10 @@ public record HederaEvmTransaction(
 
     public boolean isHookExecution() {
         return hookDispatch != null;
+    }
+
+    public boolean isClprDispatch() {
+        return clprDispatch;
     }
 
     public boolean isContractCall() {
@@ -142,7 +183,9 @@ public record HederaEvmTransaction(
                 this.accessLists,
                 this.codeDelegations,
                 exception,
-                this.hookDispatch);
+                this.hookDispatch,
+                this.senderAddress,
+                this.clprDispatch);
     }
 
     /**

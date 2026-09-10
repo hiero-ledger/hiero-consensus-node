@@ -97,6 +97,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -349,6 +350,16 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 accountsConfig.feeCollectionAccount());
+        // Create CLPR staking account
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR staking account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(systemAutoRenewPeriod)
+                                .build())
+                        .build(),
+                clprConfig.stakingAccount());
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())

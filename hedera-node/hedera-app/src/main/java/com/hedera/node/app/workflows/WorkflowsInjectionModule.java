@@ -7,6 +7,7 @@ import com.hedera.node.app.annotations.LiveConsensusNode;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflowInjectionModule;
 import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
 import com.hedera.node.app.workflows.ingest.IngestWorkflowInjectionModule;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflowInjectionModule;
@@ -26,6 +27,7 @@ import javax.inject.Singleton;
  */
 @Module(
         includes = {
+            ClprSyncWorkflowInjectionModule.class,
             HandleWorkflowModule.class,
             IngestWorkflowInjectionModule.class,
             PreHandleWorkflowInjectionModule.class,

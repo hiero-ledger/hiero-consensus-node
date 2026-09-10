@@ -95,6 +95,7 @@ import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -123,6 +124,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -230,6 +232,11 @@ class HandleWorkflowTest {
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
+    private ClprEndpointManifestReconciler clprEndpointManifestReconciler;
+
+    private final AtomicInteger clprEndpointManifestReconcilerProviderCalls = new AtomicInteger();
+
+    @Mock
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
@@ -281,6 +288,7 @@ class HandleWorkflowTest {
 
     @BeforeEach
     void setUp() {
+        clprEndpointManifestReconcilerProviderCalls.set(0);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
         lenient()
@@ -380,6 +388,24 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("clpr.enabled", "false", "clpr.endpointManifestEnabled", "true"));
+
+        for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
+            final var method =
+                    HandleWorkflow.class.getDeclaredMethod(methodName, com.swirlds.state.State.class, Instant.class);
+            method.setAccessible(true);
+            method.invoke(subject, state, NOW);
+        }
+
+        assertEquals(0, clprEndpointManifestReconcilerProviderCalls.get());
     }
 
     @Test
@@ -724,6 +750,10 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                () -> {
+                    clprEndpointManifestReconcilerProviderCalls.incrementAndGet();
+                    return clprEndpointManifestReconciler;
+                },
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,

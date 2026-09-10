@@ -10,6 +10,13 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
+import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
@@ -58,7 +65,14 @@ class WritableStoreFactoryImplTest {
                 arguments(TokenService.NAME, WritableTokenRelationStore.class),
                 arguments(FreezeService.NAME, WritableFreezeStore.class),
                 arguments(AddressBookService.NAME, WritableNodeStore.class),
-                arguments(FileService.NAME, WritableFileStore.class));
+                arguments(FileService.NAME, WritableFileStore.class),
+                // clpr-related stores
+                arguments(ClprService.NAME, WritableLedgerConfigurationStore.class),
+                arguments(ClprService.NAME, WritableChannelStore.class),
+                arguments(ClprService.NAME, WritablePendingCommitmentStore.class),
+                arguments(ClprService.NAME, WritablePendingConnectorCommitmentStore.class),
+                arguments(ClprService.NAME, WritableMessageQueueStore.class),
+                arguments(ClprService.NAME, WritableConnectorStore.class));
     }
 
     @BeforeEach

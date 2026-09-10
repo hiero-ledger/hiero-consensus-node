@@ -379,7 +379,7 @@ of the FCM root hash to the order of `get()` and 'put()' calls made within
 a single `handleTransaction()`, since the order that expiration events with
 the same consensus time appear in a rebuilt `payerRecordExpiries` may _not_
 be the same as the order they appear in a constantly maintained queue.
-(C.f. [Platform #3655](https://github.com/swirlds/swirlds-platform/issues/3655).)
+(C.f. historical Platform issue #3655.)
 
 ## The `shortLivedEntityExpiries` priority queue
 

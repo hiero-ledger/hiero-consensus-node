@@ -13,12 +13,15 @@ mainModuleInfo {
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
     runtimeOnly("org.hiero.consensus.pcli")
+    runtimeOnly("com.sun.jna")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
+    runtimeOnly("org.hyperledger.besu.nativelib.secp256k1")
 
+    // Loaded reflectively at runtime; not referenced from compiled code
     // This is needed to pick up and include the native libraries for the netty epoll transport
 }
 
@@ -35,12 +38,12 @@ testModuleInfo {
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.state.test.fixtures")
+    requires("awaitility")
     requires("com.esaulpaugh.headlong")
     requires("com.fasterxml.jackson.databind")
     requires("com.google.common.jimfs")
     requires("com.google.protobuf")
     requires("org.assertj.core")
-    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
@@ -136,6 +139,7 @@ val copyNodeData =
         into("data/apps") { from(copyApp) }
         into("data/onboard") { from(layout.projectDirectory.dir("../data/onboard")) }
         into("data/keys") { from(layout.projectDirectory.dir("../data/keys")) }
+        into("data/clpr") { from(layout.projectDirectory.dir("../configuration/dev/keys/")) }
 
         // Copy hedera-node/configuration/dev as hedera-node/hedera-app/build/node/data/config  }
         from(layout.projectDirectory.dir("../configuration/dev")) { into("data/config") }

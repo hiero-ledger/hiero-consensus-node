@@ -1,0 +1,48 @@
+/**
+ * # CLPR Endpoint Publication Transaction
+ *
+ * A node publishes its own {@code ClprEndpoint} entry (IP, port, DER-encoded TLS certificate)
+ * into consensus state via this transaction so the {@code ClprEndpointManifest} singleton can
+ * be assembled from the consensus-ordered set of publications during a manifest construction.
+ * See {@code dev-context/clpr-endpoint-self-publication-design.md} for the full design.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.services.auxiliary.clpr.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.clpr">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * A transaction body by which a consensus node self-publishes its CLPR endpoint into state
+ * during a manifest construction.
+ *
+ * <p>The publishing node's identity is taken from the platform-attributed
+ * {@code creatorInfo().nodeId()} at handle time, NOT from any field on this body — a node
+ * cannot publish on another node's behalf. The body carries the node's current CLPR endpoint;
+ * every target node MUST publish its full endpoint, since construction close does not carry
+ * entries over from the previous manifest.
+ *
+ * <p>Publications submitted while no manifest construction is in progress are silently dropped
+ * by the handler (design §6). The client's retry loop will re-attempt on subsequent rounds and
+ * the next construction (opened at the next freeze-driven restart) will absorb the retry.
+ */
+message ClprEndpointPublicationTransactionBody {
+  /**
+   * The node's current CLPR endpoint (service address, port, DER-encoded TLS certificate).
+   */
+  com.hedera.hapi.node.state.clpr.ClprEndpoint endpoint = 1;
+}

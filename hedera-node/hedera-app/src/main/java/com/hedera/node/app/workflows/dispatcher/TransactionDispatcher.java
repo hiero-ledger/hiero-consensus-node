@@ -270,6 +270,17 @@ public class TransactionDispatcher {
             case CRS_PUBLICATION -> handlers.crsPublicationHandler();
             case MIGRATION_ROOT_HASH_VOTE -> handlers.migrationRootHashVoteHandler();
 
+            case CLPR_UPDATE_LEDGER_CONFIGURATION -> handlers.clprUpdateLedgerConfigurationHandler();
+            case CLPR_REGISTER_CHANNEL -> handlers.clprRegisterChannelHandler();
+            case CLPR_COMPLETE_CHANNEL -> handlers.clprCompleteChannelHandler();
+            case CLPR_CLOSE_CHANNEL -> handlers.clprCloseChannelHandler();
+            case CLPR_SUBMIT_BUNDLE -> handlers.clprSubmitBundleHandler();
+            case CLPR_REDACT_MESSAGE -> handlers.clprRedactMessageHandler();
+            case CLPR_REGISTER_CONNECTOR -> handlers.clprRegisterConnectorHandler();
+            case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
+            case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
+            case CLPR_ENDPOINT_PUBLICATION -> handlers.clprEndpointPublicationHandler();
+
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {
                     case CONTRACT_ID -> handlers.contractSystemDeleteHandler();

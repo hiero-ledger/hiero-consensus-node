@@ -75,7 +75,9 @@ public class HevmStaticTransactionFactory {
                 null,
                 null,
                 null,
-                null);
+                null,
+                null,
+                false);
     }
 
     /**
@@ -108,7 +110,9 @@ public class HevmStaticTransactionFactory {
                 null,
                 null,
                 exception,
-                null);
+                null,
+                null,
+                false);
     }
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
