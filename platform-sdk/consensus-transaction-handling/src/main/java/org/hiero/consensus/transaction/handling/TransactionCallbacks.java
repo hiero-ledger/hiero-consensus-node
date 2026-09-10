@@ -39,6 +39,14 @@ public interface TransactionCallbacks {
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback);
 
     /**
+     * Called after the platform creates an immutable copy of the freeze state for application reads.
+     * The platform retains ownership of this state; implementations must not mutate or release it.
+     *
+     * @param state the immutable copy of the freeze state
+     */
+    default void onFreezeStateCopied(@NonNull final State state) {}
+
+    /**
      * Called by the platform after it has made all its changes to this state for the given round.
      * @param round the round whose platform state changes are completed
      * @return true if sealing this round completes a block, in effect signaling if it is safe to
