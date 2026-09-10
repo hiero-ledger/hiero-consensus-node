@@ -490,7 +490,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public StreamBuilder createRemovableChildBuilder() {
         return trackAnyEnclosingBatchInner(
-                peek().createNonBaseBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false));
+                peek().createNonBaseBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode));
     }
 
     /**
@@ -500,7 +500,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public StreamBuilder createReversibleChildBuilder() {
         return trackAnyEnclosingBatchInner(
-                peek().createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false));
+                peek().createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode));
     }
 
     /**
@@ -510,7 +510,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
         return trackAnyEnclosingBatchInner(
-                peek().createNonBaseBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false));
+                peek().createNonBaseBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode));
     }
 
     /**
