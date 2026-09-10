@@ -50,7 +50,15 @@ public class FileDeleteSuite {
 
     @HapiTest
     final Stream<DynamicTest> handleRejectsMissingFile() {
-        return hapiTest(fileDelete("1.2.3").signedBy(GENESIS).hasKnownStatus(ResponseCodeEnum.INVALID_FILE_ID));
+        return hapiTest(fileDelete("1.2.3000").signedBy(GENESIS).hasKnownStatus(ResponseCodeEnum.INVALID_FILE_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> systemRangeFileDeleteRejectedAtIngest() {
+        // A file number inside the system-reserved range that is not a system file cannot be deleted;
+        // the attempt is rejected at ingest.
+        return hapiTest(
+                fileDelete("0.0.3").signedBy(GENESIS).hasPrecheckFrom(ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE));
     }
 
     @HapiTest
