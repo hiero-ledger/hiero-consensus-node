@@ -27,6 +27,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -78,13 +79,21 @@ import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 class DispatchProcessorTest {
@@ -438,6 +447,102 @@ class DispatchProcessorTest {
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
         assertFinished();
+    }
+
+    @Test
+    void failedDispatchCommitsTheRolledBackStackSoReceiptMatchesState() {
+        // A handler that mutates state and then fails must not leave that state committed alongside a
+        // non-SUCCESS receipt: the stack is rolled back BEFORE processDispatch commits it, so the commit
+        // publishes an empty (business-logic-free) stack that is consistent with the failing receipt.
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization();
+        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        final var inOrder = inOrder(stack);
+        inOrder.verify(stack).rollbackFullStack();
+        inOrder.verify(stack).commitFullStack();
+    }
+
+    /**
+     * A throw from any recovery or pre-commit step must escape processDispatch so the trailing
+     * commitFullStack() is never reached: no state is ever committed alongside the failing receipt. This
+     * exhausts the reachable exception surface of the recovery path — which declares no checked
+     * exceptions, so every possible throw is an unchecked RuntimeException — across the steps that run
+     * from the start of stack rollback through the last statement before the commit. The escape is
+     * deterministic across nodes (same input, same throw), so it is a node-halting error, not a
+     * cross-node state divergence.
+     */
+    @ParameterizedTest(name = "{0} throwing {1} commits no state")
+    @MethodSource("recoveryStepExceptionMatrix")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    void noStateIsCommittedWhenAnyRecoveryStepThrows(final RecoveryStep step, final RuntimeException thrown) {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization();
+        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+        switch (step) {
+            case ROLLBACK_FULL_STACK -> doThrow(thrown).when(stack).rollbackFullStack();
+            case REVERSE_ACCUMULATED_NODE_FEES ->
+                doThrow(thrown).when(feeAccumulator).reverseAccumulatedNodeFees();
+            case RESET_REFUNDABLE_FEES -> doThrow(thrown).when(feeAccumulator).resetRefundableFees();
+            case FINALIZE_AND_SAVE_USAGE ->
+                doThrow(thrown).when(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
+            case FINALIZE_RECORD -> doThrow(thrown).when(recordFinalizer).finalizeRecord(dispatch);
+        }
+
+        assertThatThrownBy(() -> subject.processDispatch(dispatch)).isSameAs(thrown);
+
+        verify(stack, never()).commitFullStack();
+    }
+
+    private enum RecoveryStep {
+        ROLLBACK_FULL_STACK,
+        REVERSE_ACCUMULATED_NODE_FEES,
+        RESET_REFUNDABLE_FEES,
+        FINALIZE_AND_SAVE_USAGE,
+        FINALIZE_RECORD
+    }
+
+    static Stream<Arguments> recoveryStepExceptionMatrix() {
+        // Only unchecked types: the recovery path declares no checked exceptions, and Mockito cannot stub
+        // one that a method does not declare — so these exhaust the reachable exception surface.
+        final List<Supplier<RuntimeException>> exceptions = List.of(
+                () -> new RuntimeException("injected"),
+                () -> new IllegalStateException("injected"),
+                () -> new IllegalArgumentException("injected"),
+                () -> new ArithmeticException("injected"),
+                () -> new NullPointerException("injected"),
+                () -> new ClassCastException("injected"));
+        return Arrays.stream(RecoveryStep.values())
+                .flatMap(step -> exceptions.stream().map(ex -> Arguments.of(step, ex.get())));
     }
 
     @Test
