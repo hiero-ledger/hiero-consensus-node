@@ -872,6 +872,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         return new InterruptRememberingThread(() -> {
             startLatch.countDown();
             try {
+                System.err.println("SAVE START");
                 dataSource.saveRecords(
                         1000,
                         2000,
@@ -881,11 +882,12 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                                             + c
                                             + " in "
                                             + Thread.currentThread().getName());
-                                    sleepUnchecked(50L);
+                                    sleepUnchecked(200L);
                                 }),
                         Stream.empty(),
                         Stream.empty(),
                         false);
+                System.err.println("SAVE DONE");
             } catch (final IOException impossible) {
                 /* We don't throw this */
             }
@@ -904,6 +906,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         public void interrupt() {
             System.out.println(
                     this.getName() + " interrupted (that makes " + numInterrupts.incrementAndGet() + " times)");
+            Thread.dumpStack();
             super.interrupt();
         }
 

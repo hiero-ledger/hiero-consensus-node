@@ -103,6 +103,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /** The name to use for the files prefix on disk */
     private final String storeName;
 
+    /** Fork-join pool for HDHM.endWriting() */
+    private final ForkJoinPool flushPool;
+
     /** Bucket pool used by this HDHM */
     private final ReusableBucketPool bucketPool;
     /** Store for session data during a writing transaction */
@@ -116,9 +119,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private Thread writingThread;
 
-    /** Fork-join pool for HDHM.endWriting() */
-    private static volatile ForkJoinPool SHARED_FLUSHING_POOL = null;
-
     /**
      * This method is invoked from a non-static method and uses the provided configuration.
      * Consequently, the flushing pool will be initialized using the configuration provided
@@ -127,18 +127,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * </br>
      * FUTURE WORK: it can be moved to MerkleDb.
      */
-    private static void initFlushingPool(final @NonNull MerkleDbConfig config) {
-        ForkJoinPool pool = SHARED_FLUSHING_POOL;
-        if (pool == null) {
-            synchronized (HalfDiskHashMap.class) {
-                pool = SHARED_FLUSHING_POOL;
-                if (pool == null) {
-                    final int flushThreadCount = config.getNumHalfDiskHashMapFlushThreads();
-                    pool = new ForkJoinPool(flushThreadCount);
-                    SHARED_FLUSHING_POOL = pool;
-                }
-            }
-        }
+    private static ForkJoinPool initFlushingPool(final @NonNull MerkleDbConfig config) {
+        final int flushThreadCount = config.getNumHalfDiskHashMapFlushThreads();
+        return new ForkJoinPool(flushThreadCount);
     }
 
     /**
@@ -171,8 +162,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
             throws IOException {
+        this(config, initFlushingPool(config), fileSystemManager, initialCapacity, storeDir, storeName, legacyStoreName, preferDiskBasedIndex);
+    }
+
+    public HalfDiskHashMap(
+            final @NonNull MerkleDbConfig config,
+            final @NonNull ForkJoinPool flushPool,
+            final @NonNull FileSystemManager fileSystemManager,
+            final long initialCapacity,
+            final @NonNull Path storeDir,
+            final String storeName,
+            final String legacyStoreName,
+            final boolean preferDiskBasedIndex)
+            throws IOException {
         requireNonNull(config);
-        initFlushingPool(config);
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -185,6 +188,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         this.storeDir = requireNonNull(storeDir);
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
+        this.flushPool = requireNonNull(flushPool);
         // create bucket pool
         this.bucketPool = new ReusableBucketPool(Bucket::new);
         // load or create new
@@ -530,7 +534,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                final ForkJoinPool pool = SHARED_FLUSHING_POOL;
+                final ForkJoinPool pool = flushPool;
                 final AbstractTask notifyTask = new NotifyTask(pool, size);
                 final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
                 submitTask.send();
