@@ -16,11 +16,13 @@ DEADLINE=120
 FAILURES=0
 CURL="curl -sS --connect-timeout 3 -m 10"
 
-# 10s of slack for the log-timestamp-fidelity check below - clock skew
-# between containers, not test flakiness. A regression back to Loki's
-# default ingestion-time stamping would be off by however long the poll
-# loop took (seconds to minutes), far outside this.
-TIMESTAMP_TOLERANCE_NS=10000000000
+# 5s of slack for the log-timestamp-fidelity check below - clock skew
+# between containers, not test flakiness. The fixture line this compares
+# against is backdated 5 minutes (test/docker-compose.test.yml), so a
+# regression back to Loki's default ingestion-time stamping - which would
+# land within a few seconds of "now", not 5 minutes behind it - is caught
+# with room to spare either way.
+TIMESTAMP_TOLERANCE_NS=5000000000
 
 # ---------------------------------------------------------------------------
 
@@ -53,6 +55,22 @@ q_loki() {
 	$CURL -G "$LOKI/loki/api/v1/query_range" \
 		--data-urlencode "query=$1" \
 		--data-urlencode "since=1h" \
+		--data-urlencode "limit=20" \
+		--data-urlencode "direction=backward"
+}
+
+# Same as q_loki but with an explicit [start,end] (nanosecond epoch) instead
+# of "since=1h" - used to reach further back than q_loki's window, to prove
+# an old fixture entry is queryable once its chunk has flushed (see
+# assert_old_entry_queryable).
+q_loki_range() {
+	_start_ns=$1
+	_end_ns=$2
+	# shellcheck disable=SC2086
+	$CURL -G "$LOKI/loki/api/v1/query_range" \
+		--data-urlencode "query=$3" \
+		--data-urlencode "start=$_start_ns" \
+		--data-urlencode "end=$_end_ns" \
 		--data-urlencode "limit=20" \
 		--data-urlencode "direction=backward"
 }
@@ -143,6 +161,40 @@ assert_log_timestamp() {
 	FAILURES=$((FAILURES + 1))
 }
 
+# Proves services/logs/loki-config.yml's lowered ingester.chunk_idle_period
+# works: the fixture's "selftest historical-check" line
+# (test/docker-compose.test.yml) is timestamped ~49h in the past, in its own
+# stream that stops receiving writes immediately (a stand-in for a small,
+# already-finished historical import). A stream's chunk only becomes
+# queryable from an old time range once it flushes out of the ingester's
+# memory into the filesystem store - with chunk_idle_period left at Loki's
+# 30m default, this assertion would only pass after that delay; lowered to
+# 1m, DEADLINE below (120s) comfortably covers the wait.
+assert_old_entry_queryable() {
+	_desc='an entry timestamped ~49h in the past becomes queryable once its chunk flushes (ingester.chunk_idle_period)'
+	_query='{log_name="historical-check"}'
+	_now_ns=$(($(date +%s) * 1000000000))
+	_start_ns=$((_now_ns - 180000000000000))
+	_end=$(($(date +%s) + DEADLINE))
+	_body=""
+	while :; do
+		_body=$(q_loki_range "$_start_ns" "$_now_ns" "$_query" 2>/dev/null)
+		if non_empty "$_body"; then
+			printf 'PASS  %s\n' "$_desc"
+			return 0
+		fi
+		if [ "$(date +%s)" -ge "$_end" ]; then
+			break
+		fi
+		sleep 3
+	done
+	printf 'FAIL  %s\n' "$_desc"
+	printf '      query: %s\n' "$_query"
+	printf '      range: [%s, %s]\n' "$_start_ns" "$_now_ns"
+	printf '      body: %s\n' "$(printf '%s' "$_body" | head -c 600)"
+	FAILURES=$((FAILURES + 1))
+}
+
 # ---------------------------------------------------------------------------
 
 printf '\n=== observability-stack selftest ===\n\n'
@@ -201,6 +253,17 @@ assert 'a stack trace is grouped into a single multi-line entry' \
 # config.alloy's stage.regex/stage.timestamp addition works: it fails loudly
 # if the pipeline ever regresses to stamping entries with ingestion time.
 assert_log_timestamp
+
+assert_old_entry_queryable
+
+# scripts/import-logs.sh ran against selftest-import-src before this script
+# started (see test.mk), with an explicit import_check label and the same
+# selftest.log basename as selftest-log-writer's fixture above. Selecting on
+# that label - not just log_name - proves the import landed as its own
+# stream rather than colliding with (or being rejected behind) the live
+# fixture's identically-named stream.
+assert 'import-logs.sh landed its entries under their own explicit label' \
+	loki '{log_name="selftest", import_check="1"} |= "selftest import-check"' ''
 
 # --- dashboards (issue 3) ----------------------------------------------
 

@@ -57,6 +57,36 @@ limits_config:
   per_stream_rate_limit: 1024MB
   per_stream_rate_limit_burst: 2048MB
 
+ingester:
+  # Separate from reject_old_samples above: within a single stream, Loki only
+  # accepts an out-of-order write if its timestamp is no more than half of
+  # max_chunk_age behind the highest timestamp already seen in that stream
+  # (pkg/ingester/stream.go) - the default max_chunk_age (2h) is a 1h window.
+  # A fresh, never-before-tailed file never needs more than that (Alloy reads
+  # it top to bottom, so timestamps only ever increase); this only matters if
+  # two files land in the *same* stream, which means the same log_name and
+  # the same LOG_LABELS - see README's "same basename" note and
+  # scripts/import-logs.sh, the documented way to avoid that collision with
+  # an explicit label. Raised here (not disabled - there is no way to disable
+  # it) purely as a cheap safety net for the case someone hits that collision
+  # anyway: 24h gives a 12h window instead of 1h, still bounded, at the cost
+  # of a stream's active chunk staying in memory that much longer before a
+  # forced flush.
+  max_chunk_age: 24h
+
+  # A stream only becomes queryable from an old time range once its chunk is
+  # flushed out of the ingester's memory into the filesystem store (verified
+  # empirically against this pinned Loki version - a query for an old range
+  # returns nothing until that flush happens, no matter how the query itself
+  # is shaped). Loki's 30m default chunk_idle_period means a small,
+  # already-finished historical import - which stops receiving writes the
+  # moment the import ends - can sit invisible for up to that long. Lowered
+  # to 1m: harmless for an actively-tailed stream (still-running processes
+  # write far more often than once a minute, so they never go idle long
+  # enough to trigger it), but turns "wait 30 minutes" into "wait about a
+  # minute" for the case this stack exists for.
+  chunk_idle_period: 1m
+
 compactor:
   working_directory: /loki/compactor
   retention_enabled: true
