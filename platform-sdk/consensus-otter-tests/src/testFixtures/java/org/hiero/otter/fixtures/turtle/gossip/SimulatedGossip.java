@@ -103,6 +103,14 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NodeId getNodeId() {
+        return selfId;
+    }
+
     private void forwardEvent(@NonNull final PlatformEvent event) {
         if (intakeEventCounter != null) {
             intakeEventCounter.eventEnteredIntakePipeline(event.getSenderId());
