@@ -13,13 +13,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNNECESSARY;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.DuplicateStatus.NO_DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.ServiceFeeStatus.UNABLE_TO_PAY_SERVICE_FEE;
@@ -29,6 +33,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -56,6 +61,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -214,6 +220,58 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
         assertFinished(IsRootStack.NO);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    void batchInnerIngestDecidableDueDiligenceChargesCreator() {
+        final var feeCharging = mock(FeeCharging.class);
+        final var chargeContext = mock(FeeCharging.Context.class);
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeChargingOrElse(any())).willReturn(feeCharging);
+        given(feeCharging.customized(dispatch)).willReturn(chargeContext);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_ACCOUNT_AMOUNTS));
+        final var creatorInfo = mock(NodeInfo.class);
+        given(dispatch.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(dispatch.category()).willReturn(BATCH_INNER);
+
+        subject.processDispatch(dispatch);
+
+        // Ingest-decidable inner due-diligence failure -> the node is charged its network fee, routed through the
+        // recorded fee-charging context so the charge survives the batch's rollback-and-replay (#26615).
+        verify(chargeContext).charge(CREATOR_ACCOUNT_ID, new Fees(0, FEES.networkFee(), 0), null);
+        verify(recordBuilder).status(INVALID_ACCOUNT_AMOUNTS);
+        assertFinished(IsRootStack.NO);
+    }
+
+    @Test
+    void batchInnerStateDependentDueDiligenceDoesNotChargeCreator() {
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, PAYER_ACCOUNT_DELETED));
+        given(dispatch.category()).willReturn(BATCH_INNER);
+
+        subject.processDispatch(dispatch);
+
+        // State-dependent inner failure the node could not foresee -> the node is NOT charged (#26615).
+        verify(feeAccumulator, never()).chargeFee(any(), anyLong(), any());
+        verify(recordBuilder).status(PAYER_ACCOUNT_DELETED);
+        assertFinished(IsRootStack.NO);
+    }
+
+    @Test
+    void batchInnerInsufficientPayerBalanceDoesNotChargeCreator() {
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_PAYER_BALANCE));
+        given(dispatch.category()).willReturn(BATCH_INNER);
+
+        subject.processDispatch(dispatch);
+
+        // A balance shortfall is state-dependent (the payer can be drained after ingest, even by an earlier inner
+        // in the same batch), so the node is NOT charged. See #26615.
+        verify(feeAccumulator, never()).chargeFee(any(), anyLong(), any());
+        verify(recordBuilder).status(INSUFFICIENT_PAYER_BALANCE);
+        assertFinished(IsRootStack.NO);
     }
 
     @Test
