@@ -898,7 +898,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             InterruptedException snapshotInterrupted = null;
             try {
                 final int threadsPerLongList = merkleDbConfig.longListWriteThreads();
-                // Number of LongLists written concurrently, used to size the shared writer pool.
+                // LongLists sharing the writer pool: pathToDiskLocationLeafNodes, idToDiskLocationHashChunks,
+                // and keyToPath's bucketIndexToBucketLocation.
                 final int longListCount = 3;
                 try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
                         threadsPerLongList * longListCount,
