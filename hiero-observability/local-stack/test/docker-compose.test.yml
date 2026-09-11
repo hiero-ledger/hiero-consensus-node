@@ -10,6 +10,12 @@ volumes:
   # LOGS_DIR points at this during a selftest, so the fixture never writes
   # into anyone's working tree.
   selftest-logs:
+  # IMPORT_LOGS_DIR points at this for the log-importer selftest run (see
+  # test.mk) - a separate volume from selftest-logs, on purpose: it lets the
+  # import fixture reuse the *same basename* (selftest.log) as the live
+  # tailer's fixture without actually colliding on disk, which is exactly
+  # the scenario scripts/import-logs.sh's explicit labels exist to resolve.
+  selftest-import-src:
 
 services:
   selftest-metrics:
@@ -33,7 +39,28 @@ services:
       - -c
       - |
         set -e
-        T=$$(date '+%Y-%m-%d %H:%M:%S')
+        # One `date` call for both fields, so they describe the same instant
+        # (no race across a second boundary). TZ=UTC is pinned explicitly so
+        # the embedded timestamp matches LOG_TIMESTAMP_LOCATION=UTC
+        # regardless of what timezone this container would otherwise default
+        # to. The fixed ".000" millisecond suffix matches the shipped
+        # LOG_TIMESTAMP_FORMAT's precision without depending on busybox
+        # `date` supporting sub-second output (%N is a GNU extension).
+        #
+        # The timestamp-check line is backdated 5 minutes rather than using
+        # "now": Alloy tails this file within seconds, so a regression back
+        # to Loki's ingestion-time fallback would ALSO land close to "now",
+        # making a "now" fixture unable to tell the two apart. 5 minutes is
+        # far outside assert.sh's tolerance either way, and safely inside
+        # its 1h query window (q_loki's since=1h) so the entry is never
+        # missed by the query itself.
+        NOW=$$(date +%s)
+        PAST=$$((NOW - 300))
+        set -- $$(TZ=UTC date '+%Y-%m-%d %H:%M:%S %s')
+        T="$$1 $$2.000"
+        set -- $$(TZ=UTC date -d "@$$PAST" '+%Y-%m-%d %H:%M:%S %s')
+        T_PAST="$$1 $$2.000"
+        EPOCH=$$PAST
         printf '%s INFO  selftest line one\n' "$$T" > /logs/selftest.log
         printf '%s INFO  selftest line two\n' "$$T" >> /logs/selftest.log
         printf '%s INFO  selftest line three\n' "$$T" >> /logs/selftest.log
@@ -41,7 +68,43 @@ services:
         printf '%s WARN  selftest line five\n' "$$T" >> /logs/selftest.log
         printf '%s ERROR selftest request failed\njava.lang.RuntimeException: selftest failure\n\tat com.example.Alpha.one(Alpha.java:11)\n\tat com.example.Beta.two(Beta.java:22)\n\tat com.example.Gamma.three(Gamma.java:33)\n' "$$T" >> /logs/selftest.log
         printf '%s INFO  selftest trailer\n' "$$T" >> /logs/selftest.log
+        printf '%s INFO  selftest timestamp-check epoch=%s\n' "$$T_PAST" "$$EPOCH" >> /logs/selftest.log
+        # A separate file/stream, on purpose: this is the very first (and
+        # only) entry ever pushed for {log_name="historical-check"}, so
+        # Loki's out-of-order-write check - which only compares against a
+        # stream's own prior high-water mark - never applies to it
+        # regardless of age (see services/logs/loki-config.yml's ingester
+        # comment). Landing it in selftest.log's already-active stream
+        # instead would hit that check and get rejected outright, which is
+        # a different failure mode than the one this fixture exists to
+        # probe. Being its own stream also means it stops receiving writes
+        # the instant this script exits - a stand-in for a small,
+        # already-finished historical import - so it's only queryable from
+        # an explicit historical range once its chunk flushes out of the
+        # ingester (see ingester.chunk_idle_period in
+        # services/logs/loki-config.yml and assert_old_entry_queryable).
+        HIST=$$((NOW - 176400))
+        set -- $$(TZ=UTC date -d "@$$HIST" '+%Y-%m-%d %H:%M:%S %s')
+        printf '%s INFO  selftest historical-check\n' "$$1 $$2.000" > /logs/historical-check.log
         exec sleep infinity
+    networks:
+      - observability
+
+  # Populates selftest-import-src with a fixture sharing selftest.log's
+  # basename, then exits - see test.mk's log-importer invocation and
+  # assert.sh's import-labels check. A one-shot `run`, not part of
+  # TEST_UNITS: nothing needs to keep tailing this file once it's written.
+  selftest-import-writer:
+    image: busybox:1.38.0
+    volumes:
+      - selftest-import-src:/logs
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        set -- $$(TZ=UTC date '+%Y-%m-%d %H:%M:%S %s')
+        printf '%s INFO  selftest import-check\n' "$$1 $$2.000" > /logs/selftest.log
     networks:
       - observability
 
