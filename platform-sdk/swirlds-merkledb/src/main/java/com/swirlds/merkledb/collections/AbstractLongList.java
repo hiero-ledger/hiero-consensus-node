@@ -557,7 +557,8 @@ public abstract class AbstractLongList<C> implements LongList {
             failure = e;
         }
         try {
-            // Finish every accepted writer, even after a failure, before the channel closes.
+            // Let accepted writes finish even if one fails, so the shared channel
+            // is not closed while another writer is still using it.
             CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
         } catch (final CompletionException e) {
             // Restore the checked IOException contract after crossing the CompletableFuture boundary.
