@@ -17,9 +17,10 @@ tasks.withType<JavaCompile>().configureEach {
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 jmhModuleInfo {
-    requires("jmh.core")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.api")
+    requires("jmh.core")
+
     runtimeOnly("com.swirlds.config.impl")
 }
 
@@ -27,10 +28,10 @@ testModuleInfo {
     requires("com.swirlds.logging.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
-    requires("org.apache.logging.log4j.core")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.utility")
+    requires("org.apache.logging.log4j.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
@@ -43,6 +44,7 @@ hammerModuleInfo {
     requires("org.apache.logging.log4j.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+
     runtimeOnly("com.swirlds.common.test.fixtures")
     runtimeOnly("com.swirlds.config.impl")
 }

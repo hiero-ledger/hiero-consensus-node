@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,9 +29,12 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private static final Logger log = LogManager.getLogger(VisibleItemsAssertion.class);
 
     private final HapiSpec spec;
+    private final HapiSpecRegistry registry;
     private final Set<String> allIds;
     private final VisibleItemsValidator validator;
     private final Map<String, VisibleItems> items = new ConcurrentHashMap<>();
+    // [block-assert-diag] Last unseen-id set logged, so the "waiting on" diagnostic only fires on change.
+    private List<String> lastLoggedMissing = null;
     private final boolean withLogging = true;
     private final boolean viewAll;
 
@@ -112,6 +116,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
             @NonNull final SkipSynthItems skipSynthItems,
             @NonNull final String... specTxnIds) {
         this.spec = requireNonNull(spec);
+        this.registry = requireNonNull(spec.registry());
         this.validator = validator;
         this.skipSynthItems = requireNonNull(skipSynthItems);
         allIds = Set.copyOf(List.of(specTxnIds));
@@ -149,14 +154,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         } else {
             // Re-check any previously unmatched items against the registry, since
             // transaction IDs may have been registered after those items were first seen.
-            if (!pendingItems.isEmpty() && !allIdsHaveItems) {
-                final var it = pendingItems.iterator();
-                while (it.hasNext()) {
-                    if (tryMatch(it.next())) {
-                        it.remove();
-                    }
-                }
-            }
+            sweepPendingItems();
             // Now try to match the current item.
             if (!tryMatch(item)) {
                 if (pendingItems.size() >= MAX_PENDING_ITEMS) {
@@ -174,14 +172,80 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
             validator.assertValid(spec, items);
             return false;
         }
-        // Only attempt validation once every ID has at least one collected item;
-        // use try/catch so that if items are still arriving (e.g. a preceding child
-        // and its parent were split across record-stream files), we keep waiting
-        // instead of failing immediately on incomplete data.  Once enough items
-        // have been processed without any state change, we re-throw so that a
-        // genuine validation mismatch is reported rather than silently swallowed.
+        return tryValidateNow();
+    }
+
+    /**
+     * Re-checks any items buffered pending later transaction-ID registration, then re-evaluates,
+     * independent of a new record arriving. Invoked once per delivered block (including blocks that
+     * translate to zero records) by {@link RecordStreamToBlockAssertionAdapter}. Without this, under
+     * {@code blockStream.writerMode=GRPC} the stream can go idle once a spec has submitted its
+     * transactions (subsequent blocks carry no user records, so {@link #isApplicableTo} is never
+     * called), and a buffered item whose {@code .via} id was registered just after it was first seen
+     * would never be re-matched, causing a spurious timeout.
+     *
+     * @throws AssertionError if a genuine validation mismatch has settled
+     * @return true if the assertion has now passed
+     */
+    @Override
+    public synchronized boolean recheckPending() throws AssertionError {
+        if (viewAll) {
+            return false;
+        }
+        sweepPendingItems();
+        return tryValidateNow();
+    }
+
+    /**
+     * Re-checks previously unmatched items against the registry, since transaction IDs may have been
+     * registered after those items were first seen; matched items are moved out of the pending buffer.
+     */
+    private void sweepPendingItems() {
+        if (!pendingItems.isEmpty() && !allIdsHaveItems) {
+            final var it = pendingItems.iterator();
+            while (it.hasNext()) {
+                if (tryMatch(it.next())) {
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    /**
+     * Attempts validation once every expected ID has at least one collected item. Uses try/catch so
+     * that if items are still arriving (e.g. a preceding child and its parent were split across
+     * record-stream files) we keep waiting instead of failing immediately on incomplete data. Once
+     * enough items have been processed without any state change, re-throws so a genuine validation
+     * mismatch is reported rather than silently swallowed.
+     *
+     * @return true if the assertion has now passed
+     */
+    private boolean tryValidateNow() {
         if (!allIdsHaveItems) {
             allIdsHaveItems = allIds.stream().allMatch(items::containsKey);
+        }
+        if (!allIdsHaveItems && withLogging) {
+            // [block-assert-diag] When the set of not-yet-collected ids changes, log which expected
+            // ids are still unseen and whether the spec registry can resolve them. Resolvable-but-unseen
+            // points to a stream/translation gap (the matching record never arrives); unresolvable
+            // points to a registry/wiring gap. This is the state in which the assertion times out.
+            final var missing = allIds.stream()
+                    .filter(id -> !items.containsKey(id))
+                    .sorted()
+                    .toList();
+            if (!missing.equals(lastLoggedMissing)) {
+                lastLoggedMissing = missing;
+                final var resolvable = missing.stream()
+                        .filter(id -> registry.getMaybeTxnId(id).isPresent())
+                        .sorted()
+                        .toList();
+                log.info(
+                        "[block-assert-diag] waiting on {} unseen id(s): {} (registry-resolvable of those: {}); collected: {}",
+                        missing.size(),
+                        missing,
+                        resolvable,
+                        items.keySet());
+            }
         }
         if (allIdsHaveItems) {
             // Only re-run the validator when collected state has changed since the
@@ -227,7 +291,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         final var observedId = item.getRecord().getTransactionID();
         boolean allResolvable = true;
         for (final var id : allIds) {
-            final var maybeTxnId = spec.registry().getMaybeTxnId(id);
+            final var maybeTxnId = registry.getMaybeTxnId(id);
             if (maybeTxnId.isEmpty()) {
                 allResolvable = false;
                 continue;

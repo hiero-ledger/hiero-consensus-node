@@ -86,23 +86,29 @@ public class BlockNodeNetwork {
     }
 
     /**
-     * Polls each real block node container's gRPC server status endpoint until it responds,
-     * ensuring gRPC is ready before consensus nodes start. The HTTP health check only covers
-     * port 16007; the gRPC streaming port (40840) may still be initializing.
+     * Polls each real block node container's gRPC server status endpoint until it responds, ensuring
+     * gRPC is ready before consensus nodes start. The container's own wait strategy only proves the
+     * block node logged startup; this additionally confirms its mapped gRPC port is reachable from
+     * the test JVM.
+     *
+     * <p>Readiness means "the server status RPC completed", not any property of the response. A
+     * value-based check cannot work here: the block node holds no blocks until a consensus node
+     * streams to it, and consensus nodes have not started yet, so it necessarily reports the
+     * empty/accept-any sentinel.
      */
     private void awaitGrpcReadiness(@NonNull final Duration timeout) {
         if (blockNodeContainerById.isEmpty()) {
             return;
         }
-        final long deadline = System.currentTimeMillis() + timeout.toMillis();
         for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
             final long id = entry.getKey();
             final BlockNodeContainer container = entry.getValue();
+            // Per-container budget; a deadline shared across containers leaves later ones no time.
+            final long deadline = System.currentTimeMillis() + timeout.toMillis();
             boolean ready = false;
             while (System.currentTimeMillis() < deadline) {
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    final long lastBlock = client.getLastAvailableBlock();
-                    if (lastBlock >= 0) {
+                    if (client.isServerStatusReachable()) {
                         logger.info(
                                 "Block node container {} gRPC ready at {}:{}",
                                 id,
@@ -350,6 +356,17 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
         return blockNodeModeById;
+    }
+
+    /**
+     * Returns whether this network has no usable block nodes, i.e. the mode map is empty or every configured
+     * block node is in {@link BlockNodeMode#NONE} mode.
+     *
+     * @return true if there are no usable block nodes
+     */
+    public boolean isEmpty() {
+        return blockNodeModeById.isEmpty()
+                || blockNodeModeById.values().stream().allMatch(mode -> mode == BlockNodeMode.NONE);
     }
 
     public Set<Long> nodeIds() {

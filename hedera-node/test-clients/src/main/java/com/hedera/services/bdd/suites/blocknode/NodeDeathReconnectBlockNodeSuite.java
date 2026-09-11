@@ -6,12 +6,12 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -24,8 +24,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.status.PlatformStatus;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -44,54 +42,22 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        })
+                        blockNodePriorities = {0})
             })
     @Order(1)
-    final Stream<DynamicTest> nodeDeathReconnectBothAndFileAndGrpc() {
+    final Stream<DynamicTest> nodeDeathReconnectBlocksAndGrpc() {
         return hapiTest(
                 // Validate we can initially submit transactions to node2
                 cryptoCreate("nobody").setNode("5"),
@@ -115,8 +81,6 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 assertHgcaaLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
-    // FUTURE: This scenario should be updated after the behavior changes on the BN side
-    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 2,
@@ -128,42 +92,12 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                         nodeId = 0,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "15"}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "15"}),
             })
     @Order(2)
     final Stream<DynamicTest> nodeDeathReconnectAllNodes() {
@@ -179,7 +113,17 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 // Wait for all nodes to become active
                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> time.set(Instant.now())),
+                // Drive post-restart traffic so the restarted nodes produce and stream fresh blocks
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(20)),
-                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING));
+                // The block node stays up and drains the buffer, so after the all-node restart the
+                // network stays ACTIVE (no backpressure) and streaming to the block node resumes.
+                waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(20),
+                        Duration.ofSeconds(20),
+                        "Sending request to block node (type: END_OF_BLOCK)"),
+                assertHgcaaLogDoesNotContainText(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }

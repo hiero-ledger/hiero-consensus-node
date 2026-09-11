@@ -49,6 +49,7 @@ public final class BlockRecordService implements Service {
             .firstConsTimeOfCurrentBlock(EPOCH)
             .lastUsedConsTime(EPOCH)
             .lastIntervalProcessTime(EPOCH)
+            .previewStreamOverwritten(true)
             // Voting completion should default to a no-op (i.e. complete = true) except under explicit circumstances
             .votingComplete(true)
             .votingCompletionDeadlineBlockNumber(0)

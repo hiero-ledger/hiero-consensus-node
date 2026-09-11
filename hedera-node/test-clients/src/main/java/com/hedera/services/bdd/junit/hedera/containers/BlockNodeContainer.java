@@ -29,7 +29,7 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.41.0-rc1";
+    private static final String BLOCK_NODE_VERSION = "0.42.0-rc1";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
@@ -58,17 +58,17 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
             // Transitive deps of the block-verification plugin
             Map.entry(
-                    "hedera-cryptography-wraps-3.8.1.jar",
+                    "hedera-cryptography-wraps-3.13.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.8.1/hedera-cryptography-wraps-3.8.1.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.13.0/hedera-cryptography-wraps-3.13.0.jar"),
             Map.entry(
-                    "hedera-cryptography-hints-3.8.1.jar",
+                    "hedera-cryptography-hints-3.13.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.8.1/hedera-cryptography-hints-3.8.1.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.13.0/hedera-cryptography-hints-3.13.0.jar"),
             Map.entry(
-                    "hedera-common-nativesupport-3.8.1.jar",
+                    "hedera-common-nativesupport-3.13.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/common/hedera-common-nativesupport/3.8.1/hedera-common-nativesupport-3.8.1.jar"),
+                            + "/com/hedera/common/hedera-common-nativesupport/3.13.0/hedera-common-nativesupport-3.13.0.jar"),
             Map.entry(
                     "antlr4-runtime-4.13.2.jar",
                     MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));

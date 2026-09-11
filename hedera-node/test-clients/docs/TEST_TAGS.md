@@ -26,7 +26,8 @@ balanced; for example, `hapiTestCrypto` includes only `CRYPTO`-tagged tests.
 | `WRAPS`            | `hapiTestWraps`, `hapiTestCutover`                                                | TSS `wraps` / weighted re-signing tests       |
 | `WRAPS_DOWNLOAD`   | `hapiTestWrapsDownload`                                                           | Variant of WRAPS that downloads a proving key |
 | `CUTOVER`          | `hapiTestCutover`                                                                 | TSS cutover scenarios                         |
-| `LONG_RUNNING`     | `hapiTestTimeConsuming`, `hapiTestTimeConsumingSerial`                            | Tests that take a long time                   |
+| `LONG_RUNNING`     | `hapiTestTimeConsuming`                                                           | Tests that take a long time                   |
+| `NODE_STAKING`     | `hapiTestNodeStaking`, `hapiTestNodeStakingSerial`                                | Node stake-weight-changing tests              |
 | `STATE_THROTTLING` | `hapiTestStateThrottling`                                                         | State-rate-limit tests                        |
 | `ISS`              | `hapiTestIss`                                                                     | Intentional Inconsistent State scenarios      |
 
