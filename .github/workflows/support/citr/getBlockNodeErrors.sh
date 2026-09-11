@@ -20,5 +20,9 @@ grep -v 'error_prone_annotations' > podlog_${NAMESPACE}/error_summary_blocknodes
 for i in `sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} get pods | grep 'block-node-' | awk '{print $1}'`
 do
   mkdir podlog_${NAMESPACE}/${i}_logs
-  sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} cp ${i}:${BN_LOG} podlog_${NAMESPACE}/${i}_logs
+  KUBECTL_TIMEOUT=20m sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} exec -it ${i} -- bash -c "cd ${BN_LOG}; tar cfz blocknode.log.tgz blocknode.log"
+  KUBECTL_TIMEOUT=20m sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} cp ${i}:${BN_LOG}/blocknode.log.tgz podlog_${NAMESPACE}/${i}_logs/
+  cd podlog_${NAMESPACE}/${i}_logs
+  tar xfz blocknode.log.tgz
+  cd ..
 done
