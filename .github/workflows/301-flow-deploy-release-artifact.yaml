@@ -214,7 +214,7 @@ jobs:
 
       - name: "Trigger 302: [DISP] CITR Prepare XTS"
         if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
-        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
         with:
           workflow: .github/workflows/302-disp-prepare-extended-test-suite.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
@@ -259,7 +259,7 @@ jobs:
             steps.check-integration-job.outputs.enabled == 'true' &&
             !cancelled()
           }}
-        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
         with:
           workflow: .github/workflows/303-disp-deploy-integration.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
