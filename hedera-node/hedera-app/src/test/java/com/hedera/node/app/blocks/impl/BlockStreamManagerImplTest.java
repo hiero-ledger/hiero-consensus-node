@@ -251,6 +251,7 @@ class BlockStreamManagerImplTest {
                 0,
                 StreamMode.BOTH,
                 10_000,
+                false,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
                 aWriter);
@@ -281,6 +282,7 @@ class BlockStreamManagerImplTest {
                 0,
                 StreamMode.BOTH,
                 1,
+                false,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
                 aWriter);
@@ -300,6 +302,7 @@ class BlockStreamManagerImplTest {
                 0,
                 StreamMode.BLOCKS,
                 1,
+                true,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
                 aWriter);
@@ -323,6 +326,7 @@ class BlockStreamManagerImplTest {
                 0,
                 StreamMode.BOTH,
                 0,
+                false,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
                 aWriter,
@@ -2199,7 +2203,8 @@ class BlockStreamManagerImplTest {
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
             @NonNull final BlockItemWriter... writers) {
-        givenSubjectWith(roundsPerBlock, blockPeriod, StreamMode.BOTH, 0, blockStreamInfo, platformState, writers);
+        givenSubjectWith(
+                roundsPerBlock, blockPeriod, StreamMode.BOTH, 0, false, blockStreamInfo, platformState, writers);
     }
 
     private void givenSubjectWith(
@@ -2207,19 +2212,14 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final StreamMode streamMode,
             final long maxBlockSizeBytes,
+            final boolean cutoverEnabled,
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
             @NonNull final BlockItemWriter... writers) {
         final AtomicInteger nextWriter = new AtomicInteger(0);
-        final var config = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.roundsPerBlock", roundsPerBlock)
-                .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
-                // enableCutover now defaults to true; these tests exercise normal block management rather than
-                // the cutover migration, so keep it disabled here (the dedicated cutover tests set it true).
-                .withValue("blockStream.enableCutover", false)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        given(configProvider.getConfiguration())
+                .willReturn(versionedConfigWith(
+                        roundsPerBlock, blockPeriod, streamMode, maxBlockSizeBytes, cutoverEnabled, 1L));
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
                 () -> writers[nextWriter.getAndIncrement()],
@@ -2245,7 +2245,7 @@ class BlockStreamManagerImplTest {
 
     private VersionedConfigImpl versionedConfigWith(
             @NonNull final StreamMode streamMode, final long maxBlockSizeBytes, final long version) {
-        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, version);
+        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, false, version);
     }
 
     private VersionedConfigImpl versionedConfigWith(
@@ -2253,6 +2253,7 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final StreamMode streamMode,
             final long maxBlockSizeBytes,
+            final boolean cutoverEnabled,
             final long version) {
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
@@ -2260,6 +2261,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
+                .withValue("blockStream.enableCutover", cutoverEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
     }
