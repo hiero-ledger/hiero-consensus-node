@@ -42,7 +42,6 @@ import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.CryptoGetInfoResponse.AccountInfo;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -51,33 +50,30 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Regression test for the atomic-batch staked-delete finalization bug. A reported proof-of-concept
- * showed that an atomic batch whose final inner transaction deletes a staked account with a positive
- * pending staking reward threw {@code IllegalStateException} from root staking-reward finalization,
- * which escaped every fee-charging boundary and replaced the whole batch with a zero-fee {@code
- * FAIL_INVALID} record (rolling back all inner work and all fees, for free, repeatably).
+ * Regression test for staking-reward finalization when a staked account is deleted inside an atomic
+ * batch (HIP-551). For an inner-batch delete, the deleted-account to beneficiary mapping is recorded
+ * on the child dispatch builder rather than the root builder that staking finalization consults, so
+ * without the read-side fold the redirect loop cannot resolve the beneficiary and finalization fails.
  *
- * <p>This is the inverted proof-of-concept: the same fifteen fee-bearing storage-writing contract
- * calls followed by a valid staked delete, asserting the FIXED behavior — the batch succeeds, the
- * deleted account's reward is redirected to its beneficiary, every inner record persists, and fees
- * are charged.
+ * <p>The batch runs fifteen fee-bearing crypto transfers followed by a valid staked delete, and
+ * asserts the correct behavior: the batch succeeds, the deleted account's pending reward is
+ * redirected to its beneficiary, every inner record persists, and fees are charged.
  */
 @Tag(INTEGRATION)
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 class AtomicBatchStakedDeleteRewardRedirectionTest {
-    private static final String SLOT_USER = "SlotUser";
     // A contract with a payable constructor, so the staked contract can be created holding an HBAR balance.
     private static final String PAYABLE_CONTRACT = "PayableConstructor";
     private static final String BATCH_KEY = "rewardRedirectBatchKey";
     private static final String WORK_PAYER = "rewardRedirectWorkPayer";
     private static final String OUTER_PAYER = "rewardRedirectOuterPayer";
-    private static final String STAKED_ATTACKER = "rewardRedirectStakedAttacker";
+    private static final String STAKED_ACCOUNT = "rewardRedirectStakedAccount";
     private static final String DELETE_BENEFICIARY = "rewardRedirectBeneficiary";
     private static final String WORK_PREFIX = "rewardRedirectWork";
     private static final String DELETE_INNER = "rewardRedirectDeleteInner";
-    private static final String EXPLOIT_BATCH = "rewardRedirectBatch";
-    private static final String ATTACKER_BEFORE = "rewardRedirectAttackerBefore";
+    private static final String DELETE_BATCH = "rewardRedirectBatch";
+    private static final String STAKED_BEFORE = "rewardRedirectStakedBefore";
 
     private static final String CONTRACT_ADMIN_KEY = "rewardRedirectContractAdminKey";
     private static final String STAKED_CONTRACT = "rewardRedirectStakedContract";
@@ -108,7 +104,8 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 "staking.requireMinStakeToReward"
             })
     final Stream<DynamicTest> stakedDeleteInAtomicBatchRedirectsRewardAndChargesFees() {
-        final var attackerPendingReward = new AtomicLong();
+        final var stakedPendingReward = new AtomicLong();
+        final var stakedBalanceBefore = new AtomicLong();
         final var beneficiaryBefore = new AtomicLong();
         final var beneficiaryAfter = new AtomicLong();
         final var workPayerBefore = new AtomicLong();
@@ -120,10 +117,10 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
         final var batchRecord = new AtomicReference<TransactionRecord>();
         final var deleteRecord = new AtomicReference<TransactionRecord>();
 
-        final var deleteInner = cryptoDelete(STAKED_ATTACKER)
+        final var deleteInner = cryptoDelete(STAKED_ACCOUNT)
                 .transfer(DELETE_BENEFICIARY)
-                .payingWith(STAKED_ATTACKER)
-                .signedBy(STAKED_ATTACKER)
+                .payingWith(STAKED_ACCOUNT)
+                .signedBy(STAKED_ACCOUNT)
                 .memo("t")
                 .batchKey(BATCH_KEY)
                 .via(DELETE_INNER);
@@ -131,7 +128,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 .payingWith(OUTER_PAYER)
                 .signedBy(OUTER_PAYER, BATCH_KEY)
                 .memo("b")
-                .via(EXPLOIT_BATCH)
+                .via(DELETE_BATCH)
                 .hasKnownStatus(SUCCESS);
 
         return hapiTest(flattened(
@@ -143,11 +140,9 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         "staking.requireMinStakeToReward", "false")),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
-                uploadInitCode(SLOT_USER),
-                contractCreate(SLOT_USER).gas(CONTRACT_CREATE_GAS),
                 cryptoCreate(WORK_PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(OUTER_PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(STAKED_ATTACKER).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
+                cryptoCreate(STAKED_ACCOUNT).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
                 cryptoCreate(DELETE_BENEFICIARY).balance(0L).receiverSigRequired(false),
 
                 // Accrue a positive, payable pending reward for the staked account.
@@ -157,11 +152,11 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                getAccountInfo(STAKED_ATTACKER).savingSnapshot(ATTACKER_BEFORE),
+                getAccountInfo(STAKED_ACCOUNT).savingSnapshot(STAKED_BEFORE),
                 assertionsHold((spec, log) -> {
-                    final AccountInfo attacker = spec.registry().getAccountInfo(ATTACKER_BEFORE);
-                    attackerPendingReward.set(pendingOf(attacker));
-                    Assertions.assertThat(attackerPendingReward.get())
+                    final AccountInfo stakedAccount = spec.registry().getAccountInfo(STAKED_BEFORE);
+                    stakedPendingReward.set(pendingOf(stakedAccount));
+                    Assertions.assertThat(stakedPendingReward.get())
                             .as("precondition: staked account must have a positive pending reward")
                             .isPositive();
                 }),
@@ -169,19 +164,19 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 // Snapshot everything the fixed path should change.
                 getAccountBalance(WORK_PAYER).exposingBalanceTo(workPayerBefore::set),
                 getAccountBalance(OUTER_PAYER).exposingBalanceTo(outerPayerBefore::set),
+                getAccountBalance(STAKED_ACCOUNT).exposingBalanceTo(stakedBalanceBefore::set),
                 getAccountBalance(DELETE_BENEFICIARY).exposingBalanceTo(beneficiaryBefore::set),
                 viewSingleton(
                         TokenService.NAME,
                         STAKING_NETWORK_REWARDS_STATE_ID,
                         (NetworkStakingRewards rewards) -> networkPendingBefore.set(rewards.pendingRewards())),
 
-                // Fifteen fee-bearing storage-writing calls, then the valid staked delete.
+                // Fifteen fee-bearing crypto transfers, then the valid staked delete.
                 batch,
 
-                // The batch now SUCCEEDS instead of being replaced by a zero-fee FAIL_INVALID record.
-                // Staking rewards are finalized at the root, so the redirected reward is externalized on
-                // the outer batch record (exactly one), not on the inner delete record.
-                getTxnRecord(EXPLOIT_BATCH)
+                // The batch succeeds. Staking rewards are finalized at the root, so the redirected reward
+                // is externalized on the outer batch record (exactly one), not on the inner delete record.
+                getTxnRecord(DELETE_BATCH)
                         .hasPriority(recordWith().status(SUCCESS))
                         .hasPaidStakingRewardsCount(1)
                         .exposingTo(batchRecord::set),
@@ -198,9 +193,9 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         (NetworkStakingRewards rewards) -> networkPendingAfter.set(rewards.pendingRewards())),
                 workRecordsPresent(),
                 assertionsHold((spec, log) -> {
-                    // Fees are charged for the inner work and the outer batch (the work is not free).
+                    // Fees are charged for the inner work and the outer batch.
                     Assertions.assertThat(workPayerBefore.get() - workPayerAfter.get())
-                            .as("the fifteen fee-bearing storage calls must charge the work payer")
+                            .as("the fifteen fee-bearing transfers must charge the work payer")
                             .isPositive();
                     Assertions.assertThat(outerPayerBefore.get() - outerPayerAfter.get())
                             .as("the outer batch fee must be charged")
@@ -208,11 +203,14 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                     Assertions.assertThat(batchRecord.get().getTransactionFee()).isPositive();
 
                     // The pending reward was redirected to the (non-deleted) beneficiary: it receives the
-                    // deleted account's principal plus the reward, and the network pending reward drops.
+                    // deleted account's remaining principal (its pre-delete balance minus the delete fee it
+                    // paid as the inner payer) plus the redirected reward, and the network pending reward drops.
                     final long beneficiaryGain = beneficiaryAfter.get() - beneficiaryBefore.get();
+                    final long deleteFee = deleteRecord.get().getTransactionFee();
                     Assertions.assertThat(beneficiaryGain)
-                            .as("beneficiary receives the deleted account's principal plus its redirected reward")
-                            .isGreaterThan(attackerPendingReward.get());
+                            .as("beneficiary receives the deleted account's principal (pre-delete balance minus "
+                                    + "its own delete fee) plus its redirected reward")
+                            .isEqualTo(stakedBalanceBefore.get() - deleteFee + stakedPendingReward.get());
                     Assertions.assertThat(networkPendingBefore.get() - networkPendingAfter.get())
                             .as("the network pending reward must decrease by the reward actually paid out")
                             .isPositive();
@@ -228,10 +226,10 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                             .isEqualTo(spec.registry().getAccountID(DELETE_BENEFICIARY));
                     Assertions.assertThat(paidRewards.get(0).getAmount())
                             .as("the paid reward equals the deleted account's pending reward")
-                            .isEqualTo(attackerPendingReward.get());
+                            .isEqualTo(stakedPendingReward.get());
                     log.info(
                             "PASS: batch SUCCESS, reward {} redirected to beneficiary, fees charged",
-                            attackerPendingReward.get());
+                            stakedPendingReward.get());
                 })));
     }
 
@@ -280,8 +278,6 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
                 newKeyNamed(CONTRACT_ADMIN_KEY),
-                uploadInitCode(SLOT_USER),
-                contractCreate(SLOT_USER).gas(CONTRACT_CREATE_GAS),
                 uploadInitCode(PAYABLE_CONTRACT),
                 contractCreate(STAKED_CONTRACT)
                         .bytecode(PAYABLE_CONTRACT)
@@ -321,7 +317,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         STAKING_NETWORK_REWARDS_STATE_ID,
                         (NetworkStakingRewards rewards) -> networkPendingAfter.set(rewards.pendingRewards())),
                 assertionsHold((spec, log) -> {
-                    // The outer batch fee is charged (the contract-delete batch is not free).
+                    // The outer batch fee is charged.
                     Assertions.assertThat(outerPayerBefore.get() - outerPayerAfter.get())
                             .as("the outer batch fee must be charged")
                             .isPositive();
@@ -408,8 +404,6 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                         "contracts.evm.version", "v0.46")),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
-                uploadInitCode(SLOT_USER),
-                contractCreate(SLOT_USER).gas(CONTRACT_CREATE_GAS),
                 uploadInitCode(SELF_DESTRUCT_CONTRACT),
                 contractCreate(SELF_DESTRUCT_CONTRACT)
                         .stakedNodeId(0)
@@ -471,14 +465,14 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
     }
 
     private static HapiTxnOp<?>[] workThen(final String payer, final HapiTxnOp<?> terminalOperation) {
+        // Padding inner ops must not be EVM transactions: an atomic batch may contain at most one EVM
+        // transaction, and it must be the batch's last inner transaction (see AtomicBatchHandler#pureChecks).
         final var operations = new HapiTxnOp<?>[WORK_INNER_COUNT + 1];
         for (int i = 0; i < WORK_INNER_COUNT; i++) {
-            final var value = BigInteger.valueOf(i + 1L);
-            operations[i] = contractCall(SLOT_USER, "consumeA", value, value)
+            operations[i] = cryptoTransfer(tinyBarsFromTo(payer, FUNDING, 1L))
                     .payingWith(payer)
                     .signedBy(payer)
                     .memo("w")
-                    .gas(GAS_LIMIT)
                     .batchKey(BATCH_KEY)
                     .via(workName(i));
         }

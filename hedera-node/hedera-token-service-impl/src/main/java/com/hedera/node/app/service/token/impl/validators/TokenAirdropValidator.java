@@ -16,6 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
+import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.netAdjustmentOf;
 import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.validateTokenTransfers;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -28,8 +29,10 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.node.app.service.token.ReadableNftStore;
@@ -100,6 +103,45 @@ public class TokenAirdropValidator {
         validateTokenTransfers(op.tokenTransfers(), CryptoTransferValidator.AllowanceStrategy.ALLOWANCES_REJECTED);
     }
 
+    /**
+     * Validates the fungible balance changes produced by custom-fee assessment before they are split into executable
+     * transfers and pending airdrops. The split reconstructs each executable debit from its credits, so it relies on
+     * the assessed changes remaining zero-sum and having exactly one sender per fungible token.
+     *
+     * @param op the crypto transfer body produced by custom-fee assessment
+     */
+    public void validatePostCustomFeeAssessment(@NonNull final CryptoTransferTransactionBody op) {
+        requireNonNull(op);
+        final var hbarNetAdjustment =
+                netAdjustmentOf(op.transfersOrElse(TransferList.DEFAULT).accountAmounts());
+        if (hbarNetAdjustment.signum() != 0) {
+            throw new IllegalStateException(
+                    "Custom fee assessment returned non-zero-sum HBAR adjustments with net " + hbarNetAdjustment);
+        }
+        for (final var tokenTransfers : op.tokenTransfers()) {
+            final var fungibleTransfers = tokenTransfers.transfers();
+            if (!fungibleTransfers.isEmpty()) {
+                final var tokenId = tokenTransfers.token();
+                final var tokenNetAdjustment = netAdjustmentOf(fungibleTransfers);
+                if (tokenNetAdjustment.signum() != 0) {
+                    throw new IllegalStateException("Custom fee assessment returned non-zero-sum adjustments for token "
+                            + tokenId + " with net " + tokenNetAdjustment);
+                }
+                final var debits = fungibleTransfers.stream()
+                        .filter(adjustment -> adjustment.amount() < 0)
+                        .toList();
+                if (debits.size() != 1) {
+                    throw new IllegalStateException("Custom fee assessment returned " + debits.size()
+                            + " debits for token " + tokenId + "; expected exactly one");
+                }
+                if (debits.getFirst().amount() == Long.MIN_VALUE) {
+                    throw new IllegalStateException("Custom fee assessment returned a Long.MIN_VALUE debit for token "
+                            + tokenId + ", which cannot be safely reconstructed from its credits");
+                }
+            }
+        }
+    }
+
     public void validateSemantics(
             @NonNull final HandleContext context,
             @NonNull final TokenAirdropTransactionBody op,
@@ -147,16 +189,15 @@ public class TokenAirdropValidator {
                                 validateTrue(
                                         isExemptFromCustomFees(token, receiver, fee),
                                         TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
-                            } else {
-                                // And even without a fallback, there must be no implied royalty fee payment (that is,
-                                // the sender must be fee exempt or receive no fungible value in the airdrop)
-                                final var senderId = transfer.senderAccountIDOrThrow();
-                                if (!isExemptFromCustomFees(token, senderId, fee)) {
-                                    // (FUTURE) Use a different response code for this failure mode
-                                    validateFalse(
-                                            senderIsCreditedFungibleValue(op, senderId),
-                                            TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
-                                }
+                            }
+                            // And even without a fallback, there must be no implied royalty fee payment (that is,
+                            // the sender must be fee exempt or receive no fungible value in the airdrop)
+                            final var senderId = transfer.senderAccountIDOrThrow();
+                            if (!isExemptFromCustomFees(token, senderId, fee)) {
+                                // (FUTURE) Use a different response code for this failure mode
+                                validateFalse(
+                                        senderIsCreditedFungibleValue(op, senderId),
+                                        TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
                             }
                         }
                     }

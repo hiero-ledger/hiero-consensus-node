@@ -2,6 +2,7 @@
 package com.hedera.services.bdd;
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeTlsMode;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -39,6 +40,11 @@ public @interface HapiBlockNode {
          * If a block node has high latency before acknowledging block proof.
          */
         boolean highLatency() default false;
+
+        /**
+         * Which of this block node's APIs are served over TLS. Only honoured by {@link BlockNodeMode#SIMULATOR}.
+         */
+        BlockNodeTlsMode tls() default BlockNodeTlsMode.NONE;
     }
 
     /**
