@@ -210,22 +210,33 @@ round even after an automated recovery.
 
 ## Wiring
 
-In [
-`ConsensusLayerWiring.java`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java)
-the detector is wired as a Terminal consumer of the post-hasher
-fan-out (taking a fresh reservation from
-`postHasher_stateReserver`) and as a consumer of the transaction
-handler's system-transaction stream. The detector's `getSplitOutput()`
-is soldered to:
+Detector and handler are soldered to each other inside
+[`IssDetectionModule`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/IssDetectionModule.java#IssDetectionModule):
+the detector's `getSplitOutput()` feeds `IssHandler::issObserved`, the
+response logic above. Scheduler shapes come from
+[`IssDetectionWiringConfig`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/config/IssDetectionWiringConfig.java) —
+`SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC` for the detector,
+`DIRECT` for the handler.
 
-- `IssHandler::issObserved` — the response logic above.
-- `PlatformMonitor::issNotification` — surfaces ISS to status tracking.
-- `AppNotifier::sendIssNotification` — forwards to Execution-side
-  application callbacks.
+[`ConsensusLayerWiring`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java)
+solders the module's wire surface:
 
-`IssDetector::overridingState` and `IssDetector::signalEndOfPreconsensusReplay`
-are built but unsoldered; they are invoked
-directly by reconnect and replay paths rather than via wiring.
+- `stateInputWire()` ← `StateModule.hashedStateOutputWire()`, the output of
+  the `postHasher_stateReserver`, so the detector holds its own reservation
+  ([`StateModule.java#StateModule`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/StateModule.java#StateModule),
+  [`ConsensusLayerWiring.java#wireStateOutputs`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireStateOutputs)).
+- `systemTransactionsInputWire()` ← the transaction handler's
+  `handleSignaturesOutputWire()`
+  ([`ConsensusLayerWiring.java#wireTransactionHandlingOutputs`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireTransactionHandlingOutputs)).
+- `issNotificationOutputWire()` →
+  `StatusMonitorModule.issNotificationInputWire()`
+  (`PlatformMonitor::issNotification` — surfaces ISS to status tracking) and
+  `AppNotifier::sendIssNotification` (Execution-side application callbacks)
+  ([`ConsensusLayerWiring.java#wireIssDetectionOutputs`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireIssDetectionOutputs)).
+
+`overridingStateInputWire()` and `signalEndOfPreconsensusReplayInputWire()`
+are unsoldered: `InitialStateLoader` and `ReconnectCoordinator` push the
+overriding state, `ConsensusLayerFactory` the end-of-replay signal.
 
 ## Cross-references
 
