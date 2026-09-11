@@ -31,11 +31,8 @@ on:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
-      gradle-cache-username:
-        description: "The username used to authenticate with the Gradle Build Cache Node."
-        required: true
-      gradle-cache-password:
-        description: "The password used to authenticate with the Gradle Build Cache Node."
+      gcp-project-number:
+        description: "GCP project for storing Gradle remote cache entries."
         required: true
     outputs:
       failure-mode:
@@ -65,8 +62,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-misc-records-crypto-and-serial:
     uses: ./.github/workflows/837-call-execute-hapi-misc-records-crypto.yaml
@@ -78,8 +74,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-token-and-time-consuming:
     uses: ./.github/workflows/838-call-execute-hapi-token-time-consuming.yaml
@@ -91,8 +86,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-simple-fees-and-nd-reconnect:
     uses: ./.github/workflows/839-call-execute-hapi-simple-fees-nd-reconnect.yaml
@@ -104,8 +98,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-smart-contracts-and-iss:
     uses: ./.github/workflows/840-call-execute-hapi-smart-contract-iss.yaml
@@ -117,8 +110,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-restart:
     uses: ./.github/workflows/841-call-execute-hapi-restart.yaml
@@ -130,8 +122,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-atomic-batch:
     uses: ./.github/workflows/842-call-execute-hapi-atomic-batch.yaml
@@ -143,8 +134,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-state-throttling:
     uses: ./.github/workflows/843-call-execute-hapi-state-throttling.yaml
@@ -156,8 +146,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   set-failure-mode:
     name: "Set Failure Mode"

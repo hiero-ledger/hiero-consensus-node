@@ -25,11 +25,8 @@ on:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
-      gradle-cache-username:
-        description: "The username used to authenticate with the Gradle Build Cache Node."
-        required: true
-      gradle-cache-password:
-        description: "The password used to authenticate with the Gradle Build Cache Node."
+      gcp-project-number:
+        description: "GCP project for storing Gradle remote cache entries."
         required: true
     outputs:
       failure-mode:
@@ -49,8 +46,7 @@ permissions:
   contents: read
 
 env:
-  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
-  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GCP_PROJECT_NUMBER: ${{ secrets.gcp-project-number }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 

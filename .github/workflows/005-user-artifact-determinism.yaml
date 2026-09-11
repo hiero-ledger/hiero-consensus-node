@@ -82,5 +82,4 @@ jobs:
       java-version: ${{ inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
