@@ -10,23 +10,42 @@ tests load at startup. Two things live here:
   gzipped form (~4.5 MB each) so CI gets them for free. Local uncompressed
   `.json` variants are gitignored and optional.
 
+## Fixture naming
+
+Fixtures are keyed by network name, and the form depends on the network's size:
+
+- **Single-node networks** (`size = 1`): one fixture named
+  `<network>-genesis-network.json.gz` (e.g. `ledgerB_manifest-genesis-network.json.gz`).
+- **Multi-node networks** (`size > 1`): one fixture **per node**, named
+  `<network>-node<id>-genesis-network.json.gz` (e.g.
+  `ledgerA_manifest-node0-...`, `ledgerA_manifest-node1-...`). Each node's
+  fixture carries only *its own* TSS private key, so a multi-node network needs
+  the full per-node set to warm-start — a single shared file would duplicate one
+  key and silently break the other nodes.
+
+The mapping is `MultiNetworkExtension.perNodeFixtureBase(networkName, nodeId, size)`.
+
 ## Expected contents
 
 ```
 tss-startup-assets/
-├── README.md                          (tracked)
-├── wraps-v1.0.0.tar.gz                (gitignored; manual download or CI cache)
-├── wraps-v1.0.0/                      (gitignored; extracted from the archive above)
+├── README.md                                       (tracked)
+├── wraps-v1.0.0.tar.gz                             (gitignored; manual download or CI cache)
+├── wraps-v1.0.0/                                   (gitignored; extracted from the archive above)
 │   └── ... WRAPS proving artifacts ...
-├── ledgerA-genesis-network.json.gz    (tracked; ~4.5 MB committed)
-├── ledgerB-genesis-network.json.gz    (tracked; ~4.5 MB committed)
-├── ledgerA-genesis-network.json       (gitignored; optional ~42 MB local copy)
-└── ledgerB-genesis-network.json       (gitignored; optional ~42 MB local copy)
+├── ledgerA-genesis-network.json.gz                 (tracked; single-node)
+├── ledgerB-genesis-network.json.gz                 (tracked; single-node)
+├── ledgerA_mtls-genesis-network.json.gz            (tracked; single-node, mTLS suite)
+├── ledgerB_mtls-genesis-network.json.gz            (tracked; single-node, mTLS suite)
+├── ledgerB_manifest-genesis-network.json.gz        (tracked; single-node, manifest suite)
+├── ledgerA_manifest-node0-genesis-network.json.gz  (tracked; per-node, size-2 manifest suite)
+├── ledgerA_manifest-node1-genesis-network.json.gz  (tracked; per-node, size-2 manifest suite)
+└── <network>[-node<id>]-genesis-network.json       (gitignored; optional ~42 MB local copies)
 ```
 
-`MultiNetworkExtension.resolveCachedFixturePath` prefers the `.gz` form when
-both exist, so a stale uncompressed local copy can never silently shadow the
-committed source-of-truth.
+`MultiNetworkExtension.resolvePerNodeCachedFixturePath` prefers the `.gz` form
+when both exist, so a stale uncompressed local copy can never silently shadow
+the committed source-of-truth.
 
 ## 1. WRAPS proving artifacts — required for every cold-path run
 
@@ -70,26 +89,69 @@ On CI and on any fresh clone, `@MultiNetworkHapiTest.Network(tssPreload = true)`
 tests find them automatically and skip the ~8-minute WRAPS bootstrap. No manual
 seeding required.
 
-`MultiNetworkExtension.installFixture` gunzips them on the fly into the
-subprocess node's `data/config/genesis-network.json` (the form `DiskStartupNetworks`
-reads).
+The install path, per node, before the subprocess JVM starts:
+
+1. `MultiNetworkExtension.installFixture` gunzips the cached fixture into the
+   subprocess node's `data/config/genesis-network.json` (the form
+   `DiskStartupNetworks` reads).
+2. `MultiNetworkExtension.rewriteFixturePortsToRuntime` then patches the ports of
+   every node entry in the just-installed fixture to match this run's
+   randomly-allocated ports, resetting the IP to loopback. This is **mandatory**:
+   the fixture was captured with the ports from its cold-bootstrap run, and every
+   warm run auto-allocates fresh ports, so without the rewrite the node's
+   in-state service/gossip endpoints would point at dead ports. Everything else —
+   TSS keys, rosters, weights, gossip CA cert — is preserved, which is what makes
+   the warm start valid.
 
 ### Regenerating
 
-If the fixtures need refreshing (e.g. WRAPS protocol bump, ledger ID change):
+There are two categories of fixture, regenerated differently.
 
-1. Delete the existing committed fixtures so the cold path runs:
+**Single-node fixtures** (`ledgerA`, `ledgerB`, `ledgerA_mtls`, `ledgerB_mtls`,
+`ledgerB_manifest`, …). Refresh them when e.g. the WRAPS protocol bumps or the
+ledger ID changes:
+
+1. Delete the committed fixture(s) so the cold path runs, e.g.:
 
    ```bash
    rm ledgerA-genesis-network.json.gz ledgerB-genesis-network.json.gz
    ```
-2. Run any `tssPreload = true` test — the cold path will harvest fresh fixtures
-   on its first successful pass. The shortest one is fine:
+2. Run any `tssPreload = true` test that declares that network — the cold path
+   harvests a fresh fixture on its first successful pass. The shortest is fine:
 
    ```bash
    ./gradlew :test-clients:testSubprocess \
      --tests "*ClprHieroToHieroSuite.oneWayDelivery*"
    ```
-3. `MultiNetworkExtension.harvestFreshFixtureOrThrow` / `cacheTssFixtureIfMissing`
-   write the harvested snapshots directly as `*-genesis-network.json.gz` — no
-   manual `gzip` step. `git add` them as-is.
+3. `MultiNetworkExtension.cacheTssFixtureIfMissing` (success path) /
+   `harvestFreshFixtureOrThrow` (cold-bootstrap path) write the harvested
+   snapshots directly as `*-genesis-network.json.gz` — no manual `gzip` step.
+   `git add` them as-is.
+
+**Per-node multi-node manifest fixtures**
+(`ledgerA_manifest-node0/1-...`). A regular `--tests` filter cannot regenerate
+these: the only test that brings up the size-2 mTLS `ledgerA_manifest` /
+`ledgerB_manifest` networks for harvesting is
+`ClprHieroToHieroManifestSuite.generateManifestLedgerFixtures`, which is
+`@Disabled("Fixture generator")` (so it never runs in a normal suite pass and is
+not discoverable by name).
+
+1. Delete the committed manifest fixtures so the cold path runs:
+
+   ```bash
+   rm ledgerA_manifest-node*-genesis-network.json.gz ledgerB_manifest-genesis-network.json.gz
+   ```
+2. Temporarily remove the `@Disabled` annotation from
+   `generateManifestLedgerFixtures` (or run with JUnit's disabled-condition
+   deactivation, `-Djunit.jupiter.conditions.deactivate=*`), then run it:
+
+   ```bash
+   ./gradlew :test-clients:testSubprocess \
+     --tests "*ClprHieroToHieroManifestSuite.generateManifestLedgerFixtures"
+   ```
+
+   It brings both networks up cold, harvests each node's fixture, and asserts the
+   per-node TSS keys are distinct (`assertPerNodeFixturesHaveDistinctKeys`).
+
+3. Restore the `@Disabled` annotation and `git add` the regenerated
+   `*-genesis-network.json.gz` files.

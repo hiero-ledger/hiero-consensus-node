@@ -87,11 +87,21 @@ public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
 
         final var response = ClprGetEndpointManifestResponse.newBuilder().header(header);
         if (header.nodeTransactionPrecheckCode() == OK) {
-            final var manifestStore = context.createStore(ReadableEndpointManifestStore.class);
-            response.manifest(manifestStore.get());
-            final var proofBytes = stateProofManager.buildManifestStateProof();
-            final var ledgerId = stateProofManager.latestLedgerId();
-            response.manifestStateProof(assertValidOrEmpty(proofBytes, ledgerId));
+            final var proven = stateProofManager.buildManifestStateProofWithValue();
+            if (proven != null) {
+                // Value and proof come from the same block-proven snapshot, so the returned
+                // manifest.version() is exactly what the proof attests. This is what lets a recovery
+                // consumer (spec §8.1.4) key off the observed version without capturing a value that is
+                // ahead of its proof — the manual bundle then carries a strictly-advancing, sealed manifest.
+                response.manifest(proven.manifest());
+                response.manifestStateProof(assertValidOrEmpty(proven.proof(), stateProofManager.latestLedgerId()));
+            } else {
+                // Bring-up: no signed snapshot yet. Return the live manifest with no proof — consumers see
+                // an empty proof and retry once a snapshot is available (unchanged pre-snapshot behavior).
+                response.manifest(
+                        context.createStore(ReadableEndpointManifestStore.class).get());
+                response.manifestStateProof(Bytes.EMPTY);
+            }
         }
         return Response.newBuilder().clprGetEndpointManifest(response).build();
     }

@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
-import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -44,19 +43,8 @@ public class ClprHieroToHieroMtlsSuite extends HieroToHieroBase {
                 @MultiNetworkHapiTest.Network(
                         name = "ledgerA_mtls",
                         enableClprMtls = true,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.caCrtPath", value = "data/clpr/ca.crt"),
-                            @ConfigOverride(key = "clpr.caKeyPath", value = "data/clpr/ca.key"),
-                            @ConfigOverride(key = "clpr.mtlsPort", value = "41450")
-                        }),
-                @MultiNetworkHapiTest.Network(
-                        name = "ledgerB_mtls",
-                        enableClprMtls = true,
-                        setupOverrides = {
-                            @ConfigOverride(key = "clpr.caCrtPath", value = "data/clpr/ca.crt"),
-                            @ConfigOverride(key = "clpr.caKeyPath", value = "data/clpr/ca.key"),
-                            @ConfigOverride(key = "clpr.mtlsPort", value = "42450")
-                        })
+                        firstMtlsPort = MTLS_PORT_A),
+                @MultiNetworkHapiTest.Network(name = "ledgerB_mtls", enableClprMtls = true, firstMtlsPort = MTLS_PORT_B)
             })
     @DisplayName("mTLS one-way: message from ledger A crosses to ledger B over the dedicated mTLS listener")
     Stream<DynamicTest> mtlsOneWayDelivery(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {

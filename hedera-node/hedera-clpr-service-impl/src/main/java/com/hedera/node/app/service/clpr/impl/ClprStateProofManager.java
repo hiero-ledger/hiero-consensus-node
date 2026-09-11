@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -135,33 +136,67 @@ public class ClprStateProofManager {
     }
 
     /**
-     * Builds a serialized {@link com.hedera.hapi.block.stream.StateProof} proving the current
-     * {@code ClprEndpointManifest} singleton in the latest sealed state.
+     * A manifest value paired with its {@link StateProof}, both read from the <b>same</b> block-proven
+     * snapshot — so {@code manifest.version()} is exactly the version {@code proof} attests.
+     */
+    public record ManifestWithProof(
+            @NonNull Bytes proof, @NonNull ClprEndpointManifest manifest) {}
+
+    /**
+     * Builds the manifest {@link StateProof} and reads the proven {@link ClprEndpointManifest} value from
+     * the same latest block-proven snapshot, so callers get a consistent {@code (value, proof)} pair.
      *
-     * <p>Returned bytes are suitable as input to a peer's {@code ClprCompleteChannel}
-     * {@code endpoint_manifest_proof_bytes} (spec PR #332) and to
-     * {@code ClprSubmitBundle} manifest-recovery flows (spec PR #336) whenever the verifier
-     * contract on that channel knows how to parse a {@code StateProof}.
+     * <p>Reading the value from the live/working state (as a plain store query would) while proving the
+     * latest <em>sealed</em> state lets the two diverge by a version right after a manifest change: the
+     * proof necessarily trails the live value until that change seals. A manifest-recovery consumer that
+     * captured the live version but submitted the (older) proof would have its bundle rejected as
+     * non-advancing. Pairing them here keeps the observed version and the proof in lock-step.
      *
-     * @return serialised {@code StateProof} bytes, or {@code null} when no signed block
-     *         snapshot is available yet (e.g. during node bring-up)
+     * @return the proven manifest and its proof, or {@code null} when no signed snapshot is available yet
+     *         (e.g. during node bring-up)
      */
     @Nullable
-    public Bytes buildManifestStateProof() {
-        return buildSingletonStateProof(ENDPOINT_MANIFEST_STATE_ID, "manifest");
+    public ManifestWithProof buildManifestStateProofWithValue() {
+        return withProvenBinaryState("manifest", (binaryState, snapshot) -> {
+            final var proof = buildSingletonProof(binaryState, snapshot, ENDPOINT_MANIFEST_STATE_ID, "manifest");
+            if (proof == null) {
+                return null;
+            }
+            // Same snapshot, same singleton: getSingleton returns the unwrapped domain value bytes.
+            final var raw = binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID);
+            final var manifest = (raw == null)
+                    ? ClprEndpointManifest.DEFAULT
+                    : ClprEndpointManifest.PROTOBUF.parse(raw.toReadableSequentialData());
+            return new ManifestWithProof(proof, manifest);
+        });
     }
 
     /**
-     * Shared helper for {@link #buildConfigStateProof()} and {@link #buildManifestStateProof()}.
-     * Extracts the latest signed snapshot, verifies its state is {@link BinaryState}, and
-     * delegates to {@link #buildSingletonProof(BinaryState, BlockProvenSnapshot, int, String)}
-     * to build a proof for the CLPR singleton at {@code stateId}.
+     * Builds a {@code StateProof} for the CLPR singleton at {@code stateId} from the latest signed
+     * snapshot, via {@link #withProvenBinaryState}. Backs {@link #buildConfigStateProof()}.
      *
      * @param stateId the CLPR service state ID whose singleton leaf should be proved
-     * @param label short human-readable tag used in log lines (e.g. "config", "manifest")
+     * @param label short human-readable tag used in log lines (e.g. "config")
      */
     @Nullable
     private Bytes buildSingletonStateProof(final int stateId, @NonNull final String label) {
+        return withProvenBinaryState(
+                label, (binaryState, snapshot) -> buildSingletonProof(binaryState, snapshot, stateId, label));
+    }
+
+    /**
+     * Runs {@code work} against the latest signed snapshot's {@link BinaryState}, centralizing the
+     * preamble shared by the CLPR proof builders: acquire the snapshot (releasing its state reservation
+     * on exit), require a {@link BinaryState}, and swallow any build failure to {@code null}. Returns
+     * {@code null} (and logs) when no snapshot is available yet, the state is not a {@link BinaryState},
+     * or {@code work} throws.
+     *
+     * @param label short human-readable tag used in log lines (e.g. "config", "manifest")
+     * @param work  the proof/value work to run once a proven {@link BinaryState} is in hand
+     */
+    @Nullable
+    private <T> T withProvenBinaryState(@NonNull final String label, @NonNull final ProvenBinaryStateFn<T> work) {
+        // try-with-resources releases the snapshot's state reservation (a null resource is skipped)
         try (final var snapshot = snapshotProvider.latestSnapshot().orElse(null)) {
             if (snapshot == null) {
                 log.info("No BlockProvenSnapshot available yet; skipping {} state proof", label);
@@ -175,12 +210,19 @@ public class ClprStateProofManager {
                 return null;
             }
             try {
-                return buildSingletonProof(binaryState, snapshot, stateId, label);
+                return work.apply(binaryState, snapshot);
             } catch (final Exception e) {
                 log.warn("Failed to build CLPR {} state proof: {}", label, e.getMessage(), e);
                 return null;
             }
         }
+    }
+
+    /** The proof/value work run by {@link #withProvenBinaryState} once a proven state is in hand. */
+    @FunctionalInterface
+    private interface ProvenBinaryStateFn<T> {
+        @Nullable
+        T apply(@NonNull BinaryState state, @NonNull BlockProvenSnapshot snapshot) throws Exception;
     }
 
     private Bytes buildSingletonProof(

@@ -97,13 +97,31 @@ class ClprGetEndpointManifestHandlerTest {
     }
 
     @Test
-    @DisplayName("should return the manifest from the store when precheck OK")
-    void returnsManifestWhenOk() {
+    @DisplayName("returns the proven manifest+proof pair from the same snapshot when precheck OK")
+    void returnsProvenManifestWhenOk() {
+        // Value comes from buildManifestStateProofWithValue (proven snapshot), not a live store read.
         final var manifest = ClprEndpointManifest.newBuilder().version(7L).build();
+        given(stateProofManager.buildManifestStateProofWithValue())
+                .willReturn(new ClprStateProofManager.ManifestWithProof(Bytes.EMPTY, manifest));
+        given(stateProofManager.latestLedgerId()).willReturn(Bytes.EMPTY);
+
+        final var header =
+                ResponseHeader.newBuilder().nodeTransactionPrecheckCode(OK).build();
+        final var response = subject.findResponse(queryContext, header);
+
+        final var returned = response.clprGetEndpointManifest();
+        assertThat(returned).isNotNull();
+        assertThat(returned.manifest()).isEqualTo(manifest);
+        assertThat(returned.manifestStateProof()).isEqualTo(Bytes.EMPTY);
+    }
+
+    @Test
+    @DisplayName("falls back to the live manifest with an empty proof before any signed snapshot")
+    void fallsBackToLiveManifestWhenNoSnapshot() {
+        final var manifest = ClprEndpointManifest.newBuilder().version(3L).build();
+        given(stateProofManager.buildManifestStateProofWithValue()).willReturn(null);
         given(queryContext.createStore(ReadableEndpointManifestStore.class)).willReturn(manifestStore);
         given(manifestStore.get()).willReturn(manifest);
-        given(stateProofManager.buildManifestStateProof()).willReturn(Bytes.EMPTY);
-        given(stateProofManager.latestLedgerId()).willReturn(Bytes.EMPTY);
 
         final var header =
                 ResponseHeader.newBuilder().nodeTransactionPrecheckCode(OK).build();

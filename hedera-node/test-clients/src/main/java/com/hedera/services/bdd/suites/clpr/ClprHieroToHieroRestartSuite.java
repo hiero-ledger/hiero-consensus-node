@@ -10,16 +10,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
-import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
-import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.confirmFreezeAndShutdown;
 
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
@@ -228,52 +223,6 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
                         "Send " + count + " message(s) from " + network.name() + " (" + dataPrefix + ")",
                         network,
                         ops.toArray(new SpecOperation[0]))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    /**
-     * Freeze + software-upgrade restart of {@code network}, restarting on the SAME gRPC ports so the
-     * peer's cached CLPR endpoint stays valid (see class javadoc). Targets only {@code network}: all
-     * ops bind to the enclosing {@code networkHapiTest}'s target network, so the peer keeps running.
-     *
-     * <p>After the node is ACTIVE again it must resume producing WRAPS-carrying block proofs before
-     * its outbound bundles are verifiable by the peer, so this re-awaits WRAPS readiness on the
-     * restarted network before the suite continues.
-     */
-    private DynamicTest freezeUpgradeRestartSamePort(final SubProcessNetwork network) {
-        return networkHapiTest(
-                        "Freeze + upgrade restart " + network.name() + " (same port)",
-                        network,
-                        // Stage the fake upgrade ZIP on file 0.0.150 and issue PREPARE_UPGRADE. Only B
-                        // upgrades, so there is no cross-network collision on the shared upgrade artifacts.
-                        prepareFakeUpgrade(),
-                        blockingOrder(
-                                runBackgroundTrafficUntilFreezeComplete(),
-                                sourcing(() -> freezeUpgrade()
-                                        .startingIn(2)
-                                        .seconds()
-                                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
-                                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
-                                confirmFreezeAndShutdown(),
-                                // ReassignPorts.NO keeps B on the same gRPC port so A's cached CLPR endpoint
-                                // stays valid. Increment the config version once (for the software upgrade).
-                                FakeNmt.restartWithConfigVersion(allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet()),
-                                waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
-                                // Block until the reloaded node is again emitting WRAPS-carrying block proofs,
-                                // so its post-restart outbound bundles are peer-verifiable.
-                                blockingOrder(doAdhoc(() -> {
-                                    awaitWrapsExtensible(network);
-                                    awaitWrapsSyncPoint(network);
-                                    // The WRAPS gates above read hgcaa.log, which is appended across the restart,
-                                    // so they can match the PRE-restart sync-point line and return before the
-                                    // restarted node's gRPC server has rebound. awaitLedgerId probes the node with
-                                    // a precheck round-trip and retries through the gRPC-not-ready-yet window (see
-                                    // SubProcessNetwork#awaitLedgerIdReady), so nothing is submitted to the node
-                                    // until it can actually accept transactions — closing the post-restart submit
-                                    // race (e.g. a B→A send when B is the restarted node).
-                                    network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
-                                }))))
                 .findFirst()
                 .orElseThrow();
     }

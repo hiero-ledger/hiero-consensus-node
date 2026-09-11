@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -17,12 +21,23 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
+import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.confirmFreezeAndShutdown;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Function;
@@ -33,8 +48,11 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
+import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
+import com.hederahashgraph.api.proto.java.ClprEndpointManifest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
@@ -52,6 +70,7 @@ import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -70,7 +89,17 @@ import org.junit.jupiter.api.DynamicTest;
  *
  * <p>Subclasses provide the actual {@code @MultiNetworkHapiTest} methods.
  */
-public abstract class HieroToHieroBase {
+public abstract class HieroToHieroBase implements LifecycleTest {
+
+    /** How long to poll {@code clprGetEndpointManifest} before failing a manifest assertion. */
+    static final Duration MANIFEST_APPEAR_TIMEOUT = Duration.ofMinutes(2);
+
+    /**
+     * The lowest manifest version that counts as "finalized": genesis seeds version 1, so a
+     * version {@literal >=} 2 proves the reconciler has rebuilt the manifest at least once.
+     */
+    static final long FINALIZED_MANIFEST_MIN_VERSION = 2L;
+
     private static final Logger log = LogManager.getLogger(HieroToHieroBase.class);
 
     // Registry name under which the CLPR system contract precompile (0x16e) is pre-registered
@@ -333,6 +362,303 @@ public abstract class HieroToHieroBase {
         }
     }
 
+    // ---- endpoint-manifest helpers (shared by the manifest suites) ----
+
+    /**
+     * Polls {@code clprGetEndpointManifest} on {@code network} until the manifest is finalized
+     * (version {@literal >=} 2 with {@literal >=} 1 endpoints), then records that version into
+     * {@code sink} for later relative assertions.
+     */
+    static DynamicTest captureManifestVersion(final SubProcessNetwork network, final AtomicLong sink) {
+        return networkHapiTest(
+                        "Capture manifest version on " + network.name(), network, withOpContext((spec, opLog) -> {
+                            final var manifest = pollManifest(
+                                    spec,
+                                    m -> m.getVersion() >= FINALIZED_MANIFEST_MIN_VERSION
+                                            && m.getEndpointsCount() >= 1);
+                            sink.set(manifest.getVersion());
+                            opLog.info(
+                                    "Captured baseline manifest version {} on {}",
+                                    manifest.getVersion(),
+                                    network.name());
+                        }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Polls {@code clprGetEndpointManifest} on {@code network} until the version has advanced to at
+     * least {@code baseline.get() + 1} — proving the manifest was rebuilt in response to an endpoint
+     * change.
+     */
+    static DynamicTest awaitManifestVersionAtLeast(final SubProcessNetwork network, final AtomicLong baseline) {
+        return networkHapiTest(
+                        "Await advanced manifest version on " + network.name(),
+                        network,
+                        withOpContext((spec, opLog) -> {
+                            final long target = baseline.get() + 1;
+                            final var manifest = pollManifest(spec, m -> m.getVersion() >= target);
+                            opLog.info(
+                                    "Manifest on {} advanced to version {} (>= {})",
+                                    network.name(),
+                                    manifest.getVersion(),
+                                    target);
+                        }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Polls until {@code network}'s manifest version reaches {@code baseline.get() + 1}, then asserts
+     * it advanced by <b>exactly one</b> — catching a double-bump / churn (e.g. both the self-publish
+     * and the prune firing) rather than the single expected rebuild.
+     */
+    static DynamicTest awaitManifestVersionExactly(final SubProcessNetwork network, final AtomicLong baseline) {
+        return networkHapiTest(
+                        "Await manifest version == baseline+1 on " + network.name(),
+                        network,
+                        withOpContext((spec, opLog) -> {
+                            final long expected = baseline.get() + 1;
+                            final var manifest = pollManifest(spec, m -> m.getVersion() >= expected);
+                            assertEquals(
+                                    expected,
+                                    manifest.getVersion(),
+                                    "manifest should advance by exactly one after the endpoint change");
+                            opLog.info("Manifest on {} advanced to exactly version {}", network.name(), expected);
+                        }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Awaits the receiver-side Step 1b log line proving {@code peer} applied the advanced manifest
+     * carried in the sender's bundle proof — {@code version=<baseline>-><baseline+1>}.
+     */
+    static DynamicTest awaitManifestAppliedOnPeer(final SubProcessNetwork peer, final AtomicLong baseline) {
+        return networkHapiTest(
+                        "Await Step 1b manifest application on " + peer.name(), peer, withOpContext((spec, opLog) -> {
+                            final long from = baseline.get();
+                            final var pattern = Pattern.compile(
+                                    "applying new endpoint manifest.*version=" + from + "->" + (from + 1));
+                            awaitLogLine(peer, pattern, MANIFEST_APPEAR_TIMEOUT);
+                            opLog.info("Peer {} applied manifest version {}->{}", peer.name(), from, from + 1);
+                        }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Polls {@code clprGetEndpointManifest} until {@code predicate} holds or
+     * {@link #MANIFEST_APPEAR_TIMEOUT} elapses (then fails). Returns the satisfying manifest.
+     */
+    static ClprEndpointManifest pollManifest(final HapiSpec spec, final Predicate<ClprEndpointManifest> predicate)
+            throws InterruptedException {
+        final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
+        final AtomicReference<ClprEndpointManifest> last = new AtomicReference<>();
+        final AtomicReference<Exception> lastError = new AtomicReference<>();
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                allRunFor(spec, clprGetEndpointManifest().payingWith(GENESIS).exposingManifestTo(last::set));
+                final var m = last.get();
+                if (m != null && predicate.test(m)) {
+                    return m;
+                }
+            } catch (final Exception e) {
+                // Node may still be bootstrapping — retry, but keep the last error so a
+                // timeout reports why the query kept failing rather than a bare "version=null".
+                lastError.set(e);
+            }
+            Thread.sleep(POLL_INTERVAL.toMillis());
+        }
+        final var m = last.get();
+        final var err = lastError.get();
+        assertTrue(
+                m != null && predicate.test(m),
+                "manifest predicate never satisfied (last version=" + (m == null ? "null" : m.getVersion())
+                        + ", last query error=" + (err == null ? "none" : err.toString()) + ")");
+        return m;
+    }
+
+    /**
+     * Freeze + software-upgrade restart of {@code network}, keeping the same gRPC port
+     * ({@code FakeNmt.restartWithConfigVersion} / {@code ReassignPorts.NO}) so cross-network CLPR
+     * connectivity survives. On restart a node's address-book endpoint change is adopted, its in-memory
+     * CLPR startup gate resets (so it re-publishes its endpoint), and the post-upgrade manifest prune
+     * runs. Re-awaits WRAPS readiness so post-restart outbound bundles are peer-verifiable.
+     */
+    DynamicTest freezeUpgradeRestartSamePort(final SubProcessNetwork network) {
+        return networkHapiTest(
+                        "Freeze + upgrade restart " + network.name() + " (same port)",
+                        network,
+                        prepareFakeUpgrade(),
+                        blockingOrder(
+                                runBackgroundTrafficUntilFreezeComplete(),
+                                sourcing(() -> freezeUpgrade()
+                                        .startingIn(2)
+                                        .seconds()
+                                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+                                confirmFreezeAndShutdown(),
+                                FakeNmt.restartWithConfigVersion(allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet()),
+                                waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
+                                blockingOrder(doAdhoc(() -> {
+                                    awaitWrapsExtensible(network);
+                                    awaitWrapsSyncPoint(network);
+                                    network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
+                                }))))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Rotates a <b>single node's</b> {@code clpr.mtlsPort} via a genuine single-node restart, leaving the
+     * rest of the network running the whole time. This models a partial (per-node) endpoint rotation.
+     *
+     * <p><b>Why it's ISS-safe.</b> {@code clpr.mtlsPort} is a {@code @NodeProperty} — node-local, not
+     * saved in state, explicitly allowed to differ per node (contrast {@code @NetworkProperty}, which is
+     * in state and must match across nodes or ISS). The port only ever feeds node-local runtime (the
+     * mTLS listener bind, the sync client) and the self-publish <em>submit</em> side-effect; the manifest
+     * state is rebuilt purely from the gossiped {@code ClprEndpointPublication} at consensus, never from
+     * any node's local config. So node {@code nodeId} carrying a different port than its peers does not
+     * diverge the state hash.
+     *
+     * <p><b>Why the other nodes must stay up.</b> Only {@code nodeId} restarts (via
+     * {@code shutdownWithin}/{@code restartNode} on {@code byNodeId}, a same-port {@code ReassignPorts.NO}
+     * path — no freeze, no config-version bump, no roster/TSS change), so nodes 1..n keep their in-memory
+     * CLPR state ({@code peerObservedManifestVersions}) and continue driving the manifest proof outbound
+     * to the peer, and the peer keeps reaching this ledger through them while {@code nodeId} returns on
+     * its new port (the peer's stale entry for {@code nodeId} simply trips its circuit breaker).
+     *
+     * <p><b>Mechanism.</b> The new value is written into node {@code nodeId}'s
+     * {@code data/config/application.properties} while it is stopped; the single-node start path does not
+     * re-run {@code configureApplicationProperties}, so it sticks and the restarted JVM binds the mTLS
+     * listener to the new port and self-publishes the changed endpoint. That publication opens a
+     * construction; the other (non-restarted) nodes then publish their own current endpoints into it
+     * (an all-hands snapshot — no IP-keyed carry-over), so it fast-closes on the full set and advances
+     * the manifest by exactly one, with node {@code nodeId} now carrying the new port.
+     */
+    DynamicTest rotateNodeMtlsPort(final SubProcessNetwork network, final long nodeId, final int newMtlsPort) {
+        return networkHapiTest(
+                        "Rotate " + network.name() + " node" + nodeId + " clpr.mtlsPort -> " + newMtlsPort,
+                        network,
+                        blockingOrder(
+                                // Kill only this node; nodes 1..n keep running (and keep their #335 state).
+                                FakeNmt.shutdownWithin(byNodeId(nodeId), SHUTDOWN_TIMEOUT),
+                                // Rewrite its per-node mtlsPort while it is stopped.
+                                doAdhoc(() -> setNodeMtlsPort(network, nodeId, newMtlsPort)),
+                                // Let the killed node's gossip port fully unbind before it rebinds on restart.
+                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                // Restart just this node (ReassignPorts.NO, cfgVer 0) — it reconnects via gossip.
+                                FakeNmt.restartNode(byNodeId(nodeId)),
+                                waitForActive(byNodeId(nodeId), RESTART_TO_ACTIVE_TIMEOUT)))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Rotates <b>every</b> node's {@code clpr.mtlsPort} at once — a true simultaneous endpoint turnover:
+     * all nodes are stopped together, each node's port is rewritten ({@code basePort + nodeId}), then the
+     * whole network is restarted in a single step. Because all nodes re-publish their new endpoints into
+     * one construction, the manifest advances by <b>exactly one</b> (contrast rotating nodes one-by-one,
+     * which yields an intermediate version per node). Re-awaits WRAPS/ledger-id readiness so the
+     * post-restart {@code clprGetEndpointManifest} proof and any outbound bundle are peer-verifiable.
+     *
+     * <p>Used by the complete-turnover scenarios (§8.1.2 / §8.1.3): with every endpoint replaced at once,
+     * the peer's entire cached endpoint set becomes unreachable simultaneously.
+     */
+    DynamicTest rotateAllNodesMtlsPorts(final SubProcessNetwork network, final int basePort) {
+        return networkHapiTest(
+                        "Rotate ALL " + network.name() + " node mTLS ports simultaneously (base " + basePort + ")",
+                        network,
+                        blockingOrder(
+                                // Kill every node at once — the whole endpoint set turns over simultaneously.
+                                FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
+                                // Rewrite each stopped node's mtlsPort (basePort offset by node id).
+                                doAdhoc(() -> network.nodes()
+                                        .forEach(n -> setNodeMtlsPort(
+                                                network, n.getNodeId(), basePort + (int) n.getNodeId()))),
+                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                // Restart all nodes together (single restart), then await consensus + WRAPS.
+                                FakeNmt.restartNode(allNodes()),
+                                waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
+                                doAdhoc(() -> {
+                                    awaitWrapsExtensible(network);
+                                    awaitWrapsSyncPoint(network);
+                                    network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
+                                })))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Rotates ALL mTLS ports on <b>both</b> ledgers at once, running each ledger's
+     * {@link #rotateAllNodesMtlsPorts} on its own {@link ParallelSpecOps} worker (via {@link #asSubOp})
+     * so the two complete turnovers overlap rather than running A-then-B. This is what the §8.1.3
+     * simultaneous-turnover scenario requires: both ledgers' entire endpoint sets go unreachable in the
+     * same window (no serial gap where one side is already back up), and the wall time is the slower
+     * single-ledger turnover, not the sum. {@code failOnErrors()} surfaces either side's failure instead
+     * of logging-and-swallowing it. Base ports must stay globally-unique per the
+     * {@link #setNodeMtlsPort} invariant.
+     */
+    DynamicTest rotateBothNetworksMtlsPortsInParallel(
+            final SubProcessNetwork ledgerA,
+            final int basePortA,
+            final SubProcessNetwork ledgerB,
+            final int basePortB) {
+        return networkHapiTest(
+                        "Rotate ALL mTLS ports on both ledgers simultaneously (A base " + basePortA + ", B base "
+                                + basePortB + ")",
+                        ledgerA,
+                        new ParallelSpecOps(
+                                        asSubOp(rotateAllNodesMtlsPorts(ledgerA, basePortA)),
+                                        asSubOp(rotateAllNodesMtlsPorts(ledgerB, basePortB)))
+                                .failOnErrors())
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Rewrites {@code clpr.mtlsPort} in node {@code nodeId}'s {@code data/config/application.properties},
+     * dropping any existing {@code clpr.mtlsPort} line so the restarted JVM reads exactly the new value.
+     * Call only while that node is stopped (between {@code shutdownWithin} and {@code restartNode}).
+     *
+     * <p><b>Not restored, intentionally.</b> This writes {@code application.properties} directly (outside
+     * {@code getApplicationPropertyOverrides()}), and {@code clpr.mtlsPort} is a {@code STARTUP_ONLY} key,
+     * so the rotated value is never reverted on the shared {@code ledgerA_manifest} / {@code ledgerB_manifest}
+     * networks — reverting it would just cost another rewrite + restart. That is safe only because every
+     * rotation targets an <b>absolute, globally-unique</b> port and asserts that exact value, never the
+     * inherited one: each test overwrites whatever a prior test left with its own known target, no two
+     * rotations land on the same port, and no assertion depends on execution order. Any new rotation test
+     * MUST preserve this invariant — pick a fresh base port (node {@code i} binds {@code base + i}).
+     */
+    private static void setNodeMtlsPort(final SubProcessNetwork network, final long nodeId, final int newMtlsPort) {
+        final var node = network.nodes().stream()
+                .filter(n -> n.getNodeId() == nodeId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("no node " + nodeId + " in " + network.name()));
+        final Path appProps = node.metadata()
+                .workingDirOrThrow()
+                .resolve("data")
+                .resolve("config")
+                .resolve("application.properties");
+        try {
+            final var retained = new java.util.ArrayList<String>();
+            if (Files.exists(appProps)) {
+                for (final var line : Files.readAllLines(appProps)) {
+                    if (!line.strip().startsWith("clpr.mtlsPort")) {
+                        retained.add(line);
+                    }
+                }
+            }
+            retained.add("clpr.mtlsPort=" + newMtlsPort);
+            Files.write(appProps, retained);
+            log.info("Rotated {} node{} clpr.mtlsPort -> {} in {}", network.name(), nodeId, newMtlsPort, appProps);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(
+                    "Failed to rotate clpr.mtlsPort for " + network.name() + " node" + nodeId, e);
+        }
+    }
+
     /**
      * Full two-sided setup orchestrated as five phases:
      * <ol>
@@ -452,6 +778,8 @@ public abstract class HieroToHieroBase {
                 portA,
                 proofA,
                 proofB,
+                null, // no manifest proof on the mTLS (non-manifest) setup path
+                null,
                 crypto,
                 maxMessagesPerBundle,
                 maxQueueDepth,
@@ -464,6 +792,8 @@ public abstract class HieroToHieroBase {
                 portB,
                 proofB,
                 proofA,
+                null,
+                null,
                 crypto,
                 maxMessagesPerBundle,
                 maxQueueDepth,
@@ -478,14 +808,74 @@ public abstract class HieroToHieroBase {
     }
 
     /**
-     * One ledger's full setup chain: install its own LedgerConfiguration, capture the resulting
-     * StateProof into {@code selfProof}, have the peer verify it, then deploy the local verifier
-     * contract and open the channel using the peer's proof.
+     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto, int, int)}
+     * but additionally (a) captures each ledger's manifest {@code StateProof} via the
+     * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
+     * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required under
+     * {@code clpr.endpointManifestEnabled=true}, whose V2 verifier ABI rejects an empty manifest proof),
+     * and (b) advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
+     * endpoint {@code tls_certificate}, with {@code portA}/{@code portB} expected to be each network's
+     * {@code clpr.mtlsPort}. The channel therefore completes over, and syncs across, the dedicated
+     * mutual-TLS listener.
      *
-     * <p>Steps within this chain are strictly sequential — each depends on the prior's on-chain
-     * effect or captured bytes. Two such chains run in parallel via {@link ParallelSpecOps}. The
-     * {@code bothProofsReady} latch synchronizes the two chains at the deploy step: both must
-     * finish capturing before either can call {@link #deployAndConnect} with the peer's proof.
+     * <p>Callers must guarantee the reconciler has finalized a manifest on both networks before this
+     * runs (e.g. by preceding it with a manifest-await step); the capture inside this method is a single
+     * query, not a poll.
+     */
+    static Stream<DynamicTest> setupBothNetworksWithManifestProof(
+            final SubProcessNetwork ledgerA,
+            final SubProcessNetwork ledgerB,
+            final int portA,
+            final int portB,
+            final ClprCrypto crypto,
+            final byte[] caDerA,
+            final byte[] caDerB) {
+        final AtomicReference<ByteString> proofA = new AtomicReference<>();
+        final AtomicReference<ByteString> proofB = new AtomicReference<>();
+        final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
+        final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
+        final var bothProofsReady = new CountDownLatch(2);
+        final var chainA = chainSetupAndConnect(
+                ledgerA,
+                ledgerB,
+                "hiero:298",
+                portA,
+                proofA,
+                proofB,
+                manifestProofA,
+                manifestProofB,
+                crypto,
+                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
+                DEFAULT_MAX_QUEUE_DEPTH,
+                caDerA, // advertise A's real CA cert; portA is A's clpr.mtlsPort
+                bothProofsReady);
+        final var chainB = chainSetupAndConnect(
+                ledgerB,
+                ledgerA,
+                "hiero:299",
+                portB,
+                proofB,
+                proofA,
+                manifestProofB,
+                manifestProofA,
+                crypto,
+                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
+                DEFAULT_MAX_QUEUE_DEPTH,
+                caDerB,
+                bothProofsReady);
+        return Stream.of(networkHapiTest(
+                        "Install + capture (config + manifest) + verify + deploy on both ledgers (mTLS, parallel)",
+                        ledgerA,
+                        new ParallelSpecOps(chainA, chainB).failOnErrors())
+                .findFirst()
+                .orElseThrow());
+    }
+
+    /**
+     * Overload that also captures the local manifest state proof (into {@code selfManifestProof})
+     * after the config proof capture, and passes {@code peerManifestProof} into
+     * {@link #deployAndConnect} as {@code endpoint_manifest_proof_bytes}. When both manifest
+     * refs are null, this behaves identically to the plain overload.
      */
     private static SpecOperation chainSetupAndConnect(
             final SubProcessNetwork self,
@@ -494,6 +884,8 @@ public abstract class HieroToHieroBase {
             final int selfPort,
             final AtomicReference<ByteString> selfProof,
             final AtomicReference<ByteString> peerProof,
+            final AtomicReference<ByteString> selfManifestProof,
+            final AtomicReference<ByteString> peerManifestProof,
             final ClprCrypto crypto,
             final int maxMessagesPerBundle,
             final int maxQueueDepth,
@@ -506,12 +898,17 @@ public abstract class HieroToHieroBase {
             captureConfigProof(self, selfProof, maxMessagesPerBundle, maxQueueDepth)
                     .getExecutable()
                     .execute();
+            if (selfManifestProof != null) {
+                captureManifestProof(self, selfManifestProof).getExecutable().execute();
+            }
             verifyProofOnPeer(peer, selfProof).getExecutable().execute();
             // Signal our capture is done, then wait for the peer chain to reach the same point
             // before dispatching deployAndConnect (which uses the peer's proof).
             bothProofsReady.countDown();
             bothProofsReady.await();
-            deployAndConnect(self, peer, crypto, peerProof).getExecutable().execute();
+            deployAndConnect(self, peer, crypto, peerProof, peerManifestProof)
+                    .getExecutable()
+                    .execute();
         });
     }
 
@@ -644,6 +1041,87 @@ public abstract class HieroToHieroBase {
                             + "(expectedMaxMessagesPerBundle=" + expectedMaxMessagesPerBundle
                             + ", expectedMaxQueueDepth=" + expectedMaxQueueDepth + ")");
                 }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Captures the latest {@code manifest_state_proof} bytes for {@code network} via the
+     * {@code clprGetEndpointManifest} HAPI query. Polls until the proof is non-empty and the
+     * manifest is finalized (version &gt;= 2, endpoints &gt;= 1) — proving the reconciler-driven
+     * self-publication has landed and closed a construction.
+     */
+    static DynamicTest captureManifestProof(final SubProcessNetwork network, final AtomicReference<ByteString> sink) {
+        return networkHapiTest("Capture endpoint-manifest StateProof", network, withOpContext((spec, ignored) -> {
+                    final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
+                    final long[] observedVersion = {0L};
+                    final int[] observedEndpoints = {0};
+                    while (Instant.now().isBefore(deadline)) {
+                        sink.set(ByteString.EMPTY);
+                        allRunFor(
+                                spec,
+                                clprGetEndpointManifest()
+                                        .payingWith(GENESIS)
+                                        .exposingManifestTo(m -> {
+                                            observedVersion[0] = m.getVersion();
+                                            observedEndpoints[0] = m.getEndpointsCount();
+                                        })
+                                        .exposingProofTo(sink::set));
+                        final var captured = sink.get();
+                        if (captured != null
+                                && !captured.isEmpty()
+                                && observedVersion[0] >= FINALIZED_MANIFEST_MIN_VERSION
+                                && observedEndpoints[0] >= 1) {
+                            return;
+                        }
+                        Thread.sleep(POLL_INTERVAL.toMillis());
+                    }
+                    throw new IllegalStateException("Network '" + network.name() + "' never produced a finalized "
+                            + "manifest state proof (last observed version="
+                            + observedVersion[0] + " endpoints=" + observedEndpoints[0] + ")");
+                }))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /**
+     * Manual manifest recovery (spec §8.1.4 / §8.1.2 / §8.1.3): submits {@code proofSink}'s captured
+     * remote {@code manifest_state_proof} as a bundle on {@code network} via {@code clprSubmitBundle}.
+     * This is the out-of-band recovery path — no gRPC connectivity to any (stale) peer endpoint is used;
+     * the local ledger verifies the remote proof against the Channel's trust anchor.
+     *
+     * <p>Accepts any of {@code acceptableStatuses}. A {@code SUCCESS} means this submit is what accepted
+     * the manifest-only recovery bundle (no channel leaf) and applied the advancing manifest. A
+     * {@code CLPR_BUNDLE_VERIFICATION_FAILED} means the manifest was <em>already</em> applied — on a
+     * one-sided turnover the surviving link lets the remote auto-push its manifest first, so the manual
+     * submit legitimately races that automatic recovery. The <em>deterministic</em> assertion is the
+     * separate {@link #awaitManifestAppliedOnPeer} step: the manifest is applied regardless of which path
+     * wins, and when all connectivity is broken (both-sided turnover) that can only be this manual submit.
+     */
+    static DynamicTest submitManifestRecoveryBundle(
+            final SubProcessNetwork network,
+            final byte[] channelId,
+            final AtomicReference<ByteString> proofSink,
+            final ResponseCodeEnum... acceptableStatuses) {
+        return networkHapiTest(
+                        "Manual manifest recovery via clprSubmitBundle on " + network.name(),
+                        network,
+                        withOpContext((spec, opLog) -> {
+                            final var proof = proofSink.get();
+                            if (proof == null || proof.isEmpty()) {
+                                throw new IllegalStateException(
+                                        "no captured manifest state proof to submit for recovery on " + network.name());
+                            }
+                            allRunFor(
+                                    spec,
+                                    clprSubmitBundle()
+                                            .channelId(channelId)
+                                            .bundlePayload(proof.toByteArray())
+                                            .endpointNodeId(0L)
+                                            .payingWith(GENESIS)
+                                            .hasKnownStatusFrom(acceptableStatuses));
+                            opLog.info("Manual manifest recovery submitted on {}", network.name());
+                        }))
                 .findFirst()
                 .orElseThrow();
     }
@@ -817,7 +1295,8 @@ public abstract class HieroToHieroBase {
             final SubProcessNetwork network,
             final SubProcessNetwork peerNetwork,
             final ClprCrypto crypto,
-            final AtomicReference<ByteString> peerConfigProof) {
+            final AtomicReference<ByteString> peerConfigProof,
+            final AtomicReference<ByteString> peerManifestProof) {
         return networkHapiTest(
                         "Deploy verifier + open channel to " + peerNetwork.name(),
                         network,
@@ -843,17 +1322,28 @@ public abstract class HieroToHieroBase {
                         clprRegisterChannel()
                                 .ownershipCommitment(crypto.channelCommitment)
                                 .payingWith(GENESIS),
-                        sourcing(() -> clprCompleteChannel()
-                                .channelId(crypto.channelId)
-                                .publicKey(crypto.publicKey)
-                                .signature(crypto.channelSignature)
-                                .signatureScheme(ClprSignatureScheme.ED25519)
-                                .verifierContract(VERIFIER)
-                                .configProofBytes(peerConfigProof.get().toByteArray())
-                                .payingWith(GENESIS)
-                                // Fail loudly if the captured StateProof was stale — would otherwise
-                                // pass silently and downstream knownChannels would stay at 0.
-                                .hasKnownStatus(ResponseCodeEnum.SUCCESS)),
+                        sourcing(() -> {
+                            var op = clprCompleteChannel()
+                                    .channelId(crypto.channelId)
+                                    .publicKey(crypto.publicKey)
+                                    .signature(crypto.channelSignature)
+                                    .signatureScheme(ClprSignatureScheme.ED25519)
+                                    .verifierContract(VERIFIER)
+                                    .configProofBytes(peerConfigProof.get().toByteArray())
+                                    .payingWith(GENESIS)
+                                    // Fail loudly if the captured StateProof was stale — would otherwise
+                                    // pass silently and downstream knownChannels would stay at 0.
+                                    .hasKnownStatus(ResponseCodeEnum.SUCCESS);
+                            // Manifest proof is REQUIRED under clpr.endpointManifestEnabled=true
+                            // (spec §4.8). Callers who enable the flag must supply a captured
+                            // proof; flag-off callers pass null here and rely on the V1 verifier
+                            // path which ignores the field.
+                            if (peerManifestProof != null) {
+                                op = op.endpointManifestProofBytes(
+                                        peerManifestProof.get().toByteArray());
+                            }
+                            return op;
+                        }),
                         // Connector commit-reveal
                         clprRegisterConnector()
                                 .commitment(crypto.connectorCommitment)
@@ -1091,6 +1581,16 @@ public abstract class HieroToHieroBase {
      */
     static final byte[] DUMMY_TLS_CERT = {0x01};
 
+    /**
+     * 20-byte EVM address of the Hiero CLPR system contract precompile
+     * ({@code 0x000000000000000000000000000000000000016e}) — same value the reconciler
+     * pre-populates into the endpoint manifest at genesis (see {@code V0770ClprSchema}).
+     * Using it here keeps {@code config.service_address == manifest.service_address}, an
+     * invariant the manifest-aware verifier enforces (spec §4.8). {@link ClprCrypto} also
+     * incorporates it into the connector signature.
+     */
+    static final byte[] CLPR_SERVICE_ADDRESS = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e};
+
     static ClprLedgerConfiguration buildLedgerConfig(
             final String chainId, final int peerPort, final int maxMessagesPerBundle, final int maxQueueDepth) {
         return buildLedgerConfig(chainId, peerPort, maxMessagesPerBundle, maxQueueDepth, DUMMY_TLS_CERT);
@@ -1110,7 +1610,7 @@ public abstract class HieroToHieroBase {
             final byte[] tlsCertificate) {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId(chainId)
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS))
                 .addEndpoints(ClprEndpoint.newBuilder()
                         .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
                                 .setIpAddress("127.0.0.1")

@@ -68,6 +68,18 @@ public @interface MultiNetworkHapiTest {
         boolean enableClprMtls() default false;
 
         /**
+         * Base {@code clpr.mtlsPort} for the dedicated mutual-TLS listener, seeded into each node's
+         * {@code application.properties} at boot. Like {@link #firstGrpcPort()}, this is a <b>base</b>:
+         * co-located subprocess nodes all bind {@code 127.0.0.1}, so node {@code i} gets
+         * {@code firstMtlsPort + i} (the base thus consumes the range
+         * {@code [firstMtlsPort, firstMtlsPort + size)} — leave room when picking bases for other
+         * networks). {@code -1} (the default) seeds nothing; set it only alongside
+         * {@code enableClprMtls = true}. Prefer this over a {@code @ConfigOverride("clpr.mtlsPort")}:
+         * the per-node offset is applied automatically and stays discoverable at the call site.
+         */
+        int firstMtlsPort() default -1;
+
+        /**
          * Opt-in: cache the network's TSS-enriched genesis-network.json on first successful run,
          * and preload it (skipping the ~8 min cold WRAPS bootstrap) on subsequent runs.
          *
