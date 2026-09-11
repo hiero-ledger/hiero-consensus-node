@@ -24,5 +24,9 @@ selftest:
 	IMPORT_LOG_LABELS='{"environment":"selftest","import_check":"1"}' IMPORT_WAIT_SECONDS=15 \
 	  $(TEST_COMPOSE) -f docker-compose.import.yml --profile import run --rm log-importer \
 	  || { $(TEST_COMPOSE) -f docker-compose.import.yml logs --no-color --tail=100 log-importer; exit 1; }; \
+	IMPORT_LOGS_DIR=selftest-import-src IMPORT_LOG_INCLUDE='/logs/**/*.log' \
+	IMPORT_LOG_LABELS='not-json' IMPORT_WAIT_SECONDS=15 \
+	  $(TEST_COMPOSE) -f docker-compose.import.yml --profile import run --rm log-importer \
+	  && { echo 'expected log-importer to fail on invalid IMPORT_LOG_LABELS, but it exited 0'; exit 1; }; \
 	$(TEST_COMPOSE) run --rm -T selftest-assert \
 	  || { $(TEST_COMPOSE) logs --no-color --tail=100 alloy victoriametrics loki; exit 1; }

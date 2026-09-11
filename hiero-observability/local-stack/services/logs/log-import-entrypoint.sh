@@ -26,7 +26,28 @@ ALLOY_PID=$!
 # Give Alloy this long to discover, tail, and push every matching file, then
 # stop it - there is no "caught up" signal to poll for a plain file tailer,
 # so a fixed wait is what scripts/import-logs.sh's --wait-seconds controls.
-sleep "$IMPORT_WAIT_SECONDS"
+# Polled in 1s steps, rather than a single `sleep "$IMPORT_WAIT_SECONDS"`, so
+# an Alloy that exits on its own well before the deadline - invalid
+# IMPORT_LOG_LABELS JSON, a broken ALLOY_CONFIG override, etc. - is noticed
+# immediately instead of only after the full wait.
+_elapsed=0
+while [ "$_elapsed" -lt "$IMPORT_WAIT_SECONDS" ] && kill -0 "$ALLOY_PID" 2>/dev/null; do
+	sleep 1
+	_elapsed=$((_elapsed + 1))
+done
 
-kill "$ALLOY_PID" 2>/dev/null || true
-wait "$ALLOY_PID" 2>/dev/null || true
+if kill -0 "$ALLOY_PID" 2>/dev/null; then
+	# Still running after the full wait - the expected, deliberate shutdown
+	# of a one-shot import that has had time to tail everything.
+	kill "$ALLOY_PID" 2>/dev/null || true
+	wait "$ALLOY_PID" 2>/dev/null || true
+	exit 0
+fi
+
+# Alloy already exited by itself, before the deliberate shutdown above -
+# propagate its exit status instead of masking a failed import as success.
+set +e
+wait "$ALLOY_PID"
+STATUS=$?
+set -e
+exit "$STATUS"
