@@ -158,6 +158,13 @@ stay distinguishable instead of colliding:
 ./scripts/import-logs.sh /path/to/old-run/node1 '{"node_id":"2"}'
 ```
 
+Wizard mode is available for the same script:
+
+```sh
+cd hiero-observability/local-stack
+./scripts/import-logs-wizard.sh
+```
+
 <details>
   <summary><ins>Click to expand</ins></summary>
 
