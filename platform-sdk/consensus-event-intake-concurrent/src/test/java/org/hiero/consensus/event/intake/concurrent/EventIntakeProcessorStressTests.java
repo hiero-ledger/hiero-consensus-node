@@ -102,7 +102,8 @@ class EventIntakeProcessorStressTests {
                 trueVerifierFactory,
                 rosterHistory,
                 intakeEventCounter,
-                null);
+                null,
+                false);
     }
 
     // ---- Test 1: Concurrent dedup — same event from N threads, exactly one wins ----
@@ -460,7 +461,8 @@ class EventIntakeProcessorStressTests {
                 unsafeVerifierFactory,
                 rosterHistory,
                 intakeEventCounter,
-                null);
+                null,
+                false);
 
         final ConcurrentTesting testing = new ConcurrentTesting();
         for (int t = 0; t < NUM_THREADS; t++) {
