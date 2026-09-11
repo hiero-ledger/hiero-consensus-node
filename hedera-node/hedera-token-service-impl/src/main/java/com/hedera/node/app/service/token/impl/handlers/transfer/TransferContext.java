@@ -56,6 +56,14 @@ public interface TransferContext {
     Map<Bytes, AccountID> resolutions();
 
     /**
+     * Returns whether the account was created from an alias in this transfer.
+     *
+     * @param accountId the account to check
+     * @return true if the account was created in this transfer, false otherwise
+     */
+    boolean isAutoCreated(AccountID accountId);
+
+    /**
      * Charges extra fee to the HAPI payer account in the current transfer context with the given amount.
      * @param amount the amount to charge
      */
