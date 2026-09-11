@@ -411,11 +411,12 @@ public class LongListDisk extends AbstractLongList<Long> {
      * {@inheritDoc}
      */
     @Override
-    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
+    protected void writeLongsData(
+            @NonNull final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
+            throws IOException {
         final ByteBuffer transferBuffer = initOrGetTransferBuffer();
-        final int totalNumOfChunks = calculateNumberOfChunks(size());
-        final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+        final int totalNumOfChunks = calculateNumberOfChunks(endIndex);
+        final int firstChunkWithDataIndex = toIntExact(startIndex / longsPerChunk);
 
         // The following logic sequentially processes chunks. This kind of processing allows to get rid of
         // non-contiguous memory allocation and gaps that may be present in the current file.
@@ -428,9 +429,9 @@ public class LongListDisk extends AbstractLongList<Long> {
                 final long chunkOffset;
                 if (i == firstChunkWithDataIndex) {
                     // writing starts from the first valid index in the first valid chunk
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+                    final int firstValidIndexInChunk = toIntExact(startIndex % longsPerChunk);
                     transferBuffer.position(firstValidIndexInChunk * Long.BYTES);
-                    chunkOffset = currentChunkStartOffset + calculateOffsetInChunk(currentMinValidIndex);
+                    chunkOffset = currentChunkStartOffset + calculateOffsetInChunk(startIndex);
                 } else {
                     // writing the whole chunk
                     transferBuffer.position(0);
@@ -439,7 +440,7 @@ public class LongListDisk extends AbstractLongList<Long> {
                 if (i == (totalNumOfChunks - 1)) {
                     // the last array, so set limit to only the data needed
                     final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                    final long remainingBytes = (size() * Long.BYTES) - bytesWrittenSoFar;
+                    final long remainingBytes = (endIndex * Long.BYTES) - bytesWrittenSoFar;
                     transferBuffer.limit(toIntExact(remainingBytes));
                 } else {
                     transferBuffer.limit(memoryChunkSize);
@@ -459,7 +460,7 @@ public class LongListDisk extends AbstractLongList<Long> {
                 fillBufferWithZeroes(transferBuffer);
             }
 
-            MerkleDbFileUtils.completelyWrite(fc, transferBuffer);
+            fileOffset += MerkleDbFileUtils.completelyWrite(fc, transferBuffer, fileOffset);
         }
     }
 
