@@ -28,8 +28,9 @@ with `java -jar`.
   commented-out text is not a claim.
 - `resolve/` — parse-only source index (`JavaParsing` via the JDK Compiler Tree API; also reads
   `@ConfigData` prefixes and `@ConfigProperty` record components, plus the as-written expression of a
-  non-literal `defaultValue`; the index additionally records every `src/main/java` package for the
-  prose package/FQN checks), the generated/external `Allowlist`, `AnchorResolver` (Tier 0/1/2
+  non-literal `defaultValue`; the file index spans every `src/<sourceSet>/java` tree so a cited
+  regression test resolves, while only `src/main/java` contributes the packages behind the prose
+  package/FQN checks), the generated/external `Allowlist`, `AnchorResolver` (Tier 0/1/2
   per-anchor checks), and `ConfigRecords` (the shared scan of every indexed `@ConfigData` record —
   `src/main/java` trees only, so a test-resource fixture copy never masquerades as a real record).
 - `findings/` — collapse to stable-id findings, `InterfaceDiffAssembler` (Tier 2 method-set diff),

@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
@@ -31,6 +32,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -40,6 +42,7 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -80,6 +83,12 @@ class PrngSystemContractTest {
 
     @Mock
     private MessageFrame initialFrame;
+
+    @Mock
+    private MessageFrame queryFrame;
+
+    @Mock
+    private ProxyWorldUpdater queryWorldUpdater;
 
     @Mock
     private SystemContractGasCalculator systemContractGasCalculator;
@@ -281,6 +290,82 @@ class PrngSystemContractTest {
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
+    }
+
+    @Test
+    void eachFrameIsPricedIndependentlyWhenCallsAreNested() {
+        // given: a mutable call, priced off the canonical UTIL_PRNG requirement...
+        givenCommon();
+        commonMocks();
+        given(messageFrame.isStatic()).willReturn(false);
+        given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
+
+        // ...and a nested static call, priced off the view requirement instead
+        final Deque<MessageFrame> queryStack = new ArrayDeque<>();
+        queryStack.push(initialFrame);
+        queryStack.addFirst(queryFrame);
+        given(queryFrame.getMessageFrameStack()).willReturn(queryStack);
+        given(queryFrame.isStatic()).willReturn(true);
+        given(queryFrame.getWorldUpdater()).willReturn(queryWorldUpdater);
+        given(queryWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
+        given(proxyWorldUpdater.entropy()).willAnswer(_ -> {
+            subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, queryFrame);
+            return EXPECTED_RANDOM_NUMBER;
+        });
+
+        final var recordCaptor = ArgumentCaptor.forClass(ContractFunctionResult.class);
+        when(systemContractOperations.dispatch(any(), any(), any(), any())).thenReturn(streamBuilder);
+        when(streamBuilder.contractCallResult(recordCaptor.capture())).thenReturn(streamBuilder);
+        when(streamBuilder.entropyBytes(any())).thenReturn(streamBuilder);
+
+        // when:
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+
+        // then: the outer call and its record both report the mutable frame's price
+        assertEqualContractResult(PRECOMPILE_CONTRACT_SUCCESS_RESULT, actual, GAS_REQUIRED);
+        assertEquals(GAS_REQUIRED, recordCaptor.getValue().gasUsed());
+    }
+
+    @Test
+    void eachFrameIsPricedIndependentlyUnderConcurrentUse() throws Exception {
+        givenCommon();
+        commonMocks();
+        given(messageFrame.isStatic()).willReturn(false);
+        given(proxyWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
+        given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
+
+        final Deque<MessageFrame> queryStack = new ArrayDeque<>();
+        queryStack.push(initialFrame);
+        queryStack.addFirst(queryFrame);
+        given(queryFrame.getMessageFrameStack()).willReturn(queryStack);
+        given(queryFrame.isStatic()).willReturn(true);
+        given(queryFrame.getWorldUpdater()).willReturn(queryWorldUpdater);
+        given(queryWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
+
+        when(systemContractOperations.dispatch(any(), any(), any(), any())).thenReturn(streamBuilder);
+        when(streamBuilder.contractCallResult(any())).thenReturn(streamBuilder);
+        when(streamBuilder.entropyBytes(any())).thenReturn(streamBuilder);
+
+        final var iterations = 2_000;
+        final var stop = new AtomicBoolean(false);
+        final var queryThread = new Thread(() -> {
+            while (!stop.get()) {
+                subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, queryFrame);
+            }
+        });
+        queryThread.setDaemon(true);
+        queryThread.start();
+        try {
+            for (int i = 0; i < iterations; i++) {
+                final var actual =
+                        subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+                assertEquals(
+                        GAS_REQUIRED, actual.gasRequirement(), "Gas requirement should be the mutable frame's price");
+            }
+        } finally {
+            stop.set(true);
+            queryThread.join();
+        }
     }
 
     private void givenInitialFrame() {
