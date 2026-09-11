@@ -101,6 +101,7 @@ module com.hedera.node.app {
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
+    requires transitive io.helidon.common.tls;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
     requires transitive java.net.http;
@@ -129,7 +130,6 @@ module com.hedera.node.app {
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
-    requires io.helidon.common.tls;
     requires io.helidon.webclient.api;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;

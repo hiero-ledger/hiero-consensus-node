@@ -5,20 +5,20 @@ import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Metadata that is calculated based on a {@link Roster} that is used to aid in drawing a hashgraph
  */
 public class RosterMetadata {
     /** the roster that this metadata is based on */
-    private final Roster roster;
+    private final RosterWrapper roster;
     /** the number of members in the roster */
     private final int numMembers;
     /** the labels of all the members */
     private final String[] memberLabels;
 
-    public RosterMetadata(@NonNull final Roster roster) {
+    public RosterMetadata(@NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster, "roster must not be null");
         final int m = roster.rosterEntries().size();
         numMembers = m;
@@ -50,7 +50,7 @@ public class RosterMetadata {
      */
     public int mems2col(@NonNull final EventImpl e) {
         Objects.requireNonNull(e, "e must not be null");
-        return RosterUtils.getIndex(roster, e.getCreatorId().id());
+        return roster.getIndex(e.getCreatorId());
     }
 
     /**

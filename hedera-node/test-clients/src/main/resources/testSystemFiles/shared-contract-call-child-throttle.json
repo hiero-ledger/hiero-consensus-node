@@ -1,0 +1,34 @@
+{
+  "buckets": [
+    {
+      "name": "ThroughputLimits",
+      "burstPeriodMs": 1100,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1,
+          "operations": [ "ContractCall" ]
+        },
+        {
+          "opsPerSec": 30,
+          "operations": [ "UtilPrng", "CryptoTransfer" ]
+        }
+      ]
+    },
+    {
+      "name": "MiscQueryLimits",
+      "burstPeriodMs": 1000,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000000,
+          "operations": [
+            "TransactionGetReceipt",
+            "CryptoGetAccountBalance",
+            "TransactionGetRecord",
+            "FileGetInfo",
+            "FileGetContents"
+          ]
+        }
+      ]
+    }
+  ]
+}

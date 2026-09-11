@@ -5,7 +5,6 @@ import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Emits events in a random (but topologically correct) order.
@@ -53,7 +52,11 @@ public class ShuffledEventEmitter extends BufferingEventEmitter {
         int attempts = 0;
         while (true) {
             final int nodeIndex = random.nextInt(getGraphGenerator().getNumberOfSources());
-            final NodeId nodeID = RosterUtils.getNodeId(getGraphGenerator().getRoster(), nodeIndex);
+            final NodeId nodeID = getGraphGenerator()
+                    .getRoster()
+                    .rosterEntries()
+                    .get(nodeIndex)
+                    .nodeId();
             attemptToGenerateEventFromNode(nodeID);
             if (isReadyToEmitEvent(nodeID)) {
                 eventEmittedFromBuffer();

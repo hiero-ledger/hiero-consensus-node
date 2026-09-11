@@ -33,9 +33,11 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
                             HederaFunctionality.FILE_UPDATE,
                             feeContext.body());
 
-            // Even if the privilege is UNAUTHORIZED or IMPERMISSIBLE continue with a free fee
-            // The appropriate error is thrown at a later stage of the workflow
-            if (privilege != SystemPrivilege.UNNECESSARY) {
+            // Waive fees only when the payer actually holds the privilege (AUTHORIZED). An
+            // UNAUTHORIZED (or IMPERMISSIBLE) attempt falls through to the normal fee so the failed
+            // transaction still pays the standard deterrent; its authorization error is thrown at a
+            // later stage of the workflow.
+            if (privilege == SystemPrivilege.AUTHORIZED) {
                 feeResult.clearFees();
                 return;
             }

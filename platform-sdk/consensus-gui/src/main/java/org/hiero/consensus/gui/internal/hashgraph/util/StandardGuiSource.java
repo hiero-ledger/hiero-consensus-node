@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * A {@link HashgraphGuiSource} that retrieves events from a stream of events
  */
 public class StandardGuiSource implements HashgraphGuiSource {
 
-    private final Roster roster;
+    private final RosterWrapper roster;
     private final GuiEventStorage eventStorage;
 
     /**
@@ -23,7 +23,7 @@ public class StandardGuiSource implements HashgraphGuiSource {
      * @param roster       the current roster
      * @param eventStorage stores information about events
      */
-    public StandardGuiSource(@NonNull final Roster roster, @NonNull final GuiEventStorage eventStorage) {
+    public StandardGuiSource(@NonNull final RosterWrapper roster, @NonNull final GuiEventStorage eventStorage) {
         this.roster = Objects.requireNonNull(roster);
         this.eventStorage = Objects.requireNonNull(eventStorage);
     }
@@ -52,7 +52,7 @@ public class StandardGuiSource implements HashgraphGuiSource {
      */
     @Override
     @NonNull
-    public Roster getRoster() {
+    public RosterWrapper getRoster() {
         return roster;
     }
 
