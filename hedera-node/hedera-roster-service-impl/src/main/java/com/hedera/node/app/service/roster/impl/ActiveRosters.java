@@ -95,6 +95,11 @@ public class ActiveRosters {
         final var currentRosterHash = requireNonNull(rosterStore.getCurrentRosterHash());
         // Set at either a stake period boundary with weight rotation; or on handling a PREPARE_UPGRADE
         var candidateRosterHash = rosterStore.getCandidateRosterHash();
+        // A candidate identical to the current roster is not a transition; a construction with the same
+        // roster as source and target only ever grounds a chain of trust, and must not be created here
+        if (currentRosterHash.equals(candidateRosterHash)) {
+            candidateRosterHash = null;
+        }
         // Ignore a candidate roster hash if the ACTIVE TSS constructions are still in progress
         if (candidateRosterHash != null) {
             if (activeHintsInProgress.getAsBoolean()

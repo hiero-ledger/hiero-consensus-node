@@ -117,9 +117,11 @@ tss.needsFreshGenesisWrapsProof=true
 
 (alongside the new `tss.wrapsProvingKeyHash` and download URL if the proving key changed). The network
 then builds a new genesis proof over its current roster, holding any candidate roster back until it is
-done, and resumes roster transitions from the new proof. If the roster's address book differs from the
-one the previous genesis proof was grounded in, **the ledger id changes** to its hash; the new value is
-externalized in a `LedgerIdPublication` transaction and is what HAPI query responses report from then on.
+done, and resumes roster transitions from the new proof. When it completes, a `LedgerIdPublication`
+transaction externalizes the ledger id together with the verification key and proof keys the new chain
+of trust uses. If the roster's address book differs from the one the previous genesis proof was grounded
+in, **the ledger id changes** to its hash, and that new value is what HAPI query responses report from then
+on; otherwise it is republished unchanged.
 
 The property applies to every upgrade while it is set, so set it back to `false` in the following
 release (or with a `0.0.121` update once the proof has completed).

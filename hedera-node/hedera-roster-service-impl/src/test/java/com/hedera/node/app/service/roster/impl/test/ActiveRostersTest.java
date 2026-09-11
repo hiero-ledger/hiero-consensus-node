@@ -127,6 +127,19 @@ class ActiveRostersTest {
     }
 
     @Test
+    void candidateIdenticalToCurrentRosterIsNotATransition() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
+
+        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> false, () -> false);
+
+        // Nothing to transition to, so the phase is decided as if there were no candidate at all
+        assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
+        assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
+    }
+
+    @Test
     void detectsTransition() {
         BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);

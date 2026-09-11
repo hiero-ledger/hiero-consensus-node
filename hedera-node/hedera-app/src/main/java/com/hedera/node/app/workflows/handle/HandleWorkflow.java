@@ -1163,9 +1163,13 @@ public class HandleWorkflow {
                                 if (newLedgerId != null) {
                                     logger.info("Re-anchored chain of trust, ledger id is now '{}'", newLedgerId);
                                     historyStore.setLedgerId(newLedgerId);
-                                    setLedgerIdContext.set(new LedgerIdContext(
-                                            newLedgerId, proof.targetProofKeys(), targetNodeWeights));
                                 }
+                                // Republish even when the anchor is unchanged, since the publication also
+                                // carries the verification key and proof keys the new chain of trust uses
+                                setLedgerIdContext.set(new LedgerIdContext(
+                                        requireNonNull(historyStore.getLedgerId()),
+                                        proof.targetProofKeys(),
+                                        targetNodeWeights));
                             }
                             // Finishing WRAPS genesis has no actual implications for hinTS
                             if (!isWrapsGenesis) {
