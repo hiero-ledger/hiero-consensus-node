@@ -18,6 +18,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.workflows.handle.stack.savepoints.AbstractSavepoint.SUCCESSES;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
@@ -58,6 +59,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
 
@@ -87,6 +89,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
 
     private final StreamMode streamMode;
 
+    private final BooleanSupplier blockStreamOutputSuppressed;
+    // Per-dispatch trace-data cap; inherited by child stacks so batched/scheduled calls enforce the same limit
+    private final int maxSerializedTraceDataBytes;
+
     private int numPresetIds;
     private int noncesToSkipPerPresetId;
     private boolean presetIdsAllowed;
@@ -111,6 +117,39 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final StreamMode streamMode,
             final int maxSerializedTraceDataBytes) {
+        return newRootStack(
+                state,
+                maxBuildersBeforeUser,
+                maxBuildersAfterUser,
+                boundaryStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                maxSerializedTraceDataBytes,
+                () -> false);
+    }
+
+    /**
+     * Constructs the root stack with a supplier indicating whether preview block output is suppressed.
+     *
+     * @param state the state
+     * @param maxBuildersBeforeUser the maximum number of preceding builders with available consensus times
+     * @param maxBuildersAfterUser the maximum number of following builders with available consensus times
+     * @param boundaryStateChangeListener the listener for the round state changes
+     * @param immediateStateChangeListener the listener for the key/value state changes
+     * @param streamMode the stream mode
+     * @param maxSerializedTraceDataBytes the maximum estimated serialized contract trace data size in bytes
+     * @param blockStreamOutputSuppressed supplies whether block output is suppressed for the current block
+     * @return the root {@link SavepointStackImpl}
+     */
+    public static SavepointStackImpl newRootStack(
+            @NonNull final State state,
+            final int maxBuildersBeforeUser,
+            final int maxBuildersAfterUser,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final StreamMode streamMode,
+            final int maxSerializedTraceDataBytes,
+            @NonNull final BooleanSupplier blockStreamOutputSuppressed) {
         return new SavepointStackImpl(
                 state,
                 maxBuildersBeforeUser,
@@ -118,7 +157,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
                 streamMode,
-                maxSerializedTraceDataBytes);
+                maxSerializedTraceDataBytes,
+                blockStreamOutputSuppressed);
     }
 
     /**
@@ -158,16 +198,19 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final StreamMode streamMode,
-            final int maxSerializedTraceDataBytes) {
+            final int maxSerializedTraceDataBytes,
+            @NonNull final BooleanSupplier blockStreamOutputSuppressed) {
         this.state = requireNonNull(state);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.streamMode = requireNonNull(streamMode);
+        this.blockStreamOutputSuppressed = requireNonNull(blockStreamOutputSuppressed);
+        this.maxSerializedTraceDataBytes = maxSerializedTraceDataBytes;
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
         noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
         setupFirstSavepoint(USER);
-        baseBuilder = createRootBaseBuilder(maxSerializedTraceDataBytes);
+        baseBuilder = createBaseBuilder(REVERSIBLE, USER, NOOP_SIGNED_TX_CUSTOMIZER);
     }
 
     /**
@@ -190,12 +233,14 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         requireNonNull(customizer);
         requireNonNull(category);
         this.streamMode = requireNonNull(streamMode);
+        this.blockStreamOutputSuppressed = parent.blockStreamOutputSuppressed;
+        this.maxSerializedTraceDataBytes = parent.maxSerializedTraceDataBytes;
         this.state = requireNonNull(parent);
         this.builderSink = null;
         this.immediateStateChangeListener = null;
         this.boundaryStateChangeListener = null;
         setupFirstSavepoint(category);
-        baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
+        baseBuilder = createBaseBuilder(reversingBehavior, category, customizer);
         presetIdsAllowed = false;
     }
 
@@ -466,7 +511,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createRemovableChildBuilder() {
-        return peek().createBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
+        return peek().createNonBaseBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
     }
 
     /**
@@ -475,7 +520,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createReversibleChildBuilder() {
-        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
+        return peek().createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
     }
 
     /**
@@ -484,7 +529,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
-        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
+        return peek().createNonBaseBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
     }
 
     /**
@@ -528,6 +573,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         final List<BlockStreamBuilder.Output> outputs = streamMode != RECORDS ? new LinkedList<>() : null;
         final List<SingleTransactionRecord> records = streamMode != BLOCKS ? new ArrayList<>() : null;
         final List<RecordSource.IdentifiedReceipt> receipts = streamMode != BLOCKS ? new ArrayList<>() : null;
+        final boolean suppressBlockOutput = streamMode == BOTH && blockStreamOutputSuppressed.getAsBoolean();
 
         var lastAssignedConsenusTime = consensusTime;
         final var builders = requireNonNull(builderSink).allBuilders();
@@ -621,10 +667,18 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 }
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
-                    records.add(pairedBuilder.recordStreamBuilder().build());
-                    final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
-                    requireNonNull(outputs)
-                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, groupStateChanges));
+                    final var nextRecord = pairedBuilder.recordStreamBuilder().build();
+                    records.add(nextRecord);
+                    receipts.add(new RecordSource.IdentifiedReceipt(
+                            nextRecord.transactionRecord().transactionIDOrThrow(),
+                            nextRecord.transactionRecord().receiptOrThrow()));
+                    if (!suppressBlockOutput) {
+                        final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
+                        requireNonNull(outputs)
+                                .add(pairedBuilder
+                                        .blockStreamBuilder()
+                                        .build(builder == baseBuilder, groupStateChanges));
+                    }
                 }
             }
         }
@@ -644,20 +698,26 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
     }
 
-    private StreamBuilder createRootBaseBuilder(final int maxSerializedTraceDataBytes) {
+    private StreamBuilder createBaseBuilder(
+            @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
+            @NonNull final TransactionCategory category,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer) {
         final var builder =
                 switch (streamMode) {
                     case RECORDS ->
-                        new RecordStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                        new RecordStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
                     case BLOCKS ->
-                        new BlockStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                        new BlockStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
                     case BOTH ->
-                        new PairedStreamBuilder(
-                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                        new PairedStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
                 };
-        peek().addFollowingOrThrow(builder);
+        if (!customizer.isSuppressed()) {
+            // Other code is a bit simpler when we always put the base builder for a stack in its
+            // "following" list, even if the stack is child stack for a preceding child dispatch;
+            // the base builder will still end up in the correct relative position in the parent
+            // sink because of how FirstChildSavepoint implements #commitBuilders()
+            peek().addFollowingOrThrow(builder);
+        }
         return builder;
     }
 
