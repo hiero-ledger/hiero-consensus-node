@@ -100,6 +100,10 @@ public class VirtualTestBase {
         return new VirtualLeafBytes<>(path, TestKey.longToKey(key), new TestValue(value), TestValueCodec.INSTANCE);
     }
 
+    protected VirtualLeafBytes<TestValue> leaf(long path, Bytes key, TestValue value) {
+        return new VirtualLeafBytes<>(path, key, value, TestValueCodec.INSTANCE);
+    }
+
     protected VirtualLeafBytes<TestValue> appleLeaf(long path) {
         lastALeaf = lastALeaf == null
                 ? new VirtualLeafBytes<>(path, A_KEY, APPLE, TestValueCodec.INSTANCE)
