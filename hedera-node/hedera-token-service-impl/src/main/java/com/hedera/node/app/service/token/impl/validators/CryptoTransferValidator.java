@@ -74,7 +74,7 @@ public class CryptoTransferValidator {
      */
     public void pureChecks(@NonNull final CryptoTransferTransactionBody op) throws PreCheckException {
         final var acctAmounts = op.transfersOrElse(TransferList.DEFAULT).accountAmounts();
-        validateTruePreCheck(isNetZeroAdjustment(acctAmounts), INVALID_ACCOUNT_AMOUNTS);
+        validateTruePreCheck(netAdjustmentOf(acctAmounts).equals(ZERO), INVALID_ACCOUNT_AMOUNTS);
 
         final var uniqueAcctIds = new HashSet<AccountID>();
         // Validate hbar transfers
@@ -292,7 +292,7 @@ public class CryptoTransferValidator {
             final Set<AccountID> uniqueTokenAcctIds,
             final AllowanceStrategy allowanceStrategy)
             throws PreCheckException {
-        validateTruePreCheck(isNetZeroAdjustment(fungibleTransfers), TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN);
+        validateTruePreCheck(netAdjustmentOf(fungibleTransfers).equals(ZERO), TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN);
         boolean nonZeroFungibleValueFound = false;
         for (final AccountAmount acctAmount : fungibleTransfers) {
             if (allowanceStrategy.equals(AllowanceStrategy.ALLOWANCES_REJECTED)) {
@@ -339,12 +339,12 @@ public class CryptoTransferValidator {
         }
     }
 
-    private static boolean isNetZeroAdjustment(@NonNull final List<AccountAmount> adjusts) {
+    static BigInteger netAdjustmentOf(@NonNull final List<AccountAmount> adjusts) {
         var net = ZERO;
         for (var adjust : adjusts) {
             net = net.add(BigInteger.valueOf(adjust.amount()));
         }
-        return net.equals(ZERO);
+        return net;
     }
 
     /**

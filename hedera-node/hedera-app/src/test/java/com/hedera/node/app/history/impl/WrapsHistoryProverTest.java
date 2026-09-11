@@ -191,6 +191,48 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void genesisMissingSelectedR2IsRecoverableOnlyAfterGracePeriod() {
+        final var lastMessageTime = EPOCH.plusSeconds(2);
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1)),
+                writableHistoryStore));
+        final var graceEndCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), graceEndCaptor.capture());
+        final var graceEnd = graceEndCaptor.getValue();
+        assertEquals(EPOCH.plusSeconds(1).plus(GRACE_PERIOD), graceEnd);
+        final var construction = constructionWithPhase(R2, graceEnd);
+
+        // Both R1 participants are required in R2; the other participant's R2 never arrives.
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, lastMessageTime),
+                writableHistoryStore));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(
+                        lastMessageTime, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(graceEnd, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true));
+
+        final var outcome = subject.advance(
+                graceEnd.plusNanos(1), construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(
+                "Still missing messages from R1 nodes [2] after end of grace period for phase R2", failure.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+        verify(writableHistoryStore, never()).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
     void advanceInitializesWrapsMessageAndPublishesR1() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
