@@ -3,10 +3,12 @@ package com.hedera.node.app.signature.impl;
 
 import static com.hedera.hapi.node.base.SignaturePair.SignatureOneOfType.ECDSA_SECP256K1;
 import static com.hedera.hapi.node.base.SignaturePair.SignatureOneOfType.ED25519;
+import static com.hedera.hapi.node.base.SignaturePair.SignatureOneOfType.ML_DSA_44;
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.KECCAK_256_HASH;
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.RAW;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.hcpq.Hcpq;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
@@ -52,9 +54,20 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
             @NonNull final Bytes signedBytes,
             @NonNull final Set<ExpandedSignaturePair> sigs,
             @NonNull final MessageType messageType) {
+        return verify(signedBytes, sigs, messageType, Bytes.EMPTY);
+    }
+
+    @NonNull
+    @Override
+    public Map<Key, SignatureVerificationFuture> verify(
+            @NonNull final Bytes signedBytes,
+            @NonNull final Set<ExpandedSignaturePair> sigs,
+            @NonNull final MessageType messageType,
+            @NonNull final Bytes ledgerId) {
         requireNonNull(signedBytes);
         requireNonNull(sigs);
         requireNonNull(messageType);
+        requireNonNull(ledgerId);
         if (messageType == KECCAK_256_HASH && signedBytes.length() != 32) {
             throw new IllegalArgumentException(
                     "Message type " + KECCAK_256_HASH + " must be 32 bytes long, got '" + signedBytes.toHex() + "'");
@@ -63,8 +76,19 @@ public final class SignatureVerifierImpl implements SignatureVerifier {
         // Gather each TransactionSignature to send to the platform and the resulting SignatureVerificationFutures
         final var futures = HashMap.<Key, SignatureVerificationFuture>newHashMap(sigs.size());
         for (ExpandedSignaturePair sigPair : sigs) {
-            final TransactionSignature txSig;
             final var kind = sigPair.sigPair().signature().kind();
+            if (kind == ML_DSA_44) {
+                final var passed = Hcpq.verifyTransaction(
+                        ledgerId.toByteArray(),
+                        signedBytes.toByteArray(),
+                        sigPair.keyBytes().toByteArray(),
+                        sigPair.sigPair().pubKeyPrefix().toByteArray(),
+                        sigPair.signature().toByteArray());
+                futures.put(sigPair.key(), new ImmediateSignatureVerificationFuture(sigPair.key(), passed));
+                continue;
+            }
+
+            final TransactionSignature txSig;
             if (kind == ECDSA_SECP256K1) {
                 Bytes message = signedBytes;
                 if (messageType == RAW) {

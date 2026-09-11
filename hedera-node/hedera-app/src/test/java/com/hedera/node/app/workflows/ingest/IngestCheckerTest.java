@@ -309,7 +309,7 @@ class IngestCheckerTest extends AppTestBase {
         final var verificationResult = mock(SignatureVerification.class);
         when(verificationResult.failed()).thenReturn(false);
         when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
-        when(signatureVerifier.verify(any(), any()))
+        when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                 .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
         // when
@@ -569,7 +569,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResult = mock(SignatureVerification.class);
             when(verificationResult.failed()).thenReturn(false);
             when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
             // When the transaction is checked with the feature enabled, it should pass
@@ -700,7 +700,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResult = mock(SignatureVerification.class);
             when(verificationResult.failed()).thenReturn(false);
             when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
         }
     }
@@ -714,7 +714,7 @@ class IngestCheckerTest extends AppTestBase {
         void noPayerSignature() {
             // If the signature verifier's returned map doesn't contain an entry for ALICE, it means she didn't have a
             // signature in the signature map to begin with.
-            when(signatureVerifier.verify(any(), any())).thenReturn(Map.of());
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class))).thenReturn(Map.of());
 
             // When the transaction is submitted, then the exception is thrown
             assertThatThrownBy(
@@ -731,7 +731,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResult = mock(SignatureVerification.class);
             when(verificationResult.failed()).thenReturn(true);
             when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
             assertThatThrownBy(
@@ -779,7 +779,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResultBob = mock(SignatureVerification.class);
             when(verificationResultBob.failed()).thenReturn(false);
             when(verificationResultFutureBob.get(anyLong(), any())).thenReturn(verificationResultBob);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(
                             ALICE.account().keyOrThrow(), verificationResultFutureAlice,
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
@@ -835,7 +835,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResultBob = mock(SignatureVerification.class);
             when(verificationResultBob.failed()).thenReturn(true);
             when(verificationResultFutureBob.get(anyLong(), any())).thenReturn(verificationResultBob);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(
                             ALICE.account().keyOrThrow(), verificationResultFutureAlice,
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
@@ -891,7 +891,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResultBob = mock(SignatureVerification.class);
             when(verificationResultBob.failed()).thenReturn(true);
             when(verificationResultFutureBob.get(anyLong(), any())).thenReturn(verificationResultBob);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(
                             ALICE.account().keyOrThrow(), verificationResultFutureAlice,
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
@@ -949,7 +949,7 @@ class IngestCheckerTest extends AppTestBase {
             final var verificationResultBob = mock(SignatureVerification.class);
             when(verificationResultBob.failed()).thenReturn(true);
             when(verificationResultFutureBob.get(anyLong(), any())).thenReturn(verificationResultBob);
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(
                             ALICE.account().keyOrThrow(), verificationResultFutureAlice,
                             BOB.account().keyOrThrow(), verificationResultFutureBob));
@@ -970,7 +970,7 @@ class IngestCheckerTest extends AppTestBase {
             doThrow(new RuntimeException("checkPayerSignature exception"))
                     .when(verificationResultFuture)
                     .get(anyLong(), any());
-            when(signatureVerifier.verify(any(), any()))
+            when(signatureVerifier.verify(any(), any(), any(Bytes.class)))
                     .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
 
             // When the transaction is submitted, then the exception is bubbled up

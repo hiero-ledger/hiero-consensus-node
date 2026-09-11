@@ -131,6 +131,9 @@ dependencies.constraints {
     api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
     }
+    api("com.hedera.cryptography:hedera-cryptography-hcpq:$hederaCryptography") {
+        because("com.hedera.cryptography.hcpq")
+    }
     api("com.hedera.cryptography:libsodium:$hederaCryptography") {
         because("com.hedera.cryptography.libsodium")
     }

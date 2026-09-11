@@ -30,6 +30,18 @@ public interface SignatureVerifier {
     }
 
     /**
+     * Verifies transaction signatures with the immutable ledger identifier required by HCPQ.
+     * Classical signatures retain their existing behavior.
+     */
+    @NonNull
+    default Map<Key, SignatureVerificationFuture> verify(
+            @NonNull final Bytes signedBytes,
+            @NonNull final Set<ExpandedSignaturePair> sigPairs,
+            @NonNull final Bytes ledgerId) {
+        return verify(signedBytes, sigPairs, RAW, ledgerId);
+    }
+
+    /**
      * Asynchronously verifies that the given {@code sigPairs} match the given {@code signedBytes}.
      *
      * @param signedBytes The signed bytes to verify
@@ -40,4 +52,17 @@ public interface SignatureVerifier {
     @NonNull
     Map<Key, SignatureVerificationFuture> verify(
             @NonNull Bytes signedBytes, @NonNull Set<ExpandedSignaturePair> sigPairs, @NonNull MessageType messageType);
+
+    /**
+     * Verifies signatures with a ledger domain. Implementations that do not support ledger-bound
+     * signatures may retain the legacy behavior.
+     */
+    @NonNull
+    default Map<Key, SignatureVerificationFuture> verify(
+            @NonNull final Bytes signedBytes,
+            @NonNull final Set<ExpandedSignaturePair> sigPairs,
+            @NonNull final MessageType messageType,
+            @NonNull final Bytes ledgerId) {
+        return verify(signedBytes, sigPairs, messageType);
+    }
 }

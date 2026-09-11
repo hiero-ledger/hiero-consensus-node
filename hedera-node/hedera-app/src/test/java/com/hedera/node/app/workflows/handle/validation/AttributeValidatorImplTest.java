@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -135,6 +136,30 @@ class AttributeValidatorImplTest {
         assertThatThrownBy(() -> subject.validateKey(Key.DEFAULT))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(BAD_ENCODING));
+    }
+
+    @Test
+    void rejectsHcpqKeysAtAnyDepthWhileDisabled() {
+        final var hcpq = Key.newBuilder().mlDsa44(Bytes.wrap(new byte[1312])).build();
+        final var nested =
+                Key.newBuilder().keyList(KeyList.newBuilder().keys(hcpq)).build();
+
+        assertThatThrownBy(() -> subject.validateKey(hcpq))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(NOT_SUPPORTED));
+        assertThatThrownBy(() -> subject.validateKey(nested))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(NOT_SUPPORTED));
+    }
+
+    @Test
+    void acceptsHcpqKeyWhenEnabled() {
+        final var config =
+                HederaTestConfigBuilder.create().withValue("hcpq.enabled", true).getOrCreateConfig();
+        given(context.configuration()).willReturn(config);
+        final var hcpq = Key.newBuilder().mlDsa44(Bytes.wrap(new byte[1312])).build();
+
+        assertThatCode(() -> subject.validateKey(hcpq)).doesNotThrowAnyException();
     }
 
     private static Key.Builder nestKeys(final Key.Builder builder, final int additionalLevels) {

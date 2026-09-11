@@ -74,6 +74,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -580,7 +581,8 @@ public final class IngestChecker {
         }
 
         // Verify the signatures
-        final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
+        final var ledgerId = configuration.getConfigData(LedgerConfig.class).id();
+        final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs, ledgerId);
         final var verifier = new DefaultKeyVerifier(hederaConfig, results);
         final SignatureVerification keyVerification;
         if (!isHollow(account)) {

@@ -68,7 +68,7 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
         requireNonNull(callback, "callback must not be null");
 
         return switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1 -> {
+            case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> {
                 final var result = resolveFuture(keyVerifications.get(key), () -> failedVerification(key));
                 yield callback.test(key, result) ? passedVerification(key) : failedVerification(key);
             }
@@ -152,7 +152,7 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
     @NonNull
     private Future<SignatureVerification> verificationFutureFor(@NonNull final Key key) {
         return switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1 -> {
+            case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> {
                 final var result = keyVerifications.get(key);
                 yield result == null ? completedFuture(failedVerification(key)) : result;
             }
