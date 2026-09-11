@@ -16,8 +16,7 @@ val grpc = "1.81.0"
 val hederaCryptography = "3.15.0"
 val helidon = "4.5.0"
 val jackson = "2.22.1"
-val junit5 =
-    "5.10.4!!" // #22061: bumped past 5.10.3 to verify the @OrderedInIsolation NETWORK-lock fix
+val junit5 = "5.10.4!!"
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
