@@ -103,3 +103,32 @@ Either way, the test job sets:
 ```
 TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/wraps-v1.0.0
 ```
+
+## Building the genesis WRAPS proof again
+
+Every WRAPS proof after the first folds onto the previous one, which is only sound while both are built
+with the same library and proving key. After a TSS library fix or a proving key change the active proof
+can no longer be extended, so the network has to build a fresh genesis proof for its current roster and
+continue from there. To have it do so in the first round after an upgrade, ship the upgrade with:
+
+```
+tss.needsFreshGenesisWrapsProof=true
+```
+
+(alongside the new `tss.wrapsProvingKeyHash` and download URL if the proving key changed). The network
+then builds a new genesis proof over its current roster, holding any candidate roster back until it is
+done, and resumes roster transitions from the new proof. When it completes, a `LedgerIdPublication`
+transaction externalizes the ledger id together with the verification key and proof keys the new chain
+of trust uses. If the roster's address book differs from the one the previous genesis proof was grounded
+in, **the ledger id changes** to its hash, and that new value is what HAPI query responses report from then
+on; otherwise it is republished unchanged.
+
+The property applies to every upgrade while it is set, so set it back to `false` in the following
+release (or with a `0.0.121` update once the proof has completed).
+
+> Only supported before the block stream cutover — that is, while `blockStream.enableCutover=false` and
+> block proofs still carry mock signatures (`tss.forceMockSignatures=true`, or
+> `blockStream.streamMode=RECORDS`, or either of `tss.hintsEnabled`/`tss.historyEnabled` off). In that
+> window the chain of trust is built and stored but nothing verifies against it, so rebuilding it costs
+> nothing. Once block proofs carry the chain of trust, the ledger id is what downstream verifiers anchor
+> on and there is no protocol yet for moving them to a new one; the property has no effect in that state.

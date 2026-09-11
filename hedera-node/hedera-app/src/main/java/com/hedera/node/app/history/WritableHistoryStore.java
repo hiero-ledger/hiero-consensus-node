@@ -26,14 +26,20 @@ import java.util.function.Consumer;
  */
 public interface WritableHistoryStore extends ReadableHistoryStore {
     /**
-     * If there is a known construction matching the active rosters, returns it; otherwise, null.
+     * If there is a known construction matching the active rosters, returns it; otherwise, creates one. When a
+     * fresh genesis proof is requested, a matching construction that is already complete is replaced by a new
+     * one rather than returned.
      * @param activeRosters the active rosters
      * @param now the current time
      * @param tssConfig the TSS configuration
+     * @param freshGenesisRequested whether a fresh genesis proof is requested for the current roster
      */
     @NonNull
     HistoryProofConstruction getOrCreateConstruction(
-            @NonNull ActiveRosters activeRosters, @NonNull Instant now, @NonNull TssConfig tssConfig);
+            @NonNull ActiveRosters activeRosters,
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean freshGenesisRequested);
 
     /**
      * Includes the given proof key for the given node, assigning the given adoption time if the key

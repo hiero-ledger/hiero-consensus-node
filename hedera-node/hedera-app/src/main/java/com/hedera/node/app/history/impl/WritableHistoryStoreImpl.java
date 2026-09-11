@@ -3,6 +3,7 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
@@ -78,7 +79,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public @NonNull HistoryProofConstruction getOrCreateConstruction(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested) {
         requireNonNull(activeRosters);
         requireNonNull(now);
         requireNonNull(tssConfig);
@@ -87,6 +89,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
+        // Constructions are matched by roster hashes alone, so when a fresh genesis proof is requested the
+        // completed construction that already grounds the chain of trust for this roster is matched again;
+        // it holds the very proof to be replaced, so a new construction is needed
+        if (construction != null && freshGenesisRequested && isCompleted(construction, tssConfig)) {
+            construction = null;
+        }
         if (construction == null) {
             final var gracePeriod = phase == BOOTSTRAP
                     ? tssConfig.bootstrapProofKeyGracePeriod()

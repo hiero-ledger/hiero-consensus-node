@@ -9,6 +9,8 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
@@ -87,6 +89,13 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     @Nullable
     private volatile WrapsPhase phaseNeedingWrapsReadinessRetry;
+
+    /**
+     * Whether this construction extends {@link #sourceProof} by folding onto it, rather than grounding a
+     * genesis proof. False at network genesis, and for any construction that grounds a fresh chain of trust
+     * for the roster the network already has.
+     */
+    private volatile boolean foldsOntoSourceProof;
 
     /**
      * If not null, the WRAPS message being signed for the current construction.
@@ -268,6 +277,10 @@ public class WrapsHistoryProver implements HistoryProver {
         if (ledgerId == null && sourceProof != null) {
             return new Outcome.Failed("Only genesis WRAPS proofs are allowed to not have a ledger id");
         }
+        // A construction with the same roster as source and target grounds a chain of trust, even when there
+        // is a source proof it could fold onto; that is how a fresh genesis proof replaces the active one
+        foldsOntoSourceProof =
+                tssConfig.wrapsEnabled() && isWrapsExtensible(sourceProof) && !groundsChainOfTrust(construction);
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
         if (state.phase() != AGGREGATE
                 && state.hasGracePeriodEndTime()
@@ -484,8 +497,7 @@ public class WrapsHistoryProver implements HistoryProver {
             phaseNeedingWrapsReadinessRetry = null;
         }
         // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading.
-        final boolean needsWrapsForOutput =
-                phase == POST_AGGREGATION || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
+        final boolean needsWrapsForOutput = phase == POST_AGGREGATION || (phase == AGGREGATE && foldsOntoSourceProof);
         // The genesis proof also needs the ledger id, which is not established at the instant the library
         // becomes ready; without this the phase proceeds and dereferences a null ledgerId.
         final String notReadyReason;
@@ -782,8 +794,9 @@ public class WrapsHistoryProver implements HistoryProver {
                         if (signature == null) {
                             yield new NoopOutput("WRAPS aggregation returned null for nodes " + signers);
                         }
-                        // Sans source proof, we are at genesis and need an aggregate signature proof right away
-                        if (sourceProof == null || !tssConfig.wrapsEnabled()) {
+                        // Sans a proof to fold onto, we are grounding a chain of trust and need an
+                        // aggregate signature proof right away
+                        if (!foldsOntoSourceProof) {
                             final var isValid = historyLibrary.verifyAggregateSignature(
                                     message,
                                     sourceBook.nodeIds(),
@@ -796,6 +809,7 @@ public class WrapsHistoryProver implements HistoryProver {
                             yield new AggregatePhaseOutput(
                                     signature, signers.stream().toList());
                         } else {
+                            final var foldedProof = requireNonNull(sourceProof);
                             if (!historyLibrary.wrapsProverReady(tssConfig.wrapsProvingKeyHash())) {
                                 yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                             }
@@ -822,14 +836,14 @@ public class WrapsHistoryProver implements HistoryProver {
                                             """,
                                     ledgerId,
                                     sourceBook,
-                                    noThrowSha384HashOf(sourceProof.uncompressedWrapsProof()),
+                                    noThrowSha384HashOf(foldedProof.uncompressedWrapsProof()),
                                     targetMetadata,
                                     Bytes.wrap(signature),
                                     signers,
                                     targetBook);
                             final var proof = historyLibrary.constructIncrementalWrapsProof(
                                     requireNonNull(ledgerId).toByteArray(),
-                                    sourceProof.uncompressedWrapsProof().toByteArray(),
+                                    foldedProof.uncompressedWrapsProof().toByteArray(),
                                     sourceBook,
                                     targetBook,
                                     targetMetadata.toByteArray(),
@@ -864,20 +878,27 @@ public class WrapsHistoryProver implements HistoryProver {
                                 .aggregatedNodeSignaturesOrThrow()
                                 .signingNodeIds());
                         final long now = System.nanoTime();
-                        log.info("""
+                        // The library rejects any anchor but the hash of the book the proof is grounded in;
+                        // this is the ledger id the preceding aggregate signature proof established
+                        final var genesisAddressBookHash = requireNonNull(targetAddressBookHash);
+                        log.info(
+                                """
                                         Constructing genesis WRAPS proof with:
                                           ledgerId={}
+                                          genesisAddressBookHash={}
                                           targetMetadata={}
                                           aggregateSignature={}
                                           signers={}
                                           targetBook={}
-                                        """, ledgerId, targetMetadata, Bytes.wrap(signature), signers, targetBook);
-                        final var proof = historyLibrary.constructGenesisWrapsProof(
-                                requireNonNull(ledgerId).toByteArray(),
-                                targetMetadata.toByteArray(),
-                                signature,
+                                        """,
+                                ledgerId,
+                                Bytes.wrap(genesisAddressBookHash),
+                                targetMetadata,
+                                Bytes.wrap(signature),
                                 signers,
                                 targetBook);
+                        final var proof = historyLibrary.constructGenesisWrapsProof(
+                                genesisAddressBookHash, targetMetadata.toByteArray(), signature, signers, targetBook);
                         if (proof == null) {
                             yield new NoopOutput("Genesis WRAPS proof construction returned null");
                         }
