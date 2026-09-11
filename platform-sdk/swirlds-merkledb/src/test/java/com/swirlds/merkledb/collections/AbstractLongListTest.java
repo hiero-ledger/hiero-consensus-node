@@ -3,9 +3,9 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.writeLongListToFileAndVerify;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,8 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Spliterator;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -1388,29 +1386,5 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             final long readValue = longList.get(i, 0);
             assertEquals(0, readValue, "Longs don't match for " + i + " got [" + readValue + "] should be [" + 0 + "]");
         }
-    }
-
-    /// Writes the list using the default writer count and verifies that the file exists.
-    ///
-    /// @param longList the LongList instance to write
-    /// @param fileName the name of the file to write
-    /// @param tempDir the directory where the file will be created
-    /// @return the path to the created file
-    /// @throws IOException if an I/O error occurs
-    static Path writeLongListToFileAndVerify(final LongList longList, final String fileName, final Path tempDir)
-            throws IOException {
-        final Path file = tempDir.resolve(fileName);
-
-        Files.deleteIfExists(file);
-        final int threadCount = DEFAULT_MERKLE_DB_CONFIG.longListWriteThreads();
-        try (final ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
-            longList.writeToFile(file, executor, threadCount);
-        }
-
-        assertTrue(
-                Files.exists(file),
-                String.format("File '%s' does not exist after writing longs.", file.toAbsolutePath()));
-
-        return file;
     }
 }
