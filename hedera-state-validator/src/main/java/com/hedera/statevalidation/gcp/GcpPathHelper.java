@@ -28,6 +28,9 @@ import org.apache.logging.log4j.MarkerManager;
  */
 public final class GcpPathHelper {
 
+    private static final String GCLOUD =
+            System.getProperty("os.name", "").toLowerCase().contains("windows") ? "gcloud.cmd" : "gcloud";
+
     private static final Logger log = LogManager.getLogger(GcpPathHelper.class);
 
     /** Marker for log statements that should be routed to stdout for user-facing progress. */
@@ -53,6 +56,8 @@ public final class GcpPathHelper {
 
     /** Default timeout (in seconds) for a recursive directory download. */
     private static final long DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS = 3600;
+
+    public static final int LS_TIMEOUT = 120;
 
     private GcpPathHelper() {}
 
@@ -124,7 +129,7 @@ public final class GcpPathHelper {
      */
     public static void ensureGcloudAvailable() {
         try {
-            final ProcessBuilder pb = new ProcessBuilder("gcloud", "--version");
+            final ProcessBuilder pb = new ProcessBuilder(GCLOUD, "--version");
             pb.redirectErrorStream(true);
             final Process p = pb.start();
             // Drain output to avoid blocking
@@ -379,7 +384,7 @@ public final class GcpPathHelper {
                             Thread.sleep(PROGRESS_INTERVAL_MS);
                             final long count = counter.count();
                             final int percent = (int) (count * 100 / totalFiles);
-                            if (percent / 10 > lastReportedPercent / 10) {
+                            if (percent / 10 > lastReportedPercent / 10 || count % 5000 == 0) {
                                 log.info(CONSOLE, "  {}% ({}/{})", percent, count, totalFiles);
                                 lastReportedPercent = percent;
                             }
@@ -429,7 +434,7 @@ public final class GcpPathHelper {
     private static int countRemoteObjects(@NonNull final String gcpPath, @Nullable final String billingProject) {
         try {
             final List<String> cmd = new ArrayList<>();
-            cmd.add("gcloud");
+            cmd.add(GCLOUD);
             cmd.add("storage");
             cmd.add("ls");
             cmd.add("--recursive");
@@ -451,7 +456,7 @@ public final class GcpPathHelper {
                     }
                 }
             }
-            final boolean finished = process.waitFor(120, TimeUnit.SECONDS);
+            final boolean finished = process.waitFor(LS_TIMEOUT, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 return 0;
@@ -461,6 +466,58 @@ public final class GcpPathHelper {
         } catch (IOException | InterruptedException e) {
             log.debug("Failed to count remote objects for {}", gcpPath, e);
             return 0;
+        }
+    }
+
+    /**
+     * Lists the first object in a GCS directory.
+     *
+     * @return the full GCS URI of the first object, or {@code null} if the directory is empty
+     */
+    public static String listFirstFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
+        return listFile(gcpPath, billingProject, true);
+    }
+
+    /**
+     * Lists the last object in a GCS directory. This reads the entire listing (GCS returns
+     * lexicographic order; the zero-padded block filenames make that equivalent to numeric order).
+     *
+     * @return the full GCS URI of the last object, or {@code null} if the directory is empty
+     */
+    public static String listLastFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
+        return listFile(gcpPath, billingProject, false);
+    }
+
+    /**
+     * Lists either the first or last non-directory object in a GCS directory.
+     * When {@code first} is true, the process is killed as soon as the first match is found
+     * (avoids streaming the entire listing for large directories).
+     */
+    private static String listFile(
+            @NonNull final String gcpPath, @Nullable final String billingProject, final boolean first) {
+        try {
+            final List<String> cmd = buildLsCommand(gcpPath, billingProject);
+            final ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            final Process process = pb.start();
+            String result = null;
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.isEmpty() && !line.endsWith("/")) {
+                        result = line.trim();
+                        if (first) {
+                            process.destroyForcibly();
+                            return result;
+                        }
+                    }
+                }
+            }
+            process.waitFor(LS_TIMEOUT, TimeUnit.SECONDS);
+            return result;
+        } catch (IOException | InterruptedException e) {
+            log.debug("Failed to list {} file in {}", first ? "first" : "last", gcpPath, e);
+            return null;
         }
     }
 
@@ -564,7 +621,8 @@ public final class GcpPathHelper {
     private static String buildDownloadScript(@NonNull final Path localDir, @Nullable final String billingProject) {
         final StringBuilder sb = new StringBuilder();
         sb.append("#!/bin/sh\n");
-        sb.append("gcloud storage cp");
+        sb.append(GCLOUD);
+        sb.append(" storage cp");
         if (billingProject != null && !billingProject.isEmpty()) {
             sb.append(" '--billing-project=").append(billingProject).append("'");
         }
@@ -578,7 +636,7 @@ public final class GcpPathHelper {
     @NonNull
     private static List<String> buildLsCommand(@NonNull final String gcpPath, @Nullable final String billingProject) {
         final List<String> cmd = new ArrayList<>();
-        cmd.add("gcloud");
+        cmd.add(GCLOUD);
         cmd.add("storage");
         cmd.add("ls");
         if (billingProject != null && !billingProject.isEmpty()) {
@@ -598,7 +656,7 @@ public final class GcpPathHelper {
             @NonNull final String destination,
             @Nullable final String billingProject) {
         final List<String> cmd = new ArrayList<>();
-        cmd.add("gcloud");
+        cmd.add(GCLOUD);
         cmd.add("storage");
         cmd.add(subCommand);
         if (billingProject != null && !billingProject.isEmpty()) {
@@ -616,7 +674,7 @@ public final class GcpPathHelper {
     private static List<String> buildRecursiveCpCommand(
             @NonNull final String source, @NonNull final String destination, @Nullable final String billingProject) {
         final List<String> cmd = new ArrayList<>();
-        cmd.add("gcloud");
+        cmd.add(GCLOUD);
         cmd.add("storage");
         cmd.add("cp");
         cmd.add("--recursive");

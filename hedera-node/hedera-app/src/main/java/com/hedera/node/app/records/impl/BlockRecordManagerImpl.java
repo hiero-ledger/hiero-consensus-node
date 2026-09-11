@@ -35,7 +35,7 @@ import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.BlockRootTree;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -103,8 +103,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // No-op
         }
     };
-
-    private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     /**
      * The number of blocks to keep multiplied by hash size. This is computed based on the
@@ -630,35 +628,27 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        // Branch 1: previousWrappedRecordBlockRootHash
-        // Branch 2: allPrevBlocksRootHash
-        final Bytes depth5Node1 =
-                BlockImplUtils.hashInternalNode(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash);
-
-        // Branches 3/4 (empty — no state hash or consensus header in wrapped record blocks)
-        @SuppressWarnings("UnnecessaryLocalVariable")
-        final Bytes depth5Node2 = EMPTY_INT_NODE;
-
-        // Branch 5: HASH_OF_ZERO (no inputs tree)
-        // Branch 6: outputItemsTreeRootHash
-        final Bytes outputTreeHash = entry.outputItemsTreeRootHash();
-        final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
-
-        // Branches 7/8 (empty — no state changes or trace data in wrapped record blocks)
-        @SuppressWarnings("UnnecessaryLocalVariable")
-        final Bytes depth5Node4 = EMPTY_INT_NODE;
-
-        // Intermediate depths 4, 3, and 2
-        final Bytes depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final Bytes depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-
-        final Bytes depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
-
-        final Bytes depth2Node1 = entry.consensusTimestampHash();
-        final Bytes depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
-
-        // Final block root (depth 1)
-        return BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
+        // A wrapped record block fills the same branches as any other block; only the previous block root, the
+        // all-previous-block-roots tree and the output items tree carry data. The consensus timestamp leaf
+        // is already hashed on the entry.
+        return BlockRootTree.computeBlockRootHash(
+                entry.consensusTimestampHash(),
+                // Branch 1: previous wrapped record block root hash
+                previousWrappedRecordBlockRootHash,
+                // Branch 2: root of the tree of all previous block root hashes
+                allPrevBlocksRootHash,
+                // Branch 3: no start-of-block state hash in a wrapped record block
+                BlockRootTree.EMPTY_SUBTREE,
+                // Branch 4: no consensus headers
+                BlockRootTree.EMPTY_SUBTREE,
+                // Branch 5: no input items
+                BlockRootTree.EMPTY_SUBTREE,
+                // Branch 6: the output items tree, holding the block header and the record file item
+                entry.outputItemsTreeRootHash(),
+                // Branch 7: no state changes
+                BlockRootTree.EMPTY_SUBTREE,
+                // Branch 8: no trace data
+                BlockRootTree.EMPTY_SUBTREE);
     }
 
     @Override

@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
@@ -145,18 +144,8 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-    final Stream<DynamicTest> account2CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(GENESIS, FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> account2CanUpdateSimpleFeeSchedule() {
         return specialAccountCanUpdateSpecialFile(GENESIS, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-    final Stream<DynamicTest> account50CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, FEE_SCHEDULE, IGNORE, IGNORE);
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
@@ -165,18 +154,8 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-    final Stream<DynamicTest> account56CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> account56CanUpdateSimpleFeesSchedule() {
         return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
-    }
-
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-    final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
-        return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)

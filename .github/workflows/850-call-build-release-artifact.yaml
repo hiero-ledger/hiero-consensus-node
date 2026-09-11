@@ -113,7 +113,10 @@ jobs:
   validate:
     name: Validate
     runs-on: hl-cn-default-lin-md
-    if: ${{ !github.event.repository.fork }}
+    # Repository-pinning holds regardless of the caller's trigger (pull_request,
+    # pull_request_target, workflow_run, push) and of a fork being renamed — unlike
+    # github.event.repository.fork, which is `false` when a fork PR targets upstream.
+    if: ${{ github.repository == 'hiero-ledger/hiero-consensus-node' }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
       branch-name-lower: ${{ steps.parameters.outputs.branch-name-lower }}
@@ -860,14 +863,16 @@ jobs:
         if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           RELEASE_PROFILE: ${{ inputs.release-profile }}
-        run: ./gradlew "release${RELEASE_PROFILE}" -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false
+        # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
+        run: ./gradlew "release${RELEASE_PROFILE}" -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --no-parallel
 
       - name: Gradle Publish to Maven Central
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false
+        # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --no-parallel
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -922,10 +927,14 @@ jobs:
       - publish
     if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
-          egress-policy: audit
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+          setup-jq: "true"
 
       - name: Determine Notification Parameters
         id: parameters
@@ -946,102 +955,24 @@ jobs:
           echo "artifact-name=${ARTIFACT_LINK_NAME}" >>"${GITHUB_OUTPUT}"
           echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
+      - name: Build Slack Payload
+        id: slack-payload
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          ARTIFACT_REGISTRY: ${{ steps.parameters.outputs.artifact-registry }}
+          ARTIFACT_URL: ${{ steps.parameters.outputs.artifact-url }}
+          ARTIFACT_NAME: ${{ steps.parameters.outputs.artifact-name }}
+          REF_NAME: ${{ inputs.ref-name }}
+          COMMIT_ID_SHORT: ${{ needs.validate.outputs.commit-id-short }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          PAYLOAD=$(gomplate -f .github/workflows/templates/slack-release-notification.json.tpl | jq -c .)
+          echo "payload=${PAYLOAD}" >> "${GITHUB_OUTPUT}"
+
       - name: Send Slack Notification (Maven Central)
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-webhook-url }}
           webhook-type: incoming-webhook
-          payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                  {
-                    "color": "#b7f350",
-                    "blocks": [
-                      {
-                        "type": "header",
-                        "text": {
-                          "type": "plain_text",
-                          "text": ":dvd: Node Software Release v${{ needs.validate.outputs.version }}",
-                          "emoji": true
-                        }
-                      },
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Deployment Channel:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Deployment Status Check:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "${{ steps.parameters.outputs.artifact-registry }}"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "<${{ steps.parameters.outputs.artifact-url }}|${{ steps.parameters.outputs.artifact-name }}>"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Source Branch:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Short Commit ID:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ inputs.ref-name }}|${{ inputs.ref-name }}>"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "`${{ needs.validate.outputs.commit-id-short }}`"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Gradle Version Number:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Release Notes:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "`${{ needs.validate.outputs.version }}`"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}|v${{ needs.validate.outputs.version }}>"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "divider"
-                      },
-                      {
-                        "type": "context",
-                        "elements": [
-                          {
-                            "type": "mrkdwn",
-                            "text": ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above."
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
+          payload: ${{ steps.slack-payload.outputs.payload }}

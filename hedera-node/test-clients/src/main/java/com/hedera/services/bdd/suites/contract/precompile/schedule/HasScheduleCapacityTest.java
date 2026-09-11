@@ -105,14 +105,8 @@ public class HasScheduleCapacityTest {
         return hapiTest(hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, VALUE_MORE_THAN_LONG));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
-    @LeakyHapiTest(
-            overrides = {CAPACITY_CONFIG_NAME, THROTTLE_BY_GAS_CONFIG_NAME},
-            fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest(overrides = {CAPACITY_CONFIG_NAME, THROTTLE_BY_GAS_CONFIG_NAME})
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
     public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
         final BigInteger expirySecond =
@@ -152,12 +146,7 @@ public class HasScheduleCapacityTest {
     // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
     // with 'StreamValidationTest' 'expected from generated but did not find in translated [scheduleID]'
 
-    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyRepeatableHapiTest(
-            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
-            fees = "scheduled-contract-fees.json")
+    @LeakyRepeatableHapiTest(RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {

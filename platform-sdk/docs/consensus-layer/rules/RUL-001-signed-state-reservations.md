@@ -24,6 +24,7 @@ status: holds
 confidence: high
 provenance: extracted from architecture/topics/signed-state-management.md, 2026-05-27
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # RUL-001 — A SignedState must remain reserved while any consumer can still access it

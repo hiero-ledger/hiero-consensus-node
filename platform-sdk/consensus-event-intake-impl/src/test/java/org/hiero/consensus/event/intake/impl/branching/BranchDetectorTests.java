@@ -4,7 +4,6 @@ package org.hiero.consensus.event.intake.impl.branching;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,22 +49,6 @@ class BranchDetectorTests {
         }
 
         return events;
-    }
-
-    @Test
-    void requiresEventWindow() {
-        final Randotron randotron = Randotron.create();
-        final Roster roster = RosterFactory.randomRoster(randotron, 8);
-
-        final PlatformEvent event = new TestingEventBuilder(randotron)
-                .setCreatorId(NodeId.of(roster.rosterEntries().get(0).nodeId()))
-                .setBirthRound(1)
-                .build();
-
-        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
-
-        // We expect this to throw if we haven't yet specified the event window.
-        assertThrows(IllegalStateException.class, () -> branchDetector.checkForBranches(event));
     }
 
     @Test

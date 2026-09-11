@@ -96,7 +96,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withStatus;
@@ -1192,8 +1191,6 @@ public class RepeatableHip423Tests {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> scheduleV2SecurityAssociateSingleTokenWithDelegateContractKey() {
         return hapiTest(
-                // upload fees for SCHEDULE_CREATE_CONTRACT_CALL
-                uploadScheduledContractPrices(GENESIS),
                 cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
@@ -1371,7 +1368,6 @@ public class RepeatableHip423Tests {
         return hapiTest(
                 cryptoCreate("account"),
                 tokenCreate("FungibleToken").tokenType(TokenType.FUNGIBLE_COMMON),
-                uploadScheduledContractPrices(GENESIS),
                 overriding("scheduling.whitelist", "ContractCall"),
                 uploadInitCode("AssociateDissociate"),
                 contractCreate("AssociateDissociate"),
@@ -1855,7 +1851,6 @@ public class RepeatableHip423Tests {
 
     private SpecOperation[] uploadTestContracts(String... contracts) {
         final var ops = new ArrayList<>(List.of(
-                uploadScheduledContractPrices(GENESIS),
                 overriding("scheduling.whitelist", "ContractCall,ContractCreate,ContractUpdate,ContractDelete")));
         for (final var contract : contracts) {
             ops.add(uploadInitCode(contract));

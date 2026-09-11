@@ -4,12 +4,28 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  MC_PATH: gs://performance-engineering-reports/permanent/mc
+
 on:
   schedule:
     - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   performance-tests-start:
     runs-on: hl-cn-default-lin-sm
 
@@ -50,18 +66,27 @@ jobs:
       - name: List SSH Resources
         run: tsh -i "${{ steps.auth-ssh.outputs.identity-file }}" ls
 
-      - name: Install Wget
-        run: sudo apt install -y wget
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
-      - name: Download MC
-        run: wget -q -O /tmp/mc https://dl.min.io/client/mc/release/linux-amd64/mc
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Download MC utility
+        run: |
+          gcloud --no-user-output-enabled storage cp "${{ env.MC_PATH }}" mc
+          chmod a+rx mc
 
       - name: Call clean Dal
         run: |
           set +e
           set +x
 
-          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]|chewie'`
           do
             echo "Cleaning ${namespace}"
             sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
@@ -82,7 +107,7 @@ jobs:
           set +e
           set +x
 
-          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]|chewie'`
           do
             echo "Cleaning ${namespace}"
             sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}

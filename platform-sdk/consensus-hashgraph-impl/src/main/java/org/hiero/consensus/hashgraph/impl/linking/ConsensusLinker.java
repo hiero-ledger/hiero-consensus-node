@@ -168,8 +168,7 @@ public class ConsensusLinker {
             return null;
         }
 
-        if (candidateParent.getBirthRound()
-                != parentDescriptor.eventDescriptor().birthRound()) {
+        if (candidateParent.getBirthRound() != parentDescriptor.birthRound()) {
             logsAndMetrics.parentHasIncorrectBirthRound(child, parentDescriptor, candidateParent);
             return null;
         }

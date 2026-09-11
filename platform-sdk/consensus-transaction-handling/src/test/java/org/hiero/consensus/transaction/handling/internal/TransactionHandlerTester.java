@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
@@ -33,7 +33,9 @@ import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
@@ -42,7 +44,7 @@ public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
-    private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
+    private final StatusMonitorModule statusMonitorModule;
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final Instant freezeTime;
@@ -52,6 +54,7 @@ public class TransactionHandlerTester implements AutoCloseable {
      * Constructs a new {@link TransactionHandlerTester} with the given {@link Roster}.
      *
      */
+    @SuppressWarnings("unchecked")
     public TransactionHandlerTester() {
 
         freezeTime = Instant.now();
@@ -64,6 +67,10 @@ public class TransactionHandlerTester implements AutoCloseable {
         platformState = new PlatformStateValueAccumulator();
         final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
         final SignedState state = randomSignedStateGenerator.build();
+
+        statusMonitorModule = mock(StatusMonitorModule.class);
+        final InputWire<PlatformStatusAction> statusActionWire = mock(InputWire.class);
+        when(statusMonitorModule.platformStatusActionInputWire()).thenReturn(statusActionWire);
 
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
 
@@ -81,7 +88,7 @@ public class TransactionHandlerTester implements AutoCloseable {
                 configuration,
                 metrics,
                 stateLifecycleManager,
-                submittedActions::add,
+                statusMonitorModule,
                 SemanticVersion.DEFAULT,
                 consensusStateEventHandler,
                 NodeId.of(1),
@@ -103,10 +110,10 @@ public class TransactionHandlerTester implements AutoCloseable {
     }
 
     /**
-     * @return a list of all {@link PlatformStatusAction}s that have been submitted by the transaction handler
+     * @return the {@link StatusMonitorModule} used by this tester
      */
-    public List<PlatformStatusAction> getSubmittedActions() {
-        return submittedActions;
+    public StatusMonitorModule getStatusMonitorModule() {
+        return statusMonitorModule;
     }
 
     /**

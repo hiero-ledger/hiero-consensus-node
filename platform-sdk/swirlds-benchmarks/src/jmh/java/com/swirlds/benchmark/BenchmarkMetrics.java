@@ -5,7 +5,7 @@ import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
 import com.swirlds.config.api.Configuration;
@@ -34,11 +34,12 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
-import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
-import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
+import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
+import org.hiero.consensus.model.node.NodeId;
 
 public final class BenchmarkMetrics {
 
@@ -65,6 +66,7 @@ public final class BenchmarkMetrics {
     private String origMetricString;
     private String curMetricString;
     private Metrics metrics;
+    private DefaultMetricsProvider metricsProvider;
 
     /*
      *    System metrics: time, memory, CPU
@@ -120,7 +122,7 @@ public final class BenchmarkMetrics {
 
     private static final LongGauge.Config TPS_CONFIG = new LongGauge.Config(BENCHMARK_CATEGORY, "tps")
             .withDescription("transactions per second")
-            .withFormat(FORMAT_FLOAT0);
+            .withFormat(FORMAT_INTEGER);
 
     private BenchmarkMetrics() {
         // prevent instantiation
@@ -164,7 +166,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskReadOpsConfig = new FunctionGauge.Config<>(
                     "ADA",
-                    "diskReadOps/s",
+                    "diskReadOps_per_s",
                     Double.class,
                     () -> 1000. * (curDiskStats[DISK_STAT_ROPS] - prevDiskStats[DISK_STAT_ROPS]) / (curTime - prevTime))
             .withDescription("Disk read operations per sec")
@@ -172,7 +174,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskReadBytesConfig = new FunctionGauge.Config<>(
                     "ADB",
-                    "diskReadBytes/s",
+                    "diskReadBytes_per_s",
                     Double.class,
                     () -> 1000.
                             * sectorSize
@@ -191,7 +193,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskWriteOpsConfig = new FunctionGauge.Config<>(
                     "ADD",
-                    "diskWriteOps/s",
+                    "diskWriteOps_per_s",
                     Double.class,
                     () -> 1000. * (curDiskStats[DISK_STAT_WOPS] - prevDiskStats[DISK_STAT_WOPS]) / (curTime - prevTime))
             .withDescription("Disk write operations per sec")
@@ -199,7 +201,7 @@ public final class BenchmarkMetrics {
 
     private final FunctionGauge.Config<Double> diskWriteBytesConfig = new FunctionGauge.Config<>(
                     "ADE",
-                    "diskWriteBytes/s",
+                    "diskWriteBytes_per_s",
                     Double.class,
                     () -> 1000.
                             * sectorSize
@@ -245,15 +247,20 @@ public final class BenchmarkMetrics {
             logger.error("Can't parse {}: {} ", diskSectorSizeFile, ex);
             return;
         }
+        diskMetricsRegistered = true;
+        updateDiskMetrics(); // first call: only populates curDiskStats, prevDiskStats stays null
+        updateDiskMetrics(); // second call: shifts curDiskStats into prevDiskStats, repopulates curDiskStats
+        if (!diskMetricsRegistered) {
+            // updateDiskMetrics() failed and reset the flag; don't register gauges backed by null stats
+            return;
+        }
+
         metrics.getOrCreate(diskReadOpsConfig);
         metrics.getOrCreate(diskReadBytesConfig);
         metrics.getOrCreate(diskReadTimeConfig);
         metrics.getOrCreate(diskWriteOpsConfig);
         metrics.getOrCreate(diskWriteBytesConfig);
         metrics.getOrCreate(diskWriteTimeConfig);
-        diskMetricsRegistered = true;
-
-        updateDiskMetrics();
     }
 
     /*
@@ -336,13 +343,20 @@ public final class BenchmarkMetrics {
     private void setupInstance() {
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(MetricsConfig.class)
+                .withConfigDataType(PrometheusConfig.class)
+                .withConfigDataType(BasicCommonConfig.class)
                 .build();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
         metricService = Executors.newSingleThreadScheduledExecutor(
                 getStaticThreadManager().createThreadFactory("benchmark", "MetricsWriter"));
-        metrics = new DefaultPlatformMetrics(
-                null, registry, metricService, new PlatformMetricsFactoryImpl(metricsConfig), metricsConfig);
+
+        metricsProvider = new DefaultMetricsProvider(configuration);
+        metrics = metricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID);
+
+        final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
+        // start update and snapshot services only if Prometheus endpoint is enabled
+        if (prometheusConfig.endpointEnabled()) {
+            metricsProvider.start();
+        }
 
         metrics.getOrCreate(TIMESTAMP_CONFIG);
         metrics.getOrCreate(MEM_TOT_CONFIG);
@@ -406,5 +420,6 @@ public final class BenchmarkMetrics {
 
     public static void stop() {
         INSTANCE.metricService.shutdownNow();
+        INSTANCE.metricsProvider.stop();
     }
 }

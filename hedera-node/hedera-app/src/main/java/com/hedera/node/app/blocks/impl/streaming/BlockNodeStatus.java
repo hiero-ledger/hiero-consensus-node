@@ -6,9 +6,9 @@ package com.hedera.node.app.blocks.impl.streaming;
  *
  * @param wasReachable true if the Block Node was reachable, else false
  * @param latencyMillis the duration the status check took to complete, or -1 if unreachable
- * @param latestBlockAvailable the latest block available on the Block Node, or -1 if unreachable
+ * @param nextExpectedBlock the next block the Block Node wants streamed, or -1 if unreachable
  */
-public record BlockNodeStatus(boolean wasReachable, long latencyMillis, long latestBlockAvailable) {
+public record BlockNodeStatus(boolean wasReachable, long latencyMillis, long nextExpectedBlock) {
 
     private static final BlockNodeStatus NOT_REACHABLE = new BlockNodeStatus(false, -1L, -1L);
 
@@ -25,10 +25,10 @@ public record BlockNodeStatus(boolean wasReachable, long latencyMillis, long lat
      * Convenience method for creating a status of reachable.
      *
      * @param latencyMillis the latency (in milliseconds) the status check took
-     * @param latestBlockAvailable the latest block available
+     * @param nextExpectedBlock the next block wanted
      * @return a status marked as reachable
      */
-    public static BlockNodeStatus reachable(final long latencyMillis, final long latestBlockAvailable) {
-        return new BlockNodeStatus(true, latencyMillis, latestBlockAvailable);
+    public static BlockNodeStatus reachable(final long latencyMillis, final long nextExpectedBlock) {
+        return new BlockNodeStatus(true, latencyMillis, nextExpectedBlock);
     }
 }

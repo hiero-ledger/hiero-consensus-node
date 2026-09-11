@@ -17,8 +17,8 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -98,7 +98,7 @@ public record PullVirtualTreeResponse(
         if (isClean) { // false is default, only count when true
             size += sizeOfTag(FIELD_PULLRESPONSE_IS_CLEAN) + 1;
         }
-        if (path == Path.ROOT_PATH) {
+        if (path == MerklePathUtils.ROOT_PATH) {
             if (firstLeafPath != 0) {
                 size += sizeOfTag(FIELD_PULLRESPONSE_FIRST_LEAF_PATH) + Long.BYTES;
             }
@@ -129,7 +129,7 @@ public record PullVirtualTreeResponse(
         }
         writeBoolean(out, FIELD_PULLRESPONSE_IS_CLEAN, isClean);
         // First/last leaf paths - only for root
-        if (path == Path.ROOT_PATH) {
+        if (path == MerklePathUtils.ROOT_PATH) {
             writeLong(out, FIELD_PULLRESPONSE_FIRST_LEAF_PATH, firstLeafPath);
             writeLong(out, FIELD_PULLRESPONSE_LAST_LEAF_PATH, lastLeafPath);
         }

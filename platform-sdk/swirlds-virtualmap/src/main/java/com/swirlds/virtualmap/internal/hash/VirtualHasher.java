@@ -2,16 +2,16 @@
 package com.swirlds.virtualmap.internal.hash;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.virtualmap.MerkleHasher;
+import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -182,10 +182,11 @@ public final class VirtualHasher {
         }
 
         void setHash(final long path, @NonNull final byte[] hash) {
-            assert Path.getRank(this.path) + height == Path.getRank(path)
-                    : this.path + " " + Path.getRank(this.path) + " " + height + " " + path + " " + Path.getRank(path);
+            assert MerklePathUtils.getRank(this.path) + height == MerklePathUtils.getRank(path)
+                    : this.path + " " + MerklePathUtils.getRank(this.path) + " " + height + " " + path + " "
+                            + MerklePathUtils.getRank(path);
             assert hash != null;
-            final long firstPathInPathRank = Path.getLeftGrandChildPath(this.path, height);
+            final long firstPathInPathRank = MerklePathUtils.getLeftGrandChildPath(this.path, height);
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
             ins[index] = hash;
@@ -201,17 +202,18 @@ public final class VirtualHasher {
         protected boolean onExecute() {
             int len = 1 << height;
             final long chunkPath;
-            final int taskRank = Path.getRank(path);
+            final int taskRank = MerklePathUtils.getRank(path);
             if (taskRank % defaultChunkHeight == 0) {
                 chunkPath = path;
             } else {
                 final int chunkPathRank = taskRank / defaultChunkHeight * defaultChunkHeight;
                 final int rankDiff = taskRank - chunkPathRank;
-                chunkPath = Path.getGrandParentPath(path, rankDiff);
+                chunkPath = MerklePathUtils.getGrandParentPath(path, rankDiff);
             }
-            final int chunkRank = Path.getRank(chunkPath);
+            final int chunkRank = MerklePathUtils.getRank(chunkPath);
             VirtualHashChunk hashChunk = null;
-            if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
+            if ((height == defaultChunkHeight)
+                    || (MerklePathUtils.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
                 if (chunkPath == path) {
                     if (!hasNullInputs) {
                         // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
@@ -229,7 +231,7 @@ public final class VirtualHasher {
                 assert hashChunk.path() == chunkPath;
             }
             final int chunkLastRank = chunkRank + hashChunk.height();
-            long rankPath = Path.getLeftGrandChildPath(path, height);
+            long rankPath = MerklePathUtils.getLeftGrandChildPath(path, height);
             int currentRank = taskRank + height;
             final MerkleHasher merkleHasher = MerkleHasher.threadSafeDefault();
             while (len > 1) {
@@ -279,7 +281,7 @@ public final class VirtualHasher {
 
                     ins[i] = merkleHasher.internalNodeHashBytes(left, right);
                 }
-                rankPath = Path.getParentPath(rankPath);
+                rankPath = MerklePathUtils.getParentPath(rankPath);
                 currentRank--;
                 len = len >> 1;
             }
@@ -353,8 +355,8 @@ public final class VirtualHasher {
             final int defaultChunkHeight) {
         if ((rank == lastLeafRank) && (firstLeafRank != lastLeafRank)) {
             final int height = ((rank - 1) % defaultChunkHeight) + 1;
-            final long chunkPath = Path.getGrandParentPath(path, height);
-            final long lastPathInChunk = Path.getRightGrandChildPath(chunkPath, height);
+            final long chunkPath = MerklePathUtils.getGrandParentPath(path, height);
+            final long lastPathInChunk = MerklePathUtils.getRightGrandChildPath(chunkPath, height);
             return (lastPathInChunk <= lastLeafPath) ? height : 1;
         } else if (rank == firstLeafRank) {
             // If a chunk ends at the first leaf rank, its height is aligned with the first leaf rank
@@ -512,8 +514,8 @@ public final class VirtualHasher {
         // is calculated, it is set as an input dependency of that task. Output dependency value
         // may not be null.
 
-        int firstLeafRank = Path.getRank(firstLeafPath);
-        int lastLeafRank = Path.getRank(lastLeafPath);
+        int firstLeafRank = MerklePathUtils.getRank(firstLeafPath);
+        int lastLeafRank = MerklePathUtils.getRank(lastLeafPath);
 
         // This map contains all tasks created, but not scheduled for execution yet
         final HashMap<Long, ChunkHashTask> chunkTasks = new HashMap<>(128);
@@ -550,7 +552,7 @@ public final class VirtualHasher {
             // number of dependencies in the parent tasks
             HashProducingTask curTask = leafTask;
             while (true) {
-                final int curRank = Path.getRank(curPath);
+                final int curRank = MerklePathUtils.getRank(curPath);
                 assert curRank > 0; // there must be a parent task
 
                 final long lastPathAtRank = stack[curRank];
@@ -561,12 +563,12 @@ public final class VirtualHasher {
                     final int lastTaskAtRankParentChunkHeight = getChunkHeightForInputRank(
                             lastPathAtRank, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
                     final long lastTaskAtRankParentPath =
-                            Path.getGrandParentPath(lastPathAtRank, lastTaskAtRankParentChunkHeight);
+                            MerklePathUtils.getGrandParentPath(lastPathAtRank, lastTaskAtRankParentChunkHeight);
                     final ChunkHashTask lastTaskAtRankParentTask = chunkTasks.get(lastTaskAtRankParentPath);
                     // The parent tank must exist, since it was created at the previous iteration
                     assert lastTaskAtRankParentTask != null;
-                    final long lastTaskAtRankParentLastInputPath =
-                            Path.getRightGrandChildPath(lastTaskAtRankParentPath, lastTaskAtRankParentChunkHeight);
+                    final long lastTaskAtRankParentLastInputPath = MerklePathUtils.getRightGrandChildPath(
+                            lastTaskAtRankParentPath, lastTaskAtRankParentChunkHeight);
                     if (curPath > lastTaskAtRankParentLastInputPath) {
                         // Mark all paths in range (last path at stack, the last input path
                         // in the parent task] as clean. The corresponding dependencies in the
@@ -589,7 +591,7 @@ public final class VirtualHasher {
                 // Now find this task's parent task
                 final int parentChunkHeight =
                         getChunkHeightForInputRank(curPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
-                final long parentPath = Path.getGrandParentPath(curPath, parentChunkHeight);
+                final long parentPath = MerklePathUtils.getGrandParentPath(curPath, parentChunkHeight);
                 ChunkHashTask parentTask = chunkTasks.get(parentPath);
                 final boolean parentTaskExists = parentTask != null;
                 if (parentTask == null) {
@@ -602,7 +604,8 @@ public final class VirtualHasher {
                 // the last path in stack may be in the same parent task, in this case only paths
                 // greater than the last path in stack are marked
                 if (lastPathAtRank != INVALID_PATH) {
-                    final long parentTaskFirstInputPath = Path.getLeftGrandChildPath(parentPath, parentChunkHeight);
+                    final long parentTaskFirstInputPath =
+                            MerklePathUtils.getLeftGrandChildPath(parentPath, parentChunkHeight);
                     for (long l = Math.max(parentTaskFirstInputPath, lastPathAtRank + 1); l < curPath; l++) {
                         parentTask.staticNullInput();
                     }

@@ -13,7 +13,7 @@ open module com.swirlds.state.impl.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.utility;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;

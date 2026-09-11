@@ -37,8 +37,8 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiContractCreate;
 import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.InvocationTargetException;
+import java.util.HexFormat;
 import java.util.List;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 
 /**
@@ -246,9 +246,10 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
         if (initcodeTransformType != InitcodeTransform.NoOp.class) {
             try {
                 final var transform = initcodeTransformType.getConstructor().newInstance();
-                final var transformed =
-                        transform.transformHexed(spec, CommonUtils.hex(Hex.decode(initcode.toByteArray())));
-                initcode = ByteString.copyFrom(Hex.encode(requireNonNull(CommonUtils.unhex(transformed))));
+                final var transformed = transform.transformHexed(
+                        spec, CommonUtils.hex(HexFormat.of().parseHex(initcode.toStringUtf8())));
+                initcode = ByteString.copyFromUtf8(
+                        HexFormat.of().formatHex(requireNonNull(CommonUtils.unhex(transformed))));
             } catch (InstantiationException
                     | IllegalAccessException
                     | InvocationTargetException
@@ -259,7 +260,7 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
         final SpecOperation op;
         constructorArgs = withSubstitutedTypes(spec.targetNetworkOrThrow(), constructorArgs);
         if (initcode.size() < MAX_INLINE_INITCODE_SIZE) {
-            final var unhexedBytecode = Hex.decode(initcode.toByteArray());
+            final var unhexedBytecode = HexFormat.of().parseHex(initcode.toStringUtf8());
             op = contractCreate(name, constructorArgs)
                     .gas(creationGas)
                     .maxAutomaticTokenAssociations(maxAutoAssociations)

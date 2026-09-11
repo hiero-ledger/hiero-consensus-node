@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.function.Supplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
@@ -26,15 +27,15 @@ public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonV
         final long firstRoundNumber = round1.getRoundNum();
         final long secondRoundNumber = round2.getRoundNum();
         assertThat(round1.getRoundNum())
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
                 .isEqualTo(round2.getRoundNum());
         assertThat(round1.getEventCount())
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
                 .isEqualTo(round2.getEventCount());
         assertThat(round1.getSnapshot())
-                .withFailMessage(String.format(
+                .withFailMessage(() -> String.format(
                         "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
                 .isEqualTo(round2.getSnapshot());
         final Iterator<PlatformEvent> evIt1 = round1.getConsensusEvents().iterator();
@@ -43,20 +44,21 @@ public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonV
         while (evIt1.hasNext() && evIt2.hasNext()) {
             final PlatformEvent e1 = evIt1.next();
             final PlatformEvent e2 = evIt2.next();
+            final int index = eventIndex;
             assertThat(e1.getConsensusData())
-                    .withFailMessage(String.format(
+                    .withFailMessage(() -> String.format(
                             "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
-                            firstRoundNumber, secondRoundNumber, eventIndex))
+                            firstRoundNumber, secondRoundNumber, index))
                     .isNotNull();
             assertThat(e2.getConsensusData())
-                    .withFailMessage(String.format(
+                    .withFailMessage(() -> String.format(
                             "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
-                            firstRoundNumber, secondRoundNumber, eventIndex))
+                            firstRoundNumber, secondRoundNumber, index))
                     .isNotNull();
             assertConsensusEvents(
-                    String.format(
+                    () -> String.format(
                             "roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, event index %d",
-                            firstRoundNumber, secondRoundNumber, eventIndex),
+                            firstRoundNumber, secondRoundNumber, index),
                     e1,
                     e2);
             eventIndex++;
@@ -67,16 +69,16 @@ public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonV
      * Assert that two events are equal. If they are not equal then cause the test to fail and print
      * a meaningful error message.
      *
-     * @param description a string that is printed if the events are unequal
+     * @param description supplies a string that is printed if the events are unequal; only evaluated on failure
      * @param e1 the first event
      * @param e2 the second event
      */
     private static void assertConsensusEvents(
-            final String description, final PlatformEvent e1, final PlatformEvent e2) {
+            final Supplier<String> description, final PlatformEvent e1, final PlatformEvent e2) {
         final boolean equal = Objects.equals(e1, e2);
         if (!equal) {
             final StringBuilder sb = new StringBuilder();
-            sb.append(description).append("\n");
+            sb.append(description.get()).append("\n");
             sb.append("Events are not equal:\n");
             sb.append("Event 1: ").append(e1).append("\n");
             sb.append("Event 2: ").append(e2).append("\n");

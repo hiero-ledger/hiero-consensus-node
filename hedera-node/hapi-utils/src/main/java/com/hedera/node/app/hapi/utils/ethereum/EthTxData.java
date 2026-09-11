@@ -10,6 +10,7 @@ import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -18,11 +19,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.util.BigIntegers;
 
 public record EthTxData(
         byte[] rawTx,
@@ -80,16 +78,29 @@ public record EthTxData(
     public static EthTxData populateEthTxData(final byte[] data) {
         try {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
-            final var rlpItem = decoder.next();
-            if (rlpItem.isList()) {
-                return populateLegacyEthTxData(rlpItem, data);
+            final var firstItem = decoder.next();
+
+            // A legacy transaction is a bare RLP list, so it is its own envelope.
+            if (firstItem.isList()) {
+                return consumesAllOf(firstItem, data) ? populateLegacyEthTxData(firstItem, data) : null;
             }
 
-            return switch (asByte(rlpItem)) {
-                case 1 -> populateEip2390EthTxData(decoder.next(), data);
-                case 2 -> populateEip1559EthTxData(decoder.next(), data);
+            // A typed transaction (EIP-2718) is a one-byte type tag followed by its payload list, so there the
+            // envelope is the second item. Unsupported types fall through to `null` below; decoding their
+            // payload first is wasted work on an already-rejected input, but it keeps the check in one place,
+            // and a malformed payload only raises `IllegalArgumentException`, which this method already maps
+            // to `null`.
+            final var type = asByte(firstItem);
+            final var envelope = decoder.next();
+            if (!consumesAllOf(envelope, data)) {
+                return null;
+            }
+
+            return switch (type) {
+                case 1 -> populateEip2390EthTxData(envelope, data);
+                case 2 -> populateEip1559EthTxData(envelope, data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
-                case 4 -> populateEip7702EthTxData(decoder.next(), data);
+                case 4 -> populateEip7702EthTxData(envelope, data);
                 default -> null;
             };
 
@@ -110,6 +121,20 @@ public record EthTxData(
         } catch (IllegalArgumentException | NoSuchElementException e) {
             return -1;
         }
+    }
+
+    /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
+    /// if present. Adopted from org.bouncycastle.util.BigIntegers.asUnsignedByteArray().
+    public static byte[] asUnsignedByteArray(final BigInteger value) {
+        final byte[] bytes = value.toByteArray();
+
+        if (bytes[0] == 0 && bytes.length != 1) {
+            final byte[] tmp = new byte[bytes.length - 1];
+            System.arraycopy(bytes, 1, tmp, 0, tmp.length);
+            return tmp;
+        }
+
+        return bytes;
     }
 
     public EthTxData replaceCallData(final byte[] newCallData) {
@@ -299,7 +324,7 @@ public record EthTxData(
     }
 
     public byte[] getEthereumHash() {
-        return new Keccak.Digest256().digest(rawTx == null ? encodeTx() : rawTx);
+        return MiscCryptoUtils.keccak256DigestOf(rawTx == null ? encodeTx() : rawTx);
     }
 
     public enum EthTransactionType {
@@ -364,23 +389,27 @@ public record EthTxData(
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("rawTx", rawTx == null ? null : Hex.encodeHexString(rawTx))
+                .add("rawTx", rawTx == null ? null : HexFormat.of().formatHex(rawTx))
                 .add("type", type)
-                .add("chainId", chainId == null ? null : Hex.encodeHexString(chainId))
+                .add("chainId", chainId == null ? null : HexFormat.of().formatHex(chainId))
                 .add("nonce", nonce)
-                .add("gasPrice", gasPrice == null ? null : Hex.encodeHexString(gasPrice))
-                .add("maxPriorityGas", maxPriorityGas == null ? null : Hex.encodeHexString(maxPriorityGas))
-                .add("maxGas", maxGas == null ? null : Hex.encodeHexString(maxGas))
+                .add("gasPrice", gasPrice == null ? null : HexFormat.of().formatHex(gasPrice))
+                .add(
+                        "maxPriorityGas",
+                        maxPriorityGas == null ? null : HexFormat.of().formatHex(maxPriorityGas))
+                .add("maxGas", maxGas == null ? null : HexFormat.of().formatHex(maxGas))
                 .add("gasLimit", gasLimit)
-                .add("to", to == null ? null : Hex.encodeHexString(to))
+                .add("to", to == null ? null : HexFormat.of().formatHex(to))
                 .add("value", value)
-                .add("callData", Hex.encodeHexString(callData))
-                .add("accessList", accessList == null ? null : Hex.encodeHexString(accessList))
-                .add("authorizationList", authorizationList == null ? null : Hex.encodeHexString(authorizationList))
+                .add("callData", HexFormat.of().formatHex(callData))
+                .add("accessList", accessList == null ? null : HexFormat.of().formatHex(accessList))
+                .add(
+                        "authorizationList",
+                        authorizationList == null ? null : HexFormat.of().formatHex(authorizationList))
                 .add("yParity", recId)
-                .add("v", v == null ? null : Hex.encodeHexString(v))
-                .add("r", Hex.encodeHexString(r))
-                .add("s", Hex.encodeHexString(s))
+                .add("v", v == null ? null : HexFormat.of().formatHex(v))
+                .add("r", HexFormat.of().formatHex(r))
+                .add("s", HexFormat.of().formatHex(s))
                 .toString();
     }
 
@@ -586,6 +615,34 @@ public record EthTxData(
     }
 
     /**
+     * Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
+     * encoding consumed the whole input as EIP-2718 requires and as {@code ethereum_data} is specified ("the
+     * complete transaction data").
+     *
+     * <p>{@code RLPDecoder.sequenceIterator} is a <em>sequence</em> reader, so anything past the envelope is
+     * simply left unread rather than reported: {@code tx || extra} would otherwise parse as {@code tx}, yielding
+     * identical fields but a different {@code keccak256(rawTx)} — the value externalized as a record's
+     * {@code ethereum_hash}. Requiring full consumption keeps that hash a function of the transaction rather
+     * than of how its bytes were framed.
+     *
+     * <p>This governs only bytes <em>outside</em> the envelope. It is unrelated to trailing bytes <em>inside</em>
+     * ABI-encoded {@code callData}, which are part of the signed payload and which HIP-1342 deliberately
+     * permits; neither rule generalizes to the other layer.
+     *
+     * <p>A positional comparison is preferred over {@code decoder.hasNext()}, which reaches the same two
+     * outcomes only by way of exception control flow: it returns {@code true} for a well-formed trailing item
+     * but throws headlong's {@code ShortInputException} for a malformed one, relying on that being an
+     * {@code IllegalArgumentException} for {@link #populateEthTxData} to map it to {@code null}.
+     *
+     * @param envelope the RLP item parsed from the start of {@code data}
+     * @param data the complete candidate transaction bytes
+     * @return whether the envelope ends exactly at the end of {@code data}
+     */
+    private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
+        return envelope.endIndex == data.length;
+    }
+
+    /**
      * Encodes the transaction data into a EthTxData according to legacy RLP format.
      *
      * @return the encoded transaction data
@@ -767,9 +824,9 @@ public record EthTxData(
             // after EIP155 the chain id is equal to CHAIN_ID = (v - {0,1} - 35) / 2.
             // asUnsignedByteArray avoids the leading sign byte BigInteger.toByteArray adds when the
             // top bit is set — see https://github.com/hashgraph/hedera-services/issues/15953
-            return BigIntegers.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
+            return EthTxData.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
         }
-        return BigIntegers.asUnsignedByteArray(
+        return EthTxData.asUnsignedByteArray(
                 vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
     }
 

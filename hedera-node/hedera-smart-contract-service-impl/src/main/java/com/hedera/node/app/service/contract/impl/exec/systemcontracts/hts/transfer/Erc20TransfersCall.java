@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall.autoAssociationGasRequirement;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall.transferGasRequirement;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
@@ -102,12 +103,14 @@ public class Erc20TransfersCall extends AbstractCall {
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
         // https://eips.ethereum.org/EIPS/eip-20
         final var syntheticTransfer = syntheticTransferOrTransferFrom(senderId);
-        final var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
+        // When unlimited associations are enabled, will be updated with additional charges for any auto-associations
+        var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         if (tokenId == null) {
             return reversionWith(INVALID_TOKEN_ID, gasRequirement);
         }
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticTransfer, verificationStrategy, senderId, ContractCallStreamBuilder.class);
+        gasRequirement += autoAssociationGasRequirement(frame, recordBuilder, gasCalculator);
         final var status = recordBuilder.status();
         if (status != SUCCESS) {
             if (status == NOT_SUPPORTED) {

@@ -17,9 +17,9 @@
 
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 
-import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.MerklePathUtils;
 import java.util.Deque;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -106,7 +106,7 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
 
         nextLeafPath.set(firstLeafPath);
 
-        final int leafParentRank = Path.getRank(firstLeafPath) - 1;
+        final int leafParentRank = MerklePathUtils.getRank(firstLeafPath) - 1;
         if (leafParentRank < DEFAULT_CHUNK_ROOT_RANK / 2) {
             chunkCount = 0;
             return; // just iterate over all leaves
@@ -119,7 +119,7 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
         // will be of minChunkHeight + 1 height
         final int minChunkHeight = leafParentRank - chunksRootRank;
 
-        final long firstPathInLeafParentRank = Path.getLeftGrandChildPath(0, leafParentRank);
+        final long firstPathInLeafParentRank = MerklePathUtils.getLeftGrandChildPath(0, leafParentRank);
 
         chunkStartPaths = new AtomicReferenceArray<>(chunkCount);
         chunkWidths = new AtomicReferenceArray<>(chunkCount);
@@ -130,9 +130,9 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
             final int startRank;
             final long startPath;
             final long chunkWidth;
-            if (Path.getLeftChildPath(p) + (2L << minChunkHeight) <= reconnectFirstLeafPath) {
+            if (MerklePathUtils.getLeftChildPath(p) + (2L << minChunkHeight) <= reconnectFirstLeafPath) {
                 startRank = leafParentRank + 1;
-                startPath = Path.getLeftChildPath(p);
+                startPath = MerklePathUtils.getLeftChildPath(p);
                 chunkWidth = 2L << minChunkHeight;
             } else {
                 startRank = leafParentRank;
@@ -154,24 +154,24 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
                 assert chunkCount > 0;
                 final int chunk = getPathChunk(path);
                 final int chunkStartRank = chunkStartRanks.get(chunk);
-                final int rank = Path.getRank(path);
+                final int rank = MerklePathUtils.getRank(path);
                 if (isClean) {
                     cleanNodes.add(path);
                     // Keep cleanNodes lean. If a parent is clean, its children are clean, too, no
                     // need to keep them in the set
-                    cleanNodes.remove(Path.getLeftChildPath(path));
-                    cleanNodes.remove(Path.getRightChildPath(path));
-                    if (Path.isLeft(path)) {
+                    cleanNodes.remove(MerklePathUtils.getLeftChildPath(path));
+                    cleanNodes.remove(MerklePathUtils.getRightChildPath(path));
+                    if (MerklePathUtils.isLeft(path)) {
                         if (rank > chunksRootRank) {
                             // Add the parent to the list of paths to check
-                            internalsToCheck.addFirst(Path.getParentPath(path));
+                            internalsToCheck.addFirst(MerklePathUtils.getParentPath(path));
                         } else {
                             // Chunk processing is done, the whole chunk is clean
                             chunksInProgress.remove(chunk);
                         }
                     } else {
                         final long nextPathAtChunkStartRank =
-                                Path.getRightGrandChildPath(path, chunkStartRank - rank) + 1;
+                                MerklePathUtils.getRightGrandChildPath(path, chunkStartRank - rank) + 1;
                         if (nextPathAtChunkStartRank <= getLastChunkPath(chunk)) {
                             internalsToCheck.add(nextPathAtChunkStartRank);
                         } else {
@@ -188,9 +188,9 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
                         }
                     } else {
                         final int pathLevelInChunk = chunkStartRank - rank;
-                        final long leftChild = Path.getLeftChildPath(path);
+                        final long leftChild = MerklePathUtils.getLeftChildPath(path);
                         final long nextPathAtChunkStartRank =
-                                Path.getRightGrandChildPath(leftChild, pathLevelInChunk - 1) + 1;
+                                MerklePathUtils.getRightGrandChildPath(leftChild, pathLevelInChunk - 1) + 1;
                         assert nextPathAtChunkStartRank <= getLastChunkPath(chunk);
                         internalsToCheck.add(nextPathAtChunkStartRank);
                     }
@@ -205,17 +205,17 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
         if (path != null) {
             return path;
         }
-        return Path.INVALID_PATH;
+        return MerklePathUtils.INVALID_PATH;
     }
 
     @Override
     public long getNextLeafPathToSend() {
         long path = nextLeafPath.get();
-        if (path == Path.INVALID_PATH) {
-            return Path.INVALID_PATH;
+        if (path == MerklePathUtils.INVALID_PATH) {
+            return MerklePathUtils.INVALID_PATH;
         }
         path = skipCleanPaths(path, reconnectLastLeafPath);
-        if (path == Path.INVALID_PATH) {
+        if (path == MerklePathUtils.INVALID_PATH) {
             nextLeafPath.set(path);
             return path;
         }
@@ -228,14 +228,14 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
     }
 
     private int getPathChunk(long path) {
-        int rank = Path.getRank(path);
+        int rank = MerklePathUtils.getRank(path);
         if (rank < chunksRootRank) {
             // This may happen if the whole chunk is clean
-            path = Path.getLeftGrandChildPath(path, chunksRootRank - rank);
+            path = MerklePathUtils.getLeftGrandChildPath(path, chunksRootRank - rank);
             rank = chunksRootRank;
         }
-        final long pathAtTopRank = Path.getGrandParentPath(path, rank - chunksRootRank);
-        return (int) (pathAtTopRank - Path.getLeftGrandChildPath(0, chunksRootRank));
+        final long pathAtTopRank = MerklePathUtils.getGrandParentPath(path, rank - chunksRootRank);
+        return (int) (pathAtTopRank - MerklePathUtils.getLeftGrandChildPath(0, chunksRootRank));
     }
 
     private long getLastChunkPath(final int chunk) {
@@ -252,7 +252,7 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
             path = result;
             result = skipCleanPaths(path);
         }
-        return (result <= limit) ? result : Path.INVALID_PATH;
+        return (result <= limit) ? result : MerklePathUtils.INVALID_PATH;
     }
 
     /**
@@ -262,8 +262,8 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
      */
     private long skipCleanPaths(final long path) {
         assert path > 0;
-        long parent = Path.getParentPath(path);
-        long cleanParent = Path.INVALID_PATH;
+        long parent = MerklePathUtils.getParentPath(path);
+        long cleanParent = MerklePathUtils.INVALID_PATH;
         int parentRanksAbove = 1;
         int cleanParentRanksAbove = 1;
         while (parent != ROOT_PATH) {
@@ -272,14 +272,14 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
                 cleanParentRanksAbove = parentRanksAbove;
             }
             parentRanksAbove++;
-            parent = Path.getParentPath(parent);
+            parent = MerklePathUtils.getParentPath(parent);
         }
         final long result;
-        if (cleanParent == Path.INVALID_PATH) {
+        if (cleanParent == MerklePathUtils.INVALID_PATH) {
             // no clean parent found
             result = path;
         } else {
-            result = Path.getRightGrandChildPath(cleanParent, cleanParentRanksAbove) + 1;
+            result = MerklePathUtils.getRightGrandChildPath(cleanParent, cleanParentRanksAbove) + 1;
         }
         assert result >= path;
         return result;

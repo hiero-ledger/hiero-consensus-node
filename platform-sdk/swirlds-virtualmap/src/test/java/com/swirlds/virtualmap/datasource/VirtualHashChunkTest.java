@@ -17,7 +17,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.MerkleHasher;
-import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.MerklePathUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import org.hiero.base.crypto.Cryptography;
@@ -45,15 +45,16 @@ public class VirtualHashChunkTest {
             assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData, height));
             assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashData, height + 1));
             assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, height, hashData, height));
-            assertDoesNotThrow(
-                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData, height));
-            assertDoesNotThrow(
-                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData, height - 1));
-            assertDoesNotThrow(
-                    () -> new VirtualHashChunk(Path.getRightGrandChildPath(0, height), height, hashData, height));
+            assertDoesNotThrow(() ->
+                    new VirtualHashChunk(MerklePathUtils.getLeftGrandChildPath(0, height), height, hashData, height));
+            assertDoesNotThrow(() -> new VirtualHashChunk(
+                    MerklePathUtils.getLeftGrandChildPath(0, height), height, hashData, height - 1));
+            assertDoesNotThrow(() ->
+                    new VirtualHashChunk(MerklePathUtils.getRightGrandChildPath(0, height), height, hashData, height));
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height + 1), height, hashData, height));
+                    () -> new VirtualHashChunk(
+                            MerklePathUtils.getLeftGrandChildPath(0, height + 1), height, hashData, height));
         }
         assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, 1, new byte[HASH_LENGTH * 2], 2));
         assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(3, 1, new byte[HASH_LENGTH * 2], 2));
@@ -142,12 +143,12 @@ public class VirtualHashChunkTest {
         for (long path = 1; path < 10000; path++) {
             final long chunkId = VirtualHashChunk.pathToChunkId(path, chunkHeight);
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, chunkHeight);
-            final int rank = Path.getRank(path);
+            final int rank = MerklePathUtils.getRank(path);
             if (rank % chunkHeight == 0) {
                 final int pathIndex = VirtualHashChunk.getPathIndexInChunk(path, chunkPath, chunkHeight);
                 assertEquals(path, VirtualHashChunk.getPathInChunk(pathIndex, chunkPath, chunkHeight));
             } else {
-                assertEquals(chunkPath, Path.getGrandParentPath(path, rank % chunkHeight));
+                assertEquals(chunkPath, MerklePathUtils.getGrandParentPath(path, rank % chunkHeight));
             }
         }
     }
@@ -369,7 +370,7 @@ public class VirtualHashChunkTest {
     void setHashTest(final int height) {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
-        final long chunkPath = Path.getLeftGrandChildPath(0, random.nextInt(8) * height);
+        final long chunkPath = MerklePathUtils.getLeftGrandChildPath(0, random.nextInt(8) * height);
         final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height);
         for (int i = 0; i < chunkSize; i++) {
             final Hash hash = genRandomHash();
@@ -386,14 +387,14 @@ public class VirtualHashChunkTest {
     @Test
     void dataRankTest() {
         final int height = 5;
-        final long chunkPath = Path.getLeftGrandChildPath(0, height);
+        final long chunkPath = MerklePathUtils.getLeftGrandChildPath(0, height);
         final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height);
         assertEquals(1, chunk.dataRank());
-        chunk.setHashAtPath(Path.getLeftChildPath(chunkPath), genRandomHash());
+        chunk.setHashAtPath(MerklePathUtils.getLeftChildPath(chunkPath), genRandomHash());
         assertEquals(1, chunk.dataRank());
-        chunk.setHashAtPath(Path.getLeftGrandChildPath(chunkPath, 2), genRandomHash());
+        chunk.setHashAtPath(MerklePathUtils.getLeftGrandChildPath(chunkPath, 2), genRandomHash());
         assertEquals(2, chunk.dataRank());
-        chunk.setHashAtPath(Path.getRightChildPath(chunkPath), genRandomHash());
+        chunk.setHashAtPath(MerklePathUtils.getRightChildPath(chunkPath), genRandomHash());
         assertEquals(2, chunk.dataRank());
     }
 
@@ -404,7 +405,7 @@ public class VirtualHashChunkTest {
         final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height);
         assertEquals(1, chunk.dataRank()); // data rank == 1, this is 2 hashes
         for (int i = 1; i <= height; i++) {
-            final long path = Path.getLeftGrandChildPath(chunkPath, i);
+            final long path = MerklePathUtils.getLeftGrandChildPath(chunkPath, i);
             chunk.setHashAtPath(path, genRandomHash());
             final int dataRank = chunk.dataRank();
             assertEquals(i, dataRank);
@@ -423,7 +424,7 @@ public class VirtualHashChunkTest {
     void copyTest(final int height) {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
-        final long chunkPath = Path.getLeftGrandChildPath(0, random.nextInt(8) * height);
+        final long chunkPath = MerklePathUtils.getLeftGrandChildPath(0, random.nextInt(8) * height);
         final VirtualHashChunk original = new VirtualHashChunk(chunkPath, height);
 
         // Populate original chunk with random hashes
@@ -540,7 +541,7 @@ public class VirtualHashChunkTest {
         for (long path : testPaths) {
             final VirtualHashChunk original = new VirtualHashChunk(path, height);
             final Hash testHash = genRandomHash();
-            final long firstLeafPath = Path.getLeftGrandChildPath(path, height);
+            final long firstLeafPath = MerklePathUtils.getLeftGrandChildPath(path, height);
             original.setHashAtPath(firstLeafPath, testHash);
 
             final VirtualHashChunk copy = original.copy();
@@ -572,7 +573,7 @@ public class VirtualHashChunkTest {
     void serializationRoundTripTest(final int height) {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
-        final long chunkPath = Path.getLeftGrandChildPath(0, random.nextInt(8) * height);
+        final long chunkPath = MerklePathUtils.getLeftGrandChildPath(0, random.nextInt(8) * height);
         final VirtualHashChunk original = new VirtualHashChunk(chunkPath, height);
 
         // Populate with random hashes
@@ -890,7 +891,7 @@ public class VirtualHashChunkTest {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
         final long chunkPath =
-                Path.getLeftGrandChildPath(0, random.nextInt(1, 8) * height) + random.nextInt(1 << height);
+                MerklePathUtils.getLeftGrandChildPath(0, random.nextInt(1, 8) * height) + random.nextInt(1 << height);
         final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height);
 
         for (int i = 0; i < chunkSize; i++) {

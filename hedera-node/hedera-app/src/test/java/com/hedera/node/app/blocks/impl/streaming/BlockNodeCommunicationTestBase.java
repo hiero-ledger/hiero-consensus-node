@@ -9,6 +9,7 @@ import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
+import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -17,6 +18,7 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeTlsConfiguration;
 import com.hedera.node.app.utils.TestCaseLoggerExtension;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -180,6 +182,19 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
+    protected static BlockItem newBlockFooter() {
+        final byte[] array = new byte[1024];
+        Arrays.fill(array, (byte) 10);
+
+        return BlockItem.newBuilder()
+                .blockFooter(BlockFooter.newBuilder()
+                        .rootHashOfAllBlockHashesTree(Bytes.wrap(array))
+                        .previousBlockRootHash(Bytes.wrap(array))
+                        .startOfBlockStateRootHash(Bytes.wrap(array))
+                        .build())
+                .build();
+    }
+
     protected static BlockItem newBlockProofItem() {
         return BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().build())
@@ -201,6 +216,30 @@ public abstract class BlockNodeCommunicationTestBase {
 
     protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
         return newBlockNodeConfig("localhost", port, priority);
+    }
+
+    /**
+     * A configuration whose two APIs sit on distinct ports with their own TLS settings, for per-API TLS tests.
+     */
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int streamingPort,
+            final int servicePort,
+            final int priority,
+            final BlockNodeTlsConfiguration streamingTls,
+            final BlockNodeTlsConfiguration serviceTls) {
+        return BlockNodeConfiguration.newBuilder()
+                .address(address)
+                .streamingPort(streamingPort)
+                .servicePort(servicePort)
+                .priority(priority)
+                .messageSizeSoftLimitBytes(BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES)
+                .messageSizeHardLimitBytes(36L * 1024 * 1024)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .streamingTls(streamingTls)
+                .serviceTls(serviceTls)
+                .build();
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(

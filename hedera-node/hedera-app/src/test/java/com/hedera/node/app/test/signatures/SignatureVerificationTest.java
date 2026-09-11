@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
@@ -40,7 +41,6 @@ import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.signers.ECDSASigner;
 import org.bouncycastle.crypto.signers.HMacDSAKCalculator;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -391,9 +391,7 @@ class SignatureVerificationTest implements Scenarios {
             final var messageByteArray = new byte[(int) message.length()];
             message.getBytes(0, messageByteArray);
 
-            final var digest = new Keccak.Digest256();
-            digest.update(messageByteArray);
-            final var hash = digest.digest();
+            final var hash = MiscCryptoUtils.keccak256DigestOf(messageByteArray);
 
             final var signer = new ECDSASigner(new HMacDSAKCalculator(new SHA256Digest()));
             signer.init(true, new ECPrivateKeyParameters(new BigInteger(1, keyByteArray), ECDSA_SECP256K1_DOMAIN));

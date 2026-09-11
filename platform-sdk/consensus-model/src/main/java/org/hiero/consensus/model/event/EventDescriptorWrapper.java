@@ -3,19 +3,67 @@ package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor.
  */
-public record EventDescriptorWrapper(
-        @NonNull EventDescriptor eventDescriptor, @NonNull Hash hash, @NonNull NodeId creator) {
-    public static final long CLASS_ID = 0x825e17f25c6e2566L;
+public class EventDescriptorWrapper {
 
-    public EventDescriptorWrapper(@NonNull final EventDescriptor eventDescriptor) {
-        this(eventDescriptor, new Hash(eventDescriptor.hash()), NodeId.of(eventDescriptor.creatorNodeId()));
+    private final EventDescriptor eventDescriptor;
+    private final Hash hash;
+    private final NodeId creator;
+
+    private EventDescriptorWrapper(@NonNull final EventDescriptor eventDescriptor) {
+        this.eventDescriptor = eventDescriptor;
+        this.hash = new Hash(eventDescriptor.hash());
+        this.creator = NodeId.of(eventDescriptor.creatorNodeId());
+    }
+
+    /**
+     * Constructs a new {@link EventDescriptorWrapper}.
+     *
+     * @param hash the hash of the event descriptor
+     * @param creator the creator of the event descriptor
+     * @param birthRound the birth round of the event descriptor
+     */
+    public EventDescriptorWrapper(@NonNull final Hash hash, @NonNull final NodeId creator, final long birthRound) {
+        this.eventDescriptor = EventDescriptor.newBuilder()
+                .hash(hash.getBytes())
+                .creatorNodeId(creator.id())
+                .birthRound(birthRound)
+                .build();
+        this.hash = hash;
+        this.creator = creator;
+    }
+
+    /**
+     * Creates a new {@link EventDescriptorWrapper} from the given {@link EventDescriptor}.
+     *
+     * @param eventDescriptor the event descriptor to wrap
+     * @return a new {@link EventDescriptorWrapper} instance
+     */
+    public static EventDescriptorWrapper fromPbj(@NonNull final EventDescriptor eventDescriptor) {
+        return new EventDescriptorWrapper(eventDescriptor);
+    }
+
+    /**
+     * Returns the {@link Hash} of this event descriptor.
+     *
+     * @return the hash of this event descriptor
+     */
+    public Hash hash() {
+        return hash;
+    }
+
+    /**
+     * Returns the {@link NodeId} of the creator of this event descriptor.
+     *
+     * @return the creator of this event descriptor
+     */
+    public NodeId creator() {
+        return creator;
     }
 
     /**
@@ -28,30 +76,41 @@ public record EventDescriptorWrapper(
     }
 
     /**
-     * Create a short string representation of this event descriptor.
-     * @return a short string
+     * Returns the PBJ-representation of this event descriptor.
+     *
+     * @return the PBJ representation of this event descriptor
      */
-    public @NonNull String shortString() {
-        return shortString(new StringBuilder()).toString();
+    public EventDescriptor toPbj() {
+        return eventDescriptor;
     }
 
     /**
-     * Append a short string representation of this event descriptor to the given {@link StringBuilder}.
-     * @param sb the {@link StringBuilder} to append to
-     * @return the given {@link StringBuilder}
+     * {@inheritDoc}
      */
-    public @NonNull StringBuilder shortString(@NonNull final StringBuilder sb) {
-        Objects.requireNonNull(sb)
-                .append('(')
-                .append("CR:")
-                .append(creator().id())
-                .append(" ")
-                .append("H:")
-                .append(hash().toHex(6))
-                .append(" ")
-                .append("BR:")
-                .append(eventDescriptor().birthRound())
-                .append(')');
-        return sb;
+    @Override
+    @NonNull
+    public String toString() {
+        return String.format("(CR:%d H:%s BR:%d)", creator().id(), hash().toHex(6), birthRound());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final EventDescriptorWrapper that = (EventDescriptorWrapper) o;
+        return eventDescriptor.equals(that.eventDescriptor);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return eventDescriptor.hashCode();
     }
 }

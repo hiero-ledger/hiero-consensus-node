@@ -169,28 +169,64 @@ public class QueryVerbs {
         return new HapiContractCallLocal(abi, contract, fn);
     }
 
+    /**
+     * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+     *     {@link #getAccountDetails(String)} with an authorized payer instead.
+     */
+    @Deprecated(forRemoval = true)
     public static HapiGetAccountBalance getAccountBalance(final String account) {
-        return new HapiGetAccountBalance(account);
+        return new HapiGetAccountBalance(account).nodePayment(1234L).noLogging();
     }
 
+    /**
+     * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+     *     {@link #getAccountDetails(String)} with an authorized payer instead.
+     */
+    @Deprecated(forRemoval = true)
     public static HapiGetAccountBalance getAccountBalance(final String account, final boolean isContract) {
-        return new HapiGetAccountBalance(account, isContract);
+        return new HapiGetAccountBalance(account, isContract).nodePayment(1234L).noLogging();
     }
 
+    /**
+     * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+     *     {@link #getAccountDetails(String)} with an authorized payer instead.
+     */
+    @Deprecated(forRemoval = true)
     public static HapiGetAccountBalance getAutoCreatedAccountBalance(final String sourceKey) {
-        return new HapiGetAccountBalance(sourceKey, ReferenceType.ALIAS_KEY_NAME);
+        return new HapiGetAccountBalance(sourceKey, ReferenceType.ALIAS_KEY_NAME)
+                .nodePayment(1234L)
+                .noLogging();
     }
 
+    /**
+     * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+     *     {@link #getAccountDetails(String)} with an authorized payer instead.
+     */
+    @Deprecated(forRemoval = true)
     public static HapiGetAccountBalance getAliasedContractBalance(final String hexedAlias) {
-        return new HapiGetAccountBalance(hexedAlias, ReferenceType.HEXED_CONTRACT_ALIAS);
+        return new HapiGetAccountBalance(hexedAlias, ReferenceType.HEXED_CONTRACT_ALIAS)
+                .nodePayment(1234L)
+                .noLogging();
     }
 
+    /**
+     * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+     *     {@link #getAccountDetails(String)} with an authorized payer instead.
+     */
+    @Deprecated(forRemoval = true)
     public static HapiGetAccountBalance getAliasedAccountBalance(final ByteString alias) {
-        return new HapiGetAccountBalance(alias, ReferenceType.LITERAL_ACCOUNT_ALIAS);
+        return new HapiGetAccountBalance(alias, ReferenceType.LITERAL_ACCOUNT_ALIAS)
+                .nodePayment(1234L)
+                .noLogging();
     }
 
+    /**
+     * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+     *     {@link #getAccountDetails(String)} with an authorized payer instead.
+     */
+    @Deprecated(forRemoval = true)
     public static HapiGetAccountBalance getAccountBalance(final Supplier<String> supplier) {
-        return new HapiGetAccountBalance(supplier);
+        return new HapiGetAccountBalance(supplier).nodePayment(1234L).noLogging();
     }
 
     public static HapiGetTopicInfo getTopicInfo(final String topic) {

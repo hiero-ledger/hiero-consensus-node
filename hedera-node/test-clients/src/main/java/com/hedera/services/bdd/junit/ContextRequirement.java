@@ -31,11 +31,6 @@ public enum ContextRequirement {
      */
     THROTTLE_OVERRIDES,
     /**
-     * The test requires changes to the network fee schedules, which might break
-     * other concurrent tests if they expect the default fees.
-     */
-    FEE_SCHEDULE_OVERRIDES,
-    /**
      * The test requires the upgrade files to be in a specific state, which could
      * be violated by other concurrent tests.
      */

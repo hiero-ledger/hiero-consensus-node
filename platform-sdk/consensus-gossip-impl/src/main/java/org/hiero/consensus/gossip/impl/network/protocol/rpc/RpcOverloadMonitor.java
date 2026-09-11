@@ -14,6 +14,7 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
  * callback about being 'overloaded' Please see {@link BroadcastConfig#throttleOutputQueueThreshold()},
  * {@link BroadcastConfig#disablePingThreshold()} and {@link BroadcastConfig#pauseOnLag()} for configuration
  * options
+ * This class is not thread safe, all methods should be called from the same thread.
  */
 public class RpcOverloadMonitor {
 
@@ -24,8 +25,8 @@ public class RpcOverloadMonitor {
     private final Time time;
     private final Consumer<Boolean> communicationOverloadHandler;
 
-    private volatile long disabledBroadcastDueToQueueSizeTime = ENABLED;
-    private volatile long disabledBroadcastDueToLagTime = ENABLED;
+    private long disabledBroadcastDueToQueueSizeTime = ENABLED;
+    private long disabledBroadcastDueToLagTime = ENABLED;
 
     public RpcOverloadMonitor(
             @NonNull final BroadcastConfig syncConfig,

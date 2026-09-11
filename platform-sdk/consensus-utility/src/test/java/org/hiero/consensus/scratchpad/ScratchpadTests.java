@@ -57,7 +57,6 @@ class ScratchpadTests {
     static void beforeAll() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
-        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
         registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
     }
 
@@ -98,12 +97,9 @@ class ScratchpadTests {
         assertEquals(long1, scratchpad.get(TestScratchpadType.BAR));
         assertNull(scratchpad.get(TestScratchpadType.BAZ));
 
-        final NodeId nodeId1 = NodeId.of(random.nextInt(0, 1000));
-        assertNull(scratchpad.set(TestScratchpadType.BAZ, nodeId1));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash1, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long1, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId1, scratchpad.get(TestScratchpadType.BAZ));
 
         // Overwrite an existing value
 
@@ -112,21 +108,16 @@ class ScratchpadTests {
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash2, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long1, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId1, scratchpad.get(TestScratchpadType.BAZ));
 
         final SerializableLong long2 = new SerializableLong(random.nextLong());
         assertEquals(long1, scratchpad.set(TestScratchpadType.BAR, long2));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash2, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long2, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId1, scratchpad.get(TestScratchpadType.BAZ));
 
-        final NodeId nodeId2 = NodeId.of(random.nextInt(1001, 2000));
-        assertEquals(nodeId1, scratchpad.set(TestScratchpadType.BAZ, nodeId2));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash2, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long2, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId2, scratchpad.get(TestScratchpadType.BAZ));
 
         // Clear the scratchpad
 
@@ -152,12 +143,9 @@ class ScratchpadTests {
         assertEquals(long3, scratchpad.get(TestScratchpadType.BAR));
         assertNull(scratchpad.get(TestScratchpadType.BAZ));
 
-        final NodeId nodeId3 = NodeId.of(random.nextInt(2001, 3000));
-        assertNull(scratchpad.set(TestScratchpadType.BAZ, nodeId3));
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash3, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long3, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratchpad.get(TestScratchpadType.BAZ));
 
         // Simulate a restart
         final Scratchpad<TestScratchpadType> scratcphad2 =
@@ -167,7 +155,6 @@ class ScratchpadTests {
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
         assertEquals(hash3, scratcphad2.get(TestScratchpadType.FOO));
         assertEquals(long3, scratcphad2.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratcphad2.get(TestScratchpadType.BAZ));
     }
 
     /**
@@ -247,12 +234,10 @@ class ScratchpadTests {
 
         final Hash hash1 = randomHash(random);
         final SerializableLong long1 = new SerializableLong(random.nextLong());
-        final NodeId nodeId1 = NodeId.of(random.nextInt(0, 1000));
 
         scratchpad.atomicOperation(map -> {
             assertNull(map.put(TestScratchpadType.FOO, hash1));
             assertNull(map.put(TestScratchpadType.BAR, long1));
-            assertNull(map.put(TestScratchpadType.BAZ, nodeId1));
 
             return true;
         });
@@ -264,18 +249,15 @@ class ScratchpadTests {
 
         assertEquals(hash1, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long1, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId1, scratchpad.get(TestScratchpadType.BAZ));
 
         // Overwrite an existing value
 
         final Hash hash2 = randomHash(random);
         final SerializableLong long2 = new SerializableLong(random.nextLong());
-        final NodeId nodeId2 = NodeId.of(random.nextInt(1001, 2000));
 
         scratchpad.atomicOperation(map -> {
             assertEquals(hash1, map.put(TestScratchpadType.FOO, hash2));
             assertEquals(long1, map.put(TestScratchpadType.BAR, long2));
-            assertEquals(nodeId1, map.put(TestScratchpadType.BAZ, nodeId2));
 
             return true;
         });
@@ -287,7 +269,6 @@ class ScratchpadTests {
 
         assertEquals(hash2, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long2, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId2, scratchpad.get(TestScratchpadType.BAZ));
 
         // Clear the scratchpad
 
@@ -313,12 +294,10 @@ class ScratchpadTests {
 
         final Hash hash3 = randomHash(random);
         final SerializableLong long3 = new SerializableLong(random.nextLong());
-        final NodeId nodeId3 = NodeId.of(random.nextInt(2001, 3000));
 
         scratchpad.atomicOperation(map -> {
             assertNull(map.put(TestScratchpadType.FOO, hash3));
             assertNull(map.put(TestScratchpadType.BAR, long3));
-            assertNull(map.put(TestScratchpadType.BAZ, nodeId3));
 
             return true;
         });
@@ -330,7 +309,6 @@ class ScratchpadTests {
 
         assertEquals(hash3, scratchpad.get(TestScratchpadType.FOO));
         assertEquals(long3, scratchpad.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratchpad.get(TestScratchpadType.BAZ));
 
         // Simulate a restart
         final Scratchpad<TestScratchpadType> scratchpad2 =
@@ -342,7 +320,6 @@ class ScratchpadTests {
         scratchpad2.atomicOperation(map -> {
             assertEquals(hash3, map.get(TestScratchpadType.FOO));
             assertEquals(long3, map.get(TestScratchpadType.BAR));
-            assertEquals(nodeId3, map.get(TestScratchpadType.BAZ));
 
             return true;
         });
@@ -352,14 +329,12 @@ class ScratchpadTests {
 
         assertEquals(hash3, scratchpad2.get(TestScratchpadType.FOO));
         assertEquals(long3, scratchpad2.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratchpad2.get(TestScratchpadType.BAZ));
 
         // Should have no effect.
         scratchpad.atomicOperation(map -> false);
 
         assertEquals(hash3, scratchpad2.get(TestScratchpadType.FOO));
         assertEquals(long3, scratchpad2.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratchpad2.get(TestScratchpadType.BAZ));
     }
 
     @Test

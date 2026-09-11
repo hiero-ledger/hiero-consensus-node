@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.nexus;
 
-import com.swirlds.component.framework.component.SchedulerLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.base.Clearable;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.component.SchedulerLabel;
 
 /**
  * A thread-safe container that also manages reservations for a single signed state.

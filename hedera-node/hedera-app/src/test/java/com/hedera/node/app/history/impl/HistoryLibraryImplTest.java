@@ -223,6 +223,6 @@ class HistoryLibraryImplTest {
 
     @Test
     void wrapsLibraryBridgeIsNotReady() {
-        assertFalse(subject.wrapsProverReady());
+        assertFalse(subject.wrapsProverReady("ab".repeat(48)));
     }
 }

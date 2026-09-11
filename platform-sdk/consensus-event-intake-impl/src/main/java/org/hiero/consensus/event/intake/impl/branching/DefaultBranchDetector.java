@@ -21,7 +21,7 @@ public class DefaultBranchDetector implements BranchDetector {
     /**
      * The current event window.
      */
-    private EventWindow currentEventWindow;
+    private EventWindow currentEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
      * The node IDs of the nodes in the network in sorted order, provides deterministic iteration order.
@@ -51,10 +51,6 @@ public class DefaultBranchDetector implements BranchDetector {
     @Nullable
     @Override
     public PlatformEvent checkForBranches(@NonNull final PlatformEvent event) {
-        if (currentEventWindow == null) {
-            throw new IllegalStateException("Event window must be set before adding events");
-        }
-
         if (currentEventWindow.isAncient(event)) {
             // Ignore ancient events.
             return null;
@@ -97,7 +93,6 @@ public class DefaultBranchDetector implements BranchDetector {
      */
     @Override
     public void clear() {
-        currentEventWindow = null;
         mostRecentEvents.clear();
     }
 }

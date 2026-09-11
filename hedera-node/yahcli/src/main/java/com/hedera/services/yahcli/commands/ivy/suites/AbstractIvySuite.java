@@ -92,6 +92,7 @@ public abstract class AbstractIvySuite extends HapiSuite {
         return doingContextual(spec -> {
             if (number == null) {
                 final var creation = fileCreate(name)
+                        .payingWith(SCENARIO_PAYER_NAME)
                         .waclShape(KeyShape.listOf(ED25519))
                         .setNodeFrom(nodeAccounts.get())
                         .contents(contents)
@@ -104,7 +105,8 @@ public abstract class AbstractIvySuite extends HapiSuite {
             } else {
                 final var fileId = spec.fileIdFactory().apply(number);
                 final var idLiteral = asFileString(fileId);
-                final var infoLookup = getFileInfo(idLiteral).setNodeFrom(nodeAccounts.get());
+                final var infoLookup =
+                        getFileInfo(idLiteral).payingWith(SCENARIO_PAYER_NAME).setNodeFrom(nodeAccounts.get());
                 allRunFor(spec, infoLookup);
                 final var key = yahcliKeys.loadFileKey(number, EdDSAPrivateKey.class);
                 final var expectedKey = Key.newBuilder()
@@ -117,6 +119,7 @@ public abstract class AbstractIvySuite extends HapiSuite {
                         info.getKeys(),
                         String.format("File %s had a different key than expected", idLiteral));
                 final var contentLookup = getFileContents(idLiteral)
+                        .payingWith(SCENARIO_PAYER_NAME)
                         .setNodeFrom(nodeAccounts.get())
                         .hasContents(ignore -> contents);
                 allRunFor(spec, contentLookup);
@@ -135,6 +138,7 @@ public abstract class AbstractIvySuite extends HapiSuite {
         return doingContextual(spec -> {
             if (number == null) {
                 final var creation = contractCreate(name)
+                        .payingWith(SCENARIO_PAYER_NAME)
                         .adminKeyShape(ED25519)
                         .setNodeFrom(nodeAccounts.get())
                         .advertisingCreation()
@@ -147,7 +151,9 @@ public abstract class AbstractIvySuite extends HapiSuite {
                 final var contractId = spec.contractIdFactory().apply(number);
                 final var idLiteral = asContractString(contractId);
 
-                var infoLookup = getContractInfo(idLiteral).setNodeFrom(nodeAccounts.get());
+                var infoLookup = getContractInfo(idLiteral)
+                        .payingWith(SCENARIO_PAYER_NAME)
+                        .setNodeFrom(nodeAccounts.get());
                 allRunFor(spec, infoLookup);
                 final var info = infoLookup.getResponse().getContractGetInfo().getContractInfo();
                 final var key = yahcliKeys.loadContractKey(number, EdDSAPrivateKey.class);
@@ -160,6 +166,7 @@ public abstract class AbstractIvySuite extends HapiSuite {
                         String.format("Contract %s had a different admin key than expected", idLiteral));
 
                 final var bytecodeCheck = getContractBytecode(idLiteral)
+                        .payingWith(SCENARIO_PAYER_NAME)
                         .setNodeFrom(nodeAccounts.get())
                         .isNonEmpty();
                 allRunFor(spec, bytecodeCheck);
@@ -180,6 +187,7 @@ public abstract class AbstractIvySuite extends HapiSuite {
         return doingContextual(spec -> {
             if (number == null) {
                 final var creation = createTopic(name)
+                        .payingWith(SCENARIO_PAYER_NAME)
                         .setNodeFrom(nodeAccounts.get())
                         .adminKeyShape(ED25519)
                         .hasRetryPrecheckFrom(BUSY)
@@ -191,7 +199,8 @@ public abstract class AbstractIvySuite extends HapiSuite {
             } else {
                 final var topicId = spec.topicIdFactory().apply(number);
                 final var idLiteral = asTopicString(topicId);
-                final var infoLookup = getTopicInfo(idLiteral).setNodeFrom(nodeAccounts.get());
+                final var infoLookup =
+                        getTopicInfo(idLiteral).payingWith(SCENARIO_PAYER_NAME).setNodeFrom(nodeAccounts.get());
                 allRunFor(spec, infoLookup);
                 final var key = yahcliKeys.loadTopicAdminKey(number, EdDSAPrivateKey.class);
                 final var expectedKey = Key.newBuilder()

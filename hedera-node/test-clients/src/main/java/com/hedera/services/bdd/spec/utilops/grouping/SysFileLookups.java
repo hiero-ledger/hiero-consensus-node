@@ -71,7 +71,6 @@ public class SysFileLookups extends UtilOp {
                 LongStream.of(
                         startupProperties.getLong("files.addressBook"),
                         startupProperties.getLong("files.nodeDetails"),
-                        startupProperties.getLong("files.feeSchedules"),
                         startupProperties.getLong("files.simpleFeesSchedules"),
                         startupProperties.getLong("files.exchangeRates"),
                         startupProperties.getLong("files.networkProperties"),

@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Freeze and upgrade
-last_reviewed: 2026-06-08
+last_reviewed: 2026-07-28
 ---
 
 # Freeze and upgrade
@@ -17,8 +17,10 @@ software version. In current code the freeze procedure is not owned by
 a single component; the trigger originates on the Execution side, the
 round-level cutoff lives in `consensus-hashgraph-impl`, the per-rule
 guards live across `consensus-event-creator-impl` and
-`consensus-gossip-impl`, and the state-save and status transitions live
-in `swirlds-platform-core`. This file documents the current behaviour
+`consensus-gossip-impl`, the freeze-round handoff in
+`consensus-transaction-handling`, the state save in `consensus-state`,
+and the status transitions in `consensus-status-monitor`. This file
+documents the current behaviour
 and points each rule at the file that enforces it.
 
 ## Responsibilities
@@ -56,7 +58,7 @@ reached or passed it, and `lastFrozenTime` has not yet caught up to it.
 That predicate is exposed to the consensus modules as the
 [`FreezePeriodChecker`](../../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/FreezePeriodChecker.java)
 interface; the live binding is built as a lambda in
-[`PlatformBuilder`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
+[`ConsensusLayerFactory`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerFactory.java)
 that closes over the mutable platform state.
 
 `lastFrozenTime` is written by
@@ -189,11 +191,10 @@ orchestrator class.
 4. The signed state for the freeze round is marked as a freeze state
    and written to disk (see [State save](#state-save)).
 5. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
-   when the freeze state has been written. The transition logic lives
-   in
-   [`FreezingStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/FreezingStatusLogic.java)
+   when the freeze state has been written. The transition logic is
+   [`AbstractStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/AbstractStatusLogic.java)`#onStateWrittenToDisk`
    and the terminal status in
-   [`FreezeCompleteStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/FreezeCompleteStatusLogic.java).
+   [`FreezeCompleteStatusLogic`](../../../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/FreezeCompleteStatusLogic.java).
 6. Gossip continues in `FREEZE_COMPLETE` so that signatures on the
    freeze state can be distributed to laggards; event creation does
    not resume because neither `ACTIVE` nor `CHECKING` is reached again
@@ -278,9 +279,10 @@ Pending catalogs:
 > the `isInFreezePeriod` predicate), `consensus-hashgraph-impl` (the
 > round-level cutoff in `FreezeRoundController`), `consensus-event-creator-impl`
 > (the per-status guard in `PlatformStatusRule`),
-> `consensus-gossip-impl` (status-driven sync gating), and
-> `swirlds-platform-core` (the trigger handler at round handling, the
-> save-controller, the snapshot manager, and the status state machine).
+> `consensus-gossip-impl` (status-driven sync gating),
+> `consensus-transaction-handling` (the trigger handler at round
+> handling), `consensus-state` (the save-controller and the snapshot
+> manager), and `consensus-status-monitor` (the status state machine).
 > The anticipated move is for the freeze trigger and procedure to
 > consolidate under Execution; the consensus side would receive a
 > simpler "stop after round N" signal rather than reading and gating

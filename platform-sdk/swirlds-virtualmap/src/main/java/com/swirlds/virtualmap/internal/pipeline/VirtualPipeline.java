@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.internal.pipeline;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.function.CheckedSupplier;
 import com.swirlds.metrics.api.Metrics;
@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * <p>
@@ -150,8 +151,8 @@ public class VirtualPipeline {
         unhashedCopies = new ConcurrentLinkedDeque<>();
 
         executorService = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(PIPELINE_COMPONENT)
-                .setThreadName(PIPELINE_THREAD_NAME)
+                .setThreadNameProvider(
+                        CompositeThreadNameProvider.createNumbered(PIPELINE_COMPONENT, PIPELINE_THREAD_NAME))
                 .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
                 .buildFactory());
 

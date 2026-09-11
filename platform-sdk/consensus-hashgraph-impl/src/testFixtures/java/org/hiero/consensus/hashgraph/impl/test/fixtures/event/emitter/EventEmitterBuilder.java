@@ -3,15 +3,15 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSourceFactory;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
@@ -128,7 +128,7 @@ public class EventEmitterBuilder {
             time = Time.getCurrent();
         }
 
-        final Roster roster = RosterFactory.randomRoster(random, numNodes, weightGenerator);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, numNodes, weightGenerator);
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 

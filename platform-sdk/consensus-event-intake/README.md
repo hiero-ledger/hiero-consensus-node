@@ -11,9 +11,9 @@ The API half of the event-intake module pair. For how intake works, see the
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-metrics`, `consensus-roster`, `consensus-utility`
+- `consensus-model`, `consensus-metrics`, `consensus-utility`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other functional-api modules
@@ -22,4 +22,7 @@ Must not depend on:
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-No known violations.
+Known violation — `requires transitive org.hiero.consensus.roster`: `consensus-roster` is a
+structural-transitional module that nothing outside that category should depend on (rules 3 and
+7). This does not resolve on its own — the dependency has to be removed before `consensus-roster`
+can move to the execution layer.

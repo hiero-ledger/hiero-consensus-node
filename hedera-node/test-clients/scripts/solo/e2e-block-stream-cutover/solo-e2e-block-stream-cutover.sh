@@ -345,7 +345,7 @@ MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 # version, satisfying Solo's no-downgrade guard (assertUpgradeVersionNotOlder). Block-cutover env
 # wiring needs MN >= 0.153.1 to honor the HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_* keys; 0.156.0 does.
 # COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
-# currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
+# currently 0.79.1 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
 # itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.158.0}"
 

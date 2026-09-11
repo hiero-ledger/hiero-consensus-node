@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Signed state management
-last_reviewed: 2026-05-28
+last_reviewed: 2026-07-28
 ---
 
 # Signed state management
@@ -121,16 +121,16 @@ A signed state passes through six phases.
    marked for saving (step 4) it is written to disk with an incomplete
    `SigSet`, and `DefaultStateSnapshotManager` logs the shortfall via
    `InsufficientSignaturesPayload` and increments
-   `totalUnsignedDiskStates`. Freeze states bypass the parking step:
-   they are expected to lack quorum and are emitted immediately on
-   arrival at the collector.
+   [`platform.totalNeverSignedDiskStates`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/StateSnapshotManagerMetrics.java#totalNeverSignedDiskStates).
+   Freeze states bypass the parking step: they are expected to lack
+   quorum and are emitted immediately on arrival at the collector.
 4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
-   ([`DefaultSavedStateController.java:111`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java))
+   ([`DefaultSavedStateController.java#shouldSaveToDisk`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java#shouldSaveToDisk))
    marks freeze states for saving unconditionally; for non-freeze rounds
    it tests whether the round's consensus timestamp crosses a
-   `stateConfig.saveStatePeriod` boundary (read at line 116; the period
-   crossing is computed at lines 133-134). When saving is selected, the
-   controller calls `signedState.markAsStateToSave(reason)` (line 92).
+   `stateConfig.saveStatePeriod` boundary (the period
+   crossing is computed there). When saving is selected, the
+   controller calls `signedState.markAsStateToSave(reason)`.
    The `reason` is one of `FREEZE_STATE`, `FIRST_ROUND_AFTER_GENESIS`,
    or `PERIODIC_SNAPSHOT`
    ([`StateToDiskReason.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java));
@@ -142,7 +142,7 @@ A signed state passes through six phases.
    `executeAndRename`. After the state files are written, it copies PCES
    files into the round directory by calling
    `pcesModule.copyPcesFilesRetryOnFailure`
-   ([`SignedStateFileWriter.java:303`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java)).
+   ([`SignedStateFileWriter.java#copyPcesFiles`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java#copyPcesFiles)).
 6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
    ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
    destroys states whose reservation count has reached zero, off the hot
@@ -157,7 +157,7 @@ reproduced here.
 ## On-disk layout
 
 `SignedStateFileWriter.writeSignedStateToDisk`
-([`SignedStateFileWriter.java:362`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java))
+([`SignedStateFileWriter.java#writeSettingsUsed`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java#writeSettingsUsed))
 is the entry point used whenever a signed state is persisted — periodic
 snapshot, freeze state, or state dump. The writer computes the round
 directory via
@@ -169,7 +169,7 @@ directory via
 
 The whole round directory is built under a temporary path and moved into
 place via `executeAndRename`
-([`SignedStateFileWriter.java:386`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java)),
+([`SignedStateFileWriter.java#generateSettingsUsed`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java#generateSettingsUsed)),
 so readers never observe a half-built directory; on a mid-write crash the
 temporary tree is orphaned without affecting the live `saved/…/<round>/`
 hierarchy.
@@ -300,9 +300,12 @@ released its reservation.
 
 ### Component patterns
 
-Within
-[`PlatformWiring.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)
-every consumer of a state-bearing wire follows one of three patterns:
+Every consumer of a state-bearing wire — wired in
+[`StateModule.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/StateModule.java),
+with the inter-module fan-outs to ISS detection and the hashed-state
+notifier in
+[`ConsensusLayerWiring.java`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java)
+— follows one of three patterns:
 
 - **Terminal.** Wraps the input in `try (reservedState)` and produces a
   non-state output (a transaction, a notification, an ISS list, or a

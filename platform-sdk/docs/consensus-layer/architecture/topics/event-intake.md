@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Event intake
-last_reviewed: 2026-05-15
+last_reviewed: 2026-07-28
 ---
 
 # Event intake
@@ -32,30 +32,36 @@ the `EventIntakeModule` interface; the wiring is built by
 ## Inputs and outputs
 
 Intake exposes its inputs and outputs through `EventIntakeModule`
-([EventIntakeModule.java:24](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:24)).
+([EventIntakeModule.java#EventIntakeModule](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java#EventIntakeModule)).
 Component soldering happens in
-[`PlatformWiring.wire`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:33).
+[`ConsensusLayerWiring.wire`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wire).
 
 **Inputs**
 
 - `unhashedEventsInputWire()` → `EventHasher::hashEvent`. Two upstream
   sources solder here:
   - Peer events from gossip
-    ([PlatformWiring.java:65-68](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:65)).
+    ([ConsensusLayerWiring.java#wireGossipOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireGossipOutputs)).
   - PCES replay on startup
-    ([PlatformWiring.java:197-200](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:197)).
+    ([ConsensusLayerWiring.java#wirePcesOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wirePcesOutputs)).
 - `nonValidatedEventsInputWire()` → `InternalEventValidator::validateEvent`,
   bypassing the hasher. Self-events from the event creator solder here
-  ([PlatformWiring.java:129-132](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:129));
+  ([ConsensusLayerWiring.java#wireEventCreatorOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireEventCreatorOutputs));
   the creator pre-hashes its outputs, so a second hash would be
   wasteful.
-- `eventWindowInputWire()` → broadcast to the deduplicator, signature
-  validator, and orphan buffer, driving the ancient threshold.
+- `consensusRoundInputWire()` → the event window is extracted from each
+  round and broadcast internally to the deduplicator, signature validator,
+  orphan buffer, branch detector, and branch reporter, driving the ancient
+  threshold
+  ([DefaultEventIntakeModule.java#initialize](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java#initialize)).
+- `initialEventWindowInputWire()` → the same broadcast, for the window a
+  restart or reconnect starts from
+  ([ConsensusLayerWiring.java#wireInitialEventWindowDispatcher](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireInitialEventWindowDispatcher)).
 - `rosterHistoryInputWire()` → routes only to the signature validator.
-- `clearComponentsInputWire()` → broadcast `clear()` to deduplicator
-  and orphan buffer.
+- `clearComponentsInputWire()` → broadcast `clear()` to the deduplicator,
+  orphan buffer, branch detector, and branch reporter.
 - `flush()` → not a wire but a direct method on `EventIntakeModule`
-  ([EventIntakeModule.java:104](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:104)).
+  ([EventIntakeModule.java#rosterHistoryInputWire](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java#rosterHistoryInputWire)).
   Drains all in-flight events through the internal components; used by
   callers that need to quiesce the pipeline (e.g. at shutdown or before
   a state-changing operation).
@@ -64,12 +70,9 @@ Component soldering happens in
 
 - `validatedEventsOutputWire()` is the flattened (`getSplitOutput()`)
   output of the orphan buffer
-  ([DefaultEventIntakeModule.java:183](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:183)).
-  It solders to:
-  - The PCES writer
-    ([PlatformWiring.java:78-81](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:78)).
-  - The `BranchDetector`
-    ([PlatformWiring.java:112-115](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:112)).
+  ([DefaultEventIntakeModule.java#initialize](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java#initialize)).
+  It solders to the PCES writer
+  ([ConsensusLayerWiring.java#wireEventIntakeOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wireEventIntakeOutputs)).
 
 > **Delta vs. orphan-buffer.md / sync-protocol.md:** the older docs
 > imply a single hand-off path "intake → hashgraph". Today the path is
@@ -78,22 +81,19 @@ Component soldering happens in
 > module ([`consensus-pces`](../../../../consensus-pces)) rather than a
 > stage of event intake. The migration of validation responsibilities
 > into the intake module is complete: every event emitted on
-> `validatedEventsOutputWire` is fully validated. The transitional
-> comment at
-> [PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-> is out of date and will be cleaned up.
+> `validatedEventsOutputWire` is fully validated.
 
 ## Validation pipeline
 
 The pipeline is built in
-[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:83)
-with five components soldered in series (lines 103-131). Schedulers are configured in
+[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java#initialize)
+with five components soldered in series. Schedulers are configured in
 [`EventIntakeWiringConfig`](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/config/EventIntakeWiringConfig.java).
 
 ### 1. Hashing
 
 - **Anchor**: `EventHasher::hashEvent`,
-  [EventHasher.java:18](../../../../consensus-utility/src/main/java/org/hiero/consensus/crypto/EventHasher.java:18);
+  [EventHasher.java#hashEvent](../../../../consensus-utility/src/main/java/org/hiero/consensus/crypto/EventHasher.java#hashEvent);
   default impl `DefaultEventHasher`. Concurrent scheduler.
 - **What it does**: computes the event hash and populates the event's
   descriptor.
@@ -104,7 +104,7 @@ with five components soldered in series (lines 103-131). Schedulers are configur
 ### 2. Internal validation
 
 - **Anchor**: `InternalEventValidator::validateEvent`,
-  [DefaultInternalEventValidator.java:39](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/validation/DefaultInternalEventValidator.java:39).
+  [DefaultInternalEventValidator.java#validateEvent](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/validation/DefaultInternalEventValidator.java#validateEvent).
   Concurrent scheduler.
 - **What it does**: delegates to
   [`DefaultEventFieldValidator.isValid`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/validation/DefaultEventFieldValidator.java)
@@ -122,21 +122,19 @@ the gate just not been added there?]
 ### 3. Deduplication
 
 - **Anchor**: `EventDeduplicator::handleEvent`,
-  [StandardEventDeduplicator.java:96](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:96).
+  [StandardEventDeduplicator.java#handleEvent](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java#handleEvent).
   Sequential scheduler, capacity 5000.
 - **What it does**: tracks seen `(descriptor, signature)` pairs in a
   birth-round-keyed `SequenceMap`. Drops any event whose
-  descriptor+signature has already been seen
-  ([line 114](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:114)).
+  descriptor+signature has already been seen.
   When a descriptor is seen with a *new* signature, increments the
   `eventsWithDisparateSignature` accumulator
-  ([line 107](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:107))
   — an indicator that a node is misbehaving by improperly signing the
   same event (not a branching signal) — and lets the event continue.
 - **Failure outcome**: duplicate → `null`, plus
   `duplicateEventsPerSecond` and the running `dupEvPercent` metric
   update.
-- **Ancient gate**: drops at line 97 if `eventWindow.isAncient(event)`.
+- **Ancient gate**: drops if `eventWindow.isAncient(event)`.
 
 **Note on stage ordering:** the deduplicator runs **before** the
 signature validator as a performance optimization. The dedup key is the
@@ -150,18 +148,17 @@ common-case true duplicates.
 ### 4. Signature verification
 
 - **Anchor**: `EventSignatureValidator::validateSignature`,
-  [DefaultEventSignatureValidator.java:157](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java:157).
+  [DefaultEventSignatureValidator.java#validateSignature](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java#validateSignature).
   Concurrent scheduler.
 - **What it does**: verifies the event's cryptographic signature
   against the creator's public key, looked up in the current
   `RosterHistory`.
 - **Failure outcome**: invalid signature → `null` and
-  `validationFailedAccumulator.update(1)`
-  ([line 173](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java:173)).
+  `validationFailedAccumulator.update(1)`.
 - **Bypasses**:
-  - Ancient → returns `null` (line 158).
+  - Ancient → returns `null`.
   - `EventOrigin.RUNTIME` (self-events) → returns the event without
-    verification (line 164).
+    verification.
 
 **Note on the RUNTIME bypass:** skipping signature verification for
 self-events is a performance optimization. A `RUNTIME` event was just
@@ -173,7 +170,7 @@ Events received from gossip or replayed from PCES are not tagged
 ### 5. Orphan buffer (topological ordering)
 
 - **Anchor**: `OrphanBuffer::handleEvent`,
-  [DefaultOrphanBuffer.java:105](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:105).
+  [DefaultOrphanBuffer.java#handleEvent](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#handleEvent).
   Sequential scheduler, capacity 500.
 - **Role in the pipeline**: re-orders the otherwise-unordered stream
   so that no event is emitted before its non-ancient parents. See
@@ -220,31 +217,31 @@ It exposes three methods:
 ### What it holds
 
 - `eventsWithParents: SequenceMap<EventDescriptorWrapper, PlatformEvent>`
-  ([line 59](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:59)) —
+  ([`eventsWithParents`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#eventsWithParents)) —
   events that have already been released because each of their
   non-ancient parents was either previously released or has aged out
   as ancient.
 - `missingParentMap: SequenceMap<EventDescriptorWrapper, List<OrphanedEvent>>`
-  ([line 65](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:65)) —
+  ([`missingParentMap`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#missingParentMap)) —
   for each missing parent descriptor, the orphans waiting on it.
 - `eventSequenceNumber: AtomicLong`
-  ([line 78](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:78)) —
+  ([`eventSequenceNumber`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#eventSequenceNumber)) —
   monotonic sequence number assigned at release; the topological-order
   contract for downstream consumers.
 - `currentOrphanCount: int` — exposed as the `orphanBufferSize` gauge
-  metric ([line 91](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:91)).
+  metric ([DefaultOrphanBuffer](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#DefaultOrphanBuffer)).
 
 Both maps key on birth round via `EventDescriptorWrapper::birthRound`
 and shift in lockstep with `EventWindow.ancientThreshold()`.
 
 ### Lifecycle
 
-**Arrival** ([handleEvent:105](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:105)):
+**Arrival** ([handleEvent](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#handleEvent)):
 
 1. If `eventWindow.isAncient(event)` → drop, decrement intake counter,
    return empty list.
 2. Otherwise call
-   [`getMissingParents`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:184),
+   [`getMissingParents`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#getMissingParents),
    which scans `event.getAllParents()` and reports parents that are
    neither in `eventsWithParents` nor already ancient.
 3. If no parents are missing → release immediately via
@@ -253,22 +250,22 @@ and shift in lockstep with `EventWindow.ancientThreshold()`.
    each missing-parent descriptor. Return empty list.
 
 **Release on parent arrival**
-([eventIsNotAnOrphan:205](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:205)):
+([eventIsNotAnOrphan](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#eventIsNotAnOrphan)):
 
 A non-recursive stack walk frees the event plus any descendants whose
-last missing parent just resolved. The comment at line 211 records the
+last missing parent just resolved. The code comment there records the
 explicit choice to avoid recursion ("recursion yields pretty code but
 can thrash the stack"). At each release:
 
-- The event is added to `eventsWithParents` (line 227).
+- The event is added to `eventsWithParents`.
 - `assignNGen(nonOrphan, eventsWithParents)` assigns a non-deterministic
-  generation (line 228).
-- A monotonic sequence number is assigned (line 229).
+  generation.
+- A monotonic sequence number is assigned.
 - Children indexed under the descriptor are revisited; any whose
   `missingParents` set is now empty are pushed onto the stack.
 
 **Release on parent becoming ancient**
-([missingParentBecameAncient:161](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:161)):
+([missingParentBecameAncient](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#missingParentBecameAncient)):
 
 When `setEventWindow` advances the ancient threshold, the
 `shiftWindow` callback collects each parent that is now ancient
@@ -278,7 +275,7 @@ any orphan whose set becomes empty is released through the same
 `eventIsNotAnOrphan` walk.
 
 **Eviction**
-([setEventWindow:132](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:132)):
+([setEventWindow](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#setEventWindow)):
 
 Both `eventsWithParents` and `missingParentMap` are sequence-mapped on
 birth round and shifted with `eventWindow.ancientThreshold()`. Entries
@@ -286,10 +283,10 @@ below the threshold drop; their orphans are released as above (or
 themselves dropped if now ancient).
 
 **Why the release-time ancient re-check:**
-[`eventIsNotAnOrphan` line 220](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:220)
+[`eventIsNotAnOrphan`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#eventIsNotAnOrphan)
 re-checks `eventWindow.isAncient` on each release even though
 `handleEvent` rejects ancient events at the door
-([line 106](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:106)).
+([handleEvent](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#handleEvent)).
 When `setEventWindow` advances the ancient threshold while events are
 buffered, two things can happen and both flow through this same
 release walk:
@@ -299,19 +296,19 @@ release walk:
   ages those missing parents out, so the orphan no longer has any
   non-ancient missing parents and is now releasable.
   `missingParentBecameAncient`
-  ([line 161](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:161))
+  ([`missingParentBecameAncient`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#missingParentBecameAncient))
   drives this transition.
 - A buffered orphan was itself non-ancient when it arrived but has
   since aged out while waiting for parents. It must be dropped at
   release time rather than emitted.
 
-The line 220 check is what distinguishes these two cases on release:
+The `eventIsNotAnOrphan` check is what distinguishes these two cases on release:
 events still non-ancient are emitted, events that have aged out are
 dropped.
 
 **Note on `eventSequenceNumber` vs. `assignNGen`:** both fire on
 release
-([lines 228-229](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:228))
+([eventIsNotAnOrphan](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#eventIsNotAnOrphan))
 because the orphan buffer is mid-transition. `nGen` (non-deterministic
 generation) is the legacy identifier; it has a defect that surfaces in
 an edge case during reconnect, which makes it undesirable. The new
@@ -321,7 +318,7 @@ incrementally; once the migration is complete, `assignNGen` will be
 removed.
 
 [TBD: question for engineer —
-[`clear` (line 262)](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:262)
+[`clear`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#clear)
 resets the maps and `currentOrphanCount` but does not reset
 `eventSequenceNumber`. Under what conditions is `clear` called
 (reconnect? rebuild?), and is the non-reset of the sequence number an
@@ -330,17 +327,17 @@ invariant downstream consumers depend on?]
 ## Birth-round filtering
 
 The intake-side ancient filter is `EventWindow.isAncient`, fed in
-through the broadcast `eventWindowInputWire()` and stored on each
-component that uses it. Three intake stages apply it; they share the
-same predicate but differ in role:
+through `consensusRoundInputWire()` / `initialEventWindowInputWire()`
+and stored on each component that uses it. Three intake stages apply
+it; they share the same predicate but differ in role:
 
-|            Stage             |              Role              |                                                                                                                                                                                Anchor                                                                                                                                                                                |
-|------------------------------|--------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Deduplicator                 | Door drop and eviction trigger | [StandardEventDeduplicator.java:97](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:97), [StandardEventDeduplicator.java:132](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:132) |
-| Signature validator          | Door drop                      | [DefaultEventSignatureValidator.java:158](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java:158)                                                                                                                                                                             |
-| Orphan buffer (entry)        | Door drop                      | [DefaultOrphanBuffer.java:106](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:106)                                                                                                                                                                                                                                  |
-| Orphan buffer (release)      | Re-check at release            | [DefaultOrphanBuffer.java:220](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:220)                                                                                                                                                                                                                                  |
-| Orphan buffer (window shift) | Eviction trigger               | [DefaultOrphanBuffer.java:132](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:132)                                                                                                                                                                                                                                  |
+|            Stage             |              Role              |                                                                                                                                                                                                    Anchor                                                                                                                                                                                                    |
+|------------------------------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Deduplicator                 | Door drop and eviction trigger | [StandardEventDeduplicator.java#handleEvent](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java#handleEvent), [StandardEventDeduplicator.java#setEventWindow](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java#setEventWindow) |
+| Signature validator          | Door drop                      | [DefaultEventSignatureValidator.java#validateSignature](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java#validateSignature)                                                                                                                                                                                         |
+| Orphan buffer (entry)        | Door drop                      | [DefaultOrphanBuffer.java#handleEvent](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#handleEvent)                                                                                                                                                                                                                                                          |
+| Orphan buffer (release)      | Re-check at release            | [DefaultOrphanBuffer.java#eventIsNotAnOrphan](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#eventIsNotAnOrphan)                                                                                                                                                                                                                                            |
+| Orphan buffer (window shift) | Eviction trigger               | [DefaultOrphanBuffer.java#setEventWindow](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java#setEventWindow)                                                                                                                                                                                                                                                    |
 
 The hashgraph layer applies the same filter again as a defensive gate
 at link time; that anchor lives in [hashgraph.md](./hashgraph.md).
@@ -370,19 +367,16 @@ legitimately stop gossip — live in
 The intake module's output is **not** the consensus engine input. The
 PCES writer sits between them, enforcing the durability rule that an
 event must be persisted before it is gossiped or fed into consensus.
-The wiring is in [PlatformWiring.java:78-96](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:78):
+The wiring is in [ConsensusLayerWiring.java#wirePcesOutputs](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wirePcesOutputs):
 
 1. `eventIntakeModule().validatedEventsOutputWire()` →
    `pcesModule().eventsToWriteInputWire()`.
-2. `pcesModule().writtenEventsOutputWire()` → `hashgraphModule().eventInputWire()`
-   ([line 88](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:88));
+2. `pcesModule().writtenEventsOutputWire()` → `hashgraphModule().eventInputWire()`;
    the in-source comment reads: "Make sure that an event is persisted
    before being sent to consensus."
-3. `pcesModule().writtenEventsOutputWire()` → `gossipModule().eventToGossipInputWire()`
-   ([line 93](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:93));
+3. `pcesModule().writtenEventsOutputWire()` → `gossipModule().eventToGossipInputWire()`;
    "Make sure events are persisted before being gossipped."
-4. `pcesModule().writtenEventsOutputWire()` → `eventCreatorModule().orderedEventInputWire()`
-   ([line 96](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:96));
+4. `pcesModule().writtenEventsOutputWire()` → `eventCreatorModule().orderedEventInputWire()`;
    "Avoid using events as parents before they are persisted."
 
 The fourth wire feeds the event creator with persisted events so it
@@ -396,20 +390,18 @@ mechanics are in [restart-and-pces.md](./restart-and-pces.md).
 
 The PCES writer's sync behaviour is governed by
 `event.preconsensus.inlinePcesSyncOption`, defined at
-[PcesConfig.java:91](../../../../consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java:91).
+[PcesConfig.java#inlinePcesSyncOption](../../../../consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java#inlinePcesSyncOption).
 Valid values, from
 [FileSyncOption.java](../../../../consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java):
 `EVERY_EVENT`, `EVERY_SELF_EVENT`, `DONT_SYNC`.
 
 > **Delta vs. inlinePces.md:** the source doc states the default is
-> `EVERY_SELF_EVENT`. The current default in
-> [PcesConfig.java:91](../../../../consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java:91)
-> is `DONT_SYNC`, and that is intentional — the source doc is out of
-> date. `DONT_SYNC` is sufficient because the OS guarantees buffered
-> writes are flushed to disk before JVM shutdown, so PCES's
-> crash-recovery and no-branch-on-restart guarantees still hold
-> without an explicit per-event fsync. See
-> [restart-and-pces.md](./restart-and-pces.md) for the full reasoning.
+> `EVERY_SELF_EVENT`. The current default is `DONT_SYNC` (TUN-129), and
+> that is intentional — the source doc is out of date. Why PCES's
+> crash-recovery and no-branch-on-restart guarantees hold without a
+> per-event `fsync()`, and what the residual window costs on each
+> writer path, is the durability model in
+> [restart-and-pces.md](./restart-and-pces.md#durability-model).
 
 ## Backpressure interaction
 
@@ -448,10 +440,7 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
 ## Future state (sidebar)
 
 The intake module migration is complete: every event emitted on
-`validatedEventsOutputWire` is fully validated. The transitional
-comment at
-[PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-is out of date and slated for cleanup. The proposal at
+`validatedEventsOutputWire` is fully validated. The proposal at
 `platform-sdk/docs/proposals/consensus-layer/Consensus-Layer.md` is
 orientation only; this topic describes what has shipped, not what is
 proposed.

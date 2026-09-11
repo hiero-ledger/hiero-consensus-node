@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Represents a slice of the hashgraph, containing one "tip" from each event creator.
  */
 public class Tipset {
 
-    private final Roster roster;
+    private final RosterWrapper roster;
 
     /**
      * The tip generations, indexed by node index.
@@ -29,15 +27,15 @@ public class Tipset {
      *
      * @param roster the current address book
      */
-    public Tipset(@NonNull final Roster roster) {
+    public Tipset(@NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
         tips = new long[roster.rosterEntries().size()];
 
-        Arrays.fill(tips, PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
+        Arrays.fill(tips, EventConstants.SEQUENCE_NUMBER_UNDEFINED);
     }
 
     /**
-     * Build an empty tipset (i.e. where all generations are {@link EventConstants#GENERATION_UNDEFINED}) using another
+     * Build an empty tipset (i.e. where all generations are {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}) using another
      * tipset as a template.
      *
      * @param tipset the tipset to use as a template
@@ -81,15 +79,15 @@ public class Tipset {
 
     /**
      * Get the tip generation for a given node. If the node is not in the roster or no event from that node is know,
-     * return {@link EventConstants#GENERATION_UNDEFINED}.
+     * return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
      *
      * @param nodeId the node in question
      * @return the tip generation for the node
      */
     public long getTipSequenceNumberForNode(@NonNull final NodeId nodeId) {
-        final int index = RosterUtils.getIndex(roster, nodeId.id());
+        final int index = roster.getIndex(nodeId);
         if (index == -1) {
-            return PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+            return EventConstants.SEQUENCE_NUMBER_UNDEFINED;
         }
         return tips[index];
     }
@@ -111,7 +109,7 @@ public class Tipset {
      * @return this object
      */
     public @NonNull Tipset advance(@NonNull final NodeId creator, final long generation) {
-        final int index = RosterUtils.getIndex(roster, creator.id());
+        final int index = roster.getIndex(creator);
         tips[index] = Math.max(tips[index], generation);
         return this;
     }
@@ -141,7 +139,7 @@ public class Tipset {
         long nonZeroWeight = 0;
         long zeroWeightCount = 0;
 
-        final int selfIndex = RosterUtils.getIndex(roster, selfId.id());
+        final int selfIndex = roster.getIndex(selfId);
         for (int index = 0; index < tips.length; index++) {
             if (index == selfIndex) {
                 // We don't consider self advancement here, since self advancement does nothing to help consensus.
@@ -149,7 +147,7 @@ public class Tipset {
             }
 
             if (this.tips[index] < that.tips[index]) {
-                final RosterEntry address = roster.rosterEntries().get(index);
+                final RosterEntryWrapper address = roster.rosterEntries().get(index);
 
                 if (address.weight() == 0) {
                     zeroWeightCount += 1;

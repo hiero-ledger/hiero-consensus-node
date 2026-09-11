@@ -2,10 +2,10 @@
 package org.hiero.consensus.state.signing;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
  * This component is responsible for signing states and producing {@link StateSignatureTransaction}s.

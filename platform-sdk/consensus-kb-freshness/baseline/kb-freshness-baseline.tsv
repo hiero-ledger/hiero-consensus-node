@@ -13,4 +13,4 @@
 # To adopt the engine's current findings as the baseline, run with --write-baseline (or copy
 # build/kb-freshness/baseline.proposed.tsv here) and triage the rows.
 #
-# This initial baseline is intentionally empty: on the first run every finding is reported as new.
+06c1fe39809dc0e7	dismissed	2026-07-29	JPMS module name (swirlds-platform-core declares module com.swirlds.platform.core), extracted as a package anchor; no package by that name exists. Doc claim is accurate — hedera-app requires transitive com.swirlds.platform.core.

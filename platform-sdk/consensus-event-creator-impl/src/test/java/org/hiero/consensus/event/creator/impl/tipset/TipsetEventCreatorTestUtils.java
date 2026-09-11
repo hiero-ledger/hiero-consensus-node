@@ -12,7 +12,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -26,6 +25,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -36,11 +36,13 @@ import java.util.stream.IntStream;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
@@ -59,7 +61,7 @@ public class TipsetEventCreatorTestUtils {
     public static EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
@@ -86,7 +88,14 @@ public class TipsetEventCreatorTestUtils {
         secureRandom.setSeed(random.nextLong());
 
         return new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
+                configuration,
+                metrics,
+                time,
+                secureRandom,
+                signer,
+                RosterWrapper.of(pbjRoster),
+                nodeId,
+                transactionSupplier);
     }
 
     /**
@@ -96,17 +105,19 @@ public class TipsetEventCreatorTestUtils {
     public static Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        for (final RosterEntry address : roster.rosterEntries()) {
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
 
-            final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
+            final NodeId selfId = address.nodeId();
+            final EventCreator eventCreator =
+                    buildEventCreator(random, time, pbjRoster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -115,17 +126,12 @@ public class TipsetEventCreatorTestUtils {
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+                    configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
             final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
-                    new SimulatedNode(
-                            NodeId.of(address.nodeId()),
-                            orphanBuffer,
-                            tipsetTracker,
-                            eventCreator,
-                            tipsetWeightCalculator));
+                    new SimulatedNode(selfId, orphanBuffer, tipsetTracker, eventCreator, tipsetWeightCalculator));
         }
 
         return eventCreators;
@@ -332,6 +338,58 @@ public class TipsetEventCreatorTestUtils {
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)
                 .build();
+    }
+
+    /**
+     * Create an event that chains off the given self parent. Unlike
+     * {@link #createTestEventWithParent(Random, NodeId, long, long)}, which invents a throw-away self parent, this
+     * builds an event whose self parent is the supplied event, so a caller can assemble a real self-event chain.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the event
+     * @param birthRound the birth round to assign to the event
+     * @param selfParent the self parent of the event, or null for the first event in a chain
+     * @return the new event
+     */
+    @NonNull
+    public static PlatformEvent createTestEventWithSelfParent(
+            @NonNull final Random random,
+            @NonNull final NodeId creator,
+            final long birthRound,
+            @Nullable final PlatformEvent selfParent) {
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .build();
+    }
+
+    /**
+     * Create a chain of self events, each the self parent of the next. The first event in the chain has a throw-away
+     * self parent, so that no event in the returned list is treated as a genesis event.
+     *
+     * @param random     source of randomness
+     * @param creator    the creator of the events
+     * @param birthRound the birth round to assign to every event in the chain
+     * @param length     the number of events to create. Must be positive.
+     * @return the chain, oldest first
+     */
+    @NonNull
+    public static List<PlatformEvent> createSelfEventChain(
+            @NonNull final Random random, @NonNull final NodeId creator, final long birthRound, final int length) {
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be greater than 0");
+        }
+
+        final List<PlatformEvent> chain = new ArrayList<>(length);
+        PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(creator).build();
+        for (int i = 0; i < length; i++) {
+            selfParent = createTestEventWithSelfParent(random, creator, birthRound, selfParent);
+            chain.add(selfParent);
+        }
+        return chain;
     }
 
     /**

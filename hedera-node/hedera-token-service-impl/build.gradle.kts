@@ -19,6 +19,7 @@ testModuleInfo {
     requires("com.google.protobuf")
     requires("net.i2p.crypto.eddsa")
     requires("org.assertj.core")
+    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

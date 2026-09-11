@@ -10,9 +10,10 @@ description = "Consensus PCES-file handling"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")

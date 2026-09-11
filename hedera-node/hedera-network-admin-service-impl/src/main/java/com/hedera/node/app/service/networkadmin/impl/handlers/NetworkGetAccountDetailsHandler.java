@@ -143,7 +143,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
         } else {
             final var info = AccountDetails.newBuilder();
             info.accountId(account.accountId());
-            info.contractAccountId(NetworkAdminServiceUtil.asHexedEvmAddress(accountID));
+            info.contractAccountId(NetworkAdminServiceUtil.asHexedEvmAddress(account.accountId()));
             info.deleted(account.deleted());
             info.key(account.key());
             info.balance(account.tinybarBalance());

@@ -35,7 +35,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
             Capability.RECONNECT,
             Capability.BACK_PRESSURE,
             Capability.SINGLE_NODE_JVM_SHUTDOWN,
-            Capability.USES_REAL_NETWORK));
+            Capability.USES_REAL_NETWORK,
+            Capability.BANDWIDTH_CONTROL));
 
     /** The granularity of time defining how often continuous assertions are checked */
     private static final Duration GRANULARITY = Duration.ofMillis(10);

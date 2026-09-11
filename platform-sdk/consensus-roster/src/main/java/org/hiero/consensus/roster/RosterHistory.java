@@ -19,6 +19,7 @@ public class RosterHistory {
 
     /**
      * Construct a RosterHistory for a genesis roster.
+     *
      * @param roster the genesis roster
      * @return a RosterHistory for the genesis roster
      */

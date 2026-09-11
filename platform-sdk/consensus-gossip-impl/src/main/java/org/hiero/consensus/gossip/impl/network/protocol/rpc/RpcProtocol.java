@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;

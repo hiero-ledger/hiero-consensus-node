@@ -14,6 +14,7 @@ source: The hashgraph consensus algorithm (protocol definition).
 verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java — `isDecided` / `findAllJudges`; coin rounds in `ConsensusImpl`
 provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # INV-006 — Every round eventually has at least one judge

@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -12,11 +11,12 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
@@ -41,7 +41,7 @@ public class TipsetTracker {
      */
     private Tipset latestGenerations;
 
-    private final Roster roster;
+    private final RosterWrapper roster;
 
     private EventWindow eventWindow;
     private final NodeId selfId;
@@ -55,7 +55,7 @@ public class TipsetTracker {
      * @param selfId      the id of this node
      * @param roster      the current roster
      */
-    public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final Roster roster) {
+    public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
         this.selfId = Objects.requireNonNull(selfId);
         this.latestGenerations = new Tipset(roster);
@@ -171,7 +171,7 @@ public class TipsetTracker {
                     EXCEPTION.getMarker(),
                     "Rejecting ancient event from {} with threshold {}. Current event window is {}",
                     eventDescriptorWrapper.creator(),
-                    eventDescriptorWrapper.eventDescriptor().birthRound(),
+                    eventDescriptorWrapper.birthRound(),
                     eventWindow);
         }
     }
@@ -199,6 +199,8 @@ public class TipsetTracker {
 
     /**
      * Get number of tipsets being tracked.
+     *
+     * @return the number of tipsets being tracked
      */
     public int size() {
         return tipsets.getSize();

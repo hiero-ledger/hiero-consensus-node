@@ -62,12 +62,23 @@ class AtomicFileDeleteSuite {
     final Stream<DynamicTest> handleRejectsMissingFile() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR),
-                atomicBatch(fileDelete("1.2.3")
+                atomicBatch(fileDelete("1.2.3000") // 3000 is a non-system, non-existent file id
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(ResponseCodeEnum.INVALID_FILE_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> systemRangeFileDeleteRejectedAtIngest() {
+        // The inner delete targets a system-reserved (non-system-file) number, so the whole batch
+        // is rejected at ingest.
+        return hapiTest(
+                cryptoCreate(BATCH_OPERATOR),
+                atomicBatch(fileDelete("0.0.3").signedBy(GENESIS).batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasPrecheckFrom(ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE));
     }
 
     @HapiTest

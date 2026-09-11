@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -34,10 +35,12 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
     Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
 
-    /*
-     * Typically there are four siblings per block, but in our case the right penultimate root (i.e. the right child of a block's root hash) is merely a composition of its left child hash, requiring no other inputs. <b>This must change if we ever use one of the reserved roots for anything.</b>
+    /**
+     * The number of sibling hashes on the path from a block's first branch up to its root: one per level
+     * of the eight assigned branches, plus the root of the reserved branches 9-16. The block root's other
+     * child, the consensus timestamp leaf, is carried separately and is not counted here.
      */
-    int NUM_SIBLINGS_PER_BLOCK = 3;
+    int NUM_SIBLINGS_PER_BLOCK = 4;
 
     /**
      * The types of work that may be identified as pending within a block.
@@ -199,6 +202,22 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
+
+    /**
+     * Atomically writes all block items produced by a savepoint stack, unless the block-size circuit breaker has opened.
+     * Regardless of whether the items are written, advances the logical last-used consensus time to the supplied value.
+     *
+     * @param items the block items produced by a savepoint stack
+     * @param lastUsedConsensusTime the last consensus time assigned to the stack's output
+     */
+    void writeSavepointItems(@NonNull List<BlockItem> items, @NonNull Instant lastUsedConsensusTime);
+
+    /**
+     * Returns whether savepoint-stack block output is suppressed for the current block.
+     *
+     * @return whether savepoint-stack block output is suppressed
+     */
+    boolean isSavepointOutputSuppressed();
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that

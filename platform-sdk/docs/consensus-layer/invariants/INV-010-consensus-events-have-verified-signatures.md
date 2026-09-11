@@ -14,6 +14,7 @@ source: The hashgraph consensus algorithm (protocol definition).
 verification: consensus-event-intake-concurrent/src/main/java/org/hiero/consensus/event/intake/concurrent/ConcurrentEventIntakeProcessor.java — `isSignatureValid` verifies against the creator's key and rejects failures
 provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # INV-010 — Every consensus event has a verified creator signature

@@ -38,6 +38,5 @@ module com.hedera.node.app.service.token.impl {
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires org.apache.logging.log4j;
-    requires org.bouncycastle.provider;
     requires tuweni.bytes;
 }

@@ -217,6 +217,43 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void archivesOverStartupAssetsLeftByAnEarlierRun() throws IOException {
+        givenConfig();
+        // An earlier run of this node already archived both startup assets
+        Files.createDirectory(tempDir.resolve(ARCHIVE));
+        putJsonAt(ARCHIVE + File.separator + GENESIS_NETWORK_JSON);
+        putJsonAt(ARCHIVE + File.separator + OVERRIDE_NETWORK_JSON);
+        // And this run was redeployed with fresh copies of both
+        putJsonAt(GENESIS_NETWORK_JSON);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.archiveStartupNetworks();
+
+        // Neither may survive in data/config; a leftover override-network.json is applied as a roster
+        // transplant by the next restart or reconnect that reads it
+        assertThat(Files.exists(tempDir.resolve(GENESIS_NETWORK_JSON))).isFalse();
+        assertThat(Files.exists(tempDir.resolve(OVERRIDE_NETWORK_JSON))).isFalse();
+        assertThat(Files.exists(tempDir.resolve(ARCHIVE + File.separator + GENESIS_NETWORK_JSON)))
+                .isTrue();
+        assertThat(Files.exists(tempDir.resolve(ARCHIVE + File.separator + OVERRIDE_NETWORK_JSON)))
+                .isTrue();
+    }
+
+    @Test
+    void scopesOverrideNetworkToRoundOverAssetLeftByAnEarlierRun() throws IOException {
+        givenConfig();
+        Files.createDirectory(tempDir.resolve("" + ROUND_NO));
+        putJsonAt(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.setOverrideRound(ROUND_NO);
+
+        assertThat(Files.exists(tempDir.resolve(OVERRIDE_NETWORK_JSON))).isFalse();
+        assertThat(Files.exists(tempDir.resolve(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON)))
+                .isTrue();
+    }
+
+    @Test
     void archivesScopedOverrideNetwork() throws IOException {
         givenConfig();
         Files.createDirectory(tempDir.resolve("" + ROUND_NO));

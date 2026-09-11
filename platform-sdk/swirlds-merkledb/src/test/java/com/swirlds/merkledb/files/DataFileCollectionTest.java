@@ -145,9 +145,11 @@ class DataFileCollectionTest {
         // check 10 files were created
         int filesCount;
         try (Stream<Path> list = Files.list(tempFileDir.resolve(testType.name()))) {
-            filesCount = (int) list.count();
+            filesCount = (int) list.filter(p -> p.getFileName().toString().endsWith(".pbj"))
+                    .count();
         }
-        assertEquals(10, filesCount, "unexpected file count");
+        // 10 data files + metadata
+        assertEquals(11, filesCount, "unexpected file count");
     }
 
     @Order(3)
@@ -621,10 +623,10 @@ class DataFileCollectionTest {
         // check 10 files were created and data is correct
         try (Stream<Path> list = Files.list(dbDir)) {
             assertEquals(
-                    10,
+                    11, // 10 data files + metadata
                     list.filter(file -> file.getFileName().toString().startsWith(storeName))
                             .count(),
-                    "expected 10 db files");
+                    "expected 10 db files + metadata file");
         }
         assertSame(10, fileCollection.getAllCompletedFiles().size(), "Should be 10 files");
         checkData(fileCollectionMap.get(testType), storedOffsetsMap.get(testType), testType, 0, 1000, 10_000);

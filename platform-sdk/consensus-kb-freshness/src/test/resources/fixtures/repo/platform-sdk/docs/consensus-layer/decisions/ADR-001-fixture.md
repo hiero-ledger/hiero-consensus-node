@@ -11,5 +11,5 @@ Cited by full path (`platform-sdk/module-a/src/main/java/com/x/DeletedByAdr.java
 bare name (`GhostBare.java:12`), and by a present bare name (`PresentClass.java:3`).
 
 Module-relative code spans, the frontmatter `components:` convention used in prose: a present one
-(`module-a/src/main/java/com/x/PresentClass.java:5`) and a gone one
+(`module-a/src/main/java/com/x/PresentClass.java`) and a gone one
 (`module-a/src/main/java/com/x/SpanGone.java`).

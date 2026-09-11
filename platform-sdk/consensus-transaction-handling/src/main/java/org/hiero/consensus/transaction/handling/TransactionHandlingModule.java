@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction.handling;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
@@ -27,7 +22,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
-import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;
@@ -37,6 +32,11 @@ import org.hiero.consensus.transaction.handling.internal.TransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.TransactionHandlerDataCounter;
 import org.hiero.consensus.transaction.handling.internal.TransactionHandlerResult;
 import org.hiero.consensus.transaction.handling.internal.TransactionPrehandler;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 public class TransactionHandlingModule {
 
@@ -61,7 +61,7 @@ public class TransactionHandlingModule {
      * @param latestImmutableStateNexus the latest immutable state nexus
      * @param transactionCallbacks the transaction callbacks
      * @param stateLifecycleManager the state lifecycle manager
-     * @param statusActionSubmitter the status action submitter
+     * @param statusMonitorModule the status action submitter
      * @param softwareVersion the software version
      * @param selfId the node id
      * @param transactionOffsetNanos the transaction offset in nanoseconds
@@ -74,7 +74,7 @@ public class TransactionHandlingModule {
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final NodeId selfId,
             final long transactionOffsetNanos) {
@@ -120,7 +120,7 @@ public class TransactionHandlingModule {
                 configuration,
                 metrics,
                 stateLifecycleManager,
-                statusActionSubmitter,
+                statusMonitorModule,
                 softwareVersion,
                 transactionCallbacks,
                 selfId,

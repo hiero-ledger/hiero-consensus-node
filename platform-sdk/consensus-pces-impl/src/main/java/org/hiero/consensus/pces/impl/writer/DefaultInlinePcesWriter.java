@@ -24,6 +24,16 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     private final PcesWriterPerEventMetrics pcesWriterPerEventMetrics;
 
     /**
+     * Are we in the middle of component shutdown? If yes, ignore incoming events
+     */
+    private volatile boolean beingDestroyed;
+
+    /**
+     * Set to true while we are in the middle of processing events, to synchronize with destruction logic
+     */
+    private volatile boolean processingEvent;
+
+    /**
      * Constructor
      *
      * @param configuration    the configuration of the platform
@@ -43,6 +53,8 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
         this.fileSyncOption = configuration.getConfigData(PcesConfig.class).inlinePcesSyncOption();
 
         this.pcesWriterPerEventMetrics = new PcesWriterPerEventMetrics(metrics, time);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(this::destroy, "pces-shutdown-sync"));
     }
 
     @Override
@@ -56,7 +68,6 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     @NonNull
     @Override
     public PlatformEvent writeEvent(@NonNull final PlatformEvent event) {
-        pcesWriterPerEventMetrics.startWriteEvent();
 
         // if we aren't streaming new events yet, assume that the given event is already durable
         if (!commonPcesWriter.isStreamingNewEvents()) {
@@ -68,7 +79,20 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
             return event;
         }
 
+        // we need to check first time, as we don't want end up missing processingEvent==false gap
+        // in destroy() method
+        if (beingDestroyed) {
+            return event;
+        }
+
         try {
+            pcesWriterPerEventMetrics.startWriteEvent();
+            processingEvent = true;
+            if (beingDestroyed) {
+                // we need to check second time, it might have changed in between
+                return event;
+            }
+
             commonPcesWriter.prepareOutputStream(event);
             pcesWriterPerEventMetrics.startFileWrite();
             final long size = commonPcesWriter.getCurrentMutableFile().writeEvent(event);
@@ -88,6 +112,7 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
         } finally {
             pcesWriterPerEventMetrics.endWriteEvent();
             pcesWriterPerEventMetrics.clear();
+            processingEvent = false;
         }
     }
 
@@ -110,5 +135,17 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     @Override
     public void setMinimumBirthRoundToStore(@NonNull final Long minimumBirthRoundToStore) {
         commonPcesWriter.setMinimumBirthRoundToStore(minimumBirthRoundToStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        this.beingDestroyed = true;
+        while (this.processingEvent) {
+            Thread.yield();
+        }
+        this.commonPcesWriter.destroy();
     }
 }

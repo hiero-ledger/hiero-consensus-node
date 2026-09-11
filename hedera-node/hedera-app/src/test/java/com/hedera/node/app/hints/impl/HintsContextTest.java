@@ -113,7 +113,10 @@ class HintsContextTest {
                 "",
                 "",
                 "",
-                Duration.ofSeconds(60));
+                Duration.ofSeconds(60),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(60),
+                Duration.ofSeconds(120));
     }
 
     private static HintsPartialSignatureTransactionBody partialSigBody(final long constructionId) {

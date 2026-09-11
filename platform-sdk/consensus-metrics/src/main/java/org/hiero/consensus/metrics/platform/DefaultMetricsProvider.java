@@ -3,7 +3,7 @@ package org.hiero.consensus.metrics.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.sun.net.httpserver.HttpServer;
 import com.swirlds.base.state.Lifecycle;

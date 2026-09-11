@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.MEMO;
 
-import com.google.common.io.Files;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -37,13 +36,14 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -87,8 +87,8 @@ public class ContractGetBytecodeSuite {
                             });
                     allRunFor(spec, getBytecode);
 
-                    final var originalBytecode =
-                            Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
+                    final var originalBytecode = HexFormat.of()
+                            .parseHex(Files.readString(new File(getResourcePath(contract, ".bin")).toPath()));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
                     // The original bytecode is modified on deployment
                     final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);

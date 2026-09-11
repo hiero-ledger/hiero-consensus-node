@@ -49,11 +49,11 @@ jobs:
         run: |
           if git merge-base --is-ancestor "${COMMIT_ID}" main >/dev/null 2>&1; then
             echo "commit_on_dev=true" >> "${GITHUB_OUTPUT}"
-            echo "## Commit ${{ inputs.ref }} is present on main branch." >> "${GITHUB_STEP_SUMMARY}"
+            echo "## Commit ${COMMIT_ID} is present on main branch." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "::error title=Branch Alignment::The provided commit (${COMMIT_ID}) is not present on the main branch."
             echo "commit_on_dev=false" >> "${GITHUB_OUTPUT}"
-            echo "## Commit ${{ inputs.ref }} not on main branch." >> "${GITHUB_STEP_SUMMARY}"
+            echo "## Commit ${COMMIT_ID} not on main branch." >> "${GITHUB_STEP_SUMMARY}"
             echo "Skipping job: Tag for XTS promotion" >> "${GITHUB_STEP_SUMMARY}"
           fi
 

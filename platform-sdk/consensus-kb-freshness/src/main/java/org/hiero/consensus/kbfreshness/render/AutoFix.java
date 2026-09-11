@@ -16,6 +16,7 @@ import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
+import org.hiero.consensus.kbfreshness.resolve.JavaParsing;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
@@ -80,7 +81,9 @@ public final class AutoFix {
         final Map<String, Integer> lineCounts = new HashMap<>();
         final List<Proposal> proposals = new ArrayList<>();
         for (final Finding f : result.findings()) {
-            if (f.lane() == Lane.AUTO_FIX && f.autoFixLine() != null) {
+            if (f.lane() == Lane.AUTO_FIX && f.autoFixSymbol() != null) {
+                proposals.add(new Proposal(f, symbolChanges(f, byKey.get(f.entryKey()), result.sourceIndex())));
+            } else if (f.lane() == Lane.AUTO_FIX && f.autoFixLine() != null) {
                 proposals.add(new Proposal(f, lineChanges(f, byKey.get(f.entryKey()))));
             } else if (f.resolvedPath() != null) {
                 proposals.add(new Proposal(f, pathChanges(f, byKey.get(f.entryKey()), repoRoot, lineCounts)));
@@ -105,6 +108,105 @@ public final class AutoFix {
             }
         }
         return edits;
+    }
+
+    /**
+     * The changes for a {@code :NN}→{@code #symbol} migration: each occurrence's cited line suffix is
+     * replaced by the declaration's symbol name, turning a volatile line reference into a durable one.
+     *
+     * @param f   the auto-fix finding carrying the migration symbol.
+     * @param doc the citing document, or {@code null} when unavailable.
+     * @return the per-occurrence changes.
+     */
+    private static List<Change> symbolChanges(final Finding f, final KbDocument doc, final SourceIndex index) {
+        final List<Change> changes = new ArrayList<>();
+        final String path = migratedFilePath(f, index);
+        final JavaParsing.ParsedFile parsed = path == null ? null : index.parse(path);
+        for (final Occurrence o : f.occurrences()) {
+            // Each occurrence cites the same file at its own line, so each migrates to its own symbol.
+            final String symbol = parsed == null ? null : JavaParsing.symbolAtLine(parsed, o.citedLine());
+            if (symbol == null) {
+                continue;
+            }
+            final String raw = o.rawText();
+            final String migratedRaw = TRAILING_LINE_HINT.matcher(raw).replaceFirst("#" + symbol);
+            final String header = "KB line " + o.docLine() + ": update `" + raw + "` → `" + migratedRaw + "`";
+            final String before = docLine(doc, o.docLine());
+            Edit edit = null;
+            if (before != null) {
+                final String after = rewriteCitation(before, raw, migratedRaw, symbol);
+                if (after != null && !after.equals(before)) {
+                    edit = new Edit(f.entryPath(), o.docLine(), before, after);
+                }
+            }
+            changes.add(new Change(header, edit));
+        }
+        return changes;
+    }
+
+    /**
+     * Rewrites a cited source reference on a KB line to its migrated form. A code span's raw text is the
+     * citation itself, replaced directly. A markdown link {@code [text](raw)} migrates both parts: the URL,
+     * and the link text's trailing {@code :NN} — kept as {@code #symbol} for a {@code File.java}-shaped text
+     * or dropped for a bare method-name text.
+     *
+     * @param before      the KB line's current text.
+     * @param raw         the occurrence's raw citation (a code span, or a link URL).
+     * @param migratedRaw {@code raw} with its {@code :NN} rewritten to {@code #symbol}.
+     * @param symbol      the symbol the reference migrates to.
+     * @return the rewritten line, or {@code null} when the citation is not found.
+     */
+    private static String rewriteCitation(
+            final String before, final String raw, final String migratedRaw, final String symbol) {
+        final String linkTail = "](" + raw + ")";
+        final int linkIdx = before.indexOf(linkTail);
+        if (linkIdx < 0) {
+            return before.contains(raw) ? before.replace(raw, migratedRaw) : null;
+        }
+        final int textOpen = before.lastIndexOf('[', linkIdx);
+        if (textOpen < 0) {
+            return before.replace(raw, migratedRaw);
+        }
+        final String migratedText = migrateLinkText(before.substring(textOpen + 1, linkIdx), symbol);
+        return before.substring(0, textOpen) + "[" + migratedText + "](" + migratedRaw + ")"
+                + before.substring(linkIdx + linkTail.length());
+    }
+
+    /**
+     * Migrates a markdown link's display text: a {@code File.java}-shaped text has its trailing {@code :NN}
+     * replaced by {@code #symbol}; a bare method-name text just drops the {@code :NN}; text without a line
+     * hint is unchanged.
+     *
+     * @param text   the link's display text.
+     * @param symbol the symbol the reference migrates to.
+     * @return the migrated text.
+     */
+    private static String migrateLinkText(final String text, final String symbol) {
+        final Matcher m = TRAILING_LINE_HINT.matcher(text);
+        if (!m.find()) {
+            return text;
+        }
+        final String head = text.substring(0, m.start());
+        return head.endsWith(".java") ? head + "#" + symbol : head;
+    }
+
+    /**
+     * The repo-relative file a symbol-migration finding resolves to: the cited path for a
+     * {@link AnchorKind#SOURCE_PATH}, or the unique indexed path for a {@link AnchorKind#SOURCE_BASENAME}.
+     *
+     * @param f     the migration finding.
+     * @param index the source index.
+     * @return the resolved source path, or {@code null} when it cannot be pinned to a single file.
+     */
+    private static String migratedFilePath(final Finding f, final SourceIndex index) {
+        if (f.kind() == AnchorKind.SOURCE_PATH) {
+            return index.fileExists(f.target()) ? f.target() : null;
+        }
+        if (f.kind() == AnchorKind.SOURCE_BASENAME) {
+            final List<String> paths = index.pathsForBasename(f.target());
+            return paths.size() == 1 ? paths.get(0) : null;
+        }
+        return null;
     }
 
     /**

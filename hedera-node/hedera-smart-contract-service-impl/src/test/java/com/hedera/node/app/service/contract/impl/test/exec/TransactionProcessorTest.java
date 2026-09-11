@@ -938,6 +938,9 @@ class TransactionProcessorTest {
         processor.processTransaction(transaction, worldUpdater, freeFeesContext, tracer, config, opsDurationCounter);
 
         verify(senderAccount, times(1)).incrementNonce();
+        // Free fees must still record a zero-amount charge event carrying the nonce increment,
+        // so a revert replays it (see EthereumTransactionRollbackHandler)
+        verify(worldUpdater).collectGasFee(SENDER_ID, 0L, true);
     }
 
     private void assertResourceExhaustion(

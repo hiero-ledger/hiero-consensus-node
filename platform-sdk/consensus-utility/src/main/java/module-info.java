@@ -3,6 +3,7 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.config.UtilityConfigurationExtension;
 
 module org.hiero.consensus.utility {
+    exports org.hiero.consensus.concurrent;
     exports org.hiero.consensus.config;
     exports org.hiero.consensus.constructable;
     exports org.hiero.consensus.crypto;
@@ -16,9 +17,6 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.orphan;
     exports org.hiero.consensus.round;
     exports org.hiero.consensus.scratchpad;
-    exports org.hiero.consensus.status.actions;
-    exports org.hiero.consensus.status.logic;
-    exports org.hiero.consensus.status;
     exports org.hiero.consensus.system;
     exports org.hiero.consensus.transaction;
 
@@ -27,12 +25,11 @@ module org.hiero.consensus.utility {
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
+    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
-    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
     requires org.apache.logging.log4j;

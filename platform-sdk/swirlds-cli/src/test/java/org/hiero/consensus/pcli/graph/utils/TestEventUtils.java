@@ -2,7 +2,9 @@
 package org.hiero.consensus.pcli.graph.utils;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -24,6 +26,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
@@ -52,11 +55,13 @@ public class TestEventUtils {
     public static List<PlatformEvent> generateEvents(
             @NonNull final Random random,
             final int numEvents,
-            @NonNull final PlatformContext context,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Roster roster,
             @Nullable final Map<NodeId, KeysAndCerts> keysAndCertsMap) {
         final StandardEventEmitter eventEmitter = new EventEmitterFactory(
-                        context.getConfiguration(), context.getMetrics(), context.getTime(), random, roster)
+                        configuration, metrics, time, random, RosterWrapper.of(roster))
                 .newStandardEmitter();
 
         Stream<PlatformEvent> stream = eventEmitter.emitEvents(numEvents).stream();
@@ -89,24 +94,28 @@ public class TestEventUtils {
      * Generates a pces stream of a given number of random signed events for the given roster
      */
     public static void generatePreConsensusStream(
-            @NonNull final PlatformContext context,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Path pcesDirectory,
             @NonNull final Roster roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCertsMap,
             int numEvents)
             throws IOException {
-        Objects.requireNonNull(context);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(metrics);
+        Objects.requireNonNull(time);
         Objects.requireNonNull(keysAndCertsMap);
         Objects.requireNonNull(pcesDirectory);
         Files.createDirectories(pcesDirectory);
 
         final List<PlatformEvent> events =
-                generateEvents(Randotron.create(), numEvents, context, roster, keysAndCertsMap);
+                generateEvents(Randotron.create(), numEvents, configuration, metrics, time, roster, keysAndCertsMap);
         final PcesFileTracker fileTracker = new PcesFileTracker();
-        final PcesFileManager fileManager = new PcesFileManager(
-                context.getConfiguration(), context.getMetrics(), context.getTime(), fileTracker, pcesDirectory, 0);
+        final PcesFileManager fileManager =
+                new PcesFileManager(configuration, metrics, time, fileTracker, pcesDirectory, 0);
 
-        final CommonPcesWriter pcesWriter = new CommonPcesWriter(context.getConfiguration(), fileManager);
+        final CommonPcesWriter pcesWriter = new CommonPcesWriter(configuration, fileManager);
         // Start streaming new events
         pcesWriter.beginStreamingNewEvents();
 

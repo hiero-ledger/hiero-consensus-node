@@ -16,4 +16,26 @@ class OpsDurationCounterTest {
         opsDurationCounter.recordOpsDurationUnitsConsumed(25L);
         assertEquals(25L, opsDurationCounter.opsDurationUnitsConsumed());
     }
+
+    @Test
+    void negativeAndZeroAmountsAreIgnored() {
+        final var schedule = mock(OpsDurationSchedule.class);
+        final var opsDurationCounter = OpsDurationCounter.withSchedule(schedule);
+        opsDurationCounter.recordOpsDurationUnitsConsumed(10L);
+        opsDurationCounter.recordOpsDurationUnitsConsumed(-5L);
+        opsDurationCounter.recordOpsDurationUnitsConsumed(0L);
+        opsDurationCounter.recordOpsDurationUnitsConsumed(Long.MIN_VALUE);
+        // Negative and zero contributions never decrease or corrupt the running total.
+        assertEquals(10L, opsDurationCounter.opsDurationUnitsConsumed());
+    }
+
+    @Test
+    void accumulationSaturatesInsteadOfOverflowing() {
+        final var schedule = mock(OpsDurationSchedule.class);
+        final var opsDurationCounter = OpsDurationCounter.withSchedule(schedule);
+        opsDurationCounter.recordOpsDurationUnitsConsumed(Long.MAX_VALUE);
+        opsDurationCounter.recordOpsDurationUnitsConsumed(Long.MAX_VALUE);
+        // Adding beyond Long.MAX_VALUE clamps rather than wrapping to a negative value.
+        assertEquals(Long.MAX_VALUE, opsDurationCounter.opsDurationUnitsConsumed());
+    }
 }

@@ -15,6 +15,7 @@ deciders:
   - Cody Littley (@cody-littley)
   - Austin Littley (@litt3)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-007 — Save the Reconnect State to Disk Before Resuming Event Creation
@@ -22,7 +23,7 @@ curated_by: Kelly Greco (@poulok)
 ## Context
 
 When a node falls too far behind the network it can no longer follow consensus from gossip alone. It enters the
-`BEHIND` status (`platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:18-21`)
+`BEHIND` status (`platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java#BEHIND`)
 and **reconnects**: a *teacher* peer sends the *learner* a recent signed state, and the learner then rebuilds its
 hashgraph from that state forward using events it receives from gossip.
 
@@ -85,19 +86,19 @@ path is described in [`../architecture/topics/reconnect.md`](../architecture/top
 *why* behind it):
 
 - The reconnect path transitions the learner to the `RECONNECT_COMPLETE` status
-  (`PlatformStatus.java:47-51`), and **before** beginning the disk save, so the status is guaranteed to be
+  (`PlatformStatus.java#RECONNECT_COMPLETE`), and **before** beginning the disk save, so the status is guaranteed to be
   `RECONNECT_COMPLETE` by the time the save runs
-  (`platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java:247-250`).
+  (`platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java#loadState`).
   The same path immediately marks the learned state to be saved to disk with reason `RECONNECT`
-  (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java:62-67`).
+  (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java#markSavedState`).
 - In `RECONNECT_COMPLETE` the platform **gossips but does not create events**. The event-creation gate permits creation
   only in `ACTIVE`, `CHECKING`, or `FREEZING` (the last only to emit the freeze-state signature)
-  (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
+  (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`).
 - The node leaves `RECONNECT_COMPLETE` only when a `StateWrittenToDiskAction` reports that the **reconnect state (or a
   later state) has been written to disk**. A disk write for a round *prior* to the reconnect state is treated as stale
   and the node keeps waiting. Once the reconnect state is persisted, the node transitions to `CHECKING` — or to
   `FREEZING` if a freeze boundary was crossed — and event creation resumes
-  (`platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java:156-187`).
+  (`platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java#onStateWrittenToDisk`).
 
 Writing the learned state to disk closes the PCES gap as a recovery concern: the node now has a startable on-disk point
 covering the post-reconnect consensus position. Only then is it allowed to rejoin event creation and again contribute to
@@ -180,14 +181,14 @@ See **Decision** above.
   from its last on-disk state on startup, which is what a PCES gap invalidates.
 - ADR-004 — the related startup safeguard (`OBSERVING`);
   contrast its fixed-delay exit with `RECONNECT_COMPLETE`'s state-written-to-disk exit.
-- `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:18-51` — the `BEHIND`
+- `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java` — the `BEHIND`
   and `RECONNECT_COMPLETE` status definitions and their javadoc.
-- `platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java:247-250`
+- `platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java#loadState`
   — the reconnect path transitions to `RECONNECT_COMPLETE` and then marks the learned state for disk save.
-- `platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java:62-67`
+- `platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultSavedStateController.java#markSavedState`
   — `reconnectStateReceived(...)` marks the learned state to be written to disk with reason `RECONNECT`.
-- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
+- `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java#isEventCreationPermitted`
   — the event-creation gate; creation is withheld in `RECONNECT_COMPLETE`.
-- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java:156-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ReconnectCompleteStatusLogic.java#onStateWrittenToDisk`
   — exit from `RECONNECT_COMPLETE` on `StateWrittenToDiskAction`: wait while the persisted round is below the reconnect
   round, then transition to `CHECKING` (or `FREEZING`).

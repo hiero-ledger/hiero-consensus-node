@@ -1975,4 +1975,12 @@ enum ResponseCodeEnum {
      * The number of associated registered nodes exceeds the maximum allowed limit.
      */
     MAX_REGISTERED_NODES_EXCEEDED = 535;
+
+    /**
+     * The contents of a configuration system file (network properties or HAPI permissions)
+     * could not be parsed as a `ServicesConfigurationList`.<br/>
+     * The bytes were committed, but no configuration change was applied. This is expected
+     * for every part but the last of a multi-part upload.
+     */
+    CONFIG_FILE_PART_UPLOADED = 536;
 }

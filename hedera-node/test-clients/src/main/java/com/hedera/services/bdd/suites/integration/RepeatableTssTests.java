@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_TSS_CONTROL;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -189,8 +190,7 @@ public class RepeatableTssTests {
         final var mp2 = merklePaths.get(mp1NextPath - 1);
         assertFalse(mp2.hasTimestampLeaf());
         assertTrue(mp2.hasHash());
-        assertEquals(
-                BlockStreamManager.NUM_SIBLINGS_PER_BLOCK + 1, mp2.siblings().size());
+        assertEquals(SIGNED_BLOCK_SIBLING_COUNT, mp2.siblings().size());
 
         // 5. As above, the first path's next index points directly to path 3, which should be either an internal node
         // or the root

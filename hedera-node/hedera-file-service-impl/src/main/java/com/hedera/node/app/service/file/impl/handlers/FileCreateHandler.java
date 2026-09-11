@@ -3,10 +3,13 @@ package com.hedera.node.app.service.file.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateContent;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
@@ -51,6 +54,13 @@ public class FileCreateHandler implements TransactionHandler {
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         final FileCreateTransactionBody transactionBody = context.body().fileCreateOrThrow();
 
+        if (transactionBody.hasShardID()) {
+            validateTruePreCheck(transactionBody.shardIDOrThrow().shardNum() >= 0, INVALID_FILE_ID);
+        }
+        if (transactionBody.hasRealmID()) {
+            validateTruePreCheck(transactionBody.realmIDOrThrow().realmNum() >= 0, INVALID_FILE_ID);
+        }
+
         if (!transactionBody.hasExpirationTime()) {
             throw new PreCheckException(INVALID_EXPIRATION_TIME);
         }
@@ -80,6 +90,17 @@ public class FileCreateHandler implements TransactionHandler {
         final var fileServiceConfig = handleContext.configuration().getConfigData(FilesConfig.class);
 
         final var fileCreateTransactionBody = handleContext.body().fileCreateOrThrow();
+        final var hederaConfig = handleContext.configuration().getConfigData(HederaConfig.class);
+
+        // Don't allow creation of files that don't match the configured shard and realm
+        if (fileCreateTransactionBody.hasShardID()) {
+            validateTrue(
+                    fileCreateTransactionBody.shardIDOrThrow().shardNum() == hederaConfig.shard(), INVALID_FILE_ID);
+        }
+        if (fileCreateTransactionBody.hasRealmID()) {
+            validateTrue(
+                    fileCreateTransactionBody.realmIDOrThrow().realmNum() == hederaConfig.realm(), INVALID_FILE_ID);
+        }
 
         if (fileCreateTransactionBody.hasKeys()) {
             KeyList transactionKeyList = fileCreateTransactionBody.keys();
@@ -110,18 +131,11 @@ public class FileCreateHandler implements TransactionHandler {
             handleContext.attributeValidator().validateMemo(fileCreateTransactionBody.memo());
             builder.memo(fileCreateTransactionBody.memo());
 
-            final var hederaConfig = handleContext.configuration().getConfigData(HederaConfig.class);
             builder.keys(fileCreateTransactionBody.keys());
             final var fileId = FileID.newBuilder()
                     .fileNum(handleContext.entityNumGenerator().newEntityNum())
-                    .shardNum(
-                            fileCreateTransactionBody.hasShardID()
-                                    ? fileCreateTransactionBody.shardIDOrThrow().shardNum()
-                                    : hederaConfig.shard())
-                    .realmNum(
-                            fileCreateTransactionBody.hasRealmID()
-                                    ? fileCreateTransactionBody.realmIDOrThrow().realmNum()
-                                    : hederaConfig.realm())
+                    .shardNum(hederaConfig.shard())
+                    .realmNum(hederaConfig.realm())
                     .build();
             builder.fileId(fileId);
             validateContent(CommonPbjConverters.asBytes(fileCreateTransactionBody.contents()), fileServiceConfig);

@@ -93,8 +93,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
@@ -811,19 +811,22 @@ public class StateChangesValidator implements BlockStreamValidator {
         return Bytes.wrap(digest.digest());
     }
 
-    private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
-        final var digest = sha384DigestOrThrow();
-        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
-        digest.update(hash.toByteArray());
-        return Bytes.wrap(digest.digest());
-    }
-
     private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
         final var digest = sha384DigestOrThrow();
         digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
         digest.update(leftChildHash.toByteArray());
         digest.update(rightChildHash.toByteArray());
         return Bytes.wrap(digest.digest());
+    }
+
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties = hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return hashInternalNode(fourEmpties, fourEmpties);
     }
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
@@ -844,31 +847,28 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        // Compute depth five hashes
-        final var depth5Node1 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = hashInternalNode(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = hashInternalNode(finalStateChangesHash, traceDataHash);
+        // Built by hand, on purpose. This validator must not share the block root tree implementation with
+        // block production: if it did, any error in that implementation would be reproduced here and the
+        // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
+        final var branches12 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var branches34 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = hashInternalNode(inputTreeHash, outputTreeHash);
+        final var branches78 = hashInternalNode(finalStateChangesHash, traceDataHash);
+        final var branches1234 = hashInternalNode(branches12, branches34);
+        final var branches5678 = hashInternalNode(branches56, branches78);
+        final var assignedHalf = hashInternalNode(branches1234, branches5678);
 
-        // Compute depth four hashes
-        final var depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
+        final var reservedHalf = emptyReservedHalf();
+        final var subtreesRoot = hashInternalNode(assignedHalf, reservedHalf);
+        final var timestampLeaf = hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        final var root = hashInternalNode(timestampLeaf, subtreesRoot);
 
-        // Compute depth three hash (no 'node 2' at this level since reserved subroots 9-16 aren't encoded in the tree)
-        final var depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
-
-        // Compute depth two hashes (timestamp + last right sibling)
-        final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var depth2Node1 = hashLeaf(timestamp);
-        final var depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-        // Compute the block's root hash (depth 1)
-        final var root = hashInternalNode(depth2Node1, depth2Node2);
-
+        // The right sibling of branch 1's ancestor at each level, bottom-up
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, depth5Node2),
-            new MerkleSiblingHash(false, depth4Node2),
+            new MerkleSiblingHash(false, branches34),
+            new MerkleSiblingHash(false, branches5678),
+            new MerkleSiblingHash(false, reservedHalf)
         });
     }
 

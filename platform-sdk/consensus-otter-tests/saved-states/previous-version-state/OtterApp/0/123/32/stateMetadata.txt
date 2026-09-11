@@ -1,0 +1,15 @@
+ROUND:                               32
+HASH:                                7ae56bbff8b5fb61ddfb0113359c97360607e18e50a29a8ee99d83643ae65f45cdab629327274eeb322717a46f93eb5d
+HASH_MNEMONIC:                       frequent-jewel-truly-negative
+NUMBER_OF_CONSENSUS_EVENTS:          1738
+CONSENSUS_TIMESTAMP:                 2001-08-05T09:16:07.285004104Z
+LEGACY_RUNNING_EVENT_HASH:           ac5467fe3f8f192fa07f8a5cbb10900d19091621bc4ffc575fef3f6e169104f30916d0588ea9e789fea7f04e3c49ecf2
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  intact-zone-vehicle-chalk
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     5
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=76, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-07-23T17:26:31.693064Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        49999957087
+FREEZE_STATE:                        true
