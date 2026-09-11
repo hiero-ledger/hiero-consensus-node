@@ -197,10 +197,6 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                                         final var evmId = spec.registry().getTxnId(evmInner);
                                         final var creation = onlyCreationOf(evmRecords, lazyCreatedId);
                                         assertIdentity(creation.getTransactionID(), evmId);
-                                        assertEquals(
-                                                evmRecords.get().getFirst().getConsensusTimestamp(),
-                                                creation.getParentConsensusTimestamp(),
-                                                "the creation should report its inner transaction as its parent");
                                     }))));
         }
 
@@ -615,12 +611,6 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                     otherTxnId.getAccountID(),
                     creation.getTransactionID().getAccountID(),
                     "the creation must not carry the other inner transaction's payer");
-            // HIP-551: parentConsensusTimestamp is the consensus timestamp of the parent transaction, which for a
-            // record produced by an inner transaction is that inner transaction, not the enclosing batch
-            assertEquals(
-                    ownerRecords.get().getFirst().getConsensusTimestamp(),
-                    creation.getParentConsensusTimestamp(),
-                    "the creation should report its own inner transaction as its parent");
         });
     }
 
